@@ -1,6 +1,7 @@
 package geom
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -56,6 +57,14 @@ func (e *Envelope) Clone() *Envelope {
 		MaxX: e.MaxX,
 		MaxY: e.MaxY,
 	}
+}
+
+// String returns a string representation of the envelope.
+func (e *Envelope) String() string {
+	if e == nil || e.IsNull() {
+		return "Envelope(EMPTY)"
+	}
+	return fmt.Sprintf("Envelope(%g, %g, %g, %g)", e.MinX, e.MinY, e.MaxX, e.MaxY)
 }
 
 // IsNull returns true if this is an empty envelope.

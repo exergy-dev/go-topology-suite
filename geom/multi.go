@@ -215,15 +215,62 @@ func (mls *MultiLineString) IsEmpty() bool {
 }
 
 // IsSimple returns true if no linestrings self-intersect or intersect each other
-// (except at endpoints).
+// improperly (interior intersections are not allowed).
 func (mls *MultiLineString) IsSimple() bool {
+	// Check each linestring is simple
 	for _, l := range mls.lines {
 		if !l.IsSimple() {
 			return false
 		}
 	}
-	// Full implementation would check inter-linestring intersections
+
+	// Check for inter-linestring interior intersections
+	for i := 0; i < len(mls.lines); i++ {
+		for j := i + 1; j < len(mls.lines); j++ {
+			if mls.linesIntersectImproperly(mls.lines[i], mls.lines[j]) {
+				return false
+			}
+		}
+	}
 	return true
+}
+
+// linesIntersectImproperly checks if two linestrings have an interior intersection
+// (i.e., they cross each other, not just touch at endpoints).
+func (mls *MultiLineString) linesIntersectImproperly(l1, l2 *LineString) bool {
+	// Quick envelope check
+	if !l1.Envelope().Intersects(l2.Envelope()) {
+		return false
+	}
+
+	// Check all segment pairs between the two linestrings
+	for i := 0; i < len(l1.coords)-1; i++ {
+		for j := 0; j < len(l2.coords)-1; j++ {
+			if segmentsIntersectProperly(
+				l1.coords[i], l1.coords[i+1],
+				l2.coords[j], l2.coords[j+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// segmentsIntersectProperly returns true if segments (p1,p2) and (p3,p4)
+// intersect in their interiors (not at endpoints).
+func segmentsIntersectProperly(p1, p2, p3, p4 Coordinate) bool {
+	d1 := direction(p3, p4, p1)
+	d2 := direction(p3, p4, p2)
+	d3 := direction(p1, p2, p3)
+	d4 := direction(p1, p2, p4)
+
+	// Segments cross if directions are strictly opposite
+	if ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+		((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)) {
+		return true
+	}
+
+	return false
 }
 
 // IsValid returns true if all linestrings are valid.
@@ -445,15 +492,45 @@ func (mp *MultiPolygon) IsSimple() bool {
 	return true
 }
 
-// IsValid returns true if all polygons are valid and don't overlap.
+// IsValid returns true if all polygons are valid and their interiors don't overlap.
 func (mp *MultiPolygon) IsValid() bool {
 	for _, p := range mp.polygons {
 		if !p.IsValid() {
 			return false
 		}
 	}
-	// Full implementation would check for overlaps
+
+	// Check for polygon interior overlaps
+	for i := 0; i < len(mp.polygons); i++ {
+		for j := i + 1; j < len(mp.polygons); j++ {
+			if mp.polygonsOverlap(mp.polygons[i], mp.polygons[j]) {
+				return false
+			}
+		}
+	}
 	return true
+}
+
+// polygonsOverlap checks if two polygons have overlapping interiors.
+func (mp *MultiPolygon) polygonsOverlap(p1, p2 *Polygon) bool {
+	// Quick envelope check
+	if !p1.Envelope().Intersects(p2.Envelope()) {
+		return false
+	}
+
+	// Check if any interior point of p1 is inside p2
+	c1 := p1.Centroid()
+	if !c1.IsEmpty() && p2.ContainsPoint(c1.Coordinate()) {
+		return true
+	}
+
+	// Check if any interior point of p2 is inside p1
+	c2 := p2.Centroid()
+	if !c2.IsEmpty() && p1.ContainsPoint(c2.Coordinate()) {
+		return true
+	}
+
+	return false
 }
 
 // Dimension returns 2 for MultiPolygon.

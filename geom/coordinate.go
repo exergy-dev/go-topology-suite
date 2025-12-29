@@ -7,6 +7,7 @@
 package geom
 
 import (
+	"fmt"
 	"math"
 )
 
@@ -59,6 +60,20 @@ func (c Coordinate) Clone() Coordinate {
 		clone.M = &m
 	}
 	return clone
+}
+
+// String returns a string representation of the coordinate.
+func (c Coordinate) String() string {
+	if c.Z != nil && c.M != nil {
+		return fmt.Sprintf("(%g, %g, %g, %g)", c.X, c.Y, *c.Z, *c.M)
+	}
+	if c.Z != nil {
+		return fmt.Sprintf("(%g, %g, %g)", c.X, c.Y, *c.Z)
+	}
+	if c.M != nil {
+		return fmt.Sprintf("(%g, %g, M=%g)", c.X, c.Y, *c.M)
+	}
+	return fmt.Sprintf("(%g, %g)", c.X, c.Y)
 }
 
 // Equals2D returns true if the X and Y values are equal within epsilon.

@@ -444,15 +444,42 @@ func (p *Polygon) Perimeter() float64 {
 }
 
 // Centroid returns the centroid of the polygon.
+// The centroid is computed as the weighted average of ring centroids,
+// where holes have negative contribution.
 func (p *Polygon) Centroid() *Point {
 	if p.IsEmpty() {
 		return NewPointEmpty()
 	}
 
-	// Simple centroid calculation (ignoring holes for now)
-	// Full implementation would account for holes
-	coords := p.shell.coords
+	// Compute shell centroid and area
+	shellCx, shellCy, shellArea := ringCentroidAndArea(p.shell.coords)
+
+	totalCx := shellCx * shellArea
+	totalCy := shellCy * shellArea
+	totalArea := shellArea
+
+	// Subtract hole contributions
+	for _, hole := range p.holes {
+		holeCx, holeCy, holeArea := ringCentroidAndArea(hole.coords)
+		totalCx -= holeCx * holeArea
+		totalCy -= holeCy * holeArea
+		totalArea -= holeArea
+	}
+
+	if math.Abs(totalArea) < DefaultEpsilon {
+		return NewPointFromCoordinate(p.shell.coords[0])
+	}
+
+	return NewPoint(totalCx/totalArea, totalCy/totalArea)
+}
+
+// ringCentroidAndArea computes the centroid and area of a ring using the shoelace formula.
+// Returns (cx, cy, area) where area is always positive.
+func ringCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
 	n := len(coords) - 1 // Exclude closing point
+	if n < 3 {
+		return 0, 0, 0
+	}
 
 	sumX := 0.0
 	sumY := 0.0
@@ -470,13 +497,13 @@ func (p *Polygon) Centroid() *Point {
 
 	signedArea /= 2
 	if signedArea == 0 {
-		return NewPointFromCoordinate(coords[0])
+		return coords[0].X, coords[0].Y, 0
 	}
 
-	cx := sumX / (6 * signedArea)
-	cy := sumY / (6 * signedArea)
-
-	return NewPoint(cx, cy)
+	cx = sumX / (6 * signedArea)
+	cy = sumY / (6 * signedArea)
+	area = math.Abs(signedArea)
+	return cx, cy, area
 }
 
 // ContainsPoint returns true if the polygon contains the given coordinate.

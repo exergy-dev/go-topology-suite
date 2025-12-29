@@ -50,12 +50,11 @@ func (ls *LineString) IsEmpty() bool {
 }
 
 // IsSimple returns true if the linestring has no self-intersections.
+// This checks all segment pairs for interior intersections.
 func (ls *LineString) IsSimple() bool {
 	if len(ls.coords) <= 3 {
 		return true
 	}
-	// Simple check: no segment intersections except at consecutive endpoints
-	// Full implementation would check all segment pairs
 	return ls.checkSimple()
 }
 
