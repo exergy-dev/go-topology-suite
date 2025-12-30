@@ -1,6 +1,7 @@
 package algorithm
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/go-topology-suite/gts/geom"
@@ -65,7 +66,7 @@ func uniqueCoords(coords geom.CoordinateSequence) geom.CoordinateSequence {
 }
 
 func coordKey(c geom.Coordinate) string {
-	return string(rune(int(c.X*1e9))) + "," + string(rune(int(c.Y*1e9)))
+	return fmt.Sprintf("%.15g,%.15g", c.X, c.Y)
 }
 
 // grahamScan implements the Graham scan algorithm for convex hull.
