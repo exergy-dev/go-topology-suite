@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestMultiPoint_Empty tests empty MultiPoint operations
@@ -603,4 +604,96 @@ func TestMultiPoint_String(t *testing.T) {
 	if wkt != "MULTIPOINT ((0 0), (10 10))" {
 		t.Errorf("Unexpected WKT: %s", wkt)
 	}
+}
+
+// TestMultiLineString_IsSimple_InterLinestring tests that IsSimple detects
+// inter-linestring crossing.
+func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
+	t.Run("NonCrossing_IsSimple", func(t *testing.T) {
+		// Two parallel lines - should be simple
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineStringXY(0, 0, 10, 0),
+			geom.NewLineStringXY(0, 5, 10, 5),
+		})
+		assert.True(t, mls.IsSimple(), "Parallel lines should be simple")
+	})
+
+	t.Run("Crossing_NotSimple", func(t *testing.T) {
+		// Two crossing lines (X shape) - should not be simple
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineStringXY(0, 0, 10, 10),
+			geom.NewLineStringXY(0, 10, 10, 0),
+		})
+		assert.False(t, mls.IsSimple(), "Crossing lines should not be simple")
+	})
+
+	t.Run("TouchingAtEndpoint_IsSimple", func(t *testing.T) {
+		// Two lines that touch only at an endpoint - should be simple
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineStringXY(0, 0, 10, 0),
+			geom.NewLineStringXY(10, 0, 20, 0),
+		})
+		assert.True(t, mls.IsSimple(), "Lines touching at endpoints should be simple")
+	})
+
+	t.Run("NonIntersecting_IsSimple", func(t *testing.T) {
+		// Two completely separate lines
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineStringXY(0, 0, 10, 0),
+			geom.NewLineStringXY(100, 100, 110, 100),
+		})
+		assert.True(t, mls.IsSimple(), "Non-intersecting lines should be simple")
+	})
+
+	t.Run("SelfIntersectingLine_NotSimple", func(t *testing.T) {
+		// One line that self-intersects (figure 8)
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineStringXY(0, 0, 10, 10, 10, 0, 0, 10),
+		})
+		assert.False(t, mls.IsSimple(), "Self-intersecting line should not be simple")
+	})
+}
+
+// TestMultiPolygon_IsValid_Overlap tests that IsValid detects overlapping polygons.
+func TestMultiPolygon_IsValid_Overlap(t *testing.T) {
+	t.Run("NonOverlapping_IsValid", func(t *testing.T) {
+		// Two separate squares
+		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
+		assert.True(t, mp.IsValid(), "Non-overlapping polygons should be valid")
+	})
+
+	t.Run("Overlapping_NotValid", func(t *testing.T) {
+		// Two overlapping squares (second square overlaps first)
+		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(geom.NewLinearRingXY(5, 0, 15, 0, 15, 10, 5, 10, 5, 0), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
+		assert.False(t, mp.IsValid(), "Overlapping polygons should not be valid")
+	})
+
+	t.Run("TouchingAtEdge_IsValid", func(t *testing.T) {
+		// Two squares that share an edge (adjacent) - should be valid
+		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(geom.NewLinearRingXY(10, 0, 20, 0, 20, 10, 10, 10, 10, 0), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
+		assert.True(t, mp.IsValid(), "Edge-adjacent polygons should be valid")
+	})
+
+	t.Run("ContainedPolygon_NotValid", func(t *testing.T) {
+		// Small polygon inside larger polygon - should not be valid
+		outerPoly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0), nil)
+		innerPoly := geom.NewPolygon(geom.NewLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{outerPoly, innerPoly})
+		assert.False(t, mp.IsValid(), "Contained polygon should not be valid")
+	})
+
+	t.Run("InvalidComponentPolygon_NotValid", func(t *testing.T) {
+		// One polygon is invalid (shell is CW instead of CCW)
+		validPoly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		// This ring is clockwise, which is invalid for a shell
+		invalidPoly := geom.NewPolygon(geom.NewLinearRingXY(20, 0, 20, 10, 30, 10, 30, 0, 20, 0), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{validPoly, invalidPoly})
+		assert.False(t, mp.IsValid(), "MultiPolygon with invalid component should not be valid")
+	})
 }

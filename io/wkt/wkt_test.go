@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-topology-suite/gts/geom"
 	"github.com/go-topology-suite/gts/io/wkt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnmarshalPoint(t *testing.T) {
@@ -46,16 +48,10 @@ func TestUnmarshalPoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			p, ok := g.(*geom.Point)
-			if !ok {
-				t.Fatalf("Expected Point, got %T", g)
-			}
-			if !tt.expected(p) {
-				t.Errorf("Point validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected Point, got %T", g)
+			assert.True(t, tt.expected(p), "Point validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -85,16 +81,10 @@ func TestUnmarshalLineString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			ls, ok := g.(*geom.LineString)
-			if !ok {
-				t.Fatalf("Expected LineString, got %T", g)
-			}
-			if !tt.expected(ls) {
-				t.Errorf("LineString validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected LineString, got %T", g)
+			assert.True(t, tt.expected(ls), "LineString validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -131,16 +121,10 @@ func TestUnmarshalPolygon(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			p, ok := g.(*geom.Polygon)
-			if !ok {
-				t.Fatalf("Expected Polygon, got %T", g)
-			}
-			if !tt.expected(p) {
-				t.Errorf("Polygon validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected Polygon, got %T", g)
+			assert.True(t, tt.expected(p), "Polygon validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -170,16 +154,10 @@ func TestUnmarshalMultiPoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			mp, ok := g.(*geom.MultiPoint)
-			if !ok {
-				t.Fatalf("Expected MultiPoint, got %T", g)
-			}
-			if !tt.expected(mp) {
-				t.Errorf("MultiPoint validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected MultiPoint, got %T", g)
+			assert.True(t, tt.expected(mp), "MultiPoint validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -209,16 +187,10 @@ func TestUnmarshalMultiLineString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			mls, ok := g.(*geom.MultiLineString)
-			if !ok {
-				t.Fatalf("Expected MultiLineString, got %T", g)
-			}
-			if !tt.expected(mls) {
-				t.Errorf("MultiLineString validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected MultiLineString, got %T", g)
+			assert.True(t, tt.expected(mls), "MultiLineString validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -248,16 +220,10 @@ func TestUnmarshalMultiPolygon(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			mp, ok := g.(*geom.MultiPolygon)
-			if !ok {
-				t.Fatalf("Expected MultiPolygon, got %T", g)
-			}
-			if !tt.expected(mp) {
-				t.Errorf("MultiPolygon validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected MultiPolygon, got %T", g)
+			assert.True(t, tt.expected(mp), "MultiPolygon validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -287,16 +253,10 @@ func TestUnmarshalGeometryCollection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(tt.input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			gc, ok := g.(*geom.GeometryCollection)
-			if !ok {
-				t.Fatalf("Expected GeometryCollection, got %T", g)
-			}
-			if !tt.expected(gc) {
-				t.Errorf("GeometryCollection validation failed for input: %s", tt.input)
-			}
+			require.True(t, ok, "Expected GeometryCollection, got %T", g)
+			assert.True(t, tt.expected(gc), "GeometryCollection validation failed for input: %s", tt.input)
 		})
 	}
 }
@@ -305,17 +265,13 @@ func TestMarshalPoint(t *testing.T) {
 	t.Run("Simple point", func(t *testing.T) {
 		p := geom.NewPoint(1, 2)
 		result := wkt.MarshalString(p)
-		if result != "POINT (1 2)" {
-			t.Errorf("Expected 'POINT (1 2)', got '%s'", result)
-		}
+		assert.Equal(t, "POINT (1 2)", result)
 	})
 
 	t.Run("Empty point", func(t *testing.T) {
 		p := geom.NewPointEmpty()
 		result := wkt.MarshalString(p)
-		if result != "POINT EMPTY" {
-			t.Errorf("Expected 'POINT EMPTY', got '%s'", result)
-		}
+		assert.Equal(t, "POINT EMPTY", result)
 	})
 }
 
@@ -323,9 +279,7 @@ func TestMarshalLineString(t *testing.T) {
 	t.Run("Simple linestring", func(t *testing.T) {
 		ls := geom.NewLineStringXY(0, 0, 10, 10)
 		result := wkt.MarshalString(ls)
-		if result != "LINESTRING (0 0, 10 10)" {
-			t.Errorf("Expected 'LINESTRING (0 0, 10 10)', got '%s'", result)
-		}
+		assert.Equal(t, "LINESTRING (0 0, 10 10)", result)
 	})
 }
 
@@ -335,49 +289,34 @@ func TestMarshalPolygon(t *testing.T) {
 		p := geom.NewPolygon(shell, nil)
 		result := wkt.MarshalString(p)
 		expected := "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"
-		if result != expected {
-			t.Errorf("Expected '%s', got '%s'", expected, result)
-		}
+		assert.Equal(t, expected, result)
 	})
 }
 
 func TestMarshalBytes(t *testing.T) {
 	p := geom.NewPoint(1, 2)
 	data, err := wkt.Marshal(p)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if string(data) != "POINT (1 2)" {
-		t.Errorf("Expected 'POINT (1 2)', got '%s'", string(data))
-	}
+	require.NoError(t, err, "Failed to marshal")
+	assert.Equal(t, "POINT (1 2)", string(data))
 }
 
 func TestUnmarshalBytes(t *testing.T) {
 	data := []byte("POINT (1 2)")
 	g, err := wkt.Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 	p, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("Expected Point, got %T", g)
-	}
-	if p.X() != 1 || p.Y() != 2 {
-		t.Errorf("Expected (1, 2), got (%v, %v)", p.X(), p.Y())
-	}
+	require.True(t, ok, "Expected Point, got %T", g)
+	assert.Equal(t, float64(1), p.X())
+	assert.Equal(t, float64(2), p.Y())
 }
 
 func TestMarshalIndent(t *testing.T) {
 	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	p := geom.NewPolygon(shell, nil)
 	data, err := wkt.MarshalIndent(p)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 	// Should contain newlines
-	if len(data) <= len("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))") {
-		t.Error("Expected indented output to be longer")
-	}
+	assert.Greater(t, len(data), len("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"), "Expected indented output to be longer")
 }
 
 func TestMarshalWithOptions(t *testing.T) {
@@ -388,9 +327,7 @@ func TestMarshalWithOptions(t *testing.T) {
 		OutputDimension: 2,
 	}
 	result := wkt.MarshalStringWithOptions(p, opts)
-	if result != "POINT (1.12 2.99)" {
-		t.Errorf("Expected 'POINT (1.12 2.99)', got '%s'", result)
-	}
+	assert.Equal(t, "POINT (1.12 2.99)", result)
 }
 
 func TestRoundTrip(t *testing.T) {
@@ -407,15 +344,11 @@ func TestRoundTrip(t *testing.T) {
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
 			g, err := wkt.UnmarshalString(input)
-			if err != nil {
-				t.Fatalf("Failed to parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to parse")
 			output := wkt.MarshalString(g)
 			// Re-parse to verify
 			_, err = wkt.UnmarshalString(output)
-			if err != nil {
-				t.Fatalf("Failed to re-parse: %v", err)
-			}
+			require.NoError(t, err, "Failed to re-parse")
 		})
 	}
 }
@@ -423,14 +356,10 @@ func TestRoundTrip(t *testing.T) {
 func TestUnmarshalWithFactory(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
 	g, err := wkt.UnmarshalStringWithFactory("POINT (1 2)", factory)
-	if err != nil {
-		t.Fatalf("Failed to parse: %v", err)
-	}
+	require.NoError(t, err, "Failed to parse")
 	// Note: SRID is not encoded in WKT, so factory SRID is not automatically applied
 	// unless the factory is configured to do so
-	if g == nil {
-		t.Error("Expected non-nil geometry")
-	}
+	assert.NotNil(t, g, "Expected non-nil geometry")
 }
 
 func BenchmarkMarshalPoint(b *testing.B) {

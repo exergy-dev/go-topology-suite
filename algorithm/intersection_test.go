@@ -1,11 +1,11 @@
 package algorithm_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/go-topology-suite/gts/algorithm"
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLineIntersection(t *testing.T) {
@@ -101,21 +101,12 @@ func TestLineIntersection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.LineIntersection(tt.p1, tt.p2, tt.p3, tt.p4)
-			if result.HasIntersection != tt.hasIntersection {
-				t.Errorf("HasIntersection: expected %v, got %v", tt.hasIntersection, result.HasIntersection)
-			}
-			if result.IsProper != tt.isProper {
-				t.Errorf("IsProper: expected %v, got %v", tt.isProper, result.IsProper)
-			}
-			if result.IsCollinear != tt.isCollinear {
-				t.Errorf("IsCollinear: expected %v, got %v", tt.isCollinear, result.IsCollinear)
-			}
+			assert.Equal(t, tt.hasIntersection, result.HasIntersection, "HasIntersection")
+			assert.Equal(t, tt.isProper, result.IsProper, "IsProper")
+			assert.Equal(t, tt.isCollinear, result.IsCollinear, "IsCollinear")
 			if tt.hasIntersection && !tt.isCollinear {
-				if math.Abs(result.Intersection.X-tt.expectedX) > 0.001 ||
-					math.Abs(result.Intersection.Y-tt.expectedY) > 0.001 {
-					t.Errorf("Intersection point: expected (%v, %v), got (%v, %v)",
-						tt.expectedX, tt.expectedY, result.Intersection.X, result.Intersection.Y)
-				}
+				assert.InDelta(t, tt.expectedX, result.Intersection.X, 0.001, "Intersection X")
+				assert.InDelta(t, tt.expectedY, result.Intersection.Y, 0.001, "Intersection Y")
 			}
 		})
 	}
@@ -130,9 +121,7 @@ func TestLineIntersectionCollinear(t *testing.T) {
 		p4 := geom.NewCoordinate(15, 0)
 
 		result := algorithm.LineIntersection(p1, p2, p3, p4)
-		if !result.HasIntersection || !result.IsCollinear {
-			t.Error("Expected collinear intersection")
-		}
+		assert.True(t, result.HasIntersection && result.IsCollinear, "Expected collinear intersection")
 	})
 
 	// Test collinear degenerate case (both segments are points)
@@ -143,9 +132,7 @@ func TestLineIntersectionCollinear(t *testing.T) {
 		p4 := geom.NewCoordinate(5, 5)
 
 		result := algorithm.LineIntersection(p1, p2, p3, p4)
-		if !result.HasIntersection {
-			t.Error("Expected intersection for identical points")
-		}
+		assert.True(t, result.HasIntersection, "Expected intersection for identical points")
 	})
 
 	// Test collinear with vertical line
@@ -156,9 +143,7 @@ func TestLineIntersectionCollinear(t *testing.T) {
 		p4 := geom.NewCoordinate(5, 15)
 
 		result := algorithm.LineIntersection(p1, p2, p3, p4)
-		if !result.HasIntersection || !result.IsCollinear {
-			t.Error("Expected collinear intersection for vertical segments")
-		}
+		assert.True(t, result.HasIntersection && result.IsCollinear, "Expected collinear intersection for vertical segments")
 	})
 }
 
@@ -205,16 +190,11 @@ func TestLineLineIntersection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, hasIntersection := algorithm.LineLineIntersection(tt.p1, tt.p2, tt.p3, tt.p4)
 			if tt.parallel {
-				if hasIntersection {
-					t.Error("Expected no intersection for parallel lines")
-				}
+				assert.False(t, hasIntersection, "Expected no intersection for parallel lines")
 			} else {
-				if !hasIntersection {
-					t.Error("Expected intersection")
-				}
-				if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-					t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-				}
+				assert.True(t, hasIntersection, "Expected intersection")
+				assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+				assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 			}
 		})
 	}
@@ -270,13 +250,10 @@ func TestRaySegmentIntersection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, _, hasIntersection := algorithm.RaySegmentIntersection(tt.origin, tt.dir, tt.segStart, tt.segEnd)
-			if hasIntersection != tt.hasIntersection {
-				t.Errorf("HasIntersection: expected %v, got %v", tt.hasIntersection, hasIntersection)
-			}
+			assert.Equal(t, tt.hasIntersection, hasIntersection, "HasIntersection")
 			if tt.hasIntersection {
-				if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-					t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-				}
+				assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+				assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 			}
 		})
 	}
@@ -309,9 +286,7 @@ func TestPerpendicularDistance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.PerpendicularDistance(tt.p, tt.lineStart, tt.lineEnd)
-			if math.Abs(result-tt.expected) > 0.001 {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.001, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -362,9 +337,8 @@ func TestProjectPointOntoLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.ProjectPointOntoLine(tt.p, tt.lineStart, tt.lineEnd)
-			if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-				t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-			}
+			assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+			assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 		})
 	}
 }
@@ -415,9 +389,8 @@ func TestProjectPointOntoSegment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.ProjectPointOntoSegment(tt.p, tt.segStart, tt.segEnd)
-			if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-				t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-			}
+			assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+			assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 		})
 	}
 }
@@ -460,9 +433,8 @@ func TestReflectPointOverLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.ReflectPointOverLine(tt.p, tt.lineStart, tt.lineEnd)
-			if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-				t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-			}
+			assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+			assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 		})
 	}
 }

@@ -1,10 +1,11 @@
 package overlay
 
 import (
-	"math"
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // geometryArea returns the area of a geometry.
@@ -40,16 +41,12 @@ func TestPolygonIntersectionArea(t *testing.T) {
 	intersection := Intersection(poly1, poly2)
 	intersectionArea := geometryArea(intersection)
 
-	t.Logf("Intersection area: %.2f (expected 25)", intersectionArea)
-	t.Logf("Intersection type: %T", intersection)
-	if poly, ok := intersection.(*geom.Polygon); ok {
-		t.Logf("Intersection coords: %v", poly.ExteriorRing().Coordinates())
-	}
-
 	// Expected: 5x5 = 25 square units
-	if math.Abs(intersectionArea-25) > 0.1 {
-		t.Errorf("Intersection area is %.2f, expected 25", intersectionArea)
-	}
+	expectedArea := 25.0
+	// JTS-compatible 1% tolerance for overlay operations
+	tolerance := expectedArea * 0.01
+
+	assert.InDelta(t, expectedArea, intersectionArea, tolerance, "Intersection area")
 }
 
 // TestPolygonUnionArea tests that polygon union computes correct area.
@@ -64,13 +61,12 @@ func TestPolygonUnionArea(t *testing.T) {
 	union := Union(poly1, poly2)
 	unionArea := geometryArea(union)
 
-	t.Logf("Union area: %.2f (expected 175)", unionArea)
-	t.Logf("Union type: %T", union)
-
 	// Expected: 100 + 100 - 25 = 175 square units
-	if math.Abs(unionArea-175) > 0.1 {
-		t.Errorf("Union area is %.2f, expected 175", unionArea)
-	}
+	expectedArea := 175.0
+	// JTS-compatible 1% tolerance for overlay operations
+	tolerance := expectedArea * 0.01
+
+	assert.InDelta(t, expectedArea, unionArea, tolerance, "Union area")
 }
 
 func TestIntersectionPointPoint(t *testing.T) {
@@ -78,9 +74,7 @@ func TestIntersectionPointPoint(t *testing.T) {
 	p2 := geom.NewPoint(0, 0)
 
 	result := Intersection(p1, p2)
-	if result.IsEmpty() {
-		t.Error("Intersection of same points should not be empty")
-	}
+	assert.False(t, result.IsEmpty(), "Intersection of same points should not be empty")
 }
 
 func TestIntersectionPointPointDisjoint(t *testing.T) {
@@ -88,9 +82,7 @@ func TestIntersectionPointPointDisjoint(t *testing.T) {
 	p2 := geom.NewPoint(10, 10)
 
 	result := Intersection(p1, p2)
-	if !result.IsEmpty() {
-		t.Error("Intersection of disjoint points should be empty")
-	}
+	assert.True(t, result.IsEmpty(), "Intersection of disjoint points should be empty")
 }
 
 func TestIntersectionPointLine(t *testing.T) {
@@ -98,16 +90,12 @@ func TestIntersectionPointLine(t *testing.T) {
 	ls := geom.NewLineStringXY(0, 0, 10, 0)
 
 	result := Intersection(p, ls)
-	if result.IsEmpty() {
-		t.Error("Point on line should intersect")
-	}
+	assert.False(t, result.IsEmpty(), "Point on line should intersect")
 
 	// Point off line
 	p2 := geom.NewPoint(5, 5)
 	result2 := Intersection(p2, ls)
-	if !result2.IsEmpty() {
-		t.Error("Point off line should not intersect")
-	}
+	assert.True(t, result2.IsEmpty(), "Point off line should not intersect")
 }
 
 func TestIntersectionPointPolygon(t *testing.T) {
@@ -116,16 +104,12 @@ func TestIntersectionPointPolygon(t *testing.T) {
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Intersection(p, poly)
-	if result.IsEmpty() {
-		t.Error("Point inside polygon should intersect")
-	}
+	assert.False(t, result.IsEmpty(), "Point inside polygon should intersect")
 
 	// Point outside polygon
 	p2 := geom.NewPoint(15, 15)
 	result2 := Intersection(p2, poly)
-	if !result2.IsEmpty() {
-		t.Error("Point outside polygon should not intersect")
-	}
+	assert.True(t, result2.IsEmpty(), "Point outside polygon should not intersect")
 }
 
 func TestIntersectionLineLine(t *testing.T) {
@@ -133,9 +117,7 @@ func TestIntersectionLineLine(t *testing.T) {
 	ls2 := geom.NewLineStringXY(0, 10, 10, 0)
 
 	result := Intersection(ls1, ls2)
-	if result.IsEmpty() {
-		t.Error("Crossing lines should have intersection")
-	}
+	assert.False(t, result.IsEmpty(), "Crossing lines should have intersection")
 }
 
 func TestIntersectionLinePolygon(t *testing.T) {
@@ -144,9 +126,22 @@ func TestIntersectionLinePolygon(t *testing.T) {
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Intersection(ls, poly)
-	// Note: Line-polygon intersection implementation needs refinement
-	// for handling boundary crossing cases
-	t.Logf("Line-polygon intersection result type: %T, empty: %v", result, result.IsEmpty())
+
+	// A vertical line at x=5 through a 10x10 polygon should produce a line segment
+	// from (5, 0) to (5, 10), with length 10
+	require.False(t, result.IsEmpty(), "Line through polygon should have non-empty intersection")
+
+	// The result should be a LineString
+	if resultLine, ok := result.(*geom.LineString); ok {
+		expectedLength := 10.0
+		// Calculate actual length
+		coords := resultLine.Coordinates()
+		if len(coords) >= 2 {
+			actualLength := coords[0].Distance(coords[len(coords)-1])
+			tolerance := expectedLength * 0.01 // 1% tolerance
+			assert.InDelta(t, expectedLength, actualLength, tolerance, "Line-polygon intersection length")
+		}
+	}
 }
 
 func TestIntersectionPolygonPolygon(t *testing.T) {
@@ -157,9 +152,7 @@ func TestIntersectionPolygonPolygon(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Intersection(poly1, poly2)
-	if result.IsEmpty() {
-		t.Error("Overlapping polygons should have intersection")
-	}
+	assert.False(t, result.IsEmpty(), "Overlapping polygons should have intersection")
 }
 
 func TestIntersectionDisjointPolygons(t *testing.T) {
@@ -170,9 +163,7 @@ func TestIntersectionDisjointPolygons(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Intersection(poly1, poly2)
-	if !result.IsEmpty() {
-		t.Error("Disjoint polygons should have empty intersection")
-	}
+	assert.True(t, result.IsEmpty(), "Disjoint polygons should have empty intersection")
 }
 
 func TestUnionPointPoint(t *testing.T) {
@@ -180,9 +171,7 @@ func TestUnionPointPoint(t *testing.T) {
 	p2 := geom.NewPoint(10, 10)
 
 	result := Union(p1, p2)
-	if result.IsEmpty() {
-		t.Error("Union of points should not be empty")
-	}
+	assert.False(t, result.IsEmpty(), "Union of points should not be empty")
 }
 
 func TestUnionEmptyGeometries(t *testing.T) {
@@ -190,19 +179,13 @@ func TestUnionEmptyGeometries(t *testing.T) {
 	empty := geom.NewPointEmpty()
 
 	result := Union(p, empty)
-	if result.IsEmpty() {
-		t.Error("Union with empty should return non-empty")
-	}
+	assert.False(t, result.IsEmpty(), "Union with empty should return non-empty")
 
 	result2 := Union(empty, p)
-	if result2.IsEmpty() {
-		t.Error("Union with empty should return non-empty")
-	}
+	assert.False(t, result2.IsEmpty(), "Union with empty should return non-empty")
 
 	result3 := Union(empty, empty)
-	if !result3.IsEmpty() {
-		t.Error("Union of empty geometries should be empty")
-	}
+	assert.True(t, result3.IsEmpty(), "Union of empty geometries should be empty")
 }
 
 func TestUnionPolygonPolygon(t *testing.T) {
@@ -213,9 +196,7 @@ func TestUnionPolygonPolygon(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Union(poly1, poly2)
-	if result.IsEmpty() {
-		t.Error("Union of polygons should not be empty")
-	}
+	assert.False(t, result.IsEmpty(), "Union of polygons should not be empty")
 }
 
 func TestDifferencePointPolygon(t *testing.T) {
@@ -225,16 +206,12 @@ func TestDifferencePointPolygon(t *testing.T) {
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Difference(p, poly)
-	if !result.IsEmpty() {
-		t.Error("Point inside polygon minus polygon should be empty")
-	}
+	assert.True(t, result.IsEmpty(), "Point inside polygon minus polygon should be empty")
 
 	// Point outside polygon
 	p2 := geom.NewPoint(15, 15)
 	result2 := Difference(p2, poly)
-	if result2.IsEmpty() {
-		t.Error("Point outside polygon minus polygon should be the point")
-	}
+	assert.False(t, result2.IsEmpty(), "Point outside polygon minus polygon should be the point")
 }
 
 func TestDifferencePolygonPoint(t *testing.T) {
@@ -243,9 +220,7 @@ func TestDifferencePolygonPoint(t *testing.T) {
 	p := geom.NewPoint(5, 5)
 
 	result := Difference(poly, p)
-	if result.IsEmpty() {
-		t.Error("Polygon minus point should be polygon")
-	}
+	assert.False(t, result.IsEmpty(), "Polygon minus point should be polygon")
 }
 
 func TestDifferencePolygonPolygon(t *testing.T) {
@@ -256,9 +231,7 @@ func TestDifferencePolygonPolygon(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Difference(poly1, poly2)
-	if result.IsEmpty() {
-		t.Error("Partial overlap difference should not be empty")
-	}
+	assert.False(t, result.IsEmpty(), "Partial overlap difference should not be empty")
 }
 
 func TestDifferenceDisjointPolygons(t *testing.T) {
@@ -269,9 +242,7 @@ func TestDifferenceDisjointPolygons(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Difference(poly1, poly2)
-	if result.IsEmpty() {
-		t.Error("Difference of disjoint polygons should be first polygon")
-	}
+	assert.False(t, result.IsEmpty(), "Difference of disjoint polygons should be first polygon")
 }
 
 func TestSymDifferencePointPoint(t *testing.T) {
@@ -279,9 +250,7 @@ func TestSymDifferencePointPoint(t *testing.T) {
 	p2 := geom.NewPoint(10, 10)
 
 	result := SymDifference(p1, p2)
-	if result.IsEmpty() {
-		t.Error("SymDifference of different points should not be empty")
-	}
+	assert.False(t, result.IsEmpty(), "SymDifference of different points should not be empty")
 }
 
 func TestSymDifferencePolygonPolygon(t *testing.T) {
@@ -292,76 +261,56 @@ func TestSymDifferencePolygonPolygon(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := SymDifference(poly1, poly2)
-	if result.IsEmpty() {
-		t.Error("SymDifference of overlapping polygons should not be empty")
-	}
+	assert.False(t, result.IsEmpty(), "SymDifference of overlapping polygons should not be empty")
 }
 
 func TestOverlayNilGeometries(t *testing.T) {
 	p := geom.NewPoint(0, 0)
 
 	result := Intersection(nil, p)
-	if !result.IsEmpty() {
-		t.Error("Intersection with nil should be empty")
-	}
+	assert.True(t, result.IsEmpty(), "Intersection with nil should be empty")
 
 	result = Intersection(p, nil)
-	if !result.IsEmpty() {
-		t.Error("Intersection with nil should be empty")
-	}
+	assert.True(t, result.IsEmpty(), "Intersection with nil should be empty")
 
 	result = Union(nil, p)
-	if result.IsEmpty() {
-		t.Error("Union with nil should return other geometry")
-	}
+	assert.False(t, result.IsEmpty(), "Union with nil should return other geometry")
 
 	result = Union(p, nil)
-	if result.IsEmpty() {
-		t.Error("Union with nil should return other geometry")
-	}
+	assert.False(t, result.IsEmpty(), "Union with nil should return other geometry")
 }
 
 func TestExtractPoints(t *testing.T) {
 	p := geom.NewPoint(1, 2)
 	points := extractPoints(p)
-	if len(points) != 1 {
-		t.Errorf("Expected 1 point, got %d", len(points))
-	}
+	assert.Len(t, points, 1, "Expected 1 point")
 
 	mp := geom.NewMultiPoint([]*geom.Point{
 		geom.NewPoint(0, 0),
 		geom.NewPoint(1, 1),
 	})
 	points = extractPoints(mp)
-	if len(points) != 2 {
-		t.Errorf("Expected 2 points, got %d", len(points))
-	}
+	assert.Len(t, points, 2, "Expected 2 points")
 }
 
 func TestExtractLineStrings(t *testing.T) {
 	ls := geom.NewLineStringXY(0, 0, 10, 10)
 	lines := extractLineStrings(ls)
-	if len(lines) != 1 {
-		t.Errorf("Expected 1 line, got %d", len(lines))
-	}
+	assert.Len(t, lines, 1, "Expected 1 line")
 
 	mls := geom.NewMultiLineString([]*geom.LineString{
 		geom.NewLineStringXY(0, 0, 10, 0),
 		geom.NewLineStringXY(0, 10, 10, 10),
 	})
 	lines = extractLineStrings(mls)
-	if len(lines) != 2 {
-		t.Errorf("Expected 2 lines, got %d", len(lines))
-	}
+	assert.Len(t, lines, 2, "Expected 2 lines")
 }
 
 func TestExtractPolygons(t *testing.T) {
 	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	polygons := extractPolygons(poly)
-	if len(polygons) != 1 {
-		t.Errorf("Expected 1 polygon, got %d", len(polygons))
-	}
+	assert.Len(t, polygons, 1, "Expected 1 polygon")
 }
 
 func TestCollectGeometries(t *testing.T) {
@@ -370,12 +319,8 @@ func TestCollectGeometries(t *testing.T) {
 
 	result := collectGeometries(p1, p2)
 	gc, ok := result.(*geom.GeometryCollection)
-	if !ok {
-		t.Fatalf("Expected GeometryCollection, got %T", result)
-	}
-	if gc.NumGeometries() != 2 {
-		t.Errorf("Expected 2 geometries, got %d", gc.NumGeometries())
-	}
+	require.True(t, ok, "Expected GeometryCollection, got %T", result)
+	assert.Equal(t, 2, gc.NumGeometries(), "Expected 2 geometries")
 }
 
 func TestCollectGeometriesSingle(t *testing.T) {
@@ -384,9 +329,8 @@ func TestCollectGeometriesSingle(t *testing.T) {
 
 	result := collectGeometries(p, empty)
 	// Should return just p, not a collection
-	if _, ok := result.(*geom.Point); !ok {
-		t.Errorf("Expected Point, got %T", result)
-	}
+	_, ok := result.(*geom.Point)
+	assert.True(t, ok, "Expected Point, got %T", result)
 }
 
 func TestIntersectionMultiPoint(t *testing.T) {
@@ -400,9 +344,7 @@ func TestIntersectionMultiPoint(t *testing.T) {
 
 	result := Intersection(mp, poly)
 	// Two points should be inside the polygon
-	if result.IsEmpty() {
-		t.Error("Expected non-empty intersection")
-	}
+	assert.False(t, result.IsEmpty(), "Expected non-empty intersection")
 }
 
 func BenchmarkIntersectionPolygonPolygon(b *testing.B) {

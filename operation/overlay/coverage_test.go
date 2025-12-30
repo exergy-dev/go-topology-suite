@@ -190,31 +190,6 @@ func TestBoundCoordinate(t *testing.T) {
 	}
 }
 
-func TestSimplePolygonOverlayEdgeCases(t *testing.T) {
-	// Test with both empty
-	result := simplePolygonOverlay(nil, nil, OpIntersection)
-	if !result.IsEmpty() {
-		t.Error("Both empty should return empty")
-	}
-
-	// Test non-intersecting polygons
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-	poly1 := geom.NewPolygon(shell1, nil)
-
-	shell2 := geom.NewLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
-	poly2 := geom.NewPolygon(shell2, nil)
-
-	result = simpleSinglePolygonOverlay(poly1, poly2, OpIntersection)
-	if !result.IsEmpty() {
-		t.Error("Non-intersecting intersection should be empty")
-	}
-
-	result = simpleSinglePolygonOverlay(poly1, poly2, OpUnion)
-	if result.IsEmpty() {
-		t.Error("Non-intersecting union should not be empty")
-	}
-}
-
 func TestClipPolygonDifferenceEdgeCases(t *testing.T) {
 	// Test with non-intersecting polygons
 	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)

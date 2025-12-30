@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-topology-suite/gts/algorithm"
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsCCW(t *testing.T) {
@@ -29,9 +30,7 @@ func TestIsCCW(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IsCCW(tt.ring)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -57,9 +56,7 @@ func TestIsCW(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IsCW(tt.ring)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -90,10 +87,10 @@ func TestSignedArea(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.SignedArea(tt.ring)
-			if tt.positive && result <= 0 {
-				t.Errorf("Expected positive area, got %v", result)
-			} else if !tt.positive && result > 0 {
-				t.Errorf("Expected non-positive area, got %v", result)
+			if tt.positive {
+				assert.Greater(t, result, 0.0, "Expected positive area")
+			} else {
+				assert.LessOrEqual(t, result, 0.0, "Expected non-positive area")
 			}
 		})
 	}
@@ -103,9 +100,7 @@ func TestSignedArea(t *testing.T) {
 		ring := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
 		area := algorithm.SignedArea(ring)
 		// Should still compute area by closing implicitly
-		if math.Abs(area) < 1 {
-			t.Errorf("Expected non-zero area for non-closed ring, got %v", area)
-		}
+		assert.Greater(t, math.Abs(area), 1.0, "Expected non-zero area for non-closed ring")
 	})
 }
 
@@ -141,9 +136,7 @@ func TestAngleBetween(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.AngleBetween(tt.p0, tt.p1, tt.p2)
-			if math.Abs(result-tt.expected) > 0.1 {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.1, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -173,10 +166,10 @@ func TestAngleBetweenOriented(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.AngleBetweenOriented(tt.p0, tt.p1, tt.p2)
-			if tt.positive && result <= 0 {
-				t.Errorf("Expected positive angle, got %v", result)
-			} else if !tt.positive && result >= 0 {
-				t.Errorf("Expected negative angle, got %v", result)
+			if tt.positive {
+				assert.Greater(t, result, 0.0, "Expected positive angle")
+			} else {
+				assert.Less(t, result, 0.0, "Expected negative angle")
 			}
 		})
 	}
@@ -208,9 +201,7 @@ func TestNormalizeAngle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.NormalizeAngle(tt.angle)
-			if result <= -math.Pi || result > math.Pi {
-				t.Errorf("Angle %v not in range (-Pi, Pi]", result)
-			}
+			assert.True(t, result > -math.Pi && result <= math.Pi, "Angle %v not in range (-Pi, Pi]", result)
 		})
 	}
 }
@@ -237,9 +228,7 @@ func TestNormalizePositiveAngle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.NormalizePositiveAngle(tt.angle)
-			if result < 0 || result >= 2*math.Pi {
-				t.Errorf("Angle %v not in range [0, 2*Pi)", result)
-			}
+			assert.True(t, result >= 0 && result < 2*math.Pi, "Angle %v not in range [0, 2*Pi)", result)
 		})
 	}
 }
@@ -274,9 +263,7 @@ func TestAngleOfLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.AngleOfLine(tt.start, tt.end)
-			if math.Abs(result-tt.expected) > 0.001 {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.001, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -288,9 +275,7 @@ func TestInteriorAngle(t *testing.T) {
 
 	angle := algorithm.InteriorAngle(p0, p1, p2)
 	expected := math.Pi / 2 // 90 degrees interior angle
-	if math.Abs(angle-expected) > 0.1 {
-		t.Errorf("Expected interior angle %v, got %v", expected, angle)
-	}
+	assert.InDelta(t, expected, angle, 0.1, "Expected interior angle %v", expected)
 }
 
 func TestIsAcute(t *testing.T) {
@@ -325,9 +310,7 @@ func TestIsAcute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IsAcute(tt.p0, tt.p1, tt.p2)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -364,9 +347,7 @@ func TestIsObtuse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IsObtuse(tt.p0, tt.p1, tt.p2)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -403,9 +384,7 @@ func TestIsRight(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IsRight(tt.p0, tt.p1, tt.p2)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -442,9 +421,7 @@ func TestTurnDirection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.TurnDirection(tt.p0, tt.p1, tt.p2)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -454,14 +431,10 @@ func TestLeftTurn(t *testing.T) {
 	p1 := geom.NewCoordinate(10, 0)
 	p2 := geom.NewCoordinate(5, 5)
 
-	if !algorithm.LeftTurn(p0, p1, p2) {
-		t.Error("Expected left turn")
-	}
+	assert.True(t, algorithm.LeftTurn(p0, p1, p2), "Expected left turn")
 
 	p3 := geom.NewCoordinate(5, -5)
-	if algorithm.LeftTurn(p0, p1, p3) {
-		t.Error("Expected not left turn")
-	}
+	assert.False(t, algorithm.LeftTurn(p0, p1, p3), "Expected not left turn")
 }
 
 func TestRightTurn(t *testing.T) {
@@ -469,14 +442,10 @@ func TestRightTurn(t *testing.T) {
 	p1 := geom.NewCoordinate(10, 0)
 	p2 := geom.NewCoordinate(5, -5)
 
-	if !algorithm.RightTurn(p0, p1, p2) {
-		t.Error("Expected right turn")
-	}
+	assert.True(t, algorithm.RightTurn(p0, p1, p2), "Expected right turn")
 
 	p3 := geom.NewCoordinate(5, 5)
-	if algorithm.RightTurn(p0, p1, p3) {
-		t.Error("Expected not right turn")
-	}
+	assert.False(t, algorithm.RightTurn(p0, p1, p3), "Expected not right turn")
 }
 
 func TestStraightTurn(t *testing.T) {
@@ -484,14 +453,10 @@ func TestStraightTurn(t *testing.T) {
 	p1 := geom.NewCoordinate(5, 0)
 	p2 := geom.NewCoordinate(10, 0)
 
-	if !algorithm.StraightTurn(p0, p1, p2) {
-		t.Error("Expected straight turn")
-	}
+	assert.True(t, algorithm.StraightTurn(p0, p1, p2), "Expected straight turn")
 
 	p3 := geom.NewCoordinate(5, 5)
-	if algorithm.StraightTurn(p0, p1, p3) {
-		t.Error("Expected not straight turn")
-	}
+	assert.False(t, algorithm.StraightTurn(p0, p1, p3), "Expected not straight turn")
 }
 
 func TestBisector(t *testing.T) {
@@ -517,9 +482,7 @@ func TestBisector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.Bisector(tt.p0, tt.p1, tt.p2)
 			// Bisector should be in range (-Pi, Pi]
-			if result <= -math.Pi || result > math.Pi {
-				t.Errorf("Bisector angle %v not in range (-Pi, Pi]", result)
-			}
+			assert.True(t, result > -math.Pi && result <= math.Pi, "Bisector angle %v not in range (-Pi, Pi]", result)
 		})
 	}
 }

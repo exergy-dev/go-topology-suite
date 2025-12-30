@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const epsilon = 1e-9
@@ -26,23 +28,15 @@ func TestIdentityTransform(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test forward
 			x, y, err := identity.Forward(tt.x, tt.y)
-			if err != nil {
-				t.Errorf("Forward() error = %v", err)
-			}
-			if x != tt.x || y != tt.y {
-				t.Errorf("Forward(%f, %f) = (%f, %f), want (%f, %f)",
-					tt.x, tt.y, x, y, tt.x, tt.y)
-			}
+			require.NoError(t, err, "Forward() error")
+			assert.Equal(t, tt.x, x)
+			assert.Equal(t, tt.y, y)
 
 			// Test inverse
 			x, y, err = identity.Inverse(tt.x, tt.y)
-			if err != nil {
-				t.Errorf("Inverse() error = %v", err)
-			}
-			if x != tt.x || y != tt.y {
-				t.Errorf("Inverse(%f, %f) = (%f, %f), want (%f, %f)",
-					tt.x, tt.y, x, y, tt.x, tt.y)
-			}
+			require.NoError(t, err, "Inverse() error")
+			assert.Equal(t, tt.x, x)
+			assert.Equal(t, tt.y, y)
 		})
 	}
 }
@@ -56,27 +50,19 @@ func TestInverseTransform(t *testing.T) {
 
 	// Forward on inverse should apply translation's inverse
 	xFwd, yFwd, err := inverse.Forward(x, y)
-	if err != nil {
-		t.Fatalf("Forward() error = %v", err)
-	}
+	require.NoError(t, err, "Forward() error")
 
 	// Should be equivalent to translation.Inverse
 	xExpected, yExpected, _ := translation.Inverse(x, y)
-	if math.Abs(xFwd-xExpected) > epsilon || math.Abs(yFwd-yExpected) > epsilon {
-		t.Errorf("InverseTransform.Forward() = (%f, %f), want (%f, %f)",
-			xFwd, yFwd, xExpected, yExpected)
-	}
+	assert.InDelta(t, xExpected, xFwd, epsilon)
+	assert.InDelta(t, yExpected, yFwd, epsilon)
 
 	// Inverse on inverse should apply translation's forward
 	xInv, yInv, err := inverse.Inverse(xFwd, yFwd)
-	if err != nil {
-		t.Fatalf("Inverse() error = %v", err)
-	}
+	require.NoError(t, err, "Inverse() error")
 
-	if math.Abs(xInv-x) > epsilon || math.Abs(yInv-y) > epsilon {
-		t.Errorf("Round trip failed: got (%f, %f), want (%f, %f)",
-			xInv, yInv, x, y)
-	}
+	assert.InDelta(t, x, xInv, epsilon, "Round trip X failed")
+	assert.InDelta(t, y, yInv, epsilon, "Round trip Y failed")
 }
 
 func TestCompositeTransform(t *testing.T) {
@@ -89,29 +75,21 @@ func TestCompositeTransform(t *testing.T) {
 
 	// Apply composite forward
 	xComp, yComp, err := composite.Forward(x, y)
-	if err != nil {
-		t.Fatalf("Forward() error = %v", err)
-	}
+	require.NoError(t, err, "Forward() error")
 
 	// Apply manually: translate first, then scale
 	xTrans, yTrans, _ := translate.Forward(x, y)
 	xExpected, yExpected, _ := scale.Forward(xTrans, yTrans)
 
-	if math.Abs(xComp-xExpected) > epsilon || math.Abs(yComp-yExpected) > epsilon {
-		t.Errorf("Composite.Forward() = (%f, %f), want (%f, %f)",
-			xComp, yComp, xExpected, yExpected)
-	}
+	assert.InDelta(t, xExpected, xComp, epsilon)
+	assert.InDelta(t, yExpected, yComp, epsilon)
 
 	// Test inverse (should apply in reverse order)
 	xInv, yInv, err := composite.Inverse(xComp, yComp)
-	if err != nil {
-		t.Fatalf("Inverse() error = %v", err)
-	}
+	require.NoError(t, err, "Inverse() error")
 
-	if math.Abs(xInv-x) > epsilon || math.Abs(yInv-y) > epsilon {
-		t.Errorf("Composite round trip failed: got (%f, %f), want (%f, %f)",
-			xInv, yInv, x, y)
-	}
+	assert.InDelta(t, x, xInv, epsilon, "Composite round trip X failed")
+	assert.InDelta(t, y, yInv, epsilon, "Composite round trip Y failed")
 }
 
 func TestCompositeEmptyTransforms(t *testing.T) {
@@ -119,14 +97,10 @@ func TestCompositeEmptyTransforms(t *testing.T) {
 
 	x, y := 5.0, 10.0
 	xFwd, yFwd, err := composite.Forward(x, y)
-	if err != nil {
-		t.Fatalf("Forward() error = %v", err)
-	}
+	require.NoError(t, err, "Forward() error")
 
-	if xFwd != x || yFwd != y {
-		t.Errorf("Empty composite should act as identity: got (%f, %f), want (%f, %f)",
-			xFwd, yFwd, x, y)
-	}
+	assert.Equal(t, x, xFwd, "Empty composite should act as identity")
+	assert.Equal(t, y, yFwd, "Empty composite should act as identity")
 }
 
 func TestTransformCoordinate(t *testing.T) {
@@ -135,42 +109,30 @@ func TestTransformCoordinate(t *testing.T) {
 	// Test 2D coordinate
 	coord := geom.NewCoordinate(5, 15)
 	result, err := TransformCoordinate(translation, coord)
-	if err != nil {
-		t.Fatalf("TransformCoordinate() error = %v", err)
-	}
+	require.NoError(t, err, "TransformCoordinate() error")
 
-	if math.Abs(result.X-15) > epsilon || math.Abs(result.Y-35) > epsilon {
-		t.Errorf("TransformCoordinate() = (%f, %f), want (15, 35)",
-			result.X, result.Y)
-	}
+	assert.InDelta(t, 15.0, result.X, epsilon)
+	assert.InDelta(t, 35.0, result.Y, epsilon)
 
 	// Test 3D coordinate (Z should be preserved)
 	coord3D := geom.NewCoordinateZ(5, 15, 100)
 	result3D, err := TransformCoordinate(translation, coord3D)
-	if err != nil {
-		t.Fatalf("TransformCoordinate() error = %v", err)
-	}
+	require.NoError(t, err, "TransformCoordinate() error")
 
-	if math.Abs(result3D.X-15) > epsilon || math.Abs(result3D.Y-35) > epsilon {
-		t.Errorf("TransformCoordinate() = (%f, %f), want (15, 35)",
-			result3D.X, result3D.Y)
-	}
+	assert.InDelta(t, 15.0, result3D.X, epsilon)
+	assert.InDelta(t, 35.0, result3D.Y, epsilon)
 
-	if result3D.Z == nil || math.Abs(*result3D.Z-100) > epsilon {
-		t.Errorf("Z coordinate not preserved: got %v, want 100", result3D.Z)
-	}
+	require.NotNil(t, result3D.Z, "Z coordinate should be preserved")
+	assert.InDelta(t, 100.0, *result3D.Z, epsilon, "Z coordinate value")
 
 	// Test coordinate with M value
 	m := 42.0
 	coordM := geom.NewCoordinateM(5, 15, m)
 	resultM, err := TransformCoordinate(translation, coordM)
-	if err != nil {
-		t.Fatalf("TransformCoordinate() error = %v", err)
-	}
+	require.NoError(t, err, "TransformCoordinate() error")
 
-	if resultM.M == nil || math.Abs(*resultM.M-42) > epsilon {
-		t.Errorf("M value not preserved: got %v, want 42", resultM.M)
-	}
+	require.NotNil(t, resultM.M, "M value should be preserved")
+	assert.InDelta(t, 42.0, *resultM.M, epsilon, "M value")
 }
 
 func TestTransformCoordinates(t *testing.T) {
@@ -183,9 +145,7 @@ func TestTransformCoordinates(t *testing.T) {
 	)
 
 	result, err := TransformCoordinates(scale, coords)
-	if err != nil {
-		t.Fatalf("TransformCoordinates() error = %v", err)
-	}
+	require.NoError(t, err, "TransformCoordinates() error")
 
 	expected := []struct{ x, y float64 }{
 		{2, 6},
@@ -193,15 +153,11 @@ func TestTransformCoordinates(t *testing.T) {
 		{10, 18},
 	}
 
-	if len(result) != len(expected) {
-		t.Fatalf("Result length = %d, want %d", len(result), len(expected))
-	}
+	require.Len(t, result, len(expected), "Result length mismatch")
 
 	for i, exp := range expected {
-		if math.Abs(result[i].X-exp.x) > epsilon || math.Abs(result[i].Y-exp.y) > epsilon {
-			t.Errorf("Coordinate %d = (%f, %f), want (%f, %f)",
-				i, result[i].X, result[i].Y, exp.x, exp.y)
-		}
+		assert.InDelta(t, exp.x, result[i].X, epsilon, "Coordinate %d X", i)
+		assert.InDelta(t, exp.y, result[i].Y, epsilon, "Coordinate %d Y", i)
 	}
 }
 
@@ -210,13 +166,9 @@ func TestTransformEmptyCoordinates(t *testing.T) {
 
 	coords := geom.CoordinateSequence{}
 	result, err := TransformCoordinates(scale, coords)
-	if err != nil {
-		t.Fatalf("TransformCoordinates() error = %v", err)
-	}
+	require.NoError(t, err, "TransformCoordinates() error")
 
-	if len(result) != 0 {
-		t.Errorf("Empty coordinate sequence should remain empty, got length %d", len(result))
-	}
+	assert.Empty(t, result, "Empty coordinate sequence should remain empty")
 }
 
 func BenchmarkIdentityTransform(b *testing.B) {

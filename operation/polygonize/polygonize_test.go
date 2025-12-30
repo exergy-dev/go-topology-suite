@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestPolygonizeSimpleRectangle tests polygonizing a simple rectangle from 4 edges.
@@ -82,9 +83,7 @@ func TestPolygonizeMultipleAdjacentPolygons(t *testing.T) {
 	}
 
 	expectedArea := 200.0
-	if !floatEquals(totalArea, expectedArea, 10.0) { // Relaxed tolerance
-		t.Logf("Total area %.2f (expected %.2f)", totalArea, expectedArea)
-	}
+	assert.InDelta(t, expectedArea, totalArea, 10.0, "Total area")
 }
 
 // TestPolygonizePolygonWithHole tests polygonizing a polygon with a hole.
@@ -111,7 +110,7 @@ func TestPolygonizePolygonWithHole(t *testing.T) {
 
 	// Should produce at least 1 polygon
 	if len(polys) == 0 {
-		t.Skip("Polygon with hole test requires nested ring detection - currently produces 0 polygons")
+		t.Error("Expected at least 1 polygon, got 0")
 		return
 	}
 
@@ -143,12 +142,7 @@ func TestPolygonizePolygonWithHole(t *testing.T) {
 }
 
 // TestPolygonizeDanglingEdges tests that dangling edges are handled.
-// Note: Dangling edges may prevent ring formation in simple implementations.
-// This test is currently skipped as handling dangling edges properly requires
-// additional logic to identify and filter them before ring building.
 func TestPolygonizeDanglingEdges(t *testing.T) {
-	t.Skip("Dangling edge handling requires additional implementation")
-
 	// Rectangle with a dangling edge extending from one corner
 	edges := []*geom.LineString{
 		// Rectangle
@@ -161,19 +155,28 @@ func TestPolygonizeDanglingEdges(t *testing.T) {
 		geom.NewLineStringXY(0, 0, -5, -5),
 	}
 
-	polys := Polygonize(edges)
+	p := NewPolygonizer()
+	p.AddAll(edges)
+	polys := p.GetPolygons()
+	dangles := p.GetDangles()
 
-	// Should still produce 1 polygon (dangling edge ignored)
+	// Should still produce 1 polygon
 	if len(polys) != 1 {
 		t.Errorf("Expected 1 polygon, got %d", len(polys))
-		return
+	}
+
+	// Should detect 1 dangling edge
+	if len(dangles) != 1 {
+		t.Errorf("Expected 1 dangling edge, got %d", len(dangles))
 	}
 
 	// Check area (should be 100, dangling edge doesn't affect it)
-	expectedArea := 100.0
-	actualArea := polys[0].Area()
-	if !floatEquals(actualArea, expectedArea, 0.001) {
-		t.Errorf("Expected area %.2f, got %.2f", expectedArea, actualArea)
+	if len(polys) > 0 {
+		expectedArea := 100.0
+		actualArea := polys[0].Area()
+		if !floatEquals(actualArea, expectedArea, 0.001) {
+			t.Errorf("Expected area %.2f, got %.2f", expectedArea, actualArea)
+		}
 	}
 }
 
@@ -309,12 +312,8 @@ func TestPolygonizeIntersectingEdges(t *testing.T) {
 	}
 
 	// Total area should be approximately 100 (area of the square)
-	t.Logf("Found %d polygons with total area %.2f", len(polys), totalArea)
-
 	expectedArea := 100.0
-	if !floatEquals(totalArea, expectedArea, 5.0) { // Relaxed tolerance
-		t.Logf("Total area %.2f differs from expected %.2f", totalArea, expectedArea)
-	}
+	assert.InDelta(t, expectedArea, totalArea, 5.0, "Total area")
 }
 
 // TestPolygonizeClosedLineString tests polygonizing a single closed LineString.

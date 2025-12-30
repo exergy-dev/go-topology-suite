@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalUnmarshalPoint(t *testing.T) {
@@ -14,28 +16,19 @@ func TestMarshalUnmarshalPoint(t *testing.T) {
 
 	// Write to WKB
 	data, err := Marshal(p)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Expected non-empty WKB output")
-	}
+	require.NoError(t, err, "Failed to marshal")
+	require.NotEmpty(t, data, "Expected non-empty WKB output")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	point, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("Expected Point, got %T", g)
-	}
+	require.True(t, ok, "Expected Point, got %T", g)
 
 	coord := point.Coordinate()
-	if coord.X != 1.5 || coord.Y != 2.5 {
-		t.Errorf("Expected (1.5, 2.5), got (%v, %v)", coord.X, coord.Y)
-	}
+	assert.Equal(t, 1.5, coord.X)
+	assert.Equal(t, 2.5, coord.Y)
 }
 
 func TestMarshalUnmarshalLineString(t *testing.T) {
@@ -49,28 +42,18 @@ func TestMarshalUnmarshalLineString(t *testing.T) {
 
 	// Write to WKB
 	data, err := Marshal(ls)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Expected non-empty WKB output")
-	}
+	require.NoError(t, err, "Failed to marshal")
+	require.NotEmpty(t, data, "Expected non-empty WKB output")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	lineString, ok := g.(*geom.LineString)
-	if !ok {
-		t.Fatalf("Expected LineString, got %T", g)
-	}
+	require.True(t, ok, "Expected LineString, got %T", g)
 
 	readCoords := lineString.Coordinates()
-	if len(readCoords) != 3 {
-		t.Errorf("Expected 3 coordinates, got %d", len(readCoords))
-	}
+	assert.Len(t, readCoords, 3, "Expected 3 coordinates")
 }
 
 func TestMarshalUnmarshalPolygon(t *testing.T) {
@@ -87,32 +70,20 @@ func TestMarshalUnmarshalPolygon(t *testing.T) {
 
 	// Write to WKB
 	data, err := Marshal(poly)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Expected non-empty WKB output")
-	}
+	require.NoError(t, err, "Failed to marshal")
+	require.NotEmpty(t, data, "Expected non-empty WKB output")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	polygon, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("Expected Polygon, got %T", g)
-	}
+	require.True(t, ok, "Expected Polygon, got %T", g)
 
-	if polygon.IsEmpty() {
-		t.Error("Expected non-empty polygon")
-	}
+	assert.False(t, polygon.IsEmpty(), "Expected non-empty polygon")
 
 	extRing := polygon.ExteriorRing()
-	if len(extRing.Coordinates()) != 5 {
-		t.Errorf("Expected 5 coordinates in exterior ring, got %d", len(extRing.Coordinates()))
-	}
+	assert.Len(t, extRing.Coordinates(), 5, "Expected 5 coordinates in exterior ring")
 }
 
 func TestMarshalUnmarshalMultiPoint(t *testing.T) {
@@ -126,27 +97,17 @@ func TestMarshalUnmarshalMultiPoint(t *testing.T) {
 
 	// Write to WKB
 	data, err := Marshal(mp)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Expected non-empty WKB output")
-	}
+	require.NoError(t, err, "Failed to marshal")
+	require.NotEmpty(t, data, "Expected non-empty WKB output")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	multiPoint, ok := g.(*geom.MultiPoint)
-	if !ok {
-		t.Fatalf("Expected MultiPoint, got %T", g)
-	}
+	require.True(t, ok, "Expected MultiPoint, got %T", g)
 
-	if multiPoint.NumGeometries() != 3 {
-		t.Errorf("Expected 3 points, got %d", multiPoint.NumGeometries())
-	}
+	assert.Equal(t, 3, multiPoint.NumGeometries(), "Expected 3 points")
 }
 
 func TestMarshalUnmarshalGeometryCollection(t *testing.T) {
@@ -162,27 +123,17 @@ func TestMarshalUnmarshalGeometryCollection(t *testing.T) {
 
 	// Write to WKB
 	data, err := Marshal(gc)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Expected non-empty WKB output")
-	}
+	require.NoError(t, err, "Failed to marshal")
+	require.NotEmpty(t, data, "Expected non-empty WKB output")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	collection, ok := g.(*geom.GeometryCollection)
-	if !ok {
-		t.Fatalf("Expected GeometryCollection, got %T", g)
-	}
+	require.True(t, ok, "Expected GeometryCollection, got %T", g)
 
-	if collection.NumGeometries() != 2 {
-		t.Errorf("Expected 2 geometries, got %d", collection.NumGeometries())
-	}
+	assert.Equal(t, 2, collection.NumGeometries(), "Expected 2 geometries")
 }
 
 func TestEWKBWithSRID(t *testing.T) {
@@ -191,27 +142,17 @@ func TestEWKBWithSRID(t *testing.T) {
 
 	// Write to EWKB with SRID
 	data, err := MarshalEWKB(p)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
-	if len(data) == 0 {
-		t.Fatal("Expected non-empty EWKB output")
-	}
+	require.NoError(t, err, "Failed to marshal")
+	require.NotEmpty(t, data, "Expected non-empty EWKB output")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	point, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("Expected Point, got %T", g)
-	}
+	require.True(t, ok, "Expected Point, got %T", g)
 
-	if point.SRID() != 4326 {
-		t.Errorf("Expected SRID 4326, got %d", point.SRID())
-	}
+	assert.Equal(t, 4326, point.SRID(), "Expected SRID 4326")
 }
 
 func TestByteOrderBigEndian(t *testing.T) {
@@ -224,30 +165,21 @@ func TestByteOrderBigEndian(t *testing.T) {
 		OutputDimension: 2,
 	}
 	data, err := MarshalWithOptions(p, opts)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	// First byte should be XDR (big endian)
-	if data[0] != wkbXDR {
-		t.Errorf("Expected XDR byte order marker, got %d", data[0])
-	}
+	assert.Equal(t, byte(wkbXDR), data[0], "Expected XDR byte order marker")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	point, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("Expected Point, got %T", g)
-	}
+	require.True(t, ok, "Expected Point, got %T", g)
 
 	coord := point.Coordinate()
-	if coord.X != 1.5 || coord.Y != 2.5 {
-		t.Errorf("Expected (1.5, 2.5), got (%v, %v)", coord.X, coord.Y)
-	}
+	assert.Equal(t, 1.5, coord.X)
+	assert.Equal(t, 2.5, coord.Y)
 }
 
 func TestEmptyGeometries(t *testing.T) {
@@ -256,50 +188,32 @@ func TestEmptyGeometries(t *testing.T) {
 	// Test empty point
 	emptyPoint := factory.CreatePointEmpty()
 	data, err := Marshal(emptyPoint)
-	if err != nil {
-		t.Fatalf("Failed to marshal empty point: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal empty point")
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal empty point: %v", err)
-	}
-	if !g.IsEmpty() {
-		t.Error("Expected empty point")
-	}
+	require.NoError(t, err, "Failed to unmarshal empty point")
+	assert.True(t, g.IsEmpty(), "Expected empty point")
 
 	// Test empty polygon
 	emptyPoly := factory.CreatePolygonEmpty()
 	data, err = Marshal(emptyPoly)
-	if err != nil {
-		t.Fatalf("Failed to marshal empty polygon: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal empty polygon")
 	g, err = Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal empty polygon: %v", err)
-	}
-	if !g.IsEmpty() {
-		t.Error("Expected empty polygon")
-	}
+	require.NoError(t, err, "Failed to unmarshal empty polygon")
+	assert.True(t, g.IsEmpty(), "Expected empty polygon")
 }
 
 func TestInvalidWKB(t *testing.T) {
 	// Too short
 	_, err := Unmarshal([]byte{1})
-	if err == nil {
-		t.Error("Expected error for too short WKB")
-	}
+	assert.Error(t, err, "Expected error for too short WKB")
 
 	// Invalid byte order
 	_, err = Unmarshal([]byte{5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
-	if err == nil {
-		t.Error("Expected error for invalid byte order")
-	}
+	assert.Error(t, err, "Expected error for invalid byte order")
 
 	// Empty data
 	_, err = Unmarshal([]byte{})
-	if err == nil {
-		t.Error("Expected error for empty data")
-	}
+	assert.Error(t, err, "Expected error for empty data")
 }
 
 func TestMarshalUnmarshalPolygonWithHole(t *testing.T) {
@@ -329,24 +243,16 @@ func TestMarshalUnmarshalPolygonWithHole(t *testing.T) {
 
 	// Write to WKB
 	data, err := Marshal(poly)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	// Read back
 	g, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	polygon, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("Expected Polygon, got %T", g)
-	}
+	require.True(t, ok, "Expected Polygon, got %T", g)
 
-	if polygon.NumInteriorRings() != 1 {
-		t.Errorf("Expected 1 interior ring, got %d", polygon.NumInteriorRings())
-	}
+	assert.Equal(t, 1, polygon.NumInteriorRings(), "Expected 1 interior ring")
 }
 
 func TestRoundTrip(t *testing.T) {
@@ -375,22 +281,14 @@ func TestRoundTrip(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			data, err := Marshal(tc.geom)
-			if err != nil {
-				t.Fatalf("Failed to marshal: %v", err)
-			}
+			require.NoError(t, err, "Failed to marshal")
 			g, err := Unmarshal(data)
-			if err != nil {
-				t.Fatalf("Failed to unmarshal: %v", err)
-			}
+			require.NoError(t, err, "Failed to unmarshal")
 
 			// Write again and compare
 			data2, err := Marshal(g)
-			if err != nil {
-				t.Fatalf("Failed to re-marshal: %v", err)
-			}
-			if !bytes.Equal(data, data2) {
-				t.Error("Round-trip WKB mismatch")
-			}
+			require.NoError(t, err, "Failed to re-marshal")
+			assert.True(t, bytes.Equal(data, data2), "Round-trip WKB mismatch")
 		})
 	}
 }
@@ -400,18 +298,12 @@ func TestUnmarshalWithFactory(t *testing.T) {
 	p := factory.CreatePoint(1, 2)
 
 	data, err := Marshal(p)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	g, err := UnmarshalWithFactory(data, factory)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
-	if g == nil {
-		t.Error("Expected non-nil geometry")
-	}
+	assert.NotNil(t, g, "Expected non-nil geometry")
 }
 
 func TestMarshalWithOptions(t *testing.T) {
@@ -424,18 +316,12 @@ func TestMarshalWithOptions(t *testing.T) {
 	}
 
 	data, err := MarshalWithOptions(p, opts)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
-	if len(data) == 0 {
-		t.Error("Expected non-empty data")
-	}
+	assert.NotEmpty(t, data, "Expected non-empty data")
 
 	// First byte should be NDR (little endian)
-	if data[0] != wkbNDR {
-		t.Errorf("Expected NDR byte order marker, got %d", data[0])
-	}
+	assert.Equal(t, byte(wkbNDR), data[0], "Expected NDR byte order marker")
 }
 
 func BenchmarkMarshalPoint(b *testing.B) {

@@ -4,21 +4,15 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSTRtree(t *testing.T) {
 	tree := New()
-	if tree == nil {
-		t.Fatal("Expected non-nil tree")
-	}
-
-	if tree.Size() != 0 {
-		t.Errorf("Expected size 0, got %d", tree.Size())
-	}
-
-	if !tree.IsEmpty() {
-		t.Error("Expected empty tree")
-	}
+	require.NotNil(t, tree, "Expected non-nil tree")
+	assert.Equal(t, 0, tree.Size(), "Expected size 0")
+	assert.True(t, tree.IsEmpty(), "Expected empty tree")
 }
 
 func TestInsertAndQuery(t *testing.T) {
@@ -33,25 +27,17 @@ func TestInsertAndQuery(t *testing.T) {
 	tree.Insert(env2, "item2")
 	tree.Insert(env3, "item3")
 
-	if tree.Size() != 3 {
-		t.Errorf("Expected size 3, got %d", tree.Size())
-	}
+	assert.Equal(t, 3, tree.Size(), "Expected size 3")
 
 	// Query overlapping region
 	queryEnv := geom.NewEnvelope(0, 0, 5, 5)
 	results := tree.Query(queryEnv)
-
-	if len(results) != 2 {
-		t.Errorf("Expected 2 results, got %d", len(results))
-	}
+	assert.Equal(t, 2, len(results), "Expected 2 results")
 
 	// Query non-overlapping region
 	queryEnv = geom.NewEnvelope(100, 100, 110, 110)
 	results = tree.Query(queryEnv)
-
-	if len(results) != 0 {
-		t.Errorf("Expected 0 results, got %d", len(results))
-	}
+	assert.Equal(t, 0, len(results), "Expected 0 results")
 }
 
 func TestQueryPoint(t *testing.T) {
@@ -67,21 +53,15 @@ func TestQueryPoint(t *testing.T) {
 
 	// Point inside env1 only
 	results := tree.QueryPoint(2, 2)
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(results))
-	}
+	assert.Equal(t, 1, len(results), "Expected 1 result")
 
 	// Point in overlap region
 	results = tree.QueryPoint(7, 7)
-	if len(results) != 2 {
-		t.Errorf("Expected 2 results for overlap point, got %d", len(results))
-	}
+	assert.Equal(t, 2, len(results), "Expected 2 results for overlap point")
 
 	// Point inside env3 only
 	results = tree.QueryPoint(25, 25)
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(results))
-	}
+	assert.Equal(t, 1, len(results), "Expected 1 result")
 }
 
 func TestLargeDataset(t *testing.T) {
@@ -96,18 +76,14 @@ func TestLargeDataset(t *testing.T) {
 		tree.Insert(env, i)
 	}
 
-	if tree.Size() != n {
-		t.Errorf("Expected size %d, got %d", n, tree.Size())
-	}
+	assert.Equal(t, n, tree.Size(), "Expected size %d", n)
 
 	// Query specific region
 	queryEnv := geom.NewEnvelope(0, 0, 100, 100)
 	results := tree.Query(queryEnv)
 
 	// Should find items with x,y from 0 to ~95
-	if len(results) == 0 {
-		t.Error("Expected some results from large dataset query")
-	}
+	assert.NotEmpty(t, results, "Expected some results from large dataset query")
 }
 
 func TestNearestNeighbor(t *testing.T) {
@@ -120,21 +96,15 @@ func TestNearestNeighbor(t *testing.T) {
 
 	// Find nearest to (1, 1)
 	nearest := tree.NearestNeighbor(geom.NewEnvelope(1, 1, 1, 1))
-	if nearest != "origin" {
-		t.Errorf("Expected 'origin' as nearest, got %v", nearest)
-	}
+	assert.Equal(t, "origin", nearest, "Expected 'origin' as nearest")
 
 	// Find nearest to (15, 15)
 	nearest = tree.NearestNeighbor(geom.NewEnvelope(15, 15, 15, 15))
-	if nearest != "ten" {
-		t.Errorf("Expected 'ten' as nearest, got %v", nearest)
-	}
+	assert.Equal(t, "ten", nearest, "Expected 'ten' as nearest")
 
 	// Find nearest to (90, 90)
 	nearest = tree.NearestNeighbor(geom.NewEnvelope(90, 90, 90, 90))
-	if nearest != "far" {
-		t.Errorf("Expected 'far' as nearest, got %v", nearest)
-	}
+	assert.Equal(t, "far", nearest, "Expected 'far' as nearest")
 }
 
 func TestRemove(t *testing.T) {
@@ -146,25 +116,16 @@ func TestRemove(t *testing.T) {
 	tree.Insert(env1, "item1")
 	tree.Insert(env2, "item2")
 
-	if tree.Size() != 2 {
-		t.Errorf("Expected size 2, got %d", tree.Size())
-	}
+	assert.Equal(t, 2, tree.Size(), "Expected size 2")
 
 	// Remove item1
 	removed := tree.Remove(env1, "item1")
-	if !removed {
-		t.Error("Expected successful removal")
-	}
-
-	if tree.Size() != 1 {
-		t.Errorf("Expected size 1 after removal, got %d", tree.Size())
-	}
+	assert.True(t, removed, "Expected successful removal")
+	assert.Equal(t, 1, tree.Size(), "Expected size 1 after removal")
 
 	// Try to remove non-existent item
 	removed = tree.Remove(env1, "nonexistent")
-	if removed {
-		t.Error("Expected removal to fail for non-existent item")
-	}
+	assert.False(t, removed, "Expected removal to fail for non-existent item")
 }
 
 func TestClear(t *testing.T) {
@@ -175,13 +136,8 @@ func TestClear(t *testing.T) {
 
 	tree.Clear()
 
-	if !tree.IsEmpty() {
-		t.Error("Expected empty tree after Clear")
-	}
-
-	if tree.Size() != 0 {
-		t.Errorf("Expected size 0 after Clear, got %d", tree.Size())
-	}
+	assert.True(t, tree.IsEmpty(), "Expected empty tree after Clear")
+	assert.Equal(t, 0, tree.Size(), "Expected size 0 after Clear")
 }
 
 func TestItems(t *testing.T) {
@@ -192,9 +148,7 @@ func TestItems(t *testing.T) {
 	tree.Insert(geom.NewEnvelope(40, 40, 50, 50), "item3")
 
 	items := tree.Items()
-	if len(items) != 3 {
-		t.Errorf("Expected 3 items, got %d", len(items))
-	}
+	assert.Equal(t, 3, len(items), "Expected 3 items")
 }
 
 func TestDepth(t *testing.T) {
@@ -208,9 +162,7 @@ func TestDepth(t *testing.T) {
 	}
 
 	depth := tree.Depth()
-	if depth < 2 {
-		t.Errorf("Expected depth >= 2 with 20 items, got %d", depth)
-	}
+	assert.GreaterOrEqual(t, depth, 2, "Expected depth >= 2 with 20 items")
 }
 
 func TestEnvelope(t *testing.T) {
@@ -221,13 +173,10 @@ func TestEnvelope(t *testing.T) {
 
 	env := tree.Envelope()
 
-	if env.MinX != 0 || env.MinY != 0 {
-		t.Errorf("Expected min (0, 0), got (%v, %v)", env.MinX, env.MinY)
-	}
-
-	if env.MaxX != 30 || env.MaxY != 30 {
-		t.Errorf("Expected max (30, 30), got (%v, %v)", env.MaxX, env.MaxY)
-	}
+	assert.Equal(t, float64(0), env.MinX, "Expected min X 0")
+	assert.Equal(t, float64(0), env.MinY, "Expected min Y 0")
+	assert.Equal(t, float64(30), env.MaxX, "Expected max X 30")
+	assert.Equal(t, float64(30), env.MaxY, "Expected max Y 30")
 }
 
 func TestEmptyQuery(t *testing.T) {
@@ -235,15 +184,11 @@ func TestEmptyQuery(t *testing.T) {
 
 	// Query empty tree
 	results := tree.Query(geom.NewEnvelope(0, 0, 10, 10))
-	if results != nil && len(results) != 0 {
-		t.Error("Expected nil or empty results from empty tree")
-	}
+	assert.True(t, results == nil || len(results) == 0, "Expected nil or empty results from empty tree")
 
 	// Query with nil envelope
 	results = tree.Query(nil)
-	if results != nil && len(results) != 0 {
-		t.Error("Expected nil or empty results for nil envelope query")
-	}
+	assert.True(t, results == nil || len(results) == 0, "Expected nil or empty results for nil envelope query")
 }
 
 func TestNullEnvelopeInsert(t *testing.T) {
@@ -251,15 +196,11 @@ func TestNullEnvelopeInsert(t *testing.T) {
 
 	// Insert with nil envelope should be ignored
 	tree.Insert(nil, "data")
-	if tree.Size() != 0 {
-		t.Error("Expected nil envelope insert to be ignored")
-	}
+	assert.Equal(t, 0, tree.Size(), "Expected nil envelope insert to be ignored")
 
 	// Insert with empty envelope should be ignored
 	tree.Insert(geom.NewEnvelopeEmpty(), "data")
-	if tree.Size() != 0 {
-		t.Error("Expected empty envelope insert to be ignored")
-	}
+	assert.Equal(t, 0, tree.Size(), "Expected empty envelope insert to be ignored")
 }
 
 func TestQueryGeometry(t *testing.T) {
@@ -276,9 +217,7 @@ func TestQueryGeometry(t *testing.T) {
 	point := factory.CreatePoint(5, 5)
 	results := tree.QueryGeometry(point)
 
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result for point query, got %d", len(results))
-	}
+	assert.Equal(t, 1, len(results), "Expected 1 result for point query")
 }
 
 func TestAutoBuilding(t *testing.T) {
@@ -290,9 +229,7 @@ func TestAutoBuilding(t *testing.T) {
 	// Query should auto-build the tree
 	results := tree.Query(geom.NewEnvelope(5, 5, 15, 15))
 
-	if len(results) != 1 {
-		t.Errorf("Expected 1 result, got %d", len(results))
-	}
+	assert.Equal(t, 1, len(results), "Expected 1 result")
 }
 
 func BenchmarkInsert(b *testing.B) {

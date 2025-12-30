@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalUnmarshalPoint(t *testing.T) {
@@ -12,24 +14,17 @@ func TestMarshalUnmarshalPoint(t *testing.T) {
 	p := factory.CreatePoint(1.5, 2.5)
 
 	data, err := MarshalGeometry(p)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	g, err := UnmarshalGeometry(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	point, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("Expected Point, got %T", g)
-	}
+	require.True(t, ok, "Expected Point, got %T", g)
 
 	coord := point.Coordinate()
-	if coord.X != 1.5 || coord.Y != 2.5 {
-		t.Errorf("Expected (1.5, 2.5), got (%v, %v)", coord.X, coord.Y)
-	}
+	assert.Equal(t, 1.5, coord.X)
+	assert.Equal(t, 2.5, coord.Y)
 }
 
 func TestMarshalUnmarshalLineString(t *testing.T) {
@@ -42,23 +37,15 @@ func TestMarshalUnmarshalLineString(t *testing.T) {
 	ls := factory.CreateLineString(coords)
 
 	data, err := MarshalGeometry(ls)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	g, err := UnmarshalGeometry(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	lineString, ok := g.(*geom.LineString)
-	if !ok {
-		t.Fatalf("Expected LineString, got %T", g)
-	}
+	require.True(t, ok, "Expected LineString, got %T", g)
 
-	if len(lineString.Coordinates()) != 3 {
-		t.Errorf("Expected 3 coordinates, got %d", len(lineString.Coordinates()))
-	}
+	assert.Len(t, lineString.Coordinates(), 3, "Expected 3 coordinates")
 }
 
 func TestMarshalUnmarshalPolygon(t *testing.T) {
@@ -73,23 +60,15 @@ func TestMarshalUnmarshalPolygon(t *testing.T) {
 	poly := factory.CreatePolygon(shell, nil)
 
 	data, err := MarshalGeometry(poly)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	g, err := UnmarshalGeometry(data)
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	polygon, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("Expected Polygon, got %T", g)
-	}
+	require.True(t, ok, "Expected Polygon, got %T", g)
 
-	if polygon.IsEmpty() {
-		t.Error("Expected non-empty polygon")
-	}
+	assert.False(t, polygon.IsEmpty(), "Expected non-empty polygon")
 }
 
 func TestMarshalUnmarshalMultiGeometries(t *testing.T) {
@@ -101,11 +80,11 @@ func TestMarshalUnmarshalMultiGeometries(t *testing.T) {
 		factory.CreatePoint(3, 4),
 	})
 
-	data, _ := MarshalGeometry(mp)
-	g, _ := UnmarshalGeometry(data)
-	if g.GeometryType() != "MultiPoint" {
-		t.Errorf("Expected MultiPoint, got %s", g.GeometryType())
-	}
+	data, err := MarshalGeometry(mp)
+	require.NoError(t, err)
+	g, err := UnmarshalGeometry(data)
+	require.NoError(t, err)
+	assert.Equal(t, "MultiPoint", g.GeometryType())
 
 	// MultiLineString
 	mls := factory.CreateMultiLineString([]*geom.LineString{
@@ -115,11 +94,11 @@ func TestMarshalUnmarshalMultiGeometries(t *testing.T) {
 		}),
 	})
 
-	data, _ = MarshalGeometry(mls)
-	g, _ = UnmarshalGeometry(data)
-	if g.GeometryType() != "MultiLineString" {
-		t.Errorf("Expected MultiLineString, got %s", g.GeometryType())
-	}
+	data, err = MarshalGeometry(mls)
+	require.NoError(t, err)
+	g, err = UnmarshalGeometry(data)
+	require.NoError(t, err)
+	assert.Equal(t, "MultiLineString", g.GeometryType())
 
 	// GeometryCollection
 	gc := factory.CreateGeometryCollection([]geom.Geometry{
@@ -130,11 +109,11 @@ func TestMarshalUnmarshalMultiGeometries(t *testing.T) {
 		}),
 	})
 
-	data, _ = MarshalGeometry(gc)
-	g, _ = UnmarshalGeometry(data)
-	if g.GeometryType() != "GeometryCollection" {
-		t.Errorf("Expected GeometryCollection, got %s", g.GeometryType())
-	}
+	data, err = MarshalGeometry(gc)
+	require.NoError(t, err)
+	g, err = UnmarshalGeometry(data)
+	require.NoError(t, err)
+	assert.Equal(t, "GeometryCollection", g.GeometryType())
 }
 
 func TestUnmarshalFeatureExtractsGeometry(t *testing.T) {
@@ -145,19 +124,14 @@ func TestUnmarshalFeatureExtractsGeometry(t *testing.T) {
 	}`
 
 	g, err := UnmarshalGeometry([]byte(geojsonStr))
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	point, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("Expected Point, got %T", g)
-	}
+	require.True(t, ok, "Expected Point, got %T", g)
 
 	coord := point.Coordinate()
-	if coord.X != 102.0 || coord.Y != 0.5 {
-		t.Errorf("Expected (102.0, 0.5), got (%v, %v)", coord.X, coord.Y)
-	}
+	assert.Equal(t, 102.0, coord.X)
+	assert.Equal(t, 0.5, coord.Y)
 }
 
 func TestUnmarshalFeatureCollectionExtractsGeometries(t *testing.T) {
@@ -170,18 +144,12 @@ func TestUnmarshalFeatureCollectionExtractsGeometries(t *testing.T) {
 	}`
 
 	g, err := UnmarshalGeometry([]byte(geojsonStr))
-	if err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to unmarshal")
 
 	gc, ok := g.(*geom.GeometryCollection)
-	if !ok {
-		t.Fatalf("Expected GeometryCollection, got %T", g)
-	}
+	require.True(t, ok, "Expected GeometryCollection, got %T", g)
 
-	if gc.NumGeometries() != 2 {
-		t.Errorf("Expected 2 geometries, got %d", gc.NumGeometries())
-	}
+	assert.Equal(t, 2, gc.NumGeometries(), "Expected 2 geometries")
 }
 
 func TestTypedFeatureMarshalUnmarshal(t *testing.T) {
@@ -197,25 +165,16 @@ func TestTypedFeatureMarshalUnmarshal(t *testing.T) {
 
 	// Marshal using standard json
 	data, err := json.Marshal(f)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	// Unmarshal using standard json
 	var f2 Feature[Props]
-	if err := json.Unmarshal(data, &f2); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	err = json.Unmarshal(data, &f2)
+	require.NoError(t, err, "Failed to unmarshal")
 
-	if f2.Properties.Name != "NYC" {
-		t.Errorf("Expected Name=NYC, got %s", f2.Properties.Name)
-	}
-	if f2.Properties.Pop != 8000000 {
-		t.Errorf("Expected Pop=8000000, got %d", f2.Properties.Pop)
-	}
-	if f2.ID.String != "nyc" {
-		t.Errorf("Expected ID=nyc, got %s", f2.ID.String)
-	}
+	assert.Equal(t, "NYC", f2.Properties.Name)
+	assert.Equal(t, 8000000, f2.Properties.Pop)
+	assert.Equal(t, "nyc", f2.ID.String)
 }
 
 func TestTypedFeatureCollectionMarshalUnmarshal(t *testing.T) {
@@ -230,21 +189,14 @@ func TestTypedFeatureCollectionMarshalUnmarshal(t *testing.T) {
 	fc.Add(NewFeature(factory.CreatePoint(3, 4), Props{Name: "B"}))
 
 	data, err := json.Marshal(fc)
-	if err != nil {
-		t.Fatalf("Failed to marshal: %v", err)
-	}
+	require.NoError(t, err, "Failed to marshal")
 
 	var fc2 FeatureCollection[Props]
-	if err := json.Unmarshal(data, &fc2); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	err = json.Unmarshal(data, &fc2)
+	require.NoError(t, err, "Failed to unmarshal")
 
-	if len(fc2.Features) != 2 {
-		t.Errorf("Expected 2 features, got %d", len(fc2.Features))
-	}
-	if fc2.Features[0].Properties.Name != "A" {
-		t.Errorf("Expected first feature Name=A")
-	}
+	assert.Len(t, fc2.Features, 2, "Expected 2 features")
+	assert.Equal(t, "A", fc2.Features[0].Properties.Name, "Expected first feature Name=A")
 }
 
 func TestUntypedFeature(t *testing.T) {
@@ -252,14 +204,14 @@ func TestUntypedFeature(t *testing.T) {
 
 	f := NewUntypedFeature(factory.CreatePoint(1, 2), map[string]any{"key": "value"})
 
-	data, _ := json.Marshal(f)
+	data, err := json.Marshal(f)
+	require.NoError(t, err)
 
 	var f2 UntypedFeature
-	json.Unmarshal(data, &f2)
+	err = json.Unmarshal(data, &f2)
+	require.NoError(t, err)
 
-	if f2.Properties["key"] != "value" {
-		t.Errorf("Expected key=value")
-	}
+	assert.Equal(t, "value", f2.Properties["key"], "Expected key=value")
 }
 
 func TestForeignMembers(t *testing.T) {
@@ -272,25 +224,20 @@ func TestForeignMembers(t *testing.T) {
 	}`
 
 	var f UntypedFeature
-	if err := json.Unmarshal([]byte(geojsonStr), &f); err != nil {
-		t.Fatalf("Failed to unmarshal: %v", err)
-	}
+	err := json.Unmarshal([]byte(geojsonStr), &f)
+	require.NoError(t, err, "Failed to unmarshal")
 
-	if f.ForeignMembers["custom"] != "value" {
-		t.Errorf("Expected custom=value")
-	}
-	if f.ForeignMembers["count"] != float64(42) {
-		t.Errorf("Expected count=42")
-	}
+	assert.Equal(t, "value", f.ForeignMembers["custom"], "Expected custom=value")
+	assert.Equal(t, float64(42), f.ForeignMembers["count"], "Expected count=42")
 
 	// Round-trip preserves foreign members
-	data, _ := json.Marshal(f)
+	data, err := json.Marshal(f)
+	require.NoError(t, err)
 	var parsed map[string]any
-	json.Unmarshal(data, &parsed)
+	err = json.Unmarshal(data, &parsed)
+	require.NoError(t, err)
 
-	if parsed["custom"] != "value" {
-		t.Error("Foreign member not preserved")
-	}
+	assert.Equal(t, "value", parsed["custom"], "Foreign member not preserved")
 }
 
 func TestFeatureCollectionForeignMembers(t *testing.T) {
@@ -301,11 +248,10 @@ func TestFeatureCollectionForeignMembers(t *testing.T) {
 	}`
 
 	var fc UntypedFeatureCollection
-	json.Unmarshal([]byte(geojsonStr), &fc)
+	err := json.Unmarshal([]byte(geojsonStr), &fc)
+	require.NoError(t, err)
 
-	if fc.ForeignMembers["name"] != "test collection" {
-		t.Errorf("Expected foreign member name")
-	}
+	assert.Equal(t, "test collection", fc.ForeignMembers["name"], "Expected foreign member name")
 }
 
 func TestBBox(t *testing.T) {
@@ -317,20 +263,17 @@ func TestBBox(t *testing.T) {
 	}`
 
 	var f UntypedFeature
-	json.Unmarshal([]byte(geojsonStr), &f)
+	err := json.Unmarshal([]byte(geojsonStr), &f)
+	require.NoError(t, err)
 
-	if len(f.BBox) != 4 {
-		t.Fatalf("Expected bbox with 4 elements")
-	}
-	if f.BBox[0] != -10 || f.BBox[2] != 10 {
-		t.Errorf("Unexpected bbox values")
-	}
+	require.Len(t, f.BBox, 4, "Expected bbox with 4 elements")
+	assert.Equal(t, float64(-10), f.BBox[0], "Unexpected bbox min value")
+	assert.Equal(t, float64(10), f.BBox[2], "Unexpected bbox max value")
 
 	// ToEnvelope
 	env := f.BBox.ToEnvelope()
-	if env.MinX != -10 || env.MaxX != 10 {
-		t.Errorf("ToEnvelope failed")
-	}
+	assert.Equal(t, float64(-10), env.MinX, "ToEnvelope MinX failed")
+	assert.Equal(t, float64(10), env.MaxX, "ToEnvelope MaxX failed")
 }
 
 func TestSetBBox(t *testing.T) {
@@ -347,42 +290,39 @@ func TestSetBBox(t *testing.T) {
 	f := NewUntypedFeature(poly, nil)
 	f.SetBBox()
 
-	if len(f.BBox) != 4 {
-		t.Fatalf("Expected bbox to be set")
-	}
-	if f.BBox[0] != 0 || f.BBox[2] != 10 {
-		t.Errorf("Unexpected bbox: %v", f.BBox)
-	}
+	require.Len(t, f.BBox, 4, "Expected bbox to be set")
+	assert.Equal(t, float64(0), f.BBox[0], "Unexpected bbox min")
+	assert.Equal(t, float64(10), f.BBox[2], "Unexpected bbox max")
 }
 
 func TestFeatureID(t *testing.T) {
 	// String ID
 	id1 := NewStringID("abc")
-	data, _ := json.Marshal(id1)
-	if string(data) != `"abc"` {
-		t.Errorf("Expected string ID")
-	}
+	data, err := json.Marshal(id1)
+	require.NoError(t, err)
+	assert.Equal(t, `"abc"`, string(data), "Expected string ID")
 
 	// Number ID
 	id2 := NewNumberID(123)
-	data, _ = json.Marshal(id2)
-	if string(data) != `123` {
-		t.Errorf("Expected number ID")
-	}
+	data, err = json.Marshal(id2)
+	require.NoError(t, err)
+	assert.Equal(t, `123`, string(data), "Expected number ID")
 
 	// Unmarshal string
 	var id3 FeatureID
-	json.Unmarshal([]byte(`"test"`), &id3)
-	if !id3.IsValid || id3.IsNum || id3.String != "test" {
-		t.Error("Failed to unmarshal string ID")
-	}
+	err = json.Unmarshal([]byte(`"test"`), &id3)
+	require.NoError(t, err)
+	assert.True(t, id3.IsValid, "Failed to unmarshal string ID - not valid")
+	assert.False(t, id3.IsNum, "Failed to unmarshal string ID - is num")
+	assert.Equal(t, "test", id3.String, "Failed to unmarshal string ID - wrong value")
 
 	// Unmarshal number
 	var id4 FeatureID
-	json.Unmarshal([]byte(`456`), &id4)
-	if !id4.IsValid || !id4.IsNum || id4.Number != 456 {
-		t.Error("Failed to unmarshal number ID")
-	}
+	err = json.Unmarshal([]byte(`456`), &id4)
+	require.NoError(t, err)
+	assert.True(t, id4.IsValid, "Failed to unmarshal number ID - not valid")
+	assert.True(t, id4.IsNum, "Failed to unmarshal number ID - not num")
+	assert.Equal(t, float64(456), id4.Number, "Failed to unmarshal number ID - wrong value")
 }
 
 func TestGeometryWrapper(t *testing.T) {
@@ -391,17 +331,18 @@ func TestGeometryWrapper(t *testing.T) {
 
 	// Wrap and marshal
 	wrapped := Geometry{Geometry: p}
-	data, _ := json.Marshal(wrapped)
+	data, err := json.Marshal(wrapped)
+	require.NoError(t, err)
 
 	// Unmarshal back
 	var wrapped2 Geometry
-	json.Unmarshal(data, &wrapped2)
+	err = json.Unmarshal(data, &wrapped2)
+	require.NoError(t, err)
 
 	point := wrapped2.Geometry.(*geom.Point)
 	coord := point.Coordinate()
-	if coord.X != 1 || coord.Y != 2 {
-		t.Errorf("Round-trip failed")
-	}
+	assert.Equal(t, float64(1), coord.X, "Round-trip X failed")
+	assert.Equal(t, float64(2), coord.Y, "Round-trip Y failed")
 }
 
 func TestMarshalIndent(t *testing.T) {
@@ -409,14 +350,10 @@ func TestMarshalIndent(t *testing.T) {
 	p := factory.CreatePoint(1, 2)
 
 	data, err := MarshalGeometryIndent(p, "  ")
-	if err != nil {
-		t.Fatalf("Failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Should contain newlines
-	if len(data) < 30 {
-		t.Error("Expected indented output")
-	}
+	assert.GreaterOrEqual(t, len(data), 30, "Expected indented output")
 }
 
 func TestNullGeometry(t *testing.T) {
@@ -427,14 +364,10 @@ func TestNullGeometry(t *testing.T) {
 	}`
 
 	g, err := UnmarshalGeometry([]byte(geojsonStr))
-	if err != nil {
-		t.Fatalf("Failed: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Should return empty geometry collection for null geometry
-	if g.GeometryType() != "GeometryCollection" {
-		t.Errorf("Expected GeometryCollection for null geometry")
-	}
+	assert.Equal(t, "GeometryCollection", g.GeometryType(), "Expected GeometryCollection for null geometry")
 }
 
 func TestInvalidGeoJSON(t *testing.T) {
@@ -447,9 +380,7 @@ func TestInvalidGeoJSON(t *testing.T) {
 
 	for _, tc := range testCases {
 		_, err := UnmarshalGeometry([]byte(tc))
-		if err == nil {
-			t.Errorf("Expected error for: %s", tc)
-		}
+		assert.Error(t, err, "Expected error for: %s", tc)
 	}
 }
 
@@ -474,17 +405,11 @@ func TestRoundTrip(t *testing.T) {
 
 	for _, g := range geoms {
 		data, err := MarshalGeometry(g)
-		if err != nil {
-			t.Fatalf("Marshal failed for %s: %v", g.GeometryType(), err)
-		}
+		require.NoError(t, err, "Marshal failed for %s", g.GeometryType())
 
 		g2, err := UnmarshalGeometry(data)
-		if err != nil {
-			t.Fatalf("Unmarshal failed for %s: %v", g.GeometryType(), err)
-		}
+		require.NoError(t, err, "Unmarshal failed for %s", g.GeometryType())
 
-		if g.GeometryType() != g2.GeometryType() {
-			t.Errorf("Type mismatch: %s vs %s", g.GeometryType(), g2.GeometryType())
-		}
+		assert.Equal(t, g.GeometryType(), g2.GeometryType(), "Type mismatch")
 	}
 }

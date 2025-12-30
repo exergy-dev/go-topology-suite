@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-topology-suite/gts/algorithm"
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPointLocationGeometryTypes(t *testing.T) {
@@ -121,9 +122,7 @@ func TestPointLocationGeometryTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.PointLocation(tt.p, tt.g)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -163,9 +162,7 @@ func TestPointLocationInPolygon(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.PointLocationInPolygon(tt.p, poly)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 
@@ -176,28 +173,23 @@ func TestPointLocationInPolygon(t *testing.T) {
 		polyWithHole := geom.NewPolygon(shellWithHole, []*geom.LinearRing{hole})
 
 		// Point in hole should be exterior
-		if loc := algorithm.PointLocationInPolygon(geom.NewCoordinate(10, 10), polyWithHole); loc != geom.LocationExterior {
-			t.Errorf("Expected Exterior for point in hole, got %v", loc)
-		}
+		loc := algorithm.PointLocationInPolygon(geom.NewCoordinate(10, 10), polyWithHole)
+		assert.Equal(t, geom.LocationExterior, loc, "Expected Exterior for point in hole")
 
 		// Point on hole boundary should be boundary
-		if loc := algorithm.PointLocationInPolygon(geom.NewCoordinate(5, 10), polyWithHole); loc != geom.LocationBoundary {
-			t.Errorf("Expected Boundary for point on hole boundary, got %v", loc)
-		}
+		loc = algorithm.PointLocationInPolygon(geom.NewCoordinate(5, 10), polyWithHole)
+		assert.Equal(t, geom.LocationBoundary, loc, "Expected Boundary for point on hole boundary")
 
 		// Point between shell and hole should be interior
-		if loc := algorithm.PointLocationInPolygon(geom.NewCoordinate(2, 2), polyWithHole); loc != geom.LocationInterior {
-			t.Errorf("Expected Interior for point between shell and hole, got %v", loc)
-		}
+		loc = algorithm.PointLocationInPolygon(geom.NewCoordinate(2, 2), polyWithHole)
+		assert.Equal(t, geom.LocationInterior, loc, "Expected Interior for point between shell and hole")
 	})
 
 	// Test empty polygon
 	t.Run("EmptyPolygon", func(t *testing.T) {
 		emptyPoly := geom.NewPolygonEmpty()
 		result := algorithm.PointLocationInPolygon(geom.NewCoordinate(5, 5), emptyPoly)
-		if result != geom.LocationExterior {
-			t.Errorf("Expected Exterior for empty polygon, got %v", result)
-		}
+		assert.Equal(t, geom.LocationExterior, result, "Expected Exterior for empty polygon")
 	})
 }
 
@@ -229,9 +221,7 @@ func TestIsPointInEnvelope(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IsPointInEnvelope(tt.p, env)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -271,9 +261,7 @@ func TestLocatePointInTriangle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.LocatePointInTriangle(tt.p, t0, t1, t2)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -306,9 +294,7 @@ func TestIndexOfPointInRing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IndexOfPointInRing(tt.p, ring)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 }
@@ -341,34 +327,27 @@ func TestIndexOfClosestPointInSequence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.IndexOfClosestPointInSequence(tt.p, coords)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
 		})
 	}
 
 	// Test empty sequence
 	empty := geom.CoordinateSequence{}
-	if idx := algorithm.IndexOfClosestPointInSequence(geom.NewCoordinate(5, 5), empty); idx != -1 {
-		t.Errorf("Expected -1 for empty sequence, got %v", idx)
-	}
+	idx := algorithm.IndexOfClosestPointInSequence(geom.NewCoordinate(5, 5), empty)
+	assert.Equal(t, -1, idx, "Expected -1 for empty sequence")
 }
 
 func TestIsPointInRingEdgeCases(t *testing.T) {
 	// Test with very small ring
 	t.Run("SmallRing", func(t *testing.T) {
 		ring := geom.NewLinearRingXY(0, 0, 1, 0, 0, 1, 0, 0)
-		if !algorithm.IsPointInRing(geom.NewCoordinate(0.25, 0.25), ring) {
-			t.Error("Expected point to be inside small ring")
-		}
+		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(0.25, 0.25), ring), "Expected point to be inside small ring")
 	})
 
 	// Test with degenerate ring (less than 4 points)
 	t.Run("DegenerateRing", func(t *testing.T) {
 		ring := geom.NewLinearRing(geom.NewCoordinateSequenceXY(0, 0, 1, 0, 0, 0))
-		if algorithm.IsPointInRing(geom.NewCoordinate(0.5, 0.5), ring) {
-			t.Error("Expected point to be outside degenerate ring")
-		}
+		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(0.5, 0.5), ring), "Expected point to be outside degenerate ring")
 	})
 
 	// Test point on vertex
@@ -385,12 +364,8 @@ func TestIsPointInRingEdgeCases(t *testing.T) {
 		// L-shaped polygon
 		ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 5, 5, 5, 5, 10, 0, 10, 0, 0)
 		// Point in the concave part
-		if algorithm.IsPointInRing(geom.NewCoordinate(7, 7), ring) {
-			t.Error("Expected point to be outside concave part")
-		}
+		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(7, 7), ring), "Expected point to be outside concave part")
 		// Point definitely inside
-		if !algorithm.IsPointInRing(geom.NewCoordinate(2, 2), ring) {
-			t.Error("Expected point to be inside")
-		}
+		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(2, 2), ring), "Expected point to be inside")
 	})
 }

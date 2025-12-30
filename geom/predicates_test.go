@@ -2,6 +2,8 @@ package geom
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIntersectsPointPoint(t *testing.T) {
@@ -11,13 +13,8 @@ func TestIntersectsPointPoint(t *testing.T) {
 	p2 := factory.CreatePoint(1, 2)
 	p3 := factory.CreatePoint(3, 4)
 
-	if !Intersects(p1, p2) {
-		t.Error("Expected equal points to intersect")
-	}
-
-	if Intersects(p1, p3) {
-		t.Error("Expected different points not to intersect")
-	}
+	assert.True(t, Intersects(p1, p2), "Expected equal points to intersect")
+	assert.False(t, Intersects(p1, p3), "Expected different points not to intersect")
 }
 
 func TestIntersectsPointLine(t *testing.T) {
@@ -29,14 +26,10 @@ func TestIntersectsPointLine(t *testing.T) {
 		NewCoordinate(2, 2),
 	})
 
-	if !Intersects(p, line) {
-		t.Error("Expected point on line to intersect")
-	}
+	assert.True(t, Intersects(p, line), "Expected point on line to intersect")
 
 	p2 := factory.CreatePoint(0, 1)
-	if Intersects(p2, line) {
-		t.Error("Expected point not on line to not intersect")
-	}
+	assert.False(t, Intersects(p2, line), "Expected point not on line to not intersect")
 }
 
 func TestIntersectsPointPolygon(t *testing.T) {
@@ -46,21 +39,15 @@ func TestIntersectsPointPolygon(t *testing.T) {
 
 	// Point inside
 	pInside := factory.CreatePoint(5, 5)
-	if !Intersects(pInside, poly) {
-		t.Error("Expected point inside polygon to intersect")
-	}
+	assert.True(t, Intersects(pInside, poly), "Expected point inside polygon to intersect")
 
 	// Point outside
 	pOutside := factory.CreatePoint(15, 15)
-	if Intersects(pOutside, poly) {
-		t.Error("Expected point outside polygon not to intersect")
-	}
+	assert.False(t, Intersects(pOutside, poly), "Expected point outside polygon not to intersect")
 
 	// Point on boundary
 	pBoundary := factory.CreatePoint(0, 5)
-	if !Intersects(pBoundary, poly) {
-		t.Error("Expected point on boundary to intersect")
-	}
+	assert.True(t, Intersects(pBoundary, poly), "Expected point on boundary to intersect")
 }
 
 func TestIntersectsLineLine(t *testing.T) {
@@ -75,18 +62,14 @@ func TestIntersectsLineLine(t *testing.T) {
 		NewCoordinate(10, 0),
 	})
 
-	if !Intersects(line1, line2) {
-		t.Error("Expected crossing lines to intersect")
-	}
+	assert.True(t, Intersects(line1, line2), "Expected crossing lines to intersect")
 
 	// Parallel lines
 	line3 := factory.CreateLineString(CoordinateSequence{
 		NewCoordinate(0, 5),
 		NewCoordinate(10, 15),
 	})
-	if Intersects(line1, line3) {
-		t.Error("Expected parallel lines not to intersect")
-	}
+	assert.False(t, Intersects(line1, line3), "Expected parallel lines not to intersect")
 }
 
 func TestIntersectsLinePolygon(t *testing.T) {
@@ -99,27 +82,21 @@ func TestIntersectsLinePolygon(t *testing.T) {
 		NewCoordinate(-5, 5),
 		NewCoordinate(15, 5),
 	})
-	if !Intersects(lineCrossing, poly) {
-		t.Error("Expected line crossing polygon to intersect")
-	}
+	assert.True(t, Intersects(lineCrossing, poly), "Expected line crossing polygon to intersect")
 
 	// Line outside polygon
 	lineOutside := factory.CreateLineString(CoordinateSequence{
 		NewCoordinate(20, 20),
 		NewCoordinate(30, 30),
 	})
-	if Intersects(lineOutside, poly) {
-		t.Error("Expected line outside polygon not to intersect")
-	}
+	assert.False(t, Intersects(lineOutside, poly), "Expected line outside polygon not to intersect")
 
 	// Line inside polygon
 	lineInside := factory.CreateLineString(CoordinateSequence{
 		NewCoordinate(2, 2),
 		NewCoordinate(8, 8),
 	})
-	if !Intersects(lineInside, poly) {
-		t.Error("Expected line inside polygon to intersect")
-	}
+	assert.True(t, Intersects(lineInside, poly), "Expected line inside polygon to intersect")
 }
 
 func TestIntersectsPolygonPolygon(t *testing.T) {
@@ -128,15 +105,11 @@ func TestIntersectsPolygonPolygon(t *testing.T) {
 	poly1 := createTestSquare(factory, 0, 0, 10)
 	poly2 := createTestSquare(factory, 5, 5, 10)
 
-	if !Intersects(poly1, poly2) {
-		t.Error("Expected overlapping polygons to intersect")
-	}
+	assert.True(t, Intersects(poly1, poly2), "Expected overlapping polygons to intersect")
 
 	// Non-overlapping polygons
 	poly3 := createTestSquare(factory, 20, 20, 10)
-	if Intersects(poly1, poly3) {
-		t.Error("Expected non-overlapping polygons not to intersect")
-	}
+	assert.False(t, Intersects(poly1, poly3), "Expected non-overlapping polygons not to intersect")
 }
 
 func TestContainsPointInPolygon(t *testing.T) {
@@ -146,15 +119,11 @@ func TestContainsPointInPolygon(t *testing.T) {
 
 	// Point inside
 	pInside := factory.CreatePoint(5, 5)
-	if !Contains(poly, pInside) {
-		t.Error("Expected polygon to contain point inside")
-	}
+	assert.True(t, Contains(poly, pInside), "Expected polygon to contain point inside")
 
 	// Point outside
 	pOutside := factory.CreatePoint(15, 15)
-	if Contains(poly, pOutside) {
-		t.Error("Expected polygon not to contain point outside")
-	}
+	assert.False(t, Contains(poly, pOutside), "Expected polygon not to contain point outside")
 }
 
 func TestContainsPolygonInPolygon(t *testing.T) {
@@ -163,13 +132,8 @@ func TestContainsPolygonInPolygon(t *testing.T) {
 	outer := createTestSquare(factory, 0, 0, 20)
 	inner := createTestSquare(factory, 5, 5, 5)
 
-	if !Contains(outer, inner) {
-		t.Error("Expected outer polygon to contain inner polygon")
-	}
-
-	if Contains(inner, outer) {
-		t.Error("Expected inner polygon not to contain outer polygon")
-	}
+	assert.True(t, Contains(outer, inner), "Expected outer polygon to contain inner polygon")
+	assert.False(t, Contains(inner, outer), "Expected inner polygon not to contain outer polygon")
 }
 
 func TestWithin(t *testing.T) {
@@ -178,13 +142,8 @@ func TestWithin(t *testing.T) {
 	outer := createTestSquare(factory, 0, 0, 20)
 	inner := createTestSquare(factory, 5, 5, 5)
 
-	if !Within(inner, outer) {
-		t.Error("Expected inner polygon to be within outer polygon")
-	}
-
-	if Within(outer, inner) {
-		t.Error("Expected outer polygon not to be within inner polygon")
-	}
+	assert.True(t, Within(inner, outer), "Expected inner polygon to be within outer polygon")
+	assert.False(t, Within(outer, inner), "Expected outer polygon not to be within inner polygon")
 }
 
 func TestCovers(t *testing.T) {
@@ -193,13 +152,8 @@ func TestCovers(t *testing.T) {
 	outer := createTestSquare(factory, 0, 0, 20)
 	inner := createTestSquare(factory, 5, 5, 5)
 
-	if !Covers(outer, inner) {
-		t.Error("Expected outer polygon to cover inner polygon")
-	}
-
-	if Covers(inner, outer) {
-		t.Error("Expected inner polygon not to cover outer polygon")
-	}
+	assert.True(t, Covers(outer, inner), "Expected outer polygon to cover inner polygon")
+	assert.False(t, Covers(inner, outer), "Expected inner polygon not to cover outer polygon")
 }
 
 func TestCoveredBy(t *testing.T) {
@@ -208,13 +162,8 @@ func TestCoveredBy(t *testing.T) {
 	outer := createTestSquare(factory, 0, 0, 20)
 	inner := createTestSquare(factory, 5, 5, 5)
 
-	if !CoveredBy(inner, outer) {
-		t.Error("Expected inner polygon to be covered by outer polygon")
-	}
-
-	if CoveredBy(outer, inner) {
-		t.Error("Expected outer polygon not to be covered by inner polygon")
-	}
+	assert.True(t, CoveredBy(inner, outer), "Expected inner polygon to be covered by outer polygon")
+	assert.False(t, CoveredBy(outer, inner), "Expected outer polygon not to be covered by inner polygon")
 }
 
 func TestDisjoint(t *testing.T) {
@@ -224,13 +173,8 @@ func TestDisjoint(t *testing.T) {
 	poly2 := createTestSquare(factory, 20, 20, 10)
 	poly3 := createTestSquare(factory, 5, 5, 10)
 
-	if !Disjoint(poly1, poly2) {
-		t.Error("Expected non-overlapping polygons to be disjoint")
-	}
-
-	if Disjoint(poly1, poly3) {
-		t.Error("Expected overlapping polygons not to be disjoint")
-	}
+	assert.True(t, Disjoint(poly1, poly2), "Expected non-overlapping polygons to be disjoint")
+	assert.False(t, Disjoint(poly1, poly3), "Expected overlapping polygons not to be disjoint")
 }
 
 func TestTouches(t *testing.T) {
@@ -240,15 +184,11 @@ func TestTouches(t *testing.T) {
 	poly1 := createTestSquare(factory, 0, 0, 10)
 	poly2 := createTestSquare(factory, 10, 0, 10)
 
-	if !Touches(poly1, poly2) {
-		t.Error("Expected adjacent polygons to touch")
-	}
+	assert.True(t, Touches(poly1, poly2), "Expected adjacent polygons to touch")
 
 	// Overlapping polygons don't touch
 	poly3 := createTestSquare(factory, 5, 0, 10)
-	if Touches(poly1, poly3) {
-		t.Error("Expected overlapping polygons not to touch")
-	}
+	assert.False(t, Touches(poly1, poly3), "Expected overlapping polygons not to touch")
 }
 
 func TestCrosses(t *testing.T) {
@@ -262,18 +202,14 @@ func TestCrosses(t *testing.T) {
 		NewCoordinate(15, 5),
 	})
 
-	if !Crosses(lineCrossing, poly) {
-		t.Error("Expected line to cross polygon")
-	}
+	assert.True(t, Crosses(lineCrossing, poly), "Expected line to cross polygon")
 
 	// Line inside polygon
 	lineInside := factory.CreateLineString(CoordinateSequence{
 		NewCoordinate(2, 2),
 		NewCoordinate(8, 8),
 	})
-	if Crosses(lineInside, poly) {
-		t.Error("Expected line inside polygon not to cross")
-	}
+	assert.False(t, Crosses(lineInside, poly), "Expected line inside polygon not to cross")
 }
 
 func TestOverlaps(t *testing.T) {
@@ -282,25 +218,19 @@ func TestOverlaps(t *testing.T) {
 	poly1 := createTestSquare(factory, 0, 0, 10)
 	poly2 := createTestSquare(factory, 5, 5, 10)
 
-	if !Overlaps(poly1, poly2) {
-		t.Error("Expected partially overlapping polygons to overlap")
-	}
+	assert.True(t, Overlaps(poly1, poly2), "Expected partially overlapping polygons to overlap")
 
 	// One contains the other - not overlap
 	outer := createTestSquare(factory, 0, 0, 20)
 	inner := createTestSquare(factory, 5, 5, 5)
-	if Overlaps(outer, inner) {
-		t.Error("Expected containment not to be overlap")
-	}
+	assert.False(t, Overlaps(outer, inner), "Expected containment not to be overlap")
 
 	// Different dimensions
 	line := factory.CreateLineString(CoordinateSequence{
 		NewCoordinate(0, 0),
 		NewCoordinate(10, 10),
 	})
-	if Overlaps(poly1, line) {
-		t.Error("Expected different dimension geometries not to overlap")
-	}
+	assert.False(t, Overlaps(poly1, line), "Expected different dimension geometries not to overlap")
 }
 
 func TestEquals(t *testing.T) {
@@ -310,13 +240,8 @@ func TestEquals(t *testing.T) {
 	poly2 := createTestSquare(factory, 0, 0, 10)
 	poly3 := createTestSquare(factory, 5, 5, 10)
 
-	if !Equals(poly1, poly2) {
-		t.Error("Expected identical polygons to be equal")
-	}
-
-	if Equals(poly1, poly3) {
-		t.Error("Expected different polygons not to be equal")
-	}
+	assert.True(t, Equals(poly1, poly2), "Expected identical polygons to be equal")
+	assert.False(t, Equals(poly1, poly3), "Expected different polygons not to be equal")
 }
 
 func TestEqualsEmptyGeometries(t *testing.T) {
@@ -325,9 +250,7 @@ func TestEqualsEmptyGeometries(t *testing.T) {
 	emptyPoint1 := factory.CreatePointEmpty()
 	emptyPoint2 := factory.CreatePointEmpty()
 
-	if !Equals(emptyPoint1, emptyPoint2) {
-		t.Error("Expected empty points to be equal")
-	}
+	assert.True(t, Equals(emptyPoint1, emptyPoint2), "Expected empty points to be equal")
 }
 
 func TestPredicatesWithMultiGeometries(t *testing.T) {
@@ -342,21 +265,15 @@ func TestPredicatesWithMultiGeometries(t *testing.T) {
 
 	// Point in first polygon
 	p1 := factory.CreatePoint(5, 5)
-	if !Intersects(mp, p1) {
-		t.Error("Expected multipolygon to intersect with point in first polygon")
-	}
+	assert.True(t, Intersects(mp, p1), "Expected multipolygon to intersect with point in first polygon")
 
 	// Point in second polygon
 	p2 := factory.CreatePoint(25, 25)
-	if !Intersects(mp, p2) {
-		t.Error("Expected multipolygon to intersect with point in second polygon")
-	}
+	assert.True(t, Intersects(mp, p2), "Expected multipolygon to intersect with point in second polygon")
 
 	// Point outside both
 	p3 := factory.CreatePoint(50, 50)
-	if Intersects(mp, p3) {
-		t.Error("Expected multipolygon not to intersect with point outside")
-	}
+	assert.False(t, Intersects(mp, p3), "Expected multipolygon not to intersect with point outside")
 }
 
 func TestPredicatesWithGeometryCollection(t *testing.T) {
@@ -370,9 +287,7 @@ func TestPredicatesWithGeometryCollection(t *testing.T) {
 
 	// Point inside the polygon component
 	p := factory.CreatePoint(2, 2)
-	if !Intersects(gc, p) {
-		t.Error("Expected geometry collection to intersect with point inside polygon")
-	}
+	assert.True(t, Intersects(gc, p), "Expected geometry collection to intersect with point inside polygon")
 }
 
 func TestPredicatesEnvelopeRejection(t *testing.T) {
@@ -383,17 +298,9 @@ func TestPredicatesEnvelopeRejection(t *testing.T) {
 	poly2 := createTestSquare(factory, 100, 100, 10)
 
 	// Should be quickly rejected by envelope check
-	if Intersects(poly1, poly2) {
-		t.Error("Expected disjoint envelope geometries not to intersect")
-	}
-
-	if Contains(poly1, poly2) {
-		t.Error("Expected disjoint envelope geometries: no containment")
-	}
-
-	if Touches(poly1, poly2) {
-		t.Error("Expected disjoint envelope geometries not to touch")
-	}
+	assert.False(t, Intersects(poly1, poly2), "Expected disjoint envelope geometries not to intersect")
+	assert.False(t, Contains(poly1, poly2), "Expected disjoint envelope geometries: no containment")
+	assert.False(t, Touches(poly1, poly2), "Expected disjoint envelope geometries not to touch")
 }
 
 func TestLineCrossLines(t *testing.T) {
@@ -409,18 +316,14 @@ func TestLineCrossLines(t *testing.T) {
 		NewCoordinate(10, 0),
 	})
 
-	if !Crosses(line1, line2) {
-		t.Error("Expected crossing lines to cross")
-	}
+	assert.True(t, Crosses(line1, line2), "Expected crossing lines to cross")
 
 	// Parallel lines don't cross
 	line3 := factory.CreateLineString(CoordinateSequence{
 		NewCoordinate(0, 5),
 		NewCoordinate(10, 15),
 	})
-	if Crosses(line1, line3) {
-		t.Error("Expected parallel lines not to cross")
-	}
+	assert.False(t, Crosses(line1, line3), "Expected parallel lines not to cross")
 }
 
 func createTestSquare(factory *GeometryFactory, x, y, size float64) *Polygon {

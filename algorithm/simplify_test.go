@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-topology-suite/gts/algorithm"
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDouglasPeucker(t *testing.T) {
@@ -49,13 +50,11 @@ func TestDouglasPeucker(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.DouglasPeucker(tt.geom, tt.tolerance)
-			if result.IsEmpty() && !tt.geom.IsEmpty() {
-				t.Error("Result should not be empty")
+			if !tt.geom.IsEmpty() {
+				assert.False(t, result.IsEmpty(), "Result should not be empty")
 			}
 			coords := result.Coordinates()
-			if len(coords) > tt.maxPoints {
-				t.Errorf("Expected at most %d points, got %d", tt.maxPoints, len(coords))
-			}
+			assert.LessOrEqual(t, len(coords), tt.maxPoints, "Expected at most %d points", tt.maxPoints)
 		})
 	}
 }
@@ -94,12 +93,8 @@ func TestDouglasPeuckerLineString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.DouglasPeucker(ls, tt.tolerance)
 			coords := result.Coordinates()
-			if len(coords) < tt.minPoints {
-				t.Errorf("Expected at least %d points, got %d", tt.minPoints, len(coords))
-			}
-			if len(coords) > tt.maxPoints {
-				t.Errorf("Expected at most %d points, got %d", tt.maxPoints, len(coords))
-			}
+			assert.GreaterOrEqual(t, len(coords), tt.minPoints, "Expected at least %d points", tt.minPoints)
+			assert.LessOrEqual(t, len(coords), tt.maxPoints, "Expected at most %d points", tt.maxPoints)
 		})
 	}
 
@@ -108,9 +103,7 @@ func TestDouglasPeuckerLineString(t *testing.T) {
 		shortLine := geom.NewLineStringXY(0, 0, 1, 0)
 		result := algorithm.DouglasPeucker(shortLine, 1.0)
 		coords := result.Coordinates()
-		if len(coords) != 2 {
-			t.Errorf("Expected 2 points for short line, got %d", len(coords))
-		}
+		assert.Equal(t, 2, len(coords), "Expected 2 points for short line")
 	})
 }
 
@@ -120,15 +113,11 @@ func TestDouglasPeuckerPolygon(t *testing.T) {
 	poly := geom.NewPolygon(shell, nil)
 
 	result := algorithm.DouglasPeucker(poly, 0.5)
-	if result.GeometryType() != "Polygon" {
-		t.Errorf("Expected Polygon, got %s", result.GeometryType())
-	}
+	assert.Equal(t, "Polygon", result.GeometryType())
 
 	resultPoly := result.(*geom.Polygon)
 	coords := resultPoly.ExteriorRing().Coordinates()
-	if len(coords) < 4 { // Minimum for a valid ring
-		t.Errorf("Expected at least 4 points (including closure), got %d", len(coords))
-	}
+	assert.GreaterOrEqual(t, len(coords), 4, "Expected at least 4 points (including closure)")
 
 	// Test polygon with hole
 	t.Run("PolygonWithHole", func(t *testing.T) {
@@ -139,9 +128,7 @@ func TestDouglasPeuckerPolygon(t *testing.T) {
 		resultWithHole := algorithm.DouglasPeucker(polyWithHole, 1.0)
 		resultPolyWithHole := resultWithHole.(*geom.Polygon)
 
-		if resultPolyWithHole.NumInteriorRings() != 1 {
-			t.Errorf("Expected 1 hole, got %d", resultPolyWithHole.NumInteriorRings())
-		}
+		assert.Equal(t, 1, resultPolyWithHole.NumInteriorRings(), "Expected 1 hole")
 	})
 }
 
@@ -153,9 +140,7 @@ func TestDouglasPeuckerMultiGeometries(t *testing.T) {
 			geom.NewLineStringXY(0, 10, 5, 10, 10, 10),
 		})
 		result := algorithm.DouglasPeucker(mls, 1.0)
-		if result.GeometryType() != "MultiLineString" {
-			t.Errorf("Expected MultiLineString, got %s", result.GeometryType())
-		}
+		assert.Equal(t, "MultiLineString", result.GeometryType())
 	})
 
 	// Test MultiPolygon
@@ -165,9 +150,7 @@ func TestDouglasPeuckerMultiGeometries(t *testing.T) {
 			geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
 		})
 		result := algorithm.DouglasPeucker(mp, 1.0)
-		if result.GeometryType() != "MultiPolygon" {
-			t.Errorf("Expected MultiPolygon, got %s", result.GeometryType())
-		}
+		assert.Equal(t, "MultiPolygon", result.GeometryType())
 	})
 
 	// Test GeometryCollection
@@ -177,9 +160,7 @@ func TestDouglasPeuckerMultiGeometries(t *testing.T) {
 			geom.NewLineStringXY(0, 0, 10, 0),
 		})
 		result := algorithm.DouglasPeucker(gc, 1.0)
-		if result.GeometryType() != "GeometryCollection" {
-			t.Errorf("Expected GeometryCollection, got %s", result.GeometryType())
-		}
+		assert.Equal(t, "GeometryCollection", result.GeometryType())
 	})
 }
 
@@ -209,8 +190,8 @@ func TestVisvalingamWhyatt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.VisvalingamWhyatt(tt.geom, tt.threshold)
-			if result.IsEmpty() && !tt.geom.IsEmpty() {
-				t.Error("Result should not be empty")
+			if !tt.geom.IsEmpty() {
+				assert.False(t, result.IsEmpty(), "Result should not be empty")
 			}
 		})
 	}
@@ -220,10 +201,7 @@ func TestVisvalingamWhyatt(t *testing.T) {
 		ls := geom.NewLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0)
 		result := algorithm.VisvalingamWhyatt(ls, 0.01)
 		coords := result.Coordinates()
-		// Should keep most points with small threshold
-		if len(coords) < 3 {
-			t.Errorf("Expected at least 3 points, got %d", len(coords))
-		}
+		assert.GreaterOrEqual(t, len(coords), 3, "Expected at least 3 points")
 	})
 
 	// Test polygon with hole
@@ -235,9 +213,7 @@ func TestVisvalingamWhyatt(t *testing.T) {
 		result := algorithm.VisvalingamWhyatt(poly, 10.0)
 		resultPoly := result.(*geom.Polygon)
 
-		if resultPoly.IsEmpty() {
-			t.Error("Result should not be empty")
-		}
+		assert.False(t, resultPoly.IsEmpty(), "Result should not be empty")
 	})
 }
 
@@ -272,9 +248,7 @@ func TestRadialDistance(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.RadialDistance(tt.geom, tt.threshold)
 			coords := result.Coordinates()
-			if len(coords) > tt.maxPoints {
-				t.Errorf("Expected at most %d points, got %d", tt.maxPoints, len(coords))
-			}
+			assert.LessOrEqual(t, len(coords), tt.maxPoints, "Expected at most %d points", tt.maxPoints)
 		})
 	}
 
@@ -284,21 +258,15 @@ func TestRadialDistance(t *testing.T) {
 		result := algorithm.RadialDistance(ls, 1.0)
 		coords := result.Coordinates()
 
-		if len(coords) < 2 {
-			t.Error("Expected at least 2 points (start and end)")
-		}
+		assert.GreaterOrEqual(t, len(coords), 2, "Expected at least 2 points (start and end)")
 
 		firstCoord := ls.Coordinates()[0]
 		lastCoord := ls.Coordinates()[len(ls.Coordinates())-1]
 		resultFirst := coords[0]
 		resultLast := coords[len(coords)-1]
 
-		if !firstCoord.Equals2D(resultFirst, 0.001) {
-			t.Error("First point should be preserved")
-		}
-		if !lastCoord.Equals2D(resultLast, 0.001) {
-			t.Error("Last point should be preserved")
-		}
+		assert.True(t, firstCoord.Equals2D(resultFirst, 0.001), "First point should be preserved")
+		assert.True(t, lastCoord.Equals2D(resultLast, 0.001), "Last point should be preserved")
 	})
 }
 
@@ -307,17 +275,13 @@ func TestSimplifyEdgeCases(t *testing.T) {
 	t.Run("EmptyLineString", func(t *testing.T) {
 		empty := geom.NewLineStringEmpty()
 		result := algorithm.DouglasPeucker(empty, 1.0)
-		if !result.IsEmpty() {
-			t.Error("Result should be empty")
-		}
+		assert.True(t, result.IsEmpty(), "Result should be empty")
 	})
 
 	t.Run("EmptyPolygon", func(t *testing.T) {
 		empty := geom.NewPolygonEmpty()
 		result := algorithm.DouglasPeucker(empty, 1.0)
-		if !result.IsEmpty() {
-			t.Error("Result should be empty")
-		}
+		assert.True(t, result.IsEmpty(), "Result should be empty")
 	})
 
 	// Test degenerate cases
@@ -325,18 +289,14 @@ func TestSimplifyEdgeCases(t *testing.T) {
 		ls := geom.NewLineStringXY(0, 0, 10, 0)
 		result := algorithm.DouglasPeucker(ls, 1.0)
 		coords := result.Coordinates()
-		if len(coords) != 2 {
-			t.Errorf("Expected 2 points, got %d", len(coords))
-		}
+		assert.Equal(t, 2, len(coords), "Expected 2 points")
 	})
 
 	t.Run("TriangleRing", func(t *testing.T) {
 		ring := geom.NewLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0)
 		result := algorithm.DouglasPeucker(ring, 1.0)
 		coords := result.Coordinates()
-		if len(coords) < 4 {
-			t.Errorf("Expected at least 4 points (triangle + closure), got %d", len(coords))
-		}
+		assert.GreaterOrEqual(t, len(coords), 4, "Expected at least 4 points (triangle + closure)")
 	})
 
 	// Test with very high tolerance
@@ -345,9 +305,7 @@ func TestSimplifyEdgeCases(t *testing.T) {
 		result := algorithm.DouglasPeucker(ls, 10.0)
 		coords := result.Coordinates()
 		// Should simplify to just endpoints
-		if len(coords) != 2 {
-			t.Errorf("Expected 2 points with high tolerance, got %d", len(coords))
-		}
+		assert.Equal(t, 2, len(coords), "Expected 2 points with high tolerance")
 	})
 
 	// Test linear ring that simplifies too much
@@ -356,9 +314,7 @@ func TestSimplifyEdgeCases(t *testing.T) {
 		result := algorithm.DouglasPeucker(ring, 10.0)
 		coords := result.Coordinates()
 		// Should maintain at least 4 points for a valid ring
-		if len(coords) < 4 {
-			t.Errorf("Expected at least 4 points for ring, got %d", len(coords))
-		}
+		assert.GreaterOrEqual(t, len(coords), 4, "Expected at least 4 points for ring")
 	})
 }
 
@@ -393,9 +349,7 @@ func TestSimplifyPreservesGeometryType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.DouglasPeucker(tt.geom, 1.0)
-			if result.GeometryType() != tt.expectedType {
-				t.Errorf("Expected type %s, got %s", tt.expectedType, result.GeometryType())
-			}
+			assert.Equal(t, tt.expectedType, result.GeometryType(), "Expected type %s", tt.expectedType)
 		})
 	}
 }

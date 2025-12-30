@@ -113,8 +113,6 @@ func TestWebMercatorPoleErrors(t *testing.T) {
 }
 
 func TestMercatorEllipsoidal(t *testing.T) {
-	t.Skip("Ellipsoidal Mercator inverse needs improved iterative formula")
-	// TODO: The ellipsoidal inverse formula needs more iterations or better convergence
 	// Create Mercator with WGS84 ellipsoid (not spherical)
 	merc := NewMercator(WGS84(), 0, 0, 0)
 

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransformPoint(t *testing.T) {
@@ -14,24 +16,16 @@ func TestTransformPoint(t *testing.T) {
 	point.SetSRID(4326)
 
 	result, err := TransformGeometry(translation, point)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultPoint, ok := result.(*geom.Point)
-	if !ok {
-		t.Fatalf("Result is not a Point: %T", result)
-	}
+	require.True(t, ok, "Result is not a Point: %T", result)
 
-	if math.Abs(resultPoint.X()-15) > epsilon || math.Abs(resultPoint.Y()-35) > epsilon {
-		t.Errorf("Transformed point = (%f, %f), want (15, 35)",
-			resultPoint.X(), resultPoint.Y())
-	}
+	assert.InDelta(t, 15.0, resultPoint.X(), epsilon)
+	assert.InDelta(t, 35.0, resultPoint.Y(), epsilon)
 
 	// Check SRID is preserved
-	if resultPoint.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultPoint.SRID())
-	}
+	assert.Equal(t, 4326, resultPoint.SRID(), "SRID should be preserved")
 }
 
 func TestTransformEmptyPoint(t *testing.T) {
@@ -39,13 +33,9 @@ func TestTransformEmptyPoint(t *testing.T) {
 	point := geom.NewPointEmpty()
 
 	result, err := TransformGeometry(translation, point)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
-	if !result.IsEmpty() {
-		t.Error("Transformed empty point should remain empty")
-	}
+	assert.True(t, result.IsEmpty(), "Transformed empty point should remain empty")
 }
 
 func TestTransformLineString(t *testing.T) {
@@ -55,14 +45,10 @@ func TestTransformLineString(t *testing.T) {
 	ls.SetSRID(4326)
 
 	result, err := TransformGeometry(scale, ls)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultLS, ok := result.(*geom.LineString)
-	if !ok {
-		t.Fatalf("Result is not a LineString: %T", result)
-	}
+	require.True(t, ok, "Result is not a LineString: %T", result)
 
 	expected := []struct{ x, y float64 }{
 		{0, 0},
@@ -71,21 +57,15 @@ func TestTransformLineString(t *testing.T) {
 	}
 
 	coords := resultLS.Coordinates()
-	if len(coords) != len(expected) {
-		t.Fatalf("Result has %d coordinates, want %d", len(coords), len(expected))
-	}
+	require.Len(t, coords, len(expected), "Coordinate count mismatch")
 
 	for i, exp := range expected {
-		if math.Abs(coords[i].X-exp.x) > epsilon || math.Abs(coords[i].Y-exp.y) > epsilon {
-			t.Errorf("Coordinate %d = (%f, %f), want (%f, %f)",
-				i, coords[i].X, coords[i].Y, exp.x, exp.y)
-		}
+		assert.InDelta(t, exp.x, coords[i].X, epsilon, "Coordinate %d X", i)
+		assert.InDelta(t, exp.y, coords[i].Y, epsilon, "Coordinate %d Y", i)
 	}
 
 	// Check SRID is preserved
-	if resultLS.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultLS.SRID())
-	}
+	assert.Equal(t, 4326, resultLS.SRID(), "SRID should be preserved")
 }
 
 func TestTransformPolygon(t *testing.T) {
@@ -97,14 +77,10 @@ func TestTransformPolygon(t *testing.T) {
 	polygon.SetSRID(4326)
 
 	result, err := TransformGeometry(rotation, polygon)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultPoly, ok := result.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("Result is not a Polygon: %T", result)
-	}
+	require.True(t, ok, "Result is not a Polygon: %T", result)
 
 	// After 90-degree rotation, (4, 0) should become approximately (0, 4)
 	coords := resultPoly.ExteriorRing().Coordinates()
@@ -118,14 +94,10 @@ func TestTransformPolygon(t *testing.T) {
 		}
 	}
 
-	if !found {
-		t.Error("Expected coordinate (0, 4) not found in rotated polygon")
-	}
+	assert.True(t, found, "Expected coordinate (0, 4) not found in rotated polygon")
 
 	// Check SRID is preserved
-	if resultPoly.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultPoly.SRID())
-	}
+	assert.Equal(t, 4326, resultPoly.SRID(), "SRID should be preserved")
 }
 
 func TestTransformPolygonWithHoles(t *testing.T) {
@@ -137,32 +109,22 @@ func TestTransformPolygonWithHoles(t *testing.T) {
 	polygon := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	result, err := TransformGeometry(translation, polygon)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultPoly, ok := result.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("Result is not a Polygon: %T", result)
-	}
+	require.True(t, ok, "Result is not a Polygon: %T", result)
 
-	if resultPoly.NumInteriorRings() != 1 {
-		t.Errorf("Result has %d holes, want 1", resultPoly.NumInteriorRings())
-	}
+	assert.Equal(t, 1, resultPoly.NumInteriorRings(), "Should have 1 hole")
 
 	// Check that shell was transformed
 	shellCoords := resultPoly.ExteriorRing().Coordinates()
-	if math.Abs(shellCoords[0].X-10) > epsilon || math.Abs(shellCoords[0].Y-20) > epsilon {
-		t.Errorf("Shell first coordinate = (%f, %f), want (10, 20)",
-			shellCoords[0].X, shellCoords[0].Y)
-	}
+	assert.InDelta(t, 10.0, shellCoords[0].X, epsilon, "Shell first X")
+	assert.InDelta(t, 20.0, shellCoords[0].Y, epsilon, "Shell first Y")
 
 	// Check that hole was transformed
 	holeCoords := resultPoly.InteriorRingN(0).Coordinates()
-	if math.Abs(holeCoords[0].X-12) > epsilon || math.Abs(holeCoords[0].Y-22) > epsilon {
-		t.Errorf("Hole first coordinate = (%f, %f), want (12, 22)",
-			holeCoords[0].X, holeCoords[0].Y)
-	}
+	assert.InDelta(t, 12.0, holeCoords[0].X, epsilon, "Hole first X")
+	assert.InDelta(t, 22.0, holeCoords[0].Y, epsilon, "Hole first Y")
 }
 
 func TestTransformMultiPoint(t *testing.T) {
@@ -177,14 +139,10 @@ func TestTransformMultiPoint(t *testing.T) {
 	mp.SetSRID(4326)
 
 	result, err := TransformGeometry(scale, mp)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultMP, ok := result.(*geom.MultiPoint)
-	if !ok {
-		t.Fatalf("Result is not a MultiPoint: %T", result)
-	}
+	require.True(t, ok, "Result is not a MultiPoint: %T", result)
 
 	expected := []struct{ x, y float64 }{
 		{2, 4},
@@ -192,22 +150,16 @@ func TestTransformMultiPoint(t *testing.T) {
 		{10, 12},
 	}
 
-	if resultMP.NumGeometries() != len(expected) {
-		t.Fatalf("Result has %d points, want %d", resultMP.NumGeometries(), len(expected))
-	}
+	require.Equal(t, len(expected), resultMP.NumGeometries(), "Result point count")
 
 	for i, exp := range expected {
 		point := resultMP.GeometryN(i).(*geom.Point)
-		if math.Abs(point.X()-exp.x) > epsilon || math.Abs(point.Y()-exp.y) > epsilon {
-			t.Errorf("Point %d = (%f, %f), want (%f, %f)",
-				i, point.X(), point.Y(), exp.x, exp.y)
-		}
+		assert.InDelta(t, exp.x, point.X(), epsilon, "Point %d X", i)
+		assert.InDelta(t, exp.y, point.Y(), epsilon, "Point %d Y", i)
 	}
 
 	// Check SRID is preserved
-	if resultMP.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultMP.SRID())
-	}
+	assert.Equal(t, 4326, resultMP.SRID(), "SRID should be preserved")
 }
 
 func TestTransformMultiLineString(t *testing.T) {
@@ -221,31 +173,21 @@ func TestTransformMultiLineString(t *testing.T) {
 	mls.SetSRID(4326)
 
 	result, err := TransformGeometry(translation, mls)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultMLS, ok := result.(*geom.MultiLineString)
-	if !ok {
-		t.Fatalf("Result is not a MultiLineString: %T", result)
-	}
+	require.True(t, ok, "Result is not a MultiLineString: %T", result)
 
-	if resultMLS.NumGeometries() != 2 {
-		t.Fatalf("Result has %d linestrings, want 2", resultMLS.NumGeometries())
-	}
+	require.Equal(t, 2, resultMLS.NumGeometries(), "Result linestring count")
 
 	// Check first linestring
 	ls1 := resultMLS.GeometryN(0).(*geom.LineString)
 	coords1 := ls1.Coordinates()
-	if math.Abs(coords1[0].X-5) > epsilon || math.Abs(coords1[0].Y-10) > epsilon {
-		t.Errorf("First linestring start = (%f, %f), want (5, 10)",
-			coords1[0].X, coords1[0].Y)
-	}
+	assert.InDelta(t, 5.0, coords1[0].X, epsilon, "First linestring start X")
+	assert.InDelta(t, 10.0, coords1[0].Y, epsilon, "First linestring start Y")
 
 	// Check SRID is preserved
-	if resultMLS.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultMLS.SRID())
-	}
+	assert.Equal(t, 4326, resultMLS.SRID(), "SRID should be preserved")
 }
 
 func TestTransformMultiPolygon(t *testing.T) {
@@ -259,18 +201,12 @@ func TestTransformMultiPolygon(t *testing.T) {
 	mpoly.SetSRID(4326)
 
 	result, err := TransformGeometry(scale, mpoly)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultMPoly, ok := result.(*geom.MultiPolygon)
-	if !ok {
-		t.Fatalf("Result is not a MultiPolygon: %T", result)
-	}
+	require.True(t, ok, "Result is not a MultiPolygon: %T", result)
 
-	if resultMPoly.NumGeometries() != 2 {
-		t.Fatalf("Result has %d polygons, want 2", resultMPoly.NumGeometries())
-	}
+	require.Equal(t, 2, resultMPoly.NumGeometries(), "Result polygon count")
 
 	// Check first polygon
 	poly1 := resultMPoly.GeometryN(0).(*geom.Polygon)
@@ -283,14 +219,10 @@ func TestTransformMultiPolygon(t *testing.T) {
 			break
 		}
 	}
-	if !found {
-		t.Error("Expected coordinate (10, 10) not found in scaled polygon")
-	}
+	assert.True(t, found, "Expected coordinate (10, 10) not found in scaled polygon")
 
 	// Check SRID is preserved
-	if resultMPoly.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultMPoly.SRID())
-	}
+	assert.Equal(t, 4326, resultMPoly.SRID(), "SRID should be preserved")
 }
 
 func TestTransformGeometryCollection(t *testing.T) {
@@ -305,45 +237,32 @@ func TestTransformGeometryCollection(t *testing.T) {
 	gc.SetSRID(4326)
 
 	result, err := TransformGeometry(translation, gc)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultGC, ok := result.(*geom.GeometryCollection)
-	if !ok {
-		t.Fatalf("Result is not a GeometryCollection: %T", result)
-	}
+	require.True(t, ok, "Result is not a GeometryCollection: %T", result)
 
-	if resultGC.NumGeometries() != 3 {
-		t.Fatalf("Result has %d geometries, want 3", resultGC.NumGeometries())
-	}
+	require.Equal(t, 3, resultGC.NumGeometries(), "Result geometry count")
 
 	// Check point
 	point := resultGC.GeometryN(0).(*geom.Point)
-	if math.Abs(point.X()-10) > epsilon || math.Abs(point.Y()-20) > epsilon {
-		t.Errorf("Point = (%f, %f), want (10, 20)", point.X(), point.Y())
-	}
+	assert.InDelta(t, 10.0, point.X(), epsilon, "Point X")
+	assert.InDelta(t, 20.0, point.Y(), epsilon, "Point Y")
 
 	// Check linestring
 	ls := resultGC.GeometryN(1).(*geom.LineString)
 	coords := ls.Coordinates()
-	if math.Abs(coords[0].X-10) > epsilon || math.Abs(coords[0].Y-20) > epsilon {
-		t.Errorf("LineString start = (%f, %f), want (10, 20)",
-			coords[0].X, coords[0].Y)
-	}
+	assert.InDelta(t, 10.0, coords[0].X, epsilon, "LineString start X")
+	assert.InDelta(t, 20.0, coords[0].Y, epsilon, "LineString start Y")
 
 	// Check polygon
 	poly := resultGC.GeometryN(2).(*geom.Polygon)
 	polyCoords := poly.ExteriorRing().Coordinates()
-	if math.Abs(polyCoords[0].X-10) > epsilon || math.Abs(polyCoords[0].Y-20) > epsilon {
-		t.Errorf("Polygon start = (%f, %f), want (10, 20)",
-			polyCoords[0].X, polyCoords[0].Y)
-	}
+	assert.InDelta(t, 10.0, polyCoords[0].X, epsilon, "Polygon start X")
+	assert.InDelta(t, 20.0, polyCoords[0].Y, epsilon, "Polygon start Y")
 
 	// Check SRID is preserved
-	if resultGC.SRID() != 4326 {
-		t.Errorf("SRID = %d, want 4326", resultGC.SRID())
-	}
+	assert.Equal(t, 4326, resultGC.SRID(), "SRID should be preserved")
 }
 
 func TestTransformNestedGeometryCollection(t *testing.T) {
@@ -361,40 +280,30 @@ func TestTransformNestedGeometryCollection(t *testing.T) {
 	})
 
 	result, err := TransformGeometry(scale, outerCollection)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
 	resultGC, ok := result.(*geom.GeometryCollection)
-	if !ok {
-		t.Fatalf("Result is not a GeometryCollection: %T", result)
-	}
+	require.True(t, ok, "Result is not a GeometryCollection: %T", result)
 
 	// Check outer point
 	point := resultGC.GeometryN(0).(*geom.Point)
-	if math.Abs(point.X()-10) > epsilon || math.Abs(point.Y()-12) > epsilon {
-		t.Errorf("Outer point = (%f, %f), want (10, 12)", point.X(), point.Y())
-	}
+	assert.InDelta(t, 10.0, point.X(), epsilon, "Outer point X")
+	assert.InDelta(t, 12.0, point.Y(), epsilon, "Outer point Y")
 
 	// Check inner collection
 	innerResult := resultGC.GeometryN(1).(*geom.GeometryCollection)
 	innerPoint := innerResult.GeometryN(0).(*geom.Point)
-	if math.Abs(innerPoint.X()-2) > epsilon || math.Abs(innerPoint.Y()-4) > epsilon {
-		t.Errorf("Inner point = (%f, %f), want (2, 4)", innerPoint.X(), innerPoint.Y())
-	}
+	assert.InDelta(t, 2.0, innerPoint.X(), epsilon, "Inner point X")
+	assert.InDelta(t, 4.0, innerPoint.Y(), epsilon, "Inner point Y")
 }
 
 func TestTransformNilGeometry(t *testing.T) {
 	translation := NewAffineTranslation(10, 20)
 
 	result, err := TransformGeometry(translation, nil)
-	if err != nil {
-		t.Fatalf("TransformGeometry() error = %v", err)
-	}
+	require.NoError(t, err, "TransformGeometry() error")
 
-	if result != nil {
-		t.Error("Transforming nil geometry should return nil")
-	}
+	assert.Nil(t, result, "Transforming nil geometry should return nil")
 }
 
 func BenchmarkTransformPoint(b *testing.B) {

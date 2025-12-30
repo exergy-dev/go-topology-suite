@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-topology-suite/gts/algorithm"
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAreaGeometryTypes(t *testing.T) {
@@ -60,9 +61,7 @@ func TestAreaGeometryTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.Area(tt.geom)
-			if math.Abs(result-tt.expected) > 0.001 {
-				t.Errorf("Expected area %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.001, "Expected area %v", tt.expected)
 		})
 	}
 }
@@ -73,9 +72,7 @@ func TestMultiPolygonArea(t *testing.T) {
 		geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
 	})
 	area := algorithm.MultiPolygonArea(mp)
-	if area != 200 {
-		t.Errorf("Expected area 200, got %v", area)
-	}
+	assert.Equal(t, 200.0, area, "Expected area 200")
 }
 
 func TestPolygonPerimeter(t *testing.T) {
@@ -107,9 +104,7 @@ func TestPolygonPerimeter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.PolygonPerimeter(tt.poly)
-			if math.Abs(result-tt.expected) > 0.001 {
-				t.Errorf("Expected perimeter %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.001, "Expected perimeter %v", tt.expected)
 		})
 	}
 }
@@ -169,9 +164,7 @@ func TestLength(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.Length(tt.geom)
-			if math.Abs(result-tt.expected) > 0.001 {
-				t.Errorf("Expected length %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.001, "Expected length %v", tt.expected)
 		})
 	}
 }
@@ -207,9 +200,7 @@ func TestLineLength(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.LineLength(tt.coords)
-			if math.Abs(result-tt.expected) > 0.001 {
-				t.Errorf("Expected length %v, got %v", tt.expected, result)
-			}
+			assert.InDelta(t, tt.expected, result, 0.001, "Expected length %v", tt.expected)
 		})
 	}
 }
@@ -250,9 +241,8 @@ func TestCentroidGeometryTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.Centroid(tt.geom)
-			if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-				t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-			}
+			assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+			assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 		})
 	}
 }
@@ -265,16 +255,14 @@ func TestMultiPointCentroid(t *testing.T) {
 		geom.NewPoint(0, 10),
 	})
 	centroid := algorithm.MultiPointCentroid(mp)
-	if math.Abs(centroid.X-5) > 0.001 || math.Abs(centroid.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5), got (%v, %v)", centroid.X, centroid.Y)
-	}
+	assert.InDelta(t, 5.0, centroid.X, 0.001, "Expected X 5")
+	assert.InDelta(t, 5.0, centroid.Y, 0.001, "Expected Y 5")
 
 	// Test empty
 	emptyMp := geom.NewMultiPoint([]*geom.Point{})
 	emptyCentroid := algorithm.MultiPointCentroid(emptyMp)
-	if !math.IsNaN(emptyCentroid.X) || !math.IsNaN(emptyCentroid.Y) {
-		t.Errorf("Expected NaN for empty multipoint")
-	}
+	assert.True(t, math.IsNaN(emptyCentroid.X), "Expected NaN for empty multipoint X")
+	assert.True(t, math.IsNaN(emptyCentroid.Y), "Expected NaN for empty multipoint Y")
 }
 
 func TestMultiLineStringCentroid(t *testing.T) {
@@ -283,25 +271,22 @@ func TestMultiLineStringCentroid(t *testing.T) {
 		geom.NewLineStringXY(0, 10, 10, 10),
 	})
 	centroid := algorithm.MultiLineStringCentroid(mls)
-	if math.Abs(centroid.X-5) > 0.001 || math.Abs(centroid.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5), got (%v, %v)", centroid.X, centroid.Y)
-	}
+	assert.InDelta(t, 5.0, centroid.X, 0.001, "Expected X 5")
+	assert.InDelta(t, 5.0, centroid.Y, 0.001, "Expected Y 5")
 
 	// Test empty
 	emptyMls := geom.NewMultiLineString([]*geom.LineString{})
 	emptyCentroid := algorithm.MultiLineStringCentroid(emptyMls)
-	if !math.IsNaN(emptyCentroid.X) || !math.IsNaN(emptyCentroid.Y) {
-		t.Errorf("Expected NaN for empty multilinestring")
-	}
+	assert.True(t, math.IsNaN(emptyCentroid.X), "Expected NaN for empty multilinestring X")
+	assert.True(t, math.IsNaN(emptyCentroid.Y), "Expected NaN for empty multilinestring Y")
 
 	// Test with zero-length lines
 	mlsZero := geom.NewMultiLineString([]*geom.LineString{
 		geom.NewLineStringXY(5, 5, 5, 5),
 	})
 	centroidZero := algorithm.MultiLineStringCentroid(mlsZero)
-	if math.Abs(centroidZero.X-5) > 0.001 || math.Abs(centroidZero.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5) for zero-length line, got (%v, %v)", centroidZero.X, centroidZero.Y)
-	}
+	assert.InDelta(t, 5.0, centroidZero.X, 0.001, "Expected X 5 for zero-length line")
+	assert.InDelta(t, 5.0, centroidZero.Y, 0.001, "Expected Y 5 for zero-length line")
 }
 
 func TestMultiPolygonCentroid(t *testing.T) {
@@ -310,16 +295,14 @@ func TestMultiPolygonCentroid(t *testing.T) {
 		geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
 	})
 	centroid := algorithm.MultiPolygonCentroid(mp)
-	if math.Abs(centroid.X-15) > 0.001 || math.Abs(centroid.Y-15) > 0.001 {
-		t.Errorf("Expected (15, 15), got (%v, %v)", centroid.X, centroid.Y)
-	}
+	assert.InDelta(t, 15.0, centroid.X, 0.001, "Expected X 15")
+	assert.InDelta(t, 15.0, centroid.Y, 0.001, "Expected Y 15")
 
 	// Test empty
 	emptyMp := geom.NewMultiPolygon([]*geom.Polygon{})
 	emptyCentroid := algorithm.MultiPolygonCentroid(emptyMp)
-	if !math.IsNaN(emptyCentroid.X) || !math.IsNaN(emptyCentroid.Y) {
-		t.Errorf("Expected NaN for empty multipolygon")
-	}
+	assert.True(t, math.IsNaN(emptyCentroid.X), "Expected NaN for empty multipolygon X")
+	assert.True(t, math.IsNaN(emptyCentroid.Y), "Expected NaN for empty multipolygon Y")
 }
 
 func TestGeometryCollectionCentroid(t *testing.T) {
@@ -329,9 +312,8 @@ func TestGeometryCollectionCentroid(t *testing.T) {
 		geom.NewPoint(100, 100), // Should be ignored
 	})
 	centroid1 := algorithm.GeometryCollectionCentroid(gc1)
-	if math.Abs(centroid1.X-5) > 0.001 || math.Abs(centroid1.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5), got (%v, %v)", centroid1.X, centroid1.Y)
-	}
+	assert.InDelta(t, 5.0, centroid1.X, 0.001, "Expected X 5")
+	assert.InDelta(t, 5.0, centroid1.Y, 0.001, "Expected Y 5")
 
 	// Test with lines (no polygons)
 	gc2 := geom.NewGeometryCollection([]geom.Geometry{
@@ -339,9 +321,8 @@ func TestGeometryCollectionCentroid(t *testing.T) {
 		geom.NewPoint(100, 100), // Should be ignored
 	})
 	centroid2 := algorithm.GeometryCollectionCentroid(gc2)
-	if math.Abs(centroid2.X-5) > 0.001 || math.Abs(centroid2.Y-0) > 0.001 {
-		t.Errorf("Expected (5, 0), got (%v, %v)", centroid2.X, centroid2.Y)
-	}
+	assert.InDelta(t, 5.0, centroid2.X, 0.001, "Expected X 5")
+	assert.InDelta(t, 0.0, centroid2.Y, 0.001, "Expected Y 0")
 
 	// Test with points only
 	gc3 := geom.NewGeometryCollection([]geom.Geometry{
@@ -349,25 +330,22 @@ func TestGeometryCollectionCentroid(t *testing.T) {
 		geom.NewPoint(10, 10),
 	})
 	centroid3 := algorithm.GeometryCollectionCentroid(gc3)
-	if math.Abs(centroid3.X-5) > 0.001 || math.Abs(centroid3.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5), got (%v, %v)", centroid3.X, centroid3.Y)
-	}
+	assert.InDelta(t, 5.0, centroid3.X, 0.001, "Expected X 5")
+	assert.InDelta(t, 5.0, centroid3.Y, 0.001, "Expected Y 5")
 
 	// Test empty
 	emptyGc := geom.NewGeometryCollection([]geom.Geometry{})
 	emptyCentroid := algorithm.GeometryCollectionCentroid(emptyGc)
-	if !math.IsNaN(emptyCentroid.X) || !math.IsNaN(emptyCentroid.Y) {
-		t.Errorf("Expected NaN for empty collection")
-	}
+	assert.True(t, math.IsNaN(emptyCentroid.X), "Expected NaN for empty collection X")
+	assert.True(t, math.IsNaN(emptyCentroid.Y), "Expected NaN for empty collection Y")
 
 	// Test with MultiPoint
 	gc4 := geom.NewGeometryCollection([]geom.Geometry{
 		geom.NewMultiPoint([]*geom.Point{geom.NewPoint(0, 0), geom.NewPoint(10, 10)}),
 	})
 	centroid4 := algorithm.GeometryCollectionCentroid(gc4)
-	if math.Abs(centroid4.X-5) > 0.001 || math.Abs(centroid4.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5), got (%v, %v)", centroid4.X, centroid4.Y)
-	}
+	assert.InDelta(t, 5.0, centroid4.X, 0.001, "Expected X 5")
+	assert.InDelta(t, 5.0, centroid4.Y, 0.001, "Expected Y 5")
 }
 
 func TestLineCentroid(t *testing.T) {
@@ -400,25 +378,22 @@ func TestLineCentroid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.LineCentroid(tt.coords)
-			if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-				t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-			}
+			assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+			assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 		})
 	}
 
 	// Test empty
 	empty := geom.CoordinateSequence{}
 	emptyCentroid := algorithm.LineCentroid(empty)
-	if !math.IsNaN(emptyCentroid.X) || !math.IsNaN(emptyCentroid.Y) {
-		t.Errorf("Expected NaN for empty sequence")
-	}
+	assert.True(t, math.IsNaN(emptyCentroid.X), "Expected NaN for empty sequence X")
+	assert.True(t, math.IsNaN(emptyCentroid.Y), "Expected NaN for empty sequence Y")
 
 	// Test zero-length line
 	zeroLen := geom.NewCoordinateSequenceXY(5, 5, 5, 5)
 	zeroLenCentroid := algorithm.LineCentroid(zeroLen)
-	if math.Abs(zeroLenCentroid.X-5) > 0.001 || math.Abs(zeroLenCentroid.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5) for zero-length, got (%v, %v)", zeroLenCentroid.X, zeroLenCentroid.Y)
-	}
+	assert.InDelta(t, 5.0, zeroLenCentroid.X, 0.001, "Expected X 5 for zero-length")
+	assert.InDelta(t, 5.0, zeroLenCentroid.Y, 0.001, "Expected Y 5 for zero-length")
 }
 
 func TestRingCentroid(t *testing.T) {
@@ -451,9 +426,8 @@ func TestRingCentroid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := algorithm.RingCentroid(tt.coords)
-			if math.Abs(result.X-tt.expectedX) > 0.001 || math.Abs(result.Y-tt.expectedY) > 0.001 {
-				t.Errorf("Expected (%v, %v), got (%v, %v)", tt.expectedX, tt.expectedY, result.X, result.Y)
-			}
+			assert.InDelta(t, tt.expectedX, result.X, 0.001, "Expected X %v", tt.expectedX)
+			assert.InDelta(t, tt.expectedY, result.Y, 0.001, "Expected Y %v", tt.expectedY)
 		})
 	}
 
@@ -461,9 +435,8 @@ func TestRingCentroid(t *testing.T) {
 	degenerateRing := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 0, 0, 0, 0)
 	degenerateCentroid := algorithm.RingCentroid(degenerateRing)
 	// Should fall back to line centroid
-	if math.IsNaN(degenerateCentroid.X) || math.IsNaN(degenerateCentroid.Y) {
-		t.Errorf("Expected valid centroid for degenerate ring, got NaN")
-	}
+	assert.False(t, math.IsNaN(degenerateCentroid.X), "Expected valid centroid X for degenerate ring")
+	assert.False(t, math.IsNaN(degenerateCentroid.Y), "Expected valid centroid Y for degenerate ring")
 }
 
 func TestPolygonCentroid(t *testing.T) {
@@ -473,16 +446,14 @@ func TestPolygonCentroid(t *testing.T) {
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 	centroid := algorithm.PolygonCentroid(poly)
 	// Centroid should be at (10, 10) for this symmetric case
-	if math.Abs(centroid.X-10) > 0.001 || math.Abs(centroid.Y-10) > 0.001 {
-		t.Errorf("Expected (10, 10), got (%v, %v)", centroid.X, centroid.Y)
-	}
+	assert.InDelta(t, 10.0, centroid.X, 0.001, "Expected X 10")
+	assert.InDelta(t, 10.0, centroid.Y, 0.001, "Expected Y 10")
 
 	// Test empty polygon
 	emptyPoly := geom.NewPolygonEmpty()
 	emptyCentroid := algorithm.PolygonCentroid(emptyPoly)
-	if !math.IsNaN(emptyCentroid.X) || !math.IsNaN(emptyCentroid.Y) {
-		t.Errorf("Expected NaN for empty polygon")
-	}
+	assert.True(t, math.IsNaN(emptyCentroid.X), "Expected NaN for empty polygon X")
+	assert.True(t, math.IsNaN(emptyCentroid.Y), "Expected NaN for empty polygon Y")
 
 	// Test polygon with zero total area (hole same size as shell)
 	shell2 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
@@ -490,7 +461,6 @@ func TestPolygonCentroid(t *testing.T) {
 	poly2 := geom.NewPolygon(shell2, []*geom.LinearRing{hole2})
 	centroid2 := algorithm.PolygonCentroid(poly2)
 	// Should return shell centroid
-	if math.Abs(centroid2.X-5) > 0.001 || math.Abs(centroid2.Y-5) > 0.001 {
-		t.Errorf("Expected (5, 5) for zero-area polygon, got (%v, %v)", centroid2.X, centroid2.Y)
-	}
+	assert.InDelta(t, 5.0, centroid2.X, 0.001, "Expected X 5 for zero-area polygon")
+	assert.InDelta(t, 5.0, centroid2.Y, 0.001, "Expected Y 5 for zero-area polygon")
 }

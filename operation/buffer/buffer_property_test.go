@@ -168,8 +168,8 @@ func TestBufferPointCreatesCircle(t *testing.T) {
 		expectedArea := math.Pi * r * r
 		actualArea := getArea(result)
 
-		// Allow some tolerance due to polygon approximation of circle
-		tolerance := expectedArea * 0.05 // 5% tolerance
+		// 2% tolerance (JTS-compatible)
+		tolerance := expectedArea * 0.02
 		return math.Abs(actualArea-expectedArea) < tolerance
 	}
 
@@ -215,8 +215,8 @@ func TestBufferLineAreaApproximation(t *testing.T) {
 		expectedArea := 2*r*length + math.Pi*r*r
 		actualArea := getArea(result)
 
-		// Allow some tolerance
-		tolerance := expectedArea * 0.1 // 10% tolerance
+		// JTS-compatible tolerance: 2% for default quality (8 quadrant segments)
+		tolerance := expectedArea * 0.02
 		return math.Abs(actualArea-expectedArea) < tolerance
 	}
 

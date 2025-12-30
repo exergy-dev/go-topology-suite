@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-topology-suite/gts/geom"
 	"github.com/go-topology-suite/gts/io/wkt"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // JTS-style test cases for overlay operations
@@ -21,18 +23,12 @@ func TestJTS_PolygonIntersection_OverlappingSquares(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Intersection(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 25.0 // 5x5 overlap
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Intersection area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Intersection area")
 }
 
 // TestJTS_PolygonIntersection_LShapes tests intersection of two L-shaped polygons.
@@ -43,18 +39,11 @@ func TestJTS_PolygonIntersection_LShapes(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((6 0, 10 0, 10 10, 0 10, 0 6, 6 6, 6 0))")
 
 	result := Intersection(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
 	// The intersection should be a complex polygon
-	t.Logf("L-shapes intersection result type: %T", result)
 	area := geometryArea(result)
-	if area <= 0 {
-		t.Error("Intersection should have positive area")
-	}
+	assert.Greater(t, area, 0.0, "Intersection should have positive area")
 }
 
 // TestJTS_PolygonIntersection_ComplexPolygon tests intersection with a more complex polygon.
@@ -65,17 +54,10 @@ func TestJTS_PolygonIntersection_ComplexPolygon(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 -5, 25 10, 10 25, 10 -5))")
 
 	result := Intersection(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
 	area := geometryArea(result)
-	if area <= 0 {
-		t.Error("Intersection should have positive area")
-	}
-	t.Logf("Complex polygon intersection area: %.2f", area)
+	assert.Greater(t, area, 0.0, "Intersection should have positive area")
 }
 
 // TestJTS_PolygonIntersection_TouchingPolygons tests polygons that only touch at a point.
@@ -85,10 +67,9 @@ func TestJTS_PolygonIntersection_TouchingPolygons(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 10, 20 10, 20 20, 10 20, 10 10))")
 
 	result := Intersection(poly1, poly2)
-
 	// Should return a point or empty (depending on implementation)
-	// JTS returns a point
-	t.Logf("Touching polygons intersection: %T, empty: %v", result, result.IsEmpty())
+	// JTS returns a point - this test validates the operation completes
+	_ = result.IsEmpty()
 }
 
 // TestJTS_PolygonIntersection_SharedEdge tests polygons sharing an edge.
@@ -98,9 +79,9 @@ func TestJTS_PolygonIntersection_SharedEdge(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 0, 20 0, 20 10, 10 10, 10 0))")
 
 	result := Intersection(poly1, poly2)
-
 	// Should return a LineString or empty depending on interpretation
-	t.Logf("Shared edge intersection: %T, empty: %v", result, result.IsEmpty())
+	// This test validates the operation completes
+	_ = result.IsEmpty()
 }
 
 // TestJTS_PolygonIntersection_PolygonContained tests one polygon completely inside another.
@@ -110,18 +91,12 @@ func TestJTS_PolygonIntersection_PolygonContained(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Intersection(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 100.0 // Area of inner square
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Contained polygon intersection area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Contained polygon intersection area")
 }
 
 // TestJTS_PolygonUnion_AdjacentSquares tests union of adjacent squares.
@@ -131,18 +106,12 @@ func TestJTS_PolygonUnion_AdjacentSquares(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 0, 20 0, 20 10, 10 10, 10 0))")
 
 	result := Union(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Union should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Union should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 200.0 // Combined area
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Union area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Union area")
 }
 
 // TestJTS_PolygonUnion_OverlappingSquares tests union of overlapping squares.
@@ -152,18 +121,12 @@ func TestJTS_PolygonUnion_OverlappingSquares(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Union(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Union should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Union should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 175.0 // 100 + 100 - 25 (overlap)
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Union area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Union area")
 }
 
 // TestJTS_PolygonUnion_ContainedPolygon tests union where one polygon contains another.
@@ -173,41 +136,27 @@ func TestJTS_PolygonUnion_ContainedPolygon(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Union(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Union should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Union should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 400.0 // Area of outer polygon
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Contained union area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Contained union area")
 }
 
 // TestJTS_PolygonDifference_OverlappingSquares tests difference of overlapping squares.
-// Note: Difference implementation is in progress, so this test logs results rather than asserting exact values
 func TestJTS_PolygonDifference_OverlappingSquares(t *testing.T) {
 	// A - B where A and B are overlapping squares
 	poly1, _ := wkt.UnmarshalString("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Difference(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Difference should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Difference should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 75.0 // 100 - 25 (overlap)
 
-	// Log result for now since difference implementation is in progress
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Logf("Difference area: expected %.2f, got %.2f (implementation in progress)", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Difference area")
 }
 
 // TestJTS_PolygonDifference_ContainedPolygon tests difference where B is inside A.
@@ -217,24 +166,16 @@ func TestJTS_PolygonDifference_ContainedPolygon(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Difference(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Difference should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Difference should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 300.0 // 400 - 100
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Difference with hole area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Difference with hole area")
 
 	// Check if result is a polygon with hole
 	if poly, ok := result.(*geom.Polygon); ok {
-		if poly.NumInteriorRings() != 1 {
-			t.Logf("Expected polygon with 1 hole, got %d holes", poly.NumInteriorRings())
-		}
+		assert.Equal(t, 1, poly.NumInteriorRings(), "Expected polygon with 1 hole")
 	}
 }
 
@@ -245,18 +186,12 @@ func TestJTS_PolygonDifference_DisjointPolygons(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((20 20, 30 20, 30 30, 20 30, 20 20))")
 
 	result := Difference(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Difference should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Difference should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 100.0 // Area of poly1
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Disjoint difference area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Disjoint difference area")
 }
 
 // TestJTS_SymmetricDifference_OverlappingSquares tests symmetric difference.
@@ -266,18 +201,12 @@ func TestJTS_SymmetricDifference_OverlappingSquares(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := SymDifference(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("SymDifference should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "SymDifference should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 150.0 // (100 - 25) + (100 - 25)
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("SymDifference area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "SymDifference area")
 }
 
 // TestJTS_SymmetricDifference_DisjointPolygons tests symmetric difference of disjoint polygons.
@@ -287,18 +216,12 @@ func TestJTS_SymmetricDifference_DisjointPolygons(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((20 20, 30 20, 30 30, 20 30, 20 20))")
 
 	result := SymDifference(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("SymDifference should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "SymDifference should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 200.0 // Both polygons
 
-	if math.Abs(area-expectedArea) > 0.1 {
-		t.Errorf("Disjoint SymDifference area: expected %.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 0.1, "Disjoint SymDifference area")
 }
 
 // TestJTS_LineIntersection_CrossingLines tests intersection of crossing lines.
@@ -308,20 +231,13 @@ func TestJTS_LineIntersection_CrossingLines(t *testing.T) {
 	line2, _ := wkt.UnmarshalString("LINESTRING (0 10, 10 0)")
 
 	result := Intersection(line1, line2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
 	// Should return a Point at (5, 5)
-	if point, ok := result.(*geom.Point); ok {
-		if math.Abs(point.X()-5.0) > 0.01 || math.Abs(point.Y()-5.0) > 0.01 {
-			t.Errorf("Intersection point: expected (5, 5), got (%.2f, %.2f)", point.X(), point.Y())
-		}
-	} else {
-		t.Logf("Expected Point result, got %T", result)
-	}
+	point, ok := result.(*geom.Point)
+	require.True(t, ok, "Expected Point result, got %T", result)
+	assert.InDelta(t, 5.0, point.X(), 0.01, "Intersection point X")
+	assert.InDelta(t, 5.0, point.Y(), 0.01, "Intersection point Y")
 }
 
 // TestJTS_LineIntersection_OverlappingSegments tests overlapping line segments.
@@ -331,14 +247,7 @@ func TestJTS_LineIntersection_OverlappingSegments(t *testing.T) {
 	line2, _ := wkt.UnmarshalString("LINESTRING (5 5, 15 15)")
 
 	result := Intersection(line1, line2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
-
-	// Should return a LineString
-	t.Logf("Overlapping segments result: %T", result)
+	assert.False(t, result.IsEmpty(), "Intersection should not be empty")
 }
 
 // TestJTS_PolygonWithHole_Intersection tests intersection with polygons containing holes.
@@ -349,17 +258,10 @@ func TestJTS_PolygonWithHole_Intersection(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 10, 30 10, 30 30, 10 30, 10 10))")
 
 	result := Intersection(poly1, poly2)
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
-
-	t.Logf("Polygon with hole intersection result type: %T", result)
 	area := geometryArea(result)
-	if area <= 0 {
-		t.Error("Intersection should have positive area")
-	}
+	assert.Greater(t, area, 0.0, "Intersection should have positive area")
 }
 
 // TestJTS_MultiPolygon_Intersection tests intersection with MultiPolygon.
@@ -370,18 +272,12 @@ func TestJTS_MultiPolygon_Intersection(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 
 	result := Intersection(multi1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
+	require.False(t, result.IsEmpty(), "Intersection should not be empty")
 
 	area := geometryArea(result)
 	expectedArea := 25.0 // 5x5 overlap with first polygon only
 
-	if math.Abs(area-expectedArea) > 1.0 {
-		t.Logf("MultiPolygon intersection area: expected ~%.2f, got %.2f", expectedArea, area)
-	}
+	assert.InDelta(t, expectedArea, area, 1.0, "MultiPolygon intersection area")
 }
 
 // TestJTS_EdgeCases_EmptyGeometries tests overlay with empty geometries.
@@ -391,20 +287,14 @@ func TestJTS_EdgeCases_EmptyGeometries(t *testing.T) {
 
 	// Intersection with empty should be empty
 	result := Intersection(poly, empty)
-	if !result.IsEmpty() {
-		t.Error("Intersection with empty should be empty")
-	}
+	assert.True(t, result.IsEmpty(), "Intersection with empty should be empty")
 
 	// Union with empty should be the non-empty geometry
 	result = Union(poly, empty)
-	if result.IsEmpty() {
-		t.Error("Union with empty should return non-empty geometry")
-	}
+	assert.False(t, result.IsEmpty(), "Union with empty should return non-empty geometry")
 
 	area := geometryArea(result)
-	if math.Abs(area-100.0) > 0.1 {
-		t.Errorf("Union with empty area: expected 100, got %.2f", area)
-	}
+	assert.InDelta(t, 100.0, area, 0.1, "Union with empty area")
 }
 
 // TestJTS_Precision_TinyPolygons tests overlay with very small polygons.
@@ -414,9 +304,8 @@ func TestJTS_Precision_TinyPolygons(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((0.0005 0.0005, 0.0015 0.0005, 0.0015 0.0015, 0.0005 0.0015, 0.0005 0.0005))")
 
 	result := Intersection(poly1, poly2)
-
-	// Should handle tiny coordinates
-	t.Logf("Tiny polygon intersection: empty=%v, type=%T", result.IsEmpty(), result)
+	// Should handle tiny coordinates without panicking
+	_ = result.IsEmpty()
 }
 
 // TestJTS_ComplexGeometry_ManyVertices tests overlay with complex geometries.
@@ -448,11 +337,5 @@ func TestJTS_ComplexGeometry_ManyVertices(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((8 8, 12 8, 12 12, 8 12, 8 8))")
 
 	result := Intersection(poly1, poly2)
-
-	if result.IsEmpty() {
-		t.Error("Intersection should not be empty")
-		return
-	}
-
-	t.Logf("Complex geometry intersection succeeded, result type: %T", result)
+	assert.False(t, result.IsEmpty(), "Intersection should not be empty")
 }

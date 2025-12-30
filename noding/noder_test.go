@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/go-topology-suite/gts/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSegmentString tests basic SegmentString functionality
@@ -11,25 +13,15 @@ func TestSegmentString(t *testing.T) {
 	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
 	ss := NewSegmentString(coords, "test")
 
-	if ss.Size() != 2 {
-		t.Errorf("Expected 2 segments, got %d", ss.Size())
-	}
-
-	if ss.Context() != "test" {
-		t.Errorf("Expected context 'test', got %v", ss.Context())
-	}
-
-	if ss.IsClosed() {
-		t.Error("Expected segment string to not be closed")
-	}
+	assert.Equal(t, 2, ss.Size(), "Expected 2 segments")
+	assert.Equal(t, "test", ss.Context(), "Expected context 'test'")
+	assert.False(t, ss.IsClosed(), "Expected segment string to not be closed")
 
 	// Test closed segment string
 	closedCoords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0, 0, 0)
 	closedSS := NewSegmentString(closedCoords, nil)
 
-	if !closedSS.IsClosed() {
-		t.Error("Expected segment string to be closed")
-	}
+	assert.True(t, closedSS.IsClosed(), "Expected segment string to be closed")
 }
 
 // TestNodedSegmentString tests NodedSegmentString functionality
@@ -44,13 +36,9 @@ func TestNodedSegmentString(t *testing.T) {
 
 	nodedCoords := nss.NodedCoordinates()
 
-	if len(nodedCoords) != 3 {
-		t.Errorf("Expected 3 coordinates after noding, got %d", len(nodedCoords))
-	}
-
-	if !nodedCoords[1].Equals2D(midpoint, geom.DefaultEpsilon) {
-		t.Errorf("Expected middle coordinate to be %v, got %v", midpoint, nodedCoords[1])
-	}
+	require.Len(t, nodedCoords, 3, "Expected 3 coordinates after noding")
+	assert.True(t, nodedCoords[1].Equals2D(midpoint, geom.DefaultEpsilon),
+		"Expected middle coordinate to be %v, got %v", midpoint, nodedCoords[1])
 }
 
 // TestNodedSegmentStringMultipleNodes tests adding multiple nodes to a segment
@@ -65,16 +53,12 @@ func TestNodedSegmentStringMultipleNodes(t *testing.T) {
 
 	nodedCoords := nss.NodedCoordinates()
 
-	if len(nodedCoords) != 5 {
-		t.Errorf("Expected 5 coordinates, got %d", len(nodedCoords))
-	}
+	require.Len(t, nodedCoords, 5, "Expected 5 coordinates")
 
 	// Verify they're in order along the segment
 	expectedX := []float64{0, 2, 5, 8, 10}
 	for i, expected := range expectedX {
-		if nodedCoords[i].X != expected {
-			t.Errorf("Coordinate %d: expected X=%f, got %f", i, expected, nodedCoords[i].X)
-		}
+		assert.Equal(t, expected, nodedCoords[i].X, "Coordinate %d: expected X=%f", i, expected)
 	}
 }
 
@@ -96,10 +80,7 @@ func TestComputeSegmentIntersectionParameter(t *testing.T) {
 
 	for _, test := range tests {
 		param := ComputeSegmentIntersectionParameter(p0, p1, test.point)
-		if param != test.expected {
-			t.Errorf("Point %v: expected parameter %f, got %f",
-				test.point, test.expected, param)
-		}
+		assert.Equal(t, test.expected, param, "Point %v: expected parameter %f", test.point, test.expected)
 	}
 }
 
@@ -123,33 +104,18 @@ func TestSimpleNoderTwoIntersectingLines(t *testing.T) {
 	noder := NewSimpleNoder(adder)
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2})
 
-	if !adder.HasIntersection() {
-		t.Error("Expected to find intersection")
-	}
-
-	if !adder.HasProperIntersection() {
-		t.Error("Expected proper intersection")
-	}
-
-	if adder.ProperIntersectionCount() != 1 {
-		t.Errorf("Expected 1 proper intersection, got %d", adder.ProperIntersectionCount())
-	}
+	assert.True(t, adder.HasIntersection(), "Expected to find intersection")
+	assert.True(t, adder.HasProperIntersection(), "Expected proper intersection")
+	assert.Equal(t, 1, adder.ProperIntersectionCount(), "Expected 1 proper intersection")
 
 	// Check that nodes were added
-	if len(ss1.Nodes()) != 1 {
-		t.Errorf("Expected 1 node on ss1, got %d", len(ss1.Nodes()))
-	}
-
-	if len(ss2.Nodes()) != 1 {
-		t.Errorf("Expected 1 node on ss2, got %d", len(ss2.Nodes()))
-	}
+	assert.Len(t, ss1.Nodes(), 1, "Expected 1 node on ss1")
+	assert.Len(t, ss2.Nodes(), 1, "Expected 1 node on ss2")
 
 	// Verify the intersection point is at (5,5)
 	expectedIntersection := geom.NewCoordinate(5, 5)
-	if !ss1.Nodes()[0].Coord.Equals2D(expectedIntersection, 0.01) {
-		t.Errorf("Expected intersection at %v, got %v",
-			expectedIntersection, ss1.Nodes()[0].Coord)
-	}
+	assert.True(t, ss1.Nodes()[0].Coord.Equals2D(expectedIntersection, 0.01),
+		"Expected intersection at %v, got %v", expectedIntersection, ss1.Nodes()[0].Coord)
 }
 
 // TestSimpleNoderNoIntersection tests segments that don't intersect
@@ -168,13 +134,8 @@ func TestSimpleNoderNoIntersection(t *testing.T) {
 	noder := NewSimpleNoder(adder)
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2})
 
-	if adder.HasIntersection() {
-		t.Error("Expected no intersection for parallel lines")
-	}
-
-	if len(ss1.Nodes()) != 0 {
-		t.Errorf("Expected 0 nodes on ss1, got %d", len(ss1.Nodes()))
-	}
+	assert.False(t, adder.HasIntersection(), "Expected no intersection for parallel lines")
+	assert.Empty(t, ss1.Nodes(), "Expected 0 nodes on ss1")
 }
 
 // TestSimpleNoderMultipleSegments tests a more complex case
@@ -196,15 +157,10 @@ func TestSimpleNoderMultipleSegments(t *testing.T) {
 	noder := NewSimpleNoder(adder)
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2})
 
-	if !adder.HasIntersection() {
-		t.Error("Expected to find intersections")
-	}
+	assert.True(t, adder.HasIntersection(), "Expected to find intersections")
 
 	// The line should intersect two sides of the triangle
-	if adder.ProperIntersectionCount() < 2 {
-		t.Errorf("Expected at least 2 intersections, got %d",
-			adder.ProperIntersectionCount())
-	}
+	assert.GreaterOrEqual(t, adder.ProperIntersectionCount(), 2, "Expected at least 2 intersections")
 }
 
 // TestGetNodedSubstrings tests getting noded substrings
@@ -224,27 +180,21 @@ func TestGetNodedSubstrings(t *testing.T) {
 
 	nodedSS := noder.GetNodedSubstrings()
 
-	if len(nodedSS) != 2 {
-		t.Errorf("Expected 2 noded segment strings, got %d", len(nodedSS))
-	}
+	require.Len(t, nodedSS, 2, "Expected 2 noded segment strings")
 
 	// Each noded segment string should have 3 coordinates
 	// (start, intersection, end)
 	for i, nss := range nodedSS {
 		coords := nss.Coordinates()
-		if len(coords) != 3 {
-			t.Errorf("Noded string %d: expected 3 coordinates, got %d", i, len(coords))
-		}
+		assert.Len(t, coords, 3, "Noded string %d: expected 3 coordinates", i)
 	}
 
 	// Verify the middle coordinate is the intersection point
 	expectedIntersection := geom.NewCoordinate(5, 5)
 	for i, nss := range nodedSS {
 		coords := nss.Coordinates()
-		if !coords[1].Equals2D(expectedIntersection, 0.01) {
-			t.Errorf("Noded string %d: expected middle point at %v, got %v",
-				i, expectedIntersection, coords[1])
-		}
+		assert.True(t, coords[1].Equals2D(expectedIntersection, 0.01),
+			"Noded string %d: expected middle point at %v, got %v", i, expectedIntersection, coords[1])
 	}
 }
 
@@ -268,13 +218,8 @@ func TestIntersectionCounter(t *testing.T) {
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2, ss3})
 
 	// ss1 and ss2 intersect, ss1 and ss3 intersect, ss2 and ss3 intersect
-	if counter.Count() != 3 {
-		t.Errorf("Expected 3 intersections, got %d", counter.Count())
-	}
-
-	if counter.NumTests() == 0 {
-		t.Error("Expected some intersection tests to be performed")
-	}
+	assert.Equal(t, 3, counter.Count(), "Expected 3 intersections")
+	assert.NotZero(t, counter.NumTests(), "Expected some intersection tests to be performed")
 }
 
 // TestFindSegmentForCoordinate tests finding which segment contains a coordinate
@@ -329,18 +274,11 @@ func TestFindSegmentForCoordinate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			index, param, found := FindSegmentForCoordinate(ss, test.coord, geom.DefaultEpsilon)
 
-			if found != test.expectedFound {
-				t.Errorf("Expected found=%v, got %v", test.expectedFound, found)
-			}
+			assert.Equal(t, test.expectedFound, found, "Expected found=%v", test.expectedFound)
 
 			if found {
-				if index != test.expectedIndex {
-					t.Errorf("Expected index=%d, got %d", test.expectedIndex, index)
-				}
-
-				if param < test.expectedParam-0.01 || param > test.expectedParam+0.01 {
-					t.Errorf("Expected param≈%f, got %f", test.expectedParam, param)
-				}
+				assert.Equal(t, test.expectedIndex, index, "Expected index=%d", test.expectedIndex)
+				assert.InDelta(t, test.expectedParam, param, 0.01, "Expected param≈%f", test.expectedParam)
 			}
 		})
 	}
@@ -366,18 +304,11 @@ func TestCollinearIntersection(t *testing.T) {
 	noder := NewSimpleNoder(adder)
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2})
 
-	if !adder.HasIntersection() {
-		t.Error("Expected to find intersection in collinear segments")
-	}
+	assert.True(t, adder.HasIntersection(), "Expected to find intersection in collinear segments")
 
 	// Should have added nodes for the overlap
-	if len(ss1.Nodes()) == 0 {
-		t.Error("Expected nodes to be added to ss1")
-	}
-
-	if len(ss2.Nodes()) == 0 {
-		t.Error("Expected nodes to be added to ss2")
-	}
+	assert.NotEmpty(t, ss1.Nodes(), "Expected nodes to be added to ss1")
+	assert.NotEmpty(t, ss2.Nodes(), "Expected nodes to be added to ss2")
 }
 
 // TestEndpointIntersection tests segments that touch at endpoints
@@ -399,14 +330,10 @@ func TestEndpointIntersection(t *testing.T) {
 	noder := NewSimpleNoder(adder)
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2})
 
-	if !adder.HasIntersection() {
-		t.Error("Expected to find intersection at endpoint")
-	}
+	assert.True(t, adder.HasIntersection(), "Expected to find intersection at endpoint")
 
 	// Endpoint intersections are not proper
-	if adder.HasProperIntersection() {
-		t.Error("Endpoint intersection should not be proper")
-	}
+	assert.False(t, adder.HasProperIntersection(), "Endpoint intersection should not be proper")
 }
 
 // TestSelfIntersection tests a segment string that intersects itself
@@ -424,13 +351,8 @@ func TestSelfIntersection(t *testing.T) {
 	noder := NewSimpleNoder(adder)
 	noder.ComputeNodes([]*NodedSegmentString{ss})
 
-	if !adder.HasIntersection() {
-		t.Error("Expected to find self-intersection")
-	}
-
-	if !adder.HasProperIntersection() {
-		t.Error("Expected proper self-intersection")
-	}
+	assert.True(t, adder.HasIntersection(), "Expected to find self-intersection")
+	assert.True(t, adder.HasProperIntersection(), "Expected proper self-intersection")
 }
 
 // TestEmptySegmentString tests handling of empty or degenerate segment strings
@@ -455,9 +377,88 @@ func TestEmptySegmentString(t *testing.T) {
 	noder.ComputeNodes([]*NodedSegmentString{ss1, ss2, ss3})
 
 	// Should not crash and should find no intersections
-	if adder.HasIntersection() {
-		t.Error("Expected no intersections with empty/degenerate segments")
-	}
+	assert.False(t, adder.HasIntersection(), "Expected no intersections with empty/degenerate segments")
+}
+
+// TestValidatingNoderSuccess tests ValidatingNoder with valid noding
+func TestValidatingNoderSuccess(t *testing.T) {
+	// Two non-intersecting parallel lines - should validate successfully
+	ss1 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+		nil,
+	)
+	ss2 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 5, 10, 5),
+		nil,
+	)
+
+	baseNoder := NewSimpleNoder(NewIntersectionAdder())
+	vn := NewValidatingNoder(baseNoder)
+	vn.ComputeNodes([]*NodedSegmentString{ss1, ss2})
+	_ = vn.GetNodedSubstrings()
+
+	assert.NoError(t, vn.ValidationError(), "Expected no validation error")
+}
+
+// TestValidatingNoderWithIntersections tests that ValidationError is set when intersections remain
+func TestValidatingNoderWithIntersections(t *testing.T) {
+	// Two intersecting lines - the base noder will find intersections
+	ss1 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+		nil,
+	)
+	ss2 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+		nil,
+	)
+
+	// Use a counter (not adder) so nodes aren't added - this simulates incomplete noding
+	baseNoder := NewSimpleNoder(NewIntersectionCounter())
+	vn := NewValidatingNoder(baseNoder)
+	vn.ComputeNodes([]*NodedSegmentString{ss1, ss2})
+	_ = vn.GetNodedSubstrings()
+
+	require.Error(t, vn.ValidationError(), "Expected validation error when intersections remain")
+
+	// Check error type
+	nodingErr, ok := vn.ValidationError().(*NodingError)
+	require.True(t, ok, "Expected NodingError type")
+	assert.NotZero(t, nodingErr.IntersectionCount, "Expected IntersectionCount > 0 in NodingError")
+}
+
+// TestValidatingNoderErrorReset tests that ValidationError is reset between calls
+func TestValidatingNoderErrorReset(t *testing.T) {
+	// First: invalid noding (counter doesn't add nodes)
+	ss1 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+		nil,
+	)
+	ss2 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+		nil,
+	)
+
+	baseNoder := NewSimpleNoder(NewIntersectionCounter())
+	vn := NewValidatingNoder(baseNoder)
+	vn.ComputeNodes([]*NodedSegmentString{ss1, ss2})
+	_ = vn.GetNodedSubstrings()
+
+	require.Error(t, vn.ValidationError(), "Expected validation error after first noding")
+
+	// Second: valid noding (parallel lines)
+	ss3 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+		nil,
+	)
+	ss4 := NewNodedSegmentString(
+		geom.NewCoordinateSequenceXY(0, 5, 10, 5),
+		nil,
+	)
+
+	vn.ComputeNodes([]*NodedSegmentString{ss3, ss4})
+	_ = vn.GetNodedSubstrings()
+
+	assert.NoError(t, vn.ValidationError(), "Expected no validation error after second noding")
 }
 
 // BenchmarkSimpleNoder benchmarks the simple noder
