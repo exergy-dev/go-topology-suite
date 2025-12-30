@@ -54,12 +54,23 @@ func (lr *LinearRing) Clone() Geometry {
 }
 
 // IsValid returns true if the ring is valid.
-// A valid ring has at least 4 points (including closure) and is closed.
+// A valid ring has at least 4 points (including closure), is closed,
+// and has no self-intersections.
 func (lr *LinearRing) IsValid() bool {
 	if lr.IsEmpty() {
 		return true
 	}
-	return len(lr.coords) >= 4 && lr.IsClosed()
+	if len(lr.coords) < 4 {
+		return false
+	}
+	if !lr.IsClosed() {
+		return false
+	}
+	// Check for self-intersection
+	if hasRingSelfIntersection(lr.coords) {
+		return false
+	}
+	return true
 }
 
 // IsCCW returns true if the ring is counter-clockwise oriented.
@@ -199,6 +210,13 @@ func (p *Polygon) IsSimple() bool {
 }
 
 // IsValid returns true if the polygon is valid.
+// A valid polygon has:
+// - A valid shell with counter-clockwise orientation
+// - Valid holes with clockwise orientation
+// - Holes inside the shell
+// - No shell/hole crossings
+// - No nested holes
+// - No crossing holes
 func (p *Polygon) IsValid() bool {
 	if p.IsEmpty() {
 		return true
@@ -221,6 +239,30 @@ func (p *Polygon) IsValid() bool {
 		}
 		if !hole.IsCW() {
 			return false
+		}
+
+		// Check hole is inside shell
+		if !isRingInsideRing(hole, p.shell) {
+			return false
+		}
+
+		// Check shell and hole don't cross
+		if ringsProperlyIntersect(p.shell, hole) {
+			return false
+		}
+	}
+
+	// Check holes don't nest within each other and don't cross
+	for i := 0; i < len(p.holes); i++ {
+		for j := i + 1; j < len(p.holes); j++ {
+			// Check for nested holes
+			if isRingInsideRing(p.holes[i], p.holes[j]) || isRingInsideRing(p.holes[j], p.holes[i]) {
+				return false
+			}
+			// Check for crossing holes
+			if ringsProperlyIntersect(p.holes[i], p.holes[j]) {
+				return false
+			}
 		}
 	}
 
@@ -555,4 +597,42 @@ func isPointInRing(p Coordinate, ring *LinearRing) bool {
 	}
 
 	return inside
+}
+
+// hasRingSelfIntersection checks if a ring's non-adjacent segments properly intersect.
+func hasRingSelfIntersection(coords CoordinateSequence) bool {
+	n := len(coords)
+	for i := 0; i < n-1; i++ {
+		for j := i + 2; j < n-1; j++ {
+			// Skip first/last segment pair (they share closure point)
+			if i == 0 && j == n-2 {
+				continue
+			}
+			if segmentsCross(coords[i], coords[i+1], coords[j], coords[j+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ringsProperlyIntersect checks if two rings have a proper crossing.
+func ringsProperlyIntersect(r1, r2 *LinearRing) bool {
+	coords1, coords2 := r1.Coordinates(), r2.Coordinates()
+	for i := 0; i < len(coords1)-1; i++ {
+		for j := 0; j < len(coords2)-1; j++ {
+			if segmentsCross(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isRingInsideRing checks if inner ring is inside outer ring.
+func isRingInsideRing(inner, outer *LinearRing) bool {
+	if inner.IsEmpty() {
+		return false
+	}
+	return isPointInRing(inner.Coordinates()[0], outer)
 }
