@@ -106,30 +106,32 @@ func (m *Mercator) Inverse(x, y float64) (lon, lat float64, err error) {
 		lat = latRad * 180.0 / math.Pi
 	} else {
 		// Ellipsoidal formula - use iterative solution
+		// The inverse of: y = a * ln(tan(π/4 + φ/2) * ((1 - e*sin(φ)) / (1 + e*sin(φ)))^(e/2))
 		e := math.Sqrt(m.Ellipsoid.Eccentricity)
 
-		// Initial approximation using spherical formula
-		latRad := 2.0*math.Atan(math.Exp(y/a)) - math.Pi/2.0
+		// t = exp(y/a)
+		t := math.Exp(y / a)
 
-		// Iterate to refine latitude
-		const maxIterations = 10
+		// Initial approximation using spherical formula
+		latRad := 2.0*math.Atan(t) - math.Pi/2.0
+
+		// Iterate to refine latitude using:
+		// φ = 2*atan(t * ((1 + e*sin(φ)) / (1 - e*sin(φ)))^(e/2)) - π/2
+		const maxIterations = 15
 		const tolerance = 1e-12
 
 		for i := 0; i < maxIterations; i++ {
 			sinLat := math.Sin(latRad)
 			esinLat := e * sinLat
 
-			// Calculate correction
-			conformalLat := math.Tan(math.Pi/4.0 + latRad/2.0) *
-				math.Pow((1.0-esinLat)/(1.0+esinLat), e/2.0)
+			// Compute new latitude estimate
+			latRadNew := 2.0*math.Atan(t*math.Pow((1.0+esinLat)/(1.0-esinLat), e/2.0)) - math.Pi/2.0
 
-			delta := 2.0*math.Atan(math.Exp(y/a)/conformalLat) - math.Pi/2.0 - latRad
-
-			latRad += delta
-
-			if math.Abs(delta) < tolerance {
+			if math.Abs(latRadNew-latRad) < tolerance {
+				latRad = latRadNew
 				break
 			}
+			latRad = latRadNew
 		}
 
 		lat = latRad * 180.0 / math.Pi
