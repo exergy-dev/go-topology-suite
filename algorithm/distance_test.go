@@ -311,12 +311,12 @@ func TestNearestPoints(t *testing.T) {
 			expectedY2: 10,
 		},
 		{
-			name:      "PointAndLine",
-			g1:        geom.NewPoint(5, 5),
-			g2:        geom.NewLineStringXY(0, 0, 10, 0),
+			name:       "PointAndLine",
+			g1:         geom.NewPoint(5, 5),
+			g2:         geom.NewLineStringXY(0, 0, 10, 0),
 			expectedX1: 5,
 			expectedY1: 5,
-			expectedX2: 0, // NearestPoints finds closest pair of coordinates, not projection
+			expectedX2: 5, // NearestPoints now correctly finds the projection point on segment
 			expectedY2: 0,
 		},
 	}
@@ -417,4 +417,150 @@ func TestDistanceToMultiGeometries(t *testing.T) {
 	})
 	distToGc := algorithm.DistancePointToGeometry(p, gc)
 	assert.Equal(t, float64(0), distToGc, "Expected 0 for point inside GeometryCollection")
+}
+
+// TestDistanceGeometryToGeometry_PolygonWithHole tests that distance calculations
+// correctly handle polygons with holes, without creating phantom segments
+// between the shell and holes.
+func TestDistanceGeometryToGeometry_PolygonWithHole(t *testing.T) {
+	// Create a polygon with a hole
+	// Shell: 0,0 to 20,20
+	// Hole: 5,5 to 15,15
+	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+
+	// A point in the center of the hole (10, 10)
+	pointInHole := geom.NewPoint(10, 10)
+
+	// Distance from point in hole to the polygon boundary
+	// The closest point should be on the hole ring at (10, 5) or (10, 15), distance = 5
+	dist := algorithm.DistanceGeometryToGeometry(pointInHole, polyWithHole)
+	assert.InDelta(t, 5.0, dist, 0.001, "Distance from point in hole to polygon should be 5")
+
+	// Test symmetric case
+	distSymmetric := algorithm.DistanceGeometryToGeometry(polyWithHole, pointInHole)
+	assert.InDelta(t, 5.0, distSymmetric, 0.001, "Distance should be symmetric")
+}
+
+// TestDistanceGeometryToGeometry_MultiPolygon tests distance calculations
+// between disjoint polygons in a MultiPolygon.
+func TestDistanceGeometryToGeometry_MultiPolygon(t *testing.T) {
+	// Two disjoint polygons
+	poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0), nil)
+	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
+
+	// A point between the two polygons
+	pointBetween := geom.NewPoint(15, 5)
+
+	// Distance should be 5 (to nearest edge of either polygon)
+	dist := algorithm.DistanceGeometryToGeometry(pointBetween, mp)
+	assert.InDelta(t, 5.0, dist, 0.001, "Distance from point between polygons should be 5")
+
+	// Distance between two disjoint polygons
+	anotherPoly := geom.NewPolygon(geom.NewLinearRingXY(14, 4, 16, 4, 16, 6, 14, 6, 14, 4), nil)
+	distBetweenPolys := algorithm.DistanceGeometryToGeometry(mp, anotherPoly)
+	assert.InDelta(t, 4.0, distBetweenPolys, 0.001, "Distance between MultiPolygon and another polygon")
+}
+
+// TestNearestPoints_PolygonWithHole tests that nearest points are correctly
+// calculated for polygons with holes.
+func TestNearestPoints_PolygonWithHole(t *testing.T) {
+	// Polygon with hole
+	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+
+	// Point at center of hole
+	pointInHole := geom.NewPoint(10, 10)
+
+	p1, p2 := algorithm.NearestPoints(pointInHole, polyWithHole)
+
+	// p1 should be the point (10, 10)
+	assert.InDelta(t, 10.0, p1.X, 0.001, "Nearest point on g1 X")
+	assert.InDelta(t, 10.0, p1.Y, 0.001, "Nearest point on g1 Y")
+
+	// p2 should be on the hole ring, at (10, 5) or (10, 15) - closest is (10, 5) or (10, 15) at distance 5
+	dist := p1.Distance(p2)
+	assert.InDelta(t, 5.0, dist, 0.001, "Distance between nearest points should be 5")
+
+	// p2 should be on the hole boundary (y = 5 or y = 15)
+	assert.True(t, math.Abs(p2.Y-5.0) < 0.001 || math.Abs(p2.Y-15.0) < 0.001,
+		"Nearest point on polygon should be on hole boundary, got Y=%v", p2.Y)
+}
+
+// TestNearestPoints_MultiLineString tests that no artificial segments are created
+// between lines in a MultiLineString.
+func TestNearestPoints_MultiLineString(t *testing.T) {
+	// Two separate horizontal line segments with a gap
+	line1 := geom.NewLineStringXY(0, 0, 10, 0)
+	line2 := geom.NewLineStringXY(20, 0, 30, 0)
+	mls := geom.NewMultiLineString([]*geom.LineString{line1, line2})
+
+	// A point at (15, 0) - between the two lines
+	point := geom.NewPoint(15, 0)
+
+	p1, p2 := algorithm.NearestPoints(point, mls)
+
+	// p1 should be (15, 0)
+	assert.InDelta(t, 15.0, p1.X, 0.001, "Point X")
+	assert.InDelta(t, 0.0, p1.Y, 0.001, "Point Y")
+
+	// p2 should be either (10, 0) or (20, 0), the closest endpoints
+	// Distance should be 5
+	dist := p1.Distance(p2)
+	assert.InDelta(t, 5.0, dist, 0.001, "Distance to nearest point on MultiLineString")
+
+	// The nearest point should NOT be at (15, 0) on a phantom segment
+	// It should be at (10, 0) or (20, 0)
+	assert.True(t, (math.Abs(p2.X-10.0) < 0.001 || math.Abs(p2.X-20.0) < 0.001),
+		"Nearest point should be at line endpoint, not on phantom segment, got X=%v", p2.X)
+}
+
+// TestDistance_PolygonHoleInterior tests the Distance function for a point
+// inside a polygon hole.
+func TestDistance_PolygonHoleInterior(t *testing.T) {
+	// Large polygon with a small hole
+	shell := geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
+	hole := geom.NewLinearRingXY(40, 40, 60, 40, 60, 60, 40, 60, 40, 40)
+	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+
+	// Point at center of hole (50, 50)
+	pointInHole := geom.NewPoint(50, 50)
+
+	// Using the high-level Distance function
+	dist := algorithm.Distance(pointInHole, polyWithHole)
+
+	// Distance should be 10 (to nearest edge of hole at y=40 or y=60)
+	assert.InDelta(t, 10.0, dist, 0.001,
+		"Point in hole should have distance 10 to hole boundary")
+
+	// Verify it's not 0 (which would be wrong - that would mean the point is "inside")
+	assert.NotEqual(t, 0.0, dist, "Point in hole should NOT have distance 0")
+}
+
+// TestDistanceGeometryToGeometry_NoPhantomSegments verifies that no phantom
+// segments are created between consecutive rings in a polygon.
+func TestDistanceGeometryToGeometry_NoPhantomSegments(t *testing.T) {
+	// Create a polygon where a phantom segment would cause incorrect results
+	// Shell: square from (0,0) to (100,100)
+	// Hole: square from (10,10) to (20,20)
+	// If there's a phantom segment from (0,0) to (10,10), it would be closer
+	// to a point at (5,5) than the actual hole boundary
+	shell := geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
+	hole := geom.NewLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10)
+	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+
+	// Point at (5, 5) - inside the polygon but outside the hole
+	point := geom.NewPoint(5, 5)
+
+	dist := algorithm.DistanceGeometryToGeometry(point, poly)
+
+	// The point (5,5) is inside the polygon (outside the hole)
+	// Closest boundary is the shell at x=0 or y=0, distance = 5
+	// If there were a phantom segment from shell's last point to hole's first point,
+	// it might incorrectly calculate a smaller distance
+	assert.InDelta(t, 5.0, dist, 0.001,
+		"Distance should be to shell boundary, not to phantom segment")
 }

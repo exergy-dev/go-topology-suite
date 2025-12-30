@@ -298,48 +298,124 @@ func onSegment(p, q, r geom.Coordinate) bool {
 		q.Y <= math.Max(p.Y, r.Y) && q.Y >= math.Min(p.Y, r.Y)
 }
 
-// DistanceGeometryToGeometry computes the distance between two geometries.
-func DistanceGeometryToGeometry(g1, g2 geom.Geometry) float64 {
-	coords1 := g1.Coordinates()
-	coords2 := g2.Coordinates()
+// Segment represents a line segment defined by two coordinates.
+type Segment struct {
+	P0, P1 geom.Coordinate
+}
 
-	if len(coords1) == 0 || len(coords2) == 0 {
+// getGeometrySegments returns all real segments from a geometry.
+// For rings, only creates segments within the ring (no phantom segments between rings).
+// For multi-geometries, processes each component separately.
+func getGeometrySegments(g geom.Geometry) []Segment {
+	var segments []Segment
+
+	switch v := g.(type) {
+	case *geom.Point:
+		// Points have no segments
+	case *geom.LineString:
+		coords := v.Coordinates()
+		for i := 1; i < len(coords); i++ {
+			segments = append(segments, Segment{coords[i-1], coords[i]})
+		}
+	case *geom.LinearRing:
+		coords := v.Coordinates()
+		for i := 1; i < len(coords); i++ {
+			segments = append(segments, Segment{coords[i-1], coords[i]})
+		}
+	case *geom.Polygon:
+		// Shell segments
+		shellCoords := v.ExteriorRing().Coordinates()
+		for i := 1; i < len(shellCoords); i++ {
+			segments = append(segments, Segment{shellCoords[i-1], shellCoords[i]})
+		}
+		// Hole segments (each hole separate, no phantom segments between shell and holes)
+		for j := 0; j < v.NumInteriorRings(); j++ {
+			holeCoords := v.InteriorRingN(j).Coordinates()
+			for i := 1; i < len(holeCoords); i++ {
+				segments = append(segments, Segment{holeCoords[i-1], holeCoords[i]})
+			}
+		}
+	case *geom.MultiPoint:
+		// MultiPoint has no segments
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			segments = append(segments, getGeometrySegments(v.GeometryN(i))...)
+		}
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			segments = append(segments, getGeometrySegments(v.GeometryN(i))...)
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			segments = append(segments, getGeometrySegments(v.GeometryN(i))...)
+		}
+	}
+	return segments
+}
+
+// getGeometryPoints returns all vertex coordinates from a geometry.
+func getGeometryPoints(g geom.Geometry) []geom.Coordinate {
+	return g.Coordinates()
+}
+
+// DistanceGeometryToGeometry computes the distance between two geometries.
+// This function properly handles polygon rings and multi-geometries by
+// extracting actual segments without creating phantom segments between rings.
+func DistanceGeometryToGeometry(g1, g2 geom.Geometry) float64 {
+	if g1.IsEmpty() || g2.IsEmpty() {
 		return math.Inf(1)
 	}
 
+	// Get all vertex points
+	points1 := getGeometryPoints(g1)
+	points2 := getGeometryPoints(g2)
+
+	if len(points1) == 0 || len(points2) == 0 {
+		return math.Inf(1)
+	}
+
+	// Get all real segments (respecting geometry boundaries)
+	segments1 := getGeometrySegments(g1)
+	segments2 := getGeometrySegments(g2)
+
 	minDist := math.Inf(1)
 
-	// Compare all segments
-	for i := 0; i < len(coords1); i++ {
-		for j := 0; j < len(coords2); j++ {
-			// Point to point
-			dist := coords1[i].Distance(coords2[j])
+	// Point to point distances
+	for _, p1 := range points1 {
+		for _, p2 := range points2 {
+			dist := p1.Distance(p2)
 			if dist < minDist {
 				minDist = dist
 			}
+		}
+	}
 
-			// Point to segment (if j has next)
-			if j+1 < len(coords2) {
-				dist = DistancePointToSegment(coords1[i], coords2[j], coords2[j+1])
-				if dist < minDist {
-					minDist = dist
-				}
+	// Point to segment distances (points from g1 to segments of g2)
+	for _, p := range points1 {
+		for _, seg := range segments2 {
+			dist := DistancePointToSegment(p, seg.P0, seg.P1)
+			if dist < minDist {
+				minDist = dist
 			}
+		}
+	}
 
-			// Segment to point (if i has next)
-			if i+1 < len(coords1) {
-				dist = DistancePointToSegment(coords2[j], coords1[i], coords1[i+1])
-				if dist < minDist {
-					minDist = dist
-				}
+	// Point to segment distances (points from g2 to segments of g1)
+	for _, p := range points2 {
+		for _, seg := range segments1 {
+			dist := DistancePointToSegment(p, seg.P0, seg.P1)
+			if dist < minDist {
+				minDist = dist
 			}
+		}
+	}
 
-			// Segment to segment
-			if i+1 < len(coords1) && j+1 < len(coords2) {
-				dist = DistanceSegmentToSegment(coords1[i], coords1[i+1], coords2[j], coords2[j+1])
-				if dist < minDist {
-					minDist = dist
-				}
+	// Segment to segment distances
+	for _, seg1 := range segments1 {
+		for _, seg2 := range segments2 {
+			dist := DistanceSegmentToSegment(seg1.P0, seg1.P1, seg2.P0, seg2.P1)
+			if dist < minDist {
+				minDist = dist
 			}
 		}
 	}
@@ -360,28 +436,131 @@ func IsWithinDistance(g1, g2 geom.Geometry, distance float64) bool {
 }
 
 // NearestPoints returns the nearest points on two geometries.
+// This function properly handles polygon rings and multi-geometries by
+// extracting actual segments without creating phantom segments between rings.
+// It finds the closest point on each geometry, including points on segment interiors.
 func NearestPoints(g1, g2 geom.Geometry) (geom.Coordinate, geom.Coordinate) {
-	coords1 := g1.Coordinates()
-	coords2 := g2.Coordinates()
-
-	if len(coords1) == 0 || len(coords2) == 0 {
+	if g1.IsEmpty() || g2.IsEmpty() {
 		return geom.Coordinate{X: math.NaN(), Y: math.NaN()},
 			geom.Coordinate{X: math.NaN(), Y: math.NaN()}
 	}
 
+	points1 := getGeometryPoints(g1)
+	points2 := getGeometryPoints(g2)
+
+	if len(points1) == 0 || len(points2) == 0 {
+		return geom.Coordinate{X: math.NaN(), Y: math.NaN()},
+			geom.Coordinate{X: math.NaN(), Y: math.NaN()}
+	}
+
+	segments1 := getGeometrySegments(g1)
+	segments2 := getGeometrySegments(g2)
+
 	minDist := math.Inf(1)
 	var nearest1, nearest2 geom.Coordinate
 
-	for i := 0; i < len(coords1); i++ {
-		for j := 0; j < len(coords2); j++ {
-			dist := coords1[i].Distance(coords2[j])
+	// Point to point distances
+	for _, p1 := range points1 {
+		for _, p2 := range points2 {
+			dist := p1.Distance(p2)
 			if dist < minDist {
 				minDist = dist
-				nearest1 = coords1[i]
-				nearest2 = coords2[j]
+				nearest1 = p1
+				nearest2 = p2
+			}
+		}
+	}
+
+	// Point from g1 to segments of g2: find closest point on segment
+	for _, p := range points1 {
+		for _, seg := range segments2 {
+			closestOnSeg := closestPointOnSegmentCoord(p, seg.P0, seg.P1)
+			dist := p.Distance(closestOnSeg)
+			if dist < minDist {
+				minDist = dist
+				nearest1 = p
+				nearest2 = closestOnSeg
+			}
+		}
+	}
+
+	// Point from g2 to segments of g1: find closest point on segment
+	for _, p := range points2 {
+		for _, seg := range segments1 {
+			closestOnSeg := closestPointOnSegmentCoord(p, seg.P0, seg.P1)
+			dist := p.Distance(closestOnSeg)
+			if dist < minDist {
+				minDist = dist
+				nearest1 = closestOnSeg
+				nearest2 = p
+			}
+		}
+	}
+
+	// Segment to segment: find the closest pair of points
+	for _, seg1 := range segments1 {
+		for _, seg2 := range segments2 {
+			p1, p2 := closestPointsOnSegments(seg1.P0, seg1.P1, seg2.P0, seg2.P1)
+			dist := p1.Distance(p2)
+			if dist < minDist {
+				minDist = dist
+				nearest1 = p1
+				nearest2 = p2
 			}
 		}
 	}
 
 	return nearest1, nearest2
+}
+
+// closestPointOnSegmentCoord returns the closest point on segment (a,b) to point p.
+func closestPointOnSegmentCoord(p, a, b geom.Coordinate) geom.Coordinate {
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+
+	if dx == 0 && dy == 0 {
+		return a
+	}
+
+	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / (dx*dx + dy*dy)
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+
+	return geom.NewCoordinate(a.X+t*dx, a.Y+t*dy)
+}
+
+// closestPointsOnSegments returns the closest pair of points between two segments.
+func closestPointsOnSegments(a1, a2, b1, b2 geom.Coordinate) (geom.Coordinate, geom.Coordinate) {
+	// Check all combinations and return the pair with minimum distance
+	minDist := math.Inf(1)
+	var best1, best2 geom.Coordinate
+
+	// Endpoints of segment 1 to segment 2
+	c := closestPointOnSegmentCoord(a1, b1, b2)
+	if d := a1.Distance(c); d < minDist {
+		minDist = d
+		best1, best2 = a1, c
+	}
+	c = closestPointOnSegmentCoord(a2, b1, b2)
+	if d := a2.Distance(c); d < minDist {
+		minDist = d
+		best1, best2 = a2, c
+	}
+
+	// Endpoints of segment 2 to segment 1
+	c = closestPointOnSegmentCoord(b1, a1, a2)
+	if d := b1.Distance(c); d < minDist {
+		minDist = d
+		best1, best2 = c, b1
+	}
+	c = closestPointOnSegmentCoord(b2, a1, a2)
+	if d := b2.Distance(c); d < minDist {
+		minDist = d
+		best1, best2 = c, b2
+	}
+
+	return best1, best2
 }
