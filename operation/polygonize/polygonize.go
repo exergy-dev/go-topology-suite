@@ -18,6 +18,7 @@ package polygonize
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/go-topology-suite/gts/algorithm"
@@ -110,14 +111,90 @@ func (p *Polygonizer) polygonize() {
 	// Step 2: Build the planar graph from noded edges
 	p.graph = buildGraph(nodedLines)
 
-	// Step 3: Find all minimal cycles (rings)
+	// Step 3: Mark dangling edges before ring finding
+	p.markDanglingEdges()
+
+	// Step 4: Find all minimal cycles (rings)
 	rings := p.graph.findRings()
 
-	// Step 4: Classify rings and build polygons
+	// Step 5: Classify rings and build polygons
 	p.buildPolygons(rings)
+}
 
-	// Step 5: Identify dangling and cut edges
-	p.identifyProblematicEdges()
+// markDanglingEdges identifies and marks dangling edges before ring finding.
+// This prevents dangling edges from interfering with the ring-finding algorithm.
+func (p *Polygonizer) markDanglingEdges() {
+	if p.graph == nil {
+		return
+	}
+
+	// Build node degree map by counting unique edges at each node
+	// We count the number of edges emanating from each node
+	nodeDegree := make(map[string]int)
+	seenEdges := make(map[*DirectedEdge]bool)
+
+	for _, edgeList := range p.graph.edges {
+		for _, edge := range edgeList {
+			// Count each undirected edge only once
+			if seenEdges[edge] || seenEdges[edge.Sym] {
+				continue
+			}
+			seenEdges[edge] = true
+			if edge.Sym != nil {
+				seenEdges[edge.Sym] = true
+			}
+
+			startKey := coordToKey(edge.Start)
+			endKey := coordToKey(edge.End)
+			nodeDegree[startKey]++
+			nodeDegree[endKey]++
+		}
+	}
+
+	// Track which edges have been recorded as dangling to avoid duplicates
+	recorded := make(map[*DirectedEdge]bool)
+
+	// Iteratively mark dangling edges (edges with degree-1 endpoints)
+	// We iterate because removing a dangling edge may create new dangles
+	changed := true
+	for changed {
+		changed = false
+		for _, edgeList := range p.graph.edges {
+			for _, edge := range edgeList {
+				if edge.Used {
+					continue
+				}
+
+				startKey := coordToKey(edge.Start)
+				endKey := coordToKey(edge.End)
+
+				// Check if either endpoint has degree 1
+				if nodeDegree[startKey] == 1 || nodeDegree[endKey] == 1 {
+					// Record as dangling before marking used
+					if !recorded[edge] && !recorded[edge.Sym] {
+						coords := geom.CoordinateSequence{edge.Start, edge.End}
+						p.danglingLines = append(p.danglingLines, geom.NewLineString(coords))
+						recorded[edge] = true
+						if edge.Sym != nil {
+							recorded[edge.Sym] = true
+						}
+					}
+
+					// Mark edge and its symmetric as used (dangling)
+					edge.Used = true
+					if edge.Sym != nil {
+						edge.Sym.Used = true
+					}
+
+					// Decrement degree at both endpoints
+					nodeDegree[startKey]--
+					nodeDegree[endKey]--
+
+					changed = true
+				}
+			}
+		}
+	}
 }
 
 // nodeLines nodes all input lines to split them at intersection points.
@@ -231,12 +308,9 @@ func (p *Polygonizer) buildPolygons(rings []geom.CoordinateSequence) {
 	}
 }
 
-// identifyProblematicEdges identifies dangling and cut edges.
-func (p *Polygonizer) identifyProblematicEdges() {
-	// Dangling edges: degree 1 at one endpoint
-	// Cut edges: not part of any cycle
-	// For now, we'll just mark edges not used in any polygon as dangles
-	// A more sophisticated implementation would properly classify these
+// coordToKey returns a string key for a coordinate.
+func coordToKey(c geom.Coordinate) string {
+	return fmt.Sprintf("%.10f,%.10f", c.X, c.Y)
 }
 
 // deduplicateRings removes duplicate rings.
@@ -402,21 +476,46 @@ func (g *EdgeGraph) getEdges(coord geom.Coordinate) []*DirectedEdge {
 func (g *EdgeGraph) findRings() []geom.CoordinateSequence {
 	var rings []geom.CoordinateSequence
 
-	// Try to build a ring from each unused edge
+	// Collect all edges into a sorted slice for deterministic iteration
+	var allEdges []*DirectedEdge
 	for _, edgeList := range g.edges {
-		for _, startEdge := range edgeList {
-			if startEdge.Used {
-				continue
-			}
+		allEdges = append(allEdges, edgeList...)
+	}
 
-			ring := g.buildRing(startEdge)
-			if ring != nil && len(ring) >= 4 {
-				rings = append(rings, ring)
-			}
+	// Sort edges by start coordinate then end coordinate for deterministic order
+	sortEdges(allEdges)
+
+	// Try to build a ring from each unused edge
+	for _, startEdge := range allEdges {
+		if startEdge.Used {
+			continue
+		}
+
+		ring := g.buildRing(startEdge)
+		if ring != nil && len(ring) >= 4 {
+			rings = append(rings, ring)
 		}
 	}
 
 	return rings
+}
+
+// sortEdges sorts edges by their start and end coordinates for deterministic processing.
+func sortEdges(edges []*DirectedEdge) {
+	sort.Slice(edges, func(i, j int) bool {
+		// Compare by start coordinate first
+		if edges[i].Start.X != edges[j].Start.X {
+			return edges[i].Start.X < edges[j].Start.X
+		}
+		if edges[i].Start.Y != edges[j].Start.Y {
+			return edges[i].Start.Y < edges[j].Start.Y
+		}
+		// Then by end coordinate
+		if edges[i].End.X != edges[j].End.X {
+			return edges[i].End.X < edges[j].End.X
+		}
+		return edges[i].End.Y < edges[j].End.Y
+	})
 }
 
 // buildRing builds a ring starting from the given edge using rightmost turn.

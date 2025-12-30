@@ -504,10 +504,8 @@ func computePolygonPolygonRelate(poly1, poly2 *geom.Polygon, m *IntersectionMatr
 	hasBoundaryExterior := false
 
 	// Check shell1 points against poly2
-	for i, c := range shell1 {
+	for _, c := range shell1 {
 		loc := algorithm.PointLocationInPolygon(c, poly2)
-		isBoundary := true // All shell points are on boundary of poly1
-		_ = i
 
 		switch loc {
 		case geom.LocationInterior:
@@ -517,7 +515,6 @@ func computePolygonPolygonRelate(poly1, poly2 *geom.Polygon, m *IntersectionMatr
 		case geom.LocationExterior:
 			hasBoundaryExterior = true
 		}
-		_ = isBoundary
 	}
 
 	// Check shell2 points against poly1

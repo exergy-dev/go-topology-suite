@@ -358,7 +358,7 @@ func computeRoundJoin(p0, p1, vertex geom.Coordinate, distance float64, params *
 	angle0 := math.Atan2(p0.Y-vertex.Y, p0.X-vertex.X)
 	angle1 := math.Atan2(p1.Y-vertex.Y, p1.X-vertex.X)
 
-	// Normalize angle difference to go the short way
+	// Normalize angle difference to go the short way (correct for quarter-circle fillets)
 	angleDiff := angle1 - angle0
 	for angleDiff > math.Pi {
 		angleDiff -= 2 * math.Pi
@@ -523,17 +523,18 @@ func bufferPolygon(poly *geom.Polygon, distance float64, params *Params) geom.Ge
 		reverseCoords(bufferedShell)
 	}
 
-	// Buffer holes (shrink them - offset inward)
+	// Buffer holes (shrink them - offset toward hole interior)
 	var bufferedHoles []*geom.LinearRing
 	for i := 0; i < poly.NumInteriorRings(); i++ {
 		hole := poly.InteriorRingN(i)
 		holeCoords := hole.Coordinates()
 
-		// Holes are typically CW, shrinking means offsetting to their left (which is inward)
+		// For CW hole: interior is on the right, so positive distance shrinks
+		// For CCW hole: interior is on the left, so negative distance shrinks
 		isHoleCCW := geom.SignedArea(holeCoords) > 0
-		holeOffset := -distance
+		holeOffset := distance
 		if isHoleCCW {
-			holeOffset = distance
+			holeOffset = -distance
 		}
 
 		shrunkHole := offsetClosedRing(holeCoords, holeOffset, params)
@@ -577,16 +578,18 @@ func erodePolygon(poly *geom.Polygon, distance float64, params *Params) geom.Geo
 		reverseCoords(shrunkShell)
 	}
 
-	// Expand holes (offset outward)
+	// Expand holes (offset away from hole interior)
 	var expandedHoles []*geom.LinearRing
 	for i := 0; i < poly.NumInteriorRings(); i++ {
 		hole := poly.InteriorRingN(i)
 		holeCoords := hole.Coordinates()
 
+		// For CW hole: interior is on the right, so negative distance expands
+		// For CCW hole: interior is on the left, so positive distance expands
 		isHoleCCW := geom.SignedArea(holeCoords) > 0
-		holeOffset := distance
+		holeOffset := -distance
 		if isHoleCCW {
-			holeOffset = -distance
+			holeOffset = distance
 		}
 
 		expandedHole := offsetClosedRing(holeCoords, holeOffset, params)
@@ -686,8 +689,8 @@ func computeVertexOffset(prev, curr, next geom.Coordinate, distance float64, par
 	// For CCW ring with positive buffer (expanding):
 	//   - Turning left (cross > 0) at convex corner needs fillet
 	//   - Turning right (cross < 0) at concave corner needs intersection
-	// The sign relationship is inverted from left perpendicular
-	isConvex := (cross < 0 && distance > 0) || (cross > 0 && distance < 0)
+	// Convex when cross and distance have same sign
+	isConvex := (cross > 0 && distance > 0) || (cross < 0 && distance < 0)
 
 	if !isConvex {
 		// Concave: compute intersection of the two offset lines
@@ -709,7 +712,8 @@ func computeVertexOffset(prev, curr, next geom.Coordinate, distance float64, par
 	// Convex corner: add fillet
 	switch params.JoinStyle {
 	case JoinRound:
-		return computeRoundJoin(o1, o2, curr, math.Abs(distance), params)
+		arc := computeRoundJoin(o1, o2, curr, math.Abs(distance), params)
+		return append(geom.CoordinateSequence{o1}, arc...)
 	case JoinMitre:
 		result := computeMitreJoin(o1, o2, curr, math.Abs(distance), params)
 		// Prepend o1
