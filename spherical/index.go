@@ -57,15 +57,18 @@ func CellToken(p *geom.Point, level int) string {
 // The covering uses cells between minLevel and maxLevel, with at most maxCells cells.
 //
 // Parameters:
-//   - g: The geometry to cover (Point, LineString, Polygon, etc.)
+//   - g: The geometry to cover (Point, LineString, Polygon, Multi*, GeometryCollection)
 //   - minLevel: Minimum cell level (0-30). Larger cells, fewer total cells.
 //   - maxLevel: Maximum cell level (0-30). Smaller cells, more precise coverage.
 //   - maxCells: Maximum number of cells in the covering. More cells = better fit.
 //
 // Returns an empty slice if the geometry is nil or empty, or if parameters are invalid.
+// For collection types (MultiPoint, MultiLineString, MultiPolygon, GeometryCollection),
+// the covering is computed for each component and merged.
 //
 // Example usage:
-//   cells := Covering(polygon, 10, 20, 8)  // 8 cells between city and building scale
+//
+//	cells := Covering(polygon, 10, 20, 8)  // 8 cells between city and building scale
 func Covering(g geom.Geometry, minLevel, maxLevel, maxCells int) []s2.CellID {
 	if g == nil || g.IsEmpty() {
 		return nil
@@ -79,22 +82,13 @@ func Covering(g geom.Geometry, minLevel, maxLevel, maxCells int) []s2.CellID {
 		maxCells = 8 // Default
 	}
 
-	// Convert geometry to S2 region
-	region := geometryToRegion(g)
-	if region == nil {
+	// Use geometriesToCellUnion which handles all geometry types including collections
+	cellUnion := geometriesToCellUnion(g, minLevel, maxLevel, maxCells)
+	if len(cellUnion) == 0 {
 		return nil
 	}
 
-	// Create region coverer
-	rc := &s2.RegionCoverer{
-		MinLevel: minLevel,
-		MaxLevel: maxLevel,
-		MaxCells: maxCells,
-	}
-
-	// Get covering
-	covering := rc.Covering(region)
-	return []s2.CellID(covering)
+	return []s2.CellID(cellUnion)
 }
 
 // CoveringTokens returns S2 cell tokens that cover a geometry.
@@ -122,6 +116,9 @@ func CoveringTokens(g geom.Geometry, minLevel, maxLevel, maxCells int) []string 
 // This is useful for indexing when you want to be sure that all points in the cell
 // are definitely inside the geometry.
 //
+// For collection types (MultiPoint, MultiLineString, MultiPolygon, GeometryCollection),
+// the interior covering is computed for each component and merged.
+//
 // Parameters are the same as Covering.
 func InteriorCovering(g geom.Geometry, minLevel, maxLevel, maxCells int) []s2.CellID {
 	if g == nil || g.IsEmpty() {
@@ -136,19 +133,13 @@ func InteriorCovering(g geom.Geometry, minLevel, maxLevel, maxCells int) []s2.Ce
 		maxCells = 8
 	}
 
-	region := geometryToRegion(g)
-	if region == nil {
+	// Use geometriesToInteriorCellUnion which handles all geometry types including collections
+	cellUnion := geometriesToInteriorCellUnion(g, minLevel, maxLevel, maxCells)
+	if len(cellUnion) == 0 {
 		return nil
 	}
 
-	rc := &s2.RegionCoverer{
-		MinLevel: minLevel,
-		MaxLevel: maxLevel,
-		MaxCells: maxCells,
-	}
-
-	covering := rc.InteriorCovering(region)
-	return []s2.CellID(covering)
+	return []s2.CellID(cellUnion)
 }
 
 // InteriorCoveringTokens returns S2 cell tokens for cells completely contained within a geometry.
@@ -187,15 +178,15 @@ func geometryToRegion(g geom.Geometry) s2.Region {
 		return nil
 	}
 
-	switch geom := g.(type) {
+	switch gt := g.(type) {
 	case *geom.Point:
 		// Point as a cell at max level
-		s2Point := ToS2Point(geom)
+		s2Point := ToS2Point(gt)
 		return s2.CellFromPoint(s2Point)
 
 	case *geom.LineString:
 		// LineString as polyline
-		polyline := ToS2Polyline(geom)
+		polyline := ToS2Polyline(gt)
 		if polyline == nil {
 			return nil
 		}
@@ -203,16 +194,160 @@ func geometryToRegion(g geom.Geometry) s2.Region {
 
 	case *geom.Polygon:
 		// Polygon as S2 polygon
-		return ToS2Polygon(geom)
+		return ToS2Polygon(gt)
 
 	case *geom.LinearRing:
 		// LinearRing as S2 loop
-		return ToS2Loop(geom)
+		return ToS2Loop(gt)
 
 	default:
-		// For collections, we could create a region union, but that's complex
-		// For now, return nil for unsupported types
 		return nil
+	}
+}
+
+// geometriesToCellUnion computes a CellUnion covering all geometries in a collection.
+// This handles Multi* types and GeometryCollection by decomposing and merging.
+func geometriesToCellUnion(g geom.Geometry, minLevel, maxLevel, maxCells int) s2.CellUnion {
+	if g == nil || g.IsEmpty() {
+		return nil
+	}
+
+	rc := &s2.RegionCoverer{
+		MinLevel: minLevel,
+		MaxLevel: maxLevel,
+		MaxCells: maxCells,
+	}
+
+	switch gt := g.(type) {
+	case *geom.MultiPoint:
+		var result s2.CellUnion
+		for i := 0; i < gt.NumGeometries(); i++ {
+			region := geometryToRegion(gt.GeometryN(i))
+			if region != nil {
+				covering := rc.Covering(region)
+				result = append(result, covering...)
+			}
+		}
+		result.Normalize()
+		return result
+
+	case *geom.MultiLineString:
+		var result s2.CellUnion
+		for i := 0; i < gt.NumGeometries(); i++ {
+			region := geometryToRegion(gt.GeometryN(i))
+			if region != nil {
+				covering := rc.Covering(region)
+				result = append(result, covering...)
+			}
+		}
+		result.Normalize()
+		return result
+
+	case *geom.MultiPolygon:
+		var result s2.CellUnion
+		for i := 0; i < gt.NumGeometries(); i++ {
+			region := geometryToRegion(gt.GeometryN(i))
+			if region != nil {
+				covering := rc.Covering(region)
+				result = append(result, covering...)
+			}
+		}
+		result.Normalize()
+		return result
+
+	case *geom.GeometryCollection:
+		var result s2.CellUnion
+		for i := 0; i < gt.NumGeometries(); i++ {
+			subGeom := gt.GeometryN(i)
+			// Recursively handle nested collections
+			subCovering := geometriesToCellUnion(subGeom, minLevel, maxLevel, maxCells)
+			if len(subCovering) > 0 {
+				result = append(result, subCovering...)
+			} else {
+				// Try as simple geometry
+				region := geometryToRegion(subGeom)
+				if region != nil {
+					covering := rc.Covering(region)
+					result = append(result, covering...)
+				}
+			}
+		}
+		result.Normalize()
+		return result
+
+	default:
+		// Simple geometry - use regular region conversion
+		region := geometryToRegion(g)
+		if region == nil {
+			return nil
+		}
+		covering := rc.Covering(region)
+		return s2.CellUnion(covering)
+	}
+}
+
+// geometriesToInteriorCellUnion computes an interior CellUnion for all geometries in a collection.
+// This handles Multi* types and GeometryCollection by decomposing and merging.
+func geometriesToInteriorCellUnion(g geom.Geometry, minLevel, maxLevel, maxCells int) s2.CellUnion {
+	if g == nil || g.IsEmpty() {
+		return nil
+	}
+
+	rc := &s2.RegionCoverer{
+		MinLevel: minLevel,
+		MaxLevel: maxLevel,
+		MaxCells: maxCells,
+	}
+
+	switch gt := g.(type) {
+	case *geom.MultiPoint:
+		// Points have no interior, so interior covering is empty
+		return nil
+
+	case *geom.MultiLineString:
+		// LineStrings have no interior in 2D sense
+		return nil
+
+	case *geom.MultiPolygon:
+		var result s2.CellUnion
+		for i := 0; i < gt.NumGeometries(); i++ {
+			region := geometryToRegion(gt.GeometryN(i))
+			if region != nil {
+				covering := rc.InteriorCovering(region)
+				result = append(result, covering...)
+			}
+		}
+		result.Normalize()
+		return result
+
+	case *geom.GeometryCollection:
+		var result s2.CellUnion
+		for i := 0; i < gt.NumGeometries(); i++ {
+			subGeom := gt.GeometryN(i)
+			// Recursively handle nested collections
+			subCovering := geometriesToInteriorCellUnion(subGeom, minLevel, maxLevel, maxCells)
+			if len(subCovering) > 0 {
+				result = append(result, subCovering...)
+			} else {
+				// Try as simple geometry
+				region := geometryToRegion(subGeom)
+				if region != nil {
+					covering := rc.InteriorCovering(region)
+					result = append(result, covering...)
+				}
+			}
+		}
+		result.Normalize()
+		return result
+
+	default:
+		// Simple geometry - use regular region conversion
+		region := geometryToRegion(g)
+		if region == nil {
+			return nil
+		}
+		covering := rc.InteriorCovering(region)
+		return s2.CellUnion(covering)
 	}
 }
 

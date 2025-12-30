@@ -2,7 +2,6 @@ package spherical
 
 import (
 	"github.com/go-topology-suite/gts/geom"
-	"github.com/golang/geo/s1"
 	"github.com/golang/geo/s2"
 )
 
@@ -116,8 +115,11 @@ func DistanceToLineString(p *geom.Point, ls *geom.LineString) float64 {
 	}
 
 	// Find closest point on polyline
-	_, distance := polyline.Project(s2Point)
-	return s1.Angle(distance).Radians() * EarthMeanRadius
+	projectedPoint, _ := polyline.Project(s2Point)
+
+	// Calculate angular distance between original point and projected point
+	angle := s2Point.Distance(projectedPoint)
+	return angle.Radians() * EarthMeanRadius
 }
 
 // DistanceToPolygon returns the minimum distance from a point to a polygon in meters.

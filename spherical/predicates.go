@@ -778,40 +778,6 @@ func polygonContainsLoop(poly *s2.Polygon, loop *s2.Loop) bool {
 	return true
 }
 
-// Legacy functions - kept for backwards compatibility
-
-// PolygonContainsPoint checks if a polygon contains a point using spherical geometry.
-// Deprecated: Use Contains(polygon, point) instead.
-func PolygonContainsPoint(poly *geom.Polygon, p *geom.Point) bool {
-	if poly == nil || poly.IsEmpty() || p == nil || p.IsEmpty() {
-		return false
-	}
-
-	s2Poly := ToS2Polygon(poly)
-	if s2Poly == nil {
-		return false
-	}
-
-	s2Point := ToS2Point(p)
-	return s2Poly.ContainsPoint(s2Point)
-}
-
-// PolygonsIntersect checks if two polygons intersect using spherical geometry.
-// Deprecated: Use Intersects(polygon1, polygon2) instead.
-func PolygonsIntersect(p1, p2 *geom.Polygon) bool {
-	if p1 == nil || p1.IsEmpty() || p2 == nil || p2.IsEmpty() {
-		return false
-	}
-
-	s2Poly1 := ToS2Polygon(p1)
-	s2Poly2 := ToS2Polygon(p2)
-	if s2Poly1 == nil || s2Poly2 == nil {
-		return false
-	}
-
-	return s2Poly1.Intersects(s2Poly2)
-}
-
 // LoopContainsPoint checks if a ring contains a point using spherical geometry.
 // Returns true if the point is inside the ring (including on the boundary).
 // Returns false if either geometry is nil or empty.
