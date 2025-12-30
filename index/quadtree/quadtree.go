@@ -272,7 +272,7 @@ func (q *Quadtree) QueryAll() []interface{} {
 
 // Remove removes an item from the quadtree.
 func (q *Quadtree) Remove(envelope *geom.Envelope, data interface{}) bool {
-	if q.root == nil {
+	if q.root == nil || envelope == nil || envelope.IsNull() {
 		return false
 	}
 	removed := q.removeFromNode(q.root, envelope, data)

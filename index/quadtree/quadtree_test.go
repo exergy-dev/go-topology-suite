@@ -328,3 +328,41 @@ func BenchmarkQuery(b *testing.B) {
 		qt.Query(queryEnv)
 	}
 }
+
+func TestQuadtree_Remove_NilEnvelope(t *testing.T) {
+	qt := New()
+
+	// Insert an item
+	env := geom.NewEnvelope(0, 0, 10, 10)
+	qt.Insert(env, "item1")
+	assert.Equal(t, 1, qt.Size(), "Expected size 1 after insert")
+
+	// Remove with nil envelope should return false, no panic
+	removed := qt.Remove(nil, "item1")
+	assert.False(t, removed, "Expected Remove with nil envelope to return false")
+	assert.Equal(t, 1, qt.Size(), "Expected size unchanged after nil envelope remove")
+}
+
+func TestQuadtree_Remove_NullEnvelope(t *testing.T) {
+	qt := New()
+
+	// Insert an item
+	env := geom.NewEnvelope(0, 0, 10, 10)
+	qt.Insert(env, "item1")
+	assert.Equal(t, 1, qt.Size(), "Expected size 1 after insert")
+
+	// Remove with empty/null envelope should return false
+	removed := qt.Remove(geom.NewEnvelopeEmpty(), "item1")
+	assert.False(t, removed, "Expected Remove with null envelope to return false")
+	assert.Equal(t, 1, qt.Size(), "Expected size unchanged after null envelope remove")
+}
+
+func TestQuadtree_Remove_EmptyTree(t *testing.T) {
+	qt := New()
+
+	// Remove from empty tree should return false
+	env := geom.NewEnvelope(0, 0, 10, 10)
+	removed := qt.Remove(env, "item1")
+	assert.False(t, removed, "Expected Remove from empty tree to return false")
+	assert.Equal(t, 0, qt.Size(), "Expected size 0")
+}
