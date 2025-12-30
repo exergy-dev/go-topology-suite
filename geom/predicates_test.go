@@ -359,3 +359,294 @@ func BenchmarkContainsPointInPolygon(b *testing.B) {
 		Contains(poly, p)
 	}
 }
+
+// TestContains_LineStringVerticesInsideEdgesExit tests that a linestring with all vertices
+// inside a polygon but with an edge that crosses out is NOT contained.
+// This is the key bug fix - vertices being inside is not sufficient.
+func TestContains_LineStringVerticesInsideEdgesExit(t *testing.T) {
+	factory := DefaultFactory
+
+	// Create a square polygon from (0,0) to (10,10)
+	poly := createTestSquare(factory, 0, 0, 10)
+
+	// Create a linestring where both endpoints are inside the polygon,
+	// but the line goes outside (arcs out through the corner)
+	// Points (2, 2) and (8, 8) are inside, but the path goes through (-5, 5) which is outside
+	lineExiting := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 2),
+		NewCoordinate(-5, 5), // This point is outside the polygon
+		NewCoordinate(8, 8),
+	})
+
+	// This should be false because the line exits the polygon
+	assert.False(t, Contains(poly, lineExiting), "Polygon should not contain linestring that exits through edge")
+
+	// Another case: endpoints inside, midpoint outside via diagonal edge
+	// Square is (0,0) to (10,10). Line from (1,5) to (5,1) stays inside.
+	// But line from (1,1) to (9,9) going through (15,5) exits.
+	lineExiting2 := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(1, 1),   // inside
+		NewCoordinate(15, 5),  // outside - the line crosses the polygon boundary
+		NewCoordinate(9, 9),   // inside
+	})
+	assert.False(t, Contains(poly, lineExiting2), "Polygon should not contain linestring with vertex outside")
+
+	// Edge case: A "V" shape where both ends and the vertex are inside,
+	// but one leg exits and re-enters
+	// Actually, if all vertices are inside but an edge crosses out and back...
+	// Let's create a more complex case
+	// Square: (0,0) to (20,20)
+	bigPoly := createTestSquare(factory, 0, 0, 20)
+
+	// Line: (5,10) -> (25, 10) -> (15, 10)
+	// The point (25, 10) is outside, so the first segment exits the polygon
+	lineWithVertexOutside := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(5, 10),  // inside
+		NewCoordinate(25, 10), // outside
+		NewCoordinate(15, 10), // inside
+	})
+	assert.False(t, Contains(bigPoly, lineWithVertexOutside), "Polygon should not contain line with exterior vertex")
+}
+
+// TestContains_PolygonSpikeExit tests that a polygon with a spike that extends
+// outside the container is NOT contained.
+func TestContains_PolygonSpikeExit(t *testing.T) {
+	factory := DefaultFactory
+
+	// Container polygon: square from (0,0) to (20,20)
+	container := createTestSquare(factory, 0, 0, 20)
+
+	// Inner polygon with a spike that goes outside:
+	// A polygon mostly inside but with one vertex that extends outside
+	spikeCoords := CoordinateSequence{
+		NewCoordinate(5, 5),
+		NewCoordinate(15, 5),
+		NewCoordinate(15, 15),
+		NewCoordinate(10, 25), // This spike extends outside the container (y=25 > 20)
+		NewCoordinate(5, 15),
+		NewCoordinate(5, 5), // close the ring
+	}
+	spikeShell := factory.CreateLinearRing(spikeCoords)
+	spikePolygon := factory.CreatePolygon(spikeShell, nil)
+
+	assert.False(t, Contains(container, spikePolygon), "Container should not contain polygon with spike exiting")
+
+	// Also test a polygon where all vertices are inside but an edge crosses the boundary
+	// This requires a concave container or a spike that goes out and back
+	// For simplicity, we'll use a polygon with a vertex clearly outside
+}
+
+// TestContains_LineStringAllInside tests that a linestring fully inside a polygon
+// IS contained (positive test case).
+func TestContains_LineStringAllInside(t *testing.T) {
+	factory := DefaultFactory
+
+	// Square polygon from (0,0) to (10,10)
+	poly := createTestSquare(factory, 0, 0, 10)
+
+	// Simple line fully inside
+	lineInside := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 2),
+		NewCoordinate(8, 8),
+	})
+	assert.True(t, Contains(poly, lineInside), "Polygon should contain linestring fully inside")
+
+	// Line with multiple segments, all inside
+	multiSegmentLine := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 2),
+		NewCoordinate(5, 8),
+		NewCoordinate(8, 5),
+		NewCoordinate(8, 2),
+	})
+	assert.True(t, Contains(poly, multiSegmentLine), "Polygon should contain multi-segment linestring fully inside")
+
+	// Line touching the boundary (should still be contained as boundary is part of polygon)
+	lineTouchingBoundary := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(0, 5), // on boundary
+		NewCoordinate(5, 5), // inside
+		NewCoordinate(10, 5), // on boundary
+	})
+	assert.True(t, Contains(poly, lineTouchingBoundary), "Polygon should contain linestring touching boundary")
+}
+
+// TestContains_PolygonFullyInside tests that a polygon fully inside another
+// IS contained (positive test case).
+func TestContains_PolygonFullyInside(t *testing.T) {
+	factory := DefaultFactory
+
+	// Outer polygon: square from (0,0) to (20,20)
+	outer := createTestSquare(factory, 0, 0, 20)
+
+	// Inner polygon: square from (5,5) to (15,15) - fully inside
+	inner := createTestSquare(factory, 5, 5, 10)
+
+	assert.True(t, Contains(outer, inner), "Outer polygon should contain inner polygon fully inside")
+
+	// Test with a more complex inner polygon (still fully inside)
+	triangleCoords := CoordinateSequence{
+		NewCoordinate(8, 8),
+		NewCoordinate(12, 8),
+		NewCoordinate(10, 12),
+		NewCoordinate(8, 8),
+	}
+	triangleShell := factory.CreateLinearRing(triangleCoords)
+	triangle := factory.CreatePolygon(triangleShell, nil)
+
+	assert.True(t, Contains(outer, triangle), "Outer polygon should contain triangle fully inside")
+
+	// Test inner polygon touching outer boundary
+	touchingInner := createTestSquare(factory, 0, 5, 10) // shares left edge with outer
+	// Note: For Contains, the inner must have interior intersection, which it does
+	assert.True(t, Contains(outer, touchingInner), "Outer polygon should contain inner polygon touching boundary")
+}
+
+// TestContains_ZigZagLine tests that a line which enters and exits a polygon
+// multiple times is NOT contained.
+func TestContains_ZigZagLine(t *testing.T) {
+	factory := DefaultFactory
+
+	// Square polygon from (0,0) to (10,10)
+	poly := createTestSquare(factory, 0, 0, 10)
+
+	// Zigzag line that goes in and out multiple times
+	zigzagLine := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(-2, 5),  // outside
+		NewCoordinate(3, 5),   // inside
+		NewCoordinate(3, 12),  // outside (above polygon)
+		NewCoordinate(7, 12),  // outside
+		NewCoordinate(7, 5),   // inside
+		NewCoordinate(12, 5),  // outside (right of polygon)
+	})
+
+	assert.False(t, Contains(poly, zigzagLine), "Polygon should not contain zigzag line that exits multiple times")
+
+	// Zigzag where only middle segments are outside
+	zigzagLine2 := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 2),   // inside
+		NewCoordinate(5, -3),  // outside (below polygon)
+		NewCoordinate(8, 2),   // inside
+	})
+
+	assert.False(t, Contains(poly, zigzagLine2), "Polygon should not contain line that dips outside")
+
+	// A line that enters, exits, and re-enters
+	inOutInLine := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 5),   // inside
+		NewCoordinate(12, 5),  // outside - crosses right boundary
+		NewCoordinate(5, 8),   // inside - but had to cross back in
+	})
+
+	// Note: vertex at (12,5) is outside, so vertex check should catch this
+	// But even if it didn't, edge check would catch the crossing
+	assert.False(t, Contains(poly, inOutInLine), "Polygon should not contain line that exits and re-enters")
+}
+
+// TestContains_EdgeCrossingWithAllVerticesInside tests the specific case where
+// all vertices of a geometry are inside, but an edge crosses the boundary.
+// This is the core case the fix addresses.
+func TestContains_EdgeCrossingWithAllVerticesInside(t *testing.T) {
+	factory := DefaultFactory
+
+	// Create an L-shaped polygon (concave)
+	// This allows us to have a line with both endpoints in the interior
+	// but the edge passing through the exterior
+	lShapeCoords := CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+		NewCoordinate(10, 5),
+		NewCoordinate(5, 5),
+		NewCoordinate(5, 10),
+		NewCoordinate(0, 10),
+		NewCoordinate(0, 0),
+	}
+	lShapeShell := factory.CreateLinearRing(lShapeCoords)
+	lShape := factory.CreatePolygon(lShapeShell, nil)
+
+	// Line from bottom arm to outside in the notch
+	// (2, 2) is in the bottom arm, (8, 8) is outside - in the concave notch region
+	lineCrossingConcave := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 2), // inside bottom arm
+		NewCoordinate(8, 8), // outside - in the concave notch region
+	})
+	// The point (8, 8) is actually outside the L-shape because the L-shape
+	// only extends to y=5 in the right portion. So vertex check catches this.
+	assert.False(t, Contains(lShape, lineCrossingConcave), "L-shape should NOT contain line with endpoint in notch")
+
+	// Better L-shape test: line that stays in valid regions but edge crosses notch
+	// The L-shape: bottom is (0,0)-(10,0)-(10,5)-(5,5), top is (0,0)-(5,5)-(5,10)-(0,10)
+	// A line from (2, 2) to (2, 8) is fully in the left column - should be contained
+	lineInLeftColumn := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(2, 2), // inside left column
+		NewCoordinate(2, 8), // inside left column
+	})
+	assert.True(t, Contains(lShape, lineInLeftColumn), "L-shape should contain line in left column")
+
+	// A line from (8, 2) to (2, 8) - endpoints inside but passes through the corner
+	// (8, 2) is in bottom-right area, (2, 8) is in top-left area
+	lineDiagonalAcrossNotch := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(8, 2), // inside bottom arm (right side)
+		NewCoordinate(2, 8), // inside top arm (left side)
+	})
+	// This line's path: from (8,2) to (2,8)
+	// Parametric: x = 8 - 6t, y = 2 + 6t for t in [0,1]
+	// At t=0.5: x=5, y=5 (corner point - on boundary)
+	// This line actually stays inside! It just touches the corner at (5,5).
+	// The segment from (8,2) goes to (5,5) which is boundary, then to (2,8).
+	// Both parts stay within the L-shape.
+	assert.True(t, Contains(lShape, lineDiagonalAcrossNotch), "L-shape should contain line touching corner")
+
+	// Let's create a true case where the line crosses the notch:
+	// From (8, 3) to (3, 8)
+	// Parametric: x = 8 - 5t, y = 3 + 5t
+	// At t=0.5: x=5.5, y=5.5 (in the notch! x>5 and y>5)
+	lineThroughNotch := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(8, 3), // inside bottom arm
+		NewCoordinate(3, 8), // inside left column
+	})
+	assert.False(t, Contains(lShape, lineThroughNotch), "L-shape should NOT contain line crossing through notch")
+}
+
+// TestContains_PolygonInPolygonWithHole tests containment with holes
+func TestContains_PolygonInPolygonWithHole(t *testing.T) {
+	factory := DefaultFactory
+
+	// Outer polygon with a hole
+	outerShell := factory.CreateLinearRing(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(20, 0),
+		NewCoordinate(20, 20),
+		NewCoordinate(0, 20),
+		NewCoordinate(0, 0),
+	})
+	hole := factory.CreateLinearRing(CoordinateSequence{
+		NewCoordinate(8, 8),
+		NewCoordinate(12, 8),
+		NewCoordinate(12, 12),
+		NewCoordinate(8, 12),
+		NewCoordinate(8, 8),
+	})
+	outerWithHole := factory.CreatePolygon(outerShell, []*LinearRing{hole})
+
+	// Small polygon in the hole - should NOT be contained (hole is exterior)
+	inHole := createTestSquare(factory, 9, 9, 2)
+	assert.False(t, Contains(outerWithHole, inHole), "Polygon with hole should not contain polygon inside the hole")
+
+	// Small polygon outside the hole but inside outer shell - should be contained
+	outsideHole := createTestSquare(factory, 2, 2, 4)
+	assert.True(t, Contains(outerWithHole, outsideHole), "Polygon with hole should contain polygon outside the hole")
+
+	// Line that crosses through the hole
+	lineThroughHole := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(5, 10), // inside (left of hole)
+		NewCoordinate(15, 10), // inside (right of hole)
+	})
+	// This line passes through the hole at y=10, x in [8,12]
+	assert.False(t, Contains(outerWithHole, lineThroughHole), "Polygon with hole should not contain line passing through hole")
+
+	// Line that goes around the hole
+	lineAroundHole := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(5, 5), // inside
+		NewCoordinate(15, 5), // inside
+	})
+	assert.True(t, Contains(outerWithHole, lineAroundHole), "Polygon with hole should contain line that avoids the hole")
+}

@@ -228,7 +228,264 @@ func containsImpl(g1, g2 Geometry) bool {
 		}
 	}
 
-	return hasInterior
+	if !hasInterior {
+		return false
+	}
+
+	// After vertex checks pass, verify that no edge of g2 crosses the boundary of g1
+	// A geometry can have all its vertices inside another geometry but still have edges that cross out
+	if !edgesContainedIn(g2, g1) {
+		return false
+	}
+
+	return true
+}
+
+// edgesContainedIn checks if all edges of g2 are contained within g1.
+// This is necessary because vertices can all be inside while edges cross out.
+func edgesContainedIn(g2, g1 Geometry) bool {
+	switch container := g1.(type) {
+	case *Polygon:
+		return edgesContainedInPolygon(g2, container)
+	case *MultiPolygon:
+		// For MultiPolygon, we need to check if g2 is fully contained in any single polygon
+		// or if it's properly distributed across them (more complex case)
+		// For simplicity, check if edges don't cross to exterior
+		return edgesContainedInMultiPolygon(g2, container)
+	}
+	// For other container types, vertex check is sufficient
+	return true
+}
+
+// edgesContainedInPolygon checks if all edges of g2 are contained within the polygon
+func edgesContainedInPolygon(g2 Geometry, poly *Polygon) bool {
+	switch inner := g2.(type) {
+	case *LineString:
+		return lineStringEdgesContainedInPolygon(inner, poly)
+	case *Polygon:
+		return polygonEdgesContainedInPolygon(inner, poly)
+	case *MultiLineString:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !lineStringEdgesContainedInPolygon(inner.GeometryN(i).(*LineString), poly) {
+				return false
+			}
+		}
+		return true
+	case *MultiPolygon:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !polygonEdgesContainedInPolygon(inner.GeometryN(i).(*Polygon), poly) {
+				return false
+			}
+		}
+		return true
+	case *GeometryCollection:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !edgesContainedInPolygon(inner.GeometryN(i), poly) {
+				return false
+			}
+		}
+		return true
+	}
+	return true
+}
+
+// lineStringEdgesContainedInPolygon checks if all edges of a linestring stay within the polygon
+func lineStringEdgesContainedInPolygon(ls *LineString, poly *Polygon) bool {
+	if ls.IsEmpty() {
+		return true
+	}
+	coords := ls.Coordinates()
+	if len(coords) < 2 {
+		return true
+	}
+
+	// Check each segment of the linestring
+	for i := 1; i < len(coords); i++ {
+		if !segmentContainedInPolygon(coords[i-1], coords[i], poly) {
+			return false
+		}
+	}
+	return true
+}
+
+// polygonEdgesContainedInPolygon checks if all edges of the inner polygon stay within the container
+func polygonEdgesContainedInPolygon(inner, container *Polygon) bool {
+	if inner.IsEmpty() {
+		return true
+	}
+
+	// Check shell edges
+	shellCoords := inner.shell.Coordinates()
+	for i := 1; i < len(shellCoords); i++ {
+		if !segmentContainedInPolygon(shellCoords[i-1], shellCoords[i], container) {
+			return false
+		}
+	}
+
+	// Check hole edges
+	for _, hole := range inner.holes {
+		holeCoords := hole.Coordinates()
+		for i := 1; i < len(holeCoords); i++ {
+			if !segmentContainedInPolygon(holeCoords[i-1], holeCoords[i], container) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// segmentContainedInPolygon checks if a segment is fully contained within the polygon
+// A segment is contained if:
+// 1. It doesn't properly cross the shell (exit the polygon)
+// 2. It doesn't enter any hole
+func segmentContainedInPolygon(a, b Coordinate, poly *Polygon) bool {
+	// Check against shell - segment should not properly cross out
+	shellCoords := poly.shell.Coordinates()
+	for i := 1; i < len(shellCoords); i++ {
+		if segmentsCrossProper(a, b, shellCoords[i-1], shellCoords[i]) {
+			return false
+		}
+	}
+
+	// Check against holes - segment should not enter any hole
+	for _, hole := range poly.holes {
+		holeCoords := hole.Coordinates()
+		// First check if segment crosses hole boundary
+		for i := 1; i < len(holeCoords); i++ {
+			if segmentsCrossProper(a, b, holeCoords[i-1], holeCoords[i]) {
+				return false
+			}
+		}
+		// Also check if midpoint of segment is inside the hole
+		mid := Coordinate{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+		if pointInRing(mid, hole) && !pointOnRing(mid, hole) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// segmentsCrossProper returns true if segments properly cross (not at endpoints, not collinear)
+// This is similar to segmentsCross but we need to ensure it's detecting proper crossings
+func segmentsCrossProper(a1, a2, b1, b2 Coordinate) bool {
+	o1 := orientation(a1, a2, b1)
+	o2 := orientation(a1, a2, b2)
+	o3 := orientation(b1, b2, a1)
+	o4 := orientation(b1, b2, a2)
+
+	// Proper crossing: opposite orientations on both segments
+	// and none of the orientations are collinear (0)
+	if o1 != o2 && o3 != o4 && o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 {
+		return true
+	}
+
+	return false
+}
+
+// edgesContainedInMultiPolygon checks if edges are contained in the multipolygon
+func edgesContainedInMultiPolygon(g2 Geometry, mp *MultiPolygon) bool {
+	// For each edge of g2, check that it doesn't cross to exterior of all polygons
+	// This is a simplified check - a more rigorous approach would track which
+	// polygon each part of g2 is in
+	switch inner := g2.(type) {
+	case *LineString:
+		return lineStringEdgesContainedInMultiPolygon(inner, mp)
+	case *Polygon:
+		return polygonEdgesContainedInMultiPolygon(inner, mp)
+	case *MultiLineString:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !lineStringEdgesContainedInMultiPolygon(inner.GeometryN(i).(*LineString), mp) {
+				return false
+			}
+		}
+		return true
+	case *MultiPolygon:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !polygonEdgesContainedInMultiPolygon(inner.GeometryN(i).(*Polygon), mp) {
+				return false
+			}
+		}
+		return true
+	case *GeometryCollection:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !edgesContainedInMultiPolygon(inner.GeometryN(i), mp) {
+				return false
+			}
+		}
+		return true
+	}
+	return true
+}
+
+// lineStringEdgesContainedInMultiPolygon checks each segment
+func lineStringEdgesContainedInMultiPolygon(ls *LineString, mp *MultiPolygon) bool {
+	if ls.IsEmpty() {
+		return true
+	}
+	coords := ls.Coordinates()
+	if len(coords) < 2 {
+		return true
+	}
+
+	for i := 1; i < len(coords); i++ {
+		if !segmentContainedInMultiPolygon(coords[i-1], coords[i], mp) {
+			return false
+		}
+	}
+	return true
+}
+
+// polygonEdgesContainedInMultiPolygon checks shell and hole edges
+func polygonEdgesContainedInMultiPolygon(inner *Polygon, mp *MultiPolygon) bool {
+	if inner.IsEmpty() {
+		return true
+	}
+
+	shellCoords := inner.shell.Coordinates()
+	for i := 1; i < len(shellCoords); i++ {
+		if !segmentContainedInMultiPolygon(shellCoords[i-1], shellCoords[i], mp) {
+			return false
+		}
+	}
+
+	for _, hole := range inner.holes {
+		holeCoords := hole.Coordinates()
+		for i := 1; i < len(holeCoords); i++ {
+			if !segmentContainedInMultiPolygon(holeCoords[i-1], holeCoords[i], mp) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// segmentContainedInMultiPolygon checks if a segment is contained in at least one polygon
+// and doesn't cross out of the multipolygon
+func segmentContainedInMultiPolygon(a, b Coordinate, mp *MultiPolygon) bool {
+	// Check if segment is contained in any single polygon
+	for i := 0; i < mp.NumGeometries(); i++ {
+		poly := mp.GeometryN(i).(*Polygon)
+		if segmentContainedInPolygon(a, b, poly) {
+			return true
+		}
+	}
+
+	// If not contained in any single polygon, check if the midpoint is inside the multipolygon
+	// and the segment doesn't cross all polygon boundaries to exterior
+	mid := Coordinate{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+	midInside := false
+	for i := 0; i < mp.NumGeometries(); i++ {
+		poly := mp.GeometryN(i).(*Polygon)
+		if pointInPolygon(mid, poly) != LocationExterior {
+			midInside = true
+			break
+		}
+	}
+
+	return midInside
 }
 
 // Within returns true if g1 is completely within g2.
