@@ -413,3 +413,104 @@ func TestRoundTrip(t *testing.T) {
 		assert.Equal(t, g.GeometryType(), g2.GeometryType(), "Type mismatch")
 	}
 }
+
+// TestGeometry_UnmarshalJSON_SRID verifies that geometries decoded via json.Unmarshal
+// have the correct SRID (4326) as mandated by RFC 7946 for GeoJSON.
+func TestGeometry_UnmarshalJSON_SRID(t *testing.T) {
+	tests := []struct {
+		name    string
+		geojson string
+		gtype   string
+	}{
+		{
+			name:    "Point",
+			geojson: `{"type": "Point", "coordinates": [1.5, 2.5]}`,
+			gtype:   "Point",
+		},
+		{
+			name:    "LineString",
+			geojson: `{"type": "LineString", "coordinates": [[0, 0], [1, 1], [2, 0]]}`,
+			gtype:   "LineString",
+		},
+		{
+			name:    "Polygon",
+			geojson: `{"type": "Polygon", "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]}`,
+			gtype:   "Polygon",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var g Geometry
+			err := json.Unmarshal([]byte(tc.geojson), &g)
+			require.NoError(t, err, "Failed to unmarshal %s", tc.name)
+			require.NotNil(t, g.Geometry, "Geometry should not be nil")
+
+			assert.Equal(t, tc.gtype, g.Geometry.GeometryType(), "Expected geometry type %s", tc.gtype)
+			assert.Equal(t, SRID4326, g.Geometry.SRID(), "Expected SRID 4326 for %s", tc.name)
+		})
+	}
+}
+
+// TestFeature_UnmarshalJSON_SRID verifies that Feature geometry decoded via json.Unmarshal
+// has the correct SRID (4326).
+func TestFeature_UnmarshalJSON_SRID(t *testing.T) {
+	geojsonStr := `{
+		"type": "Feature",
+		"geometry": {"type": "Point", "coordinates": [102.0, 0.5]},
+		"properties": {"name": "test"}
+	}`
+
+	var f UntypedFeature
+	err := json.Unmarshal([]byte(geojsonStr), &f)
+	require.NoError(t, err, "Failed to unmarshal Feature")
+	require.NotNil(t, f.Geometry, "Feature geometry should not be nil")
+	require.NotNil(t, f.Geometry.Geometry, "Feature geometry.Geometry should not be nil")
+
+	assert.Equal(t, SRID4326, f.Geometry.Geometry.SRID(), "Expected SRID 4326 for Feature geometry")
+}
+
+// TestFeatureCollection_UnmarshalJSON_SRID verifies that all geometries in a FeatureCollection
+// decoded via json.Unmarshal have the correct SRID (4326).
+func TestFeatureCollection_UnmarshalJSON_SRID(t *testing.T) {
+	geojsonStr := `{
+		"type": "FeatureCollection",
+		"features": [
+			{"type": "Feature", "geometry": {"type": "Point", "coordinates": [1, 2]}, "properties": {}},
+			{"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]}, "properties": {}},
+			{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}, "properties": {}}
+		]
+	}`
+
+	var fc UntypedFeatureCollection
+	err := json.Unmarshal([]byte(geojsonStr), &fc)
+	require.NoError(t, err, "Failed to unmarshal FeatureCollection")
+	require.Len(t, fc.Features, 3, "Expected 3 features")
+
+	for i, f := range fc.Features {
+		require.NotNil(t, f.Geometry, "Feature %d geometry should not be nil", i)
+		require.NotNil(t, f.Geometry.Geometry, "Feature %d geometry.Geometry should not be nil", i)
+		assert.Equal(t, SRID4326, f.Geometry.Geometry.SRID(), "Expected SRID 4326 for Feature %d", i)
+	}
+}
+
+// TestGeometry_RoundTrip_SRID verifies that SRID is preserved through marshal/unmarshal cycle.
+func TestGeometry_RoundTrip_SRID(t *testing.T) {
+	// Create geometry with SRID 4326 using the GeoJSON factory
+	factory := DefaultFactory
+	p := factory.CreatePoint(1.5, 2.5)
+	require.Equal(t, SRID4326, p.SRID(), "Source geometry should have SRID 4326")
+
+	// Marshal to GeoJSON
+	wrapped := Geometry{Geometry: p}
+	data, err := json.Marshal(wrapped)
+	require.NoError(t, err, "Failed to marshal")
+
+	// Unmarshal back
+	var wrapped2 Geometry
+	err = json.Unmarshal(data, &wrapped2)
+	require.NoError(t, err, "Failed to unmarshal")
+
+	// Verify SRID is preserved
+	assert.Equal(t, SRID4326, wrapped2.Geometry.SRID(), "SRID should be preserved through round-trip")
+}

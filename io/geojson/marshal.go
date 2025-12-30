@@ -27,7 +27,7 @@ func (g *Geometry) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	geomObj, err := parseGeometry(raw, geom.DefaultFactory)
+	geomObj, err := parseGeometry(raw, DefaultFactory)
 	if err != nil {
 		return err
 	}
