@@ -1,6 +1,8 @@
 package noding
 
 import (
+	"fmt"
+
 	"github.com/go-topology-suite/gts/geom"
 )
 
@@ -84,16 +86,69 @@ func (sn *SimpleNoder) GetNodedSubstrings() []*NodedSegmentString {
 		// Get the noded coordinates (with all intersection points inserted)
 		nodedCoords := ss.NodedCoordinates()
 
-		// Create noded segment strings from the split segments
-		if len(nodedCoords) >= 2 {
-			// If the original was closed, we may need to split into multiple strings
-			// For now, create a single noded segment string
+		if len(nodedCoords) < 2 {
+			continue
+		}
+
+		// If the original was closed and has nodes, split at node points
+		if ss.IsClosed() && len(ss.Nodes()) > 0 {
+			segments := splitClosedAtNodes(nodedCoords, ss.Nodes(), ss.Context())
+			sn.nodedSegStrings = append(sn.nodedSegStrings, segments...)
+		} else {
 			nodedSS := NewNodedSegmentString(nodedCoords, ss.Context())
 			sn.nodedSegStrings = append(sn.nodedSegStrings, nodedSS)
 		}
 	}
 
 	return sn.nodedSegStrings
+}
+
+// splitClosedAtNodes splits a closed ring at node points into individual edges.
+// Each edge runs from one node to the next, maintaining the context from the original.
+func splitClosedAtNodes(coords geom.CoordinateSequence, nodes []SegmentNode, context interface{}) []*NodedSegmentString {
+	if len(nodes) == 0 {
+		return []*NodedSegmentString{NewNodedSegmentString(coords, context)}
+	}
+
+	// Find all unique node coordinates in the ring
+	nodeCoords := make(map[string]bool)
+	for _, node := range nodes {
+		key := coordKey(node.Coord)
+		nodeCoords[key] = true
+	}
+
+	// Also treat the start point as a node for closed rings
+	startKey := coordKey(coords[0])
+	nodeCoords[startKey] = true
+
+	var result []*NodedSegmentString
+	var currentEdge geom.CoordinateSequence
+
+	for i := 0; i < len(coords); i++ {
+		coord := coords[i]
+		currentEdge = append(currentEdge, coord)
+
+		// If this coordinate is a node (and we have more than just this point),
+		// end the current edge and start a new one
+		key := coordKey(coord)
+		if nodeCoords[key] && len(currentEdge) >= 2 {
+			result = append(result, NewNodedSegmentString(currentEdge, context))
+			// Start new edge from this node
+			currentEdge = geom.CoordinateSequence{coord}
+		}
+	}
+
+	// Handle remaining edge (wraps back to start for closed rings)
+	if len(currentEdge) >= 2 {
+		result = append(result, NewNodedSegmentString(currentEdge, context))
+	}
+
+	return result
+}
+
+// coordKey returns a string key for a coordinate for map lookup.
+func coordKey(c geom.Coordinate) string {
+	return fmt.Sprintf("%.10f,%.10f", c.X, c.Y)
 }
 
 // ScaledNoder wraps a Noder and applies a scale factor to coordinates
@@ -168,7 +223,8 @@ func (sn *ScaledNoder) GetNodedSubstrings() []*NodedSegmentString {
 // ValidatingNoder wraps a Noder and validates that the noding is complete
 // (i.e., no intersections remain in the noded result).
 type ValidatingNoder struct {
-	noder Noder
+	noder           Noder
+	validationError error
 }
 
 // NewValidatingNoder creates a new ValidatingNoder.
@@ -178,10 +234,12 @@ func NewValidatingNoder(noder Noder) *ValidatingNoder {
 
 // ComputeNodes computes nodes using the wrapped noder.
 func (vn *ValidatingNoder) ComputeNodes(segmentStrings []*NodedSegmentString) {
+	vn.validationError = nil
 	vn.noder.ComputeNodes(segmentStrings)
 }
 
 // GetNodedSubstrings returns the noded substrings after validation.
+// Call ValidationError() after this to check if validation failed.
 func (vn *ValidatingNoder) GetNodedSubstrings() []*NodedSegmentString {
 	nodedSS := vn.noder.GetNodedSubstrings()
 
@@ -191,11 +249,30 @@ func (vn *ValidatingNoder) GetNodedSubstrings() []*NodedSegmentString {
 	checker.ComputeNodes(nodedSS)
 
 	if counter.Count() > 0 {
-		// In a production implementation, this might return an error
-		// For now, we just return the noded strings anyway
+		vn.validationError = &NodingError{
+			Message:           "noding incomplete: intersections remain in result",
+			IntersectionCount: counter.Count(),
+		}
 	}
 
 	return nodedSS
+}
+
+// ValidationError returns an error if the last noding operation produced
+// an invalid result (i.e., intersections remain after noding).
+// Returns nil if validation passed.
+func (vn *ValidatingNoder) ValidationError() error {
+	return vn.validationError
+}
+
+// NodingError represents an error during the noding process.
+type NodingError struct {
+	Message           string
+	IntersectionCount int
+}
+
+func (e *NodingError) Error() string {
+	return e.Message
 }
 
 // IteratedNoder runs a noder multiple times until no more intersections
