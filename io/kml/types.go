@@ -3,7 +3,7 @@ package kml
 import (
 	"encoding/xml"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // AltitudeMode specifies how altitude values are interpreted.

@@ -115,6 +115,7 @@ func (gf *GeometryFactory) CreatePolygon(shell *LinearRing, holes []*LinearRing)
 	shellCoords := shell.coords.Clone()
 	MakePreciseSequence(gf.precisionModel, shellCoords)
 	preciseShell := NewLinearRing(shellCoords)
+	preciseShell.srid = gf.srid
 
 	// Apply precision to holes
 	preciseHoles := make([]*LinearRing, len(holes))
@@ -122,6 +123,7 @@ func (gf *GeometryFactory) CreatePolygon(shell *LinearRing, holes []*LinearRing)
 		holeCoords := hole.coords.Clone()
 		MakePreciseSequence(gf.precisionModel, holeCoords)
 		preciseHoles[i] = NewLinearRing(holeCoords)
+		preciseHoles[i].srid = gf.srid
 	}
 
 	p := NewPolygon(preciseShell, preciseHoles)

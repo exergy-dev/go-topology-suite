@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // ConvexHull computes the convex hull of a geometry.

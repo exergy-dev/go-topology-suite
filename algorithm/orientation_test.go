@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/go-topology-suite/gts/algorithm"
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/algorithm"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // getArea returns the area of a geometry.

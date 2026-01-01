@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -670,6 +670,14 @@ func TestMultiPolygon_IsValid_Overlap(t *testing.T) {
 		poly2 := geom.NewPolygon(geom.NewLinearRingXY(5, 0, 15, 0, 15, 10, 5, 10, 5, 0), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 		assert.False(t, mp.IsValid(), "Overlapping polygons should not be valid")
+	})
+
+	t.Run("CornerOverlap_NoCentroidContainment_NotValid", func(t *testing.T) {
+		// Overlap only at a corner region; centroids are outside each other.
+		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 4, 0, 4, 4, 0, 4, 0, 0), nil)
+		poly2 := geom.NewPolygon(geom.NewLinearRingXY(3, 3, 7, 3, 7, 7, 3, 7, 3, 3), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
+		assert.False(t, mp.IsValid(), "Corner-overlapping polygons should not be valid")
 	})
 
 	t.Run("TouchingAtEdge_IsValid", func(t *testing.T) {

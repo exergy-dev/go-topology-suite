@@ -3,8 +3,8 @@ package kdtree_test
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/index/kdtree"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/index/kdtree"
 )
 
 // Example demonstrates basic KD-tree usage

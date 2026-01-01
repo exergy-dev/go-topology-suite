@@ -4,7 +4,7 @@
 package precision
 
 import (
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Type aliases for backward compatibility

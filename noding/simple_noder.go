@@ -3,7 +3,7 @@ package noding
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // SimpleNoder is a basic O(n²) noder that uses brute-force comparison

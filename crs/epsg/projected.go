@@ -3,7 +3,7 @@ package epsg
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/crs"
+	"github.com/robert-malhotra/go-topology-suite/crs"
 )
 
 // Common projected CRS definitions with EPSG codes.

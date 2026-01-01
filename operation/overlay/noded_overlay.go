@@ -3,9 +3,9 @@ package overlay
 import (
 	"math"
 
-	"github.com/go-topology-suite/gts/algorithm"
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/noding"
+	"github.com/robert-malhotra/go-topology-suite/algorithm"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/noding"
 )
 
 // EdgeLabel tracks whether an edge is inside or outside each input geometry.

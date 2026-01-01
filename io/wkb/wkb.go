@@ -16,7 +16,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // WKB geometry type constants

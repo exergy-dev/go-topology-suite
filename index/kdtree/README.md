@@ -14,7 +14,7 @@ A K-dimensional tree implementation optimized for 2D point data, providing effic
 ## Installation
 
 ```go
-import "github.com/go-topology-suite/gts/index/kdtree"
+import "github.com/robert-malhotra/go-topology-suite/index/kdtree"
 ```
 
 ## Quick Start

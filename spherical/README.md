@@ -31,7 +31,7 @@ The `spherical` package provides spherical geometry operations for the Go Topolo
 The package is part of GTS and requires the S2 geometry library:
 
 ```bash
-go get github.com/go-topology-suite/gts/spherical
+go get github.com/robert-malhotra/go-topology-suite/spherical
 ```
 
 ## Usage Examples
@@ -40,8 +40,8 @@ go get github.com/go-topology-suite/gts/spherical
 
 ```go
 import (
-    "github.com/go-topology-suite/gts/geom"
-    "github.com/go-topology-suite/gts/spherical"
+    "github.com/robert-malhotra/go-topology-suite/geom"
+    "github.com/robert-malhotra/go-topology-suite/spherical"
 )
 
 // New York City and London
@@ -198,7 +198,7 @@ For extremely high-precision requirements (millimeter-level), consider using a p
 ## Dependencies
 
 - `github.com/golang/geo/s2` - Google's S2 geometry library
-- `github.com/go-topology-suite/gts/geom` - GTS geometry types
+- `github.com/robert-malhotra/go-topology-suite/geom` - GTS geometry types
 
 ## Testing
 

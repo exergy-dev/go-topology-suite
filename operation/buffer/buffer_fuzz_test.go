@@ -3,7 +3,7 @@ package buffer
 import (
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // FuzzBufferPoint tests that buffering a point doesn't panic.

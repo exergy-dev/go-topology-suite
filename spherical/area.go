@@ -3,7 +3,7 @@ package spherical
 import (
 	"math"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Area returns the area of a Polygon in square meters on the WGS84 ellipsoid.

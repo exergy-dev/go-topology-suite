@@ -1,7 +1,7 @@
 package algorithm
 
 import (
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // PointLocation determines the location of a point relative to a geometry.
@@ -49,8 +49,8 @@ func pointLocationInLineString(p geom.Coordinate, ls *geom.LineString) geom.Loca
 	for i := 1; i < len(coords); i++ {
 		if isPointOnSegment(p, coords[i-1], coords[i]) {
 			// Check if at endpoint
-			if p.Equals2D(coords[0], geom.DefaultEpsilon) ||
-				p.Equals2D(coords[len(coords)-1], geom.DefaultEpsilon) {
+			if !ls.IsClosed() && (p.Equals2D(coords[0], geom.DefaultEpsilon) ||
+				p.Equals2D(coords[len(coords)-1], geom.DefaultEpsilon)) {
 				return geom.LocationBoundary
 			}
 			return geom.LocationInterior

@@ -1,7 +1,7 @@
 package epsg
 
 import (
-	"github.com/go-topology-suite/gts/crs"
+	"github.com/robert-malhotra/go-topology-suite/crs"
 )
 
 // Common geographic CRS definitions with EPSG codes.

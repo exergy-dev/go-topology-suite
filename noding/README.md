@@ -132,8 +132,8 @@ package main
 
 import (
     "fmt"
-    "github.com/go-topology-suite/gts/geom"
-    "github.com/go-topology-suite/gts/noding"
+    "github.com/robert-malhotra/go-topology-suite/geom"
+    "github.com/robert-malhotra/go-topology-suite/noding"
 )
 
 func main() {

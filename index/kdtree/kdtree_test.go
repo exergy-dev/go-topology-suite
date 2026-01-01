@@ -3,7 +3,7 @@ package kdtree
 import (
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 func TestNewKDTree(t *testing.T) {

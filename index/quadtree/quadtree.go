@@ -3,7 +3,7 @@
 package quadtree
 
 import (
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Quadtree is a spatial index that subdivides space into four quadrants.

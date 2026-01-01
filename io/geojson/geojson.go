@@ -27,7 +27,7 @@ package geojson
 import (
 	"encoding/json"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // SRID4326 is the SRID for WGS84, which is the coordinate reference system

@@ -6,7 +6,7 @@ package kdtree
 import (
 	"math"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // KDTree is a binary space partitioning tree for organizing points in k-dimensional space.

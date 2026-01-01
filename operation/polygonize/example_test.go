@@ -3,8 +3,8 @@ package polygonize_test
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/operation/polygonize"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/operation/polygonize"
 )
 
 // ExamplePolygonize demonstrates basic polygonization from a set of line segments.

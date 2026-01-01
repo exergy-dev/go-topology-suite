@@ -15,13 +15,13 @@ The `geodetic` package provides accurate geodetic calculations on ellipsoidal Ea
 ## Installation
 
 ```bash
-go get github.com/go-topology-suite/gts/geodetic
+go get github.com/robert-malhotra/go-topology-suite/geodetic
 ```
 
 ## Quick Start
 
 ```go
-import "github.com/go-topology-suite/gts/geodetic"
+import "github.com/robert-malhotra/go-topology-suite/geodetic"
 
 // Calculate distance between New York and London
 lat1, lon1 := 40.7128, -74.0060  // NYC

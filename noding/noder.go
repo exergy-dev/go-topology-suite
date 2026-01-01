@@ -9,7 +9,7 @@
 package noding
 
 import (
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // SegmentString represents a sequence of line segments that can be noded.

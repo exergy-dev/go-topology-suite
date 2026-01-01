@@ -8,7 +8,7 @@ package buffer
 import (
 	"math"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // CapStyle defines how line endpoints are handled in buffer operations.

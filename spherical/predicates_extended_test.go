@@ -3,7 +3,7 @@ package spherical
 import (
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Test GenericWithin with various geometry types

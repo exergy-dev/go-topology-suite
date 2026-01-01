@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/precision"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/precision"
 )
 
 func TestFloatingPrecisionModel(t *testing.T) {

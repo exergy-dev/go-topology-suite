@@ -29,7 +29,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/go-topology-suite/gts/crs/epsg"
+    "github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 func main() {
@@ -53,7 +53,7 @@ package main
 import (
     "fmt"
 
-    "github.com/go-topology-suite/gts/crs/epsg"
+    "github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 func main() {
@@ -80,7 +80,7 @@ package main
 import (
     "fmt"
 
-    "github.com/go-topology-suite/gts/crs/epsg"
+    "github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 func main() {
@@ -108,8 +108,8 @@ import (
     "fmt"
     "log"
 
-    "github.com/go-topology-suite/gts/crs"
-    "github.com/go-topology-suite/gts/crs/epsg"
+    "github.com/robert-malhotra/go-topology-suite/crs"
+    "github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 func main() {
@@ -149,7 +149,7 @@ package main
 import (
     "fmt"
 
-    "github.com/go-topology-suite/gts/crs/epsg"
+    "github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 func main() {
@@ -177,7 +177,7 @@ package main
 import (
     "fmt"
 
-    "github.com/go-topology-suite/gts/crs/epsg"
+    "github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 func main() {
@@ -249,13 +249,13 @@ The EPSG registry is thread-safe. All registry operations (lookup, register, unr
 Run the tests:
 
 ```bash
-go test github.com/go-topology-suite/gts/crs/epsg
+go test github.com/robert-malhotra/go-topology-suite/crs/epsg
 ```
 
 Run with coverage:
 
 ```bash
-go test -cover github.com/go-topology-suite/gts/crs/epsg
+go test -cover github.com/robert-malhotra/go-topology-suite/crs/epsg
 ```
 
 ## References

@@ -3,7 +3,7 @@ package geom_test
 import (
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // TestEnvelope_EdgeCases tests edge cases for envelope operations

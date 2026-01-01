@@ -7,7 +7,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // STRtree is a spatial index using the Sort-Tile-Recursive algorithm.

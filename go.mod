@@ -1,4 +1,4 @@
-module github.com/go-topology-suite/gts
+module github.com/robert-malhotra/go-topology-suite
 
 go 1.25.3
 

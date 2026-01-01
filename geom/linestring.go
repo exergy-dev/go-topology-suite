@@ -84,22 +84,146 @@ func (ls *LineString) segmentsIntersect(i, j int) bool {
 	p3 := ls.coords[j]
 	p4 := ls.coords[j+1]
 
-	// Check if segments intersect in their interiors
-	d1 := direction(p3, p4, p1)
-	d2 := direction(p3, p4, p2)
-	d3 := direction(p1, p2, p3)
-	d4 := direction(p1, p2, p4)
-
-	if ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-		((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)) {
+	info := segmentIntersectionInfo(p1, p2, p3, p4)
+	if !info.intersects {
+		return false
+	}
+	if ls.IsClosed() {
 		return true
 	}
-
-	return false
+	if info.proper || info.collinearOverlap {
+		return true
+	}
+	for _, p := range info.points {
+		if !ls.isBoundaryPoint(p) {
+			return true
+		}
+	}
+	// If we couldn't identify an intersection point, treat it as non-simple.
+	return len(info.points) == 0
 }
 
 func direction(p1, p2, p3 Coordinate) float64 {
 	return (p3.X-p1.X)*(p2.Y-p1.Y) - (p2.X-p1.X)*(p3.Y-p1.Y)
+}
+
+type segmentIntersection struct {
+	intersects       bool
+	proper           bool
+	collinearOverlap bool
+	points           []Coordinate
+}
+
+func segmentIntersectionInfo(a1, a2, b1, b2 Coordinate) segmentIntersection {
+	o1 := orientation(a1, a2, b1)
+	o2 := orientation(a1, a2, b2)
+	o3 := orientation(b1, b2, a1)
+	o4 := orientation(b1, b2, a2)
+
+	// Proper crossing (interior-interior)
+	if o1 != o2 && o3 != o4 && o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 {
+		return segmentIntersection{intersects: true, proper: true}
+	}
+
+	// Collinear case
+	if o1 == 0 && o2 == 0 && o3 == 0 && o4 == 0 {
+		return collinearIntersectionInfo(a1, a2, b1, b2)
+	}
+
+	info := segmentIntersection{}
+	if o1 == 0 && onSegmentBounds(a1, b1, a2) {
+		info = addIntersectionPoint(info, b1)
+	}
+	if o2 == 0 && onSegmentBounds(a1, b2, a2) {
+		info = addIntersectionPoint(info, b2)
+	}
+	if o3 == 0 && onSegmentBounds(b1, a1, b2) {
+		info = addIntersectionPoint(info, a1)
+	}
+	if o4 == 0 && onSegmentBounds(b1, a2, b2) {
+		info = addIntersectionPoint(info, a2)
+	}
+	if len(info.points) > 0 {
+		info.intersects = true
+	}
+	return info
+}
+
+func collinearIntersectionInfo(a1, a2, b1, b2 Coordinate) segmentIntersection {
+	info := segmentIntersection{}
+
+	onA1 := onSegmentBounds(b1, a1, b2)
+	onA2 := onSegmentBounds(b1, a2, b2)
+	onB1 := onSegmentBounds(a1, b1, a2)
+	onB2 := onSegmentBounds(a1, b2, a2)
+
+	if !onA1 && !onA2 && !onB1 && !onB2 {
+		return info
+	}
+
+	info.intersects = true
+
+	shared := []Coordinate{}
+	shared = addSharedEndpoint(shared, a1, b1)
+	shared = addSharedEndpoint(shared, a1, b2)
+	shared = addSharedEndpoint(shared, a2, b1)
+	shared = addSharedEndpoint(shared, a2, b2)
+
+	overlap := false
+	if len(shared) >= 2 {
+		overlap = true
+	}
+	if (onA1 && !isSharedPoint(shared, a1)) ||
+		(onA2 && !isSharedPoint(shared, a2)) ||
+		(onB1 && !isSharedPoint(shared, b1)) ||
+		(onB2 && !isSharedPoint(shared, b2)) {
+		overlap = true
+	}
+
+	if overlap {
+		info.collinearOverlap = true
+		return info
+	}
+
+	for _, p := range shared {
+		info = addIntersectionPoint(info, p)
+	}
+
+	return info
+}
+
+func addSharedEndpoint(shared []Coordinate, a, b Coordinate) []Coordinate {
+	if a.Equals2D(b, DefaultEpsilon) && !isSharedPoint(shared, a) {
+		return append(shared, a.Clone())
+	}
+	return shared
+}
+
+func isSharedPoint(shared []Coordinate, p Coordinate) bool {
+	for _, s := range shared {
+		if s.Equals2D(p, DefaultEpsilon) {
+			return true
+		}
+	}
+	return false
+}
+
+func addIntersectionPoint(info segmentIntersection, p Coordinate) segmentIntersection {
+	for _, existing := range info.points {
+		if existing.Equals2D(p, DefaultEpsilon) {
+			return info
+		}
+	}
+	info.points = append(info.points, p.Clone())
+	return info
+}
+
+func (ls *LineString) isBoundaryPoint(p Coordinate) bool {
+	if ls.IsClosed() || ls.IsEmpty() {
+		return false
+	}
+	return p.Equals2D(ls.coords.First(), DefaultEpsilon) ||
+		p.Equals2D(ls.coords.Last(), DefaultEpsilon)
 }
 
 // IsValid returns true if the linestring is valid.
@@ -309,11 +433,17 @@ func (ls *LineString) PointAlong(fraction float64) *Point {
 	}
 
 	totalLength := ls.Length()
+	if totalLength == 0 {
+		return NewPointFromCoordinate(ls.coords.First())
+	}
 	targetLength := totalLength * fraction
 
 	currentLength := 0.0
 	for i := 1; i < len(ls.coords); i++ {
 		segmentLength := ls.coords[i-1].Distance(ls.coords[i])
+		if segmentLength == 0 {
+			continue
+		}
 		if currentLength+segmentLength >= targetLength {
 			// Interpolate within this segment
 			segmentFraction := (targetLength - currentLength) / segmentLength

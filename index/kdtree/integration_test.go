@@ -3,10 +3,10 @@ package kdtree_test
 import (
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/index/kdtree"
-	"github.com/go-topology-suite/gts/index/quadtree"
-	"github.com/go-topology-suite/gts/index/strtree"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/index/kdtree"
+	"github.com/robert-malhotra/go-topology-suite/index/quadtree"
+	"github.com/robert-malhotra/go-topology-suite/index/strtree"
 )
 
 // TestCompareWithOtherIndexes ensures KD-tree produces compatible results

@@ -5,7 +5,7 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 	"github.com/jonas-p/go-shp"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/go-topology-suite/gts/crs"
+	"github.com/robert-malhotra/go-topology-suite/crs"
 )
 
 // TestLookupCommonCRS tests that common EPSG codes can be looked up.

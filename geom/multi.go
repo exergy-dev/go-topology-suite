@@ -2,6 +2,7 @@ package geom
 
 import (
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -294,10 +295,24 @@ func (mls *MultiLineString) Boundary() Geometry {
 		return NewMultiPointEmpty()
 	}
 
-	// Count endpoint occurrences
-	endpoints := make(map[string]int)
-	coordKey := func(c Coordinate) string {
-		return fmt.Sprintf("%g,%g", c.X, c.Y)
+	// Count endpoint occurrences by exact coordinate value.
+	type coordKey struct {
+		x uint64
+		y uint64
+	}
+	type endpointInfo struct {
+		count int
+		coord Coordinate
+	}
+	endpoints := make(map[coordKey]endpointInfo)
+	addEndpoint := func(c Coordinate) {
+		key := coordKey{math.Float64bits(c.X), math.Float64bits(c.Y)}
+		info := endpoints[key]
+		if info.count == 0 {
+			info.coord = c.Clone()
+		}
+		info.count++
+		endpoints[key] = info
 	}
 
 	for _, l := range mls.lines {
@@ -307,21 +322,15 @@ func (mls *MultiLineString) Boundary() Geometry {
 		if l.IsClosed() {
 			continue
 		}
-		endpoints[coordKey(l.coords.First())]++
-		endpoints[coordKey(l.coords.Last())]++
+		addEndpoint(l.coords.First())
+		addEndpoint(l.coords.Last())
 	}
 
 	// Collect points with odd degree
 	var points []*Point
-	for _, l := range mls.lines {
-		if l.IsEmpty() || l.IsClosed() {
-			continue
-		}
-		if endpoints[coordKey(l.coords.First())]%2 == 1 {
-			points = append(points, NewPointFromCoordinate(l.coords.First()))
-		}
-		if endpoints[coordKey(l.coords.Last())]%2 == 1 {
-			points = append(points, NewPointFromCoordinate(l.coords.Last()))
+	for _, info := range endpoints {
+		if info.count%2 == 1 {
+			points = append(points, NewPointFromCoordinate(info.coord))
 		}
 	}
 
@@ -518,18 +527,53 @@ func (mp *MultiPolygon) polygonsOverlap(p1, p2 *Polygon) bool {
 		return false
 	}
 
-	// Check if any interior point of p1 is inside p2
-	c1 := p1.Centroid()
-	if !c1.IsEmpty() && p2.ContainsPoint(c1.Coordinate()) {
+	// Proper boundary crossings imply interior overlap.
+	if ringsCrossProperly(p1.shell, p2.shell) {
 		return true
 	}
 
-	// Check if any interior point of p2 is inside p1
-	c2 := p2.Centroid()
-	if !c2.IsEmpty() && p1.ContainsPoint(c2.Coordinate()) {
+	// If any shell segment midpoint is strictly inside the other polygon,
+	// the interiors overlap (covers containment and corner overlaps).
+	if shellHasInteriorPointIn(p1, p2) {
+		return true
+	}
+	if shellHasInteriorPointIn(p2, p1) {
 		return true
 	}
 
+	return false
+}
+
+// ringsCrossProperly checks if two rings have a proper crossing (not just touching).
+func ringsCrossProperly(r1, r2 *LinearRing) bool {
+	coords1, coords2 := r1.Coordinates(), r2.Coordinates()
+	for i := 0; i < len(coords1)-1; i++ {
+		for j := 0; j < len(coords2)-1; j++ {
+			if segmentsCrossProper(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// shellHasInteriorPointIn returns true if any shell segment midpoint lies in the
+// interior of the other polygon (not on the boundary).
+func shellHasInteriorPointIn(p *Polygon, other *Polygon) bool {
+	if p.IsEmpty() || other.IsEmpty() {
+		return false
+	}
+
+	coords := p.shell.Coordinates()
+	for i := 1; i < len(coords); i++ {
+		mid := Coordinate{
+			X: (coords[i-1].X + coords[i].X) / 2,
+			Y: (coords[i-1].Y + coords[i].Y) / 2,
+		}
+		if pointInPolygon(mid, other) == LocationInterior {
+			return true
+		}
+	}
 	return false
 }
 

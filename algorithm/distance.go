@@ -3,7 +3,7 @@ package algorithm
 import (
 	"math"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Distance computes the minimum distance between two geometries.

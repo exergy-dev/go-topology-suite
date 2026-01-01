@@ -32,7 +32,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/go-topology-suite/gts/crs"
+	"github.com/robert-malhotra/go-topology-suite/crs"
 )
 
 var (

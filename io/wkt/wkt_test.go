@@ -3,8 +3,8 @@ package wkt_test
 import (
 	"testing"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/io/wkt"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/io/wkt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

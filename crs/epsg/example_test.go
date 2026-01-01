@@ -3,7 +3,7 @@ package epsg_test
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/crs/epsg"
+	"github.com/robert-malhotra/go-topology-suite/crs/epsg"
 )
 
 // ExampleLookup demonstrates looking up a CRS by EPSG code.

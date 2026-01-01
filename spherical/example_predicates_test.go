@@ -3,8 +3,8 @@ package spherical_test
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/spherical"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/spherical"
 )
 
 // ExampleCrosses demonstrates the Crosses predicate for spherical geometries.

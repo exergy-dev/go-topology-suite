@@ -1,7 +1,7 @@
 package spherical
 
 import (
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 	"github.com/golang/geo/s2"
 )
 

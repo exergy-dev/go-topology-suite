@@ -1,7 +1,7 @@
 package shapefile
 
 import (
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Feature represents a shapefile feature with geometry and DBF attributes.

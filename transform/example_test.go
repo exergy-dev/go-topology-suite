@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/go-topology-suite/gts/geom"
-	"github.com/go-topology-suite/gts/transform"
-	"github.com/go-topology-suite/gts/transform/projection"
+	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/transform"
+	"github.com/robert-malhotra/go-topology-suite/transform/projection"
 )
 
 // Example demonstrates basic affine transformations

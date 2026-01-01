@@ -6,7 +6,7 @@ package transform
 import (
 	"fmt"
 
-	"github.com/go-topology-suite/gts/geom"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Transform defines an interface for coordinate transformations.

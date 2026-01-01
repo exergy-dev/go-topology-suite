@@ -608,7 +608,7 @@ func hasRingSelfIntersection(coords CoordinateSequence) bool {
 			if i == 0 && j == n-2 {
 				continue
 			}
-			if segmentsCross(coords[i], coords[i+1], coords[j], coords[j+1]) {
+			if segmentsIntersect(coords[i], coords[i+1], coords[j], coords[j+1]) {
 				return true
 			}
 		}
@@ -621,7 +621,7 @@ func ringsProperlyIntersect(r1, r2 *LinearRing) bool {
 	coords1, coords2 := r1.Coordinates(), r2.Coordinates()
 	for i := 0; i < len(coords1)-1; i++ {
 		for j := 0; j < len(coords2)-1; j++ {
-			if segmentsCross(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
+			if segmentsIntersect(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
 				return true
 			}
 		}
