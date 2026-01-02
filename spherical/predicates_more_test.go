@@ -372,9 +372,9 @@ func TestEquals(t *testing.T) {
 
 // TestHelperFunctions tests the helper functions.
 func TestHelperFunctions(t *testing.T) {
-	t.Run("getLineStringsFromGeometry", func(t *testing.T) {
+	t.Run("ExtractLineStrings", func(t *testing.T) {
 		ls := geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0)
-		result := getLineStringsFromGeometry(ls)
+		result := geom.ExtractLineStrings(ls)
 		if len(result) != 1 {
 			t.Errorf("Expected 1 linestring, got %d", len(result))
 		}
@@ -384,13 +384,13 @@ func TestHelperFunctions(t *testing.T) {
 			geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0),
 			geom.NewLineStringXY(2.0, 2.0, 3.0, 3.0),
 		})
-		result = getLineStringsFromGeometry(mls)
+		result = geom.ExtractLineStrings(mls)
 		if len(result) != 2 {
 			t.Errorf("Expected 2 linestrings, got %d", len(result))
 		}
 	})
 
-	t.Run("getPolygonsFromGeometry", func(t *testing.T) {
+	t.Run("ExtractPolygons", func(t *testing.T) {
 		poly := geom.NewPolygon(geom.NewLinearRingXY(
 			0.0, 0.0,
 			1.0, 0.0,
@@ -398,14 +398,14 @@ func TestHelperFunctions(t *testing.T) {
 			0.0, 1.0,
 			0.0, 0.0,
 		), nil)
-		result := getPolygonsFromGeometry(poly)
+		result := geom.ExtractPolygons(poly)
 		if len(result) != 1 {
 			t.Errorf("Expected 1 polygon, got %d", len(result))
 		}
 
 		// Test with MultiPolygon
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly, poly})
-		result = getPolygonsFromGeometry(mp)
+		result = geom.ExtractPolygons(mp)
 		if len(result) != 2 {
 			t.Errorf("Expected 2 polygons, got %d", len(result))
 		}

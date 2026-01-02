@@ -303,6 +303,73 @@ func TestPredicatesEnvelopeRejection(t *testing.T) {
 	assert.False(t, Touches(poly1, poly2), "Expected disjoint envelope geometries not to touch")
 }
 
+func TestContains_LineStringContainsIdenticalLine(t *testing.T) {
+	factory := DefaultFactory
+
+	line := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+	})
+	clone := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+	})
+
+	assert.True(t, Contains(line, clone), "Expected a line to contain an identical line")
+}
+
+func TestOverlaps_LineStringIdenticalIsNotOverlap(t *testing.T) {
+	factory := DefaultFactory
+
+	line1 := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+	})
+	line2 := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+	})
+
+	assert.True(t, Equals(line1, line2), "Expected identical lines to be equal")
+	assert.False(t, Overlaps(line1, line2), "Expected identical lines not to overlap")
+}
+
+func TestCovers_ConcavePolygonLineCrossesNotch(t *testing.T) {
+	factory := DefaultFactory
+
+	lShapeCoords := CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+		NewCoordinate(10, 5),
+		NewCoordinate(5, 5),
+		NewCoordinate(5, 10),
+		NewCoordinate(0, 10),
+		NewCoordinate(0, 0),
+	}
+	lShapeShell := factory.CreateLinearRing(lShapeCoords)
+	lShape := factory.CreatePolygon(lShapeShell, nil)
+
+	lineThroughNotch := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(8, 3), // inside bottom arm
+		NewCoordinate(3, 8), // inside left arm
+	})
+
+	assert.False(t, Covers(lShape, lineThroughNotch), "Expected concave polygon not to cover a line crossing the notch")
+}
+
+func TestTouches_LineOverlapsPolygonBoundarySegment(t *testing.T) {
+	factory := DefaultFactory
+
+	poly := createTestSquare(factory, 0, 0, 10)
+	line := factory.CreateLineString(CoordinateSequence{
+		NewCoordinate(-5, 0),
+		NewCoordinate(15, 0),
+	})
+
+	assert.True(t, Touches(line, poly), "Expected line overlapping polygon boundary to touch")
+	assert.True(t, Touches(poly, line), "Expected polygon to touch line overlapping its boundary")
+}
+
 func TestLineCrossLines(t *testing.T) {
 	factory := DefaultFactory
 

@@ -266,92 +266,11 @@ func DistanceSegmentToSegment(a1, a2, b1, b2 geom.Coordinate) float64 {
 
 // SegmentsIntersect returns true if two line segments intersect.
 func SegmentsIntersect(a1, a2, b1, b2 geom.Coordinate) bool {
-	o1 := OrientationIndex(a1, a2, b1)
-	o2 := OrientationIndex(a1, a2, b2)
-	o3 := OrientationIndex(b1, b2, a1)
-	o4 := OrientationIndex(b1, b2, a2)
-
-	// General case
-	if o1 != o2 && o3 != o4 {
-		return true
-	}
-
-	// Collinear cases
-	if o1 == 0 && onSegment(a1, b1, a2) {
-		return true
-	}
-	if o2 == 0 && onSegment(a1, b2, a2) {
-		return true
-	}
-	if o3 == 0 && onSegment(b1, a1, b2) {
-		return true
-	}
-	if o4 == 0 && onSegment(b1, a2, b2) {
-		return true
-	}
-
-	return false
-}
-
-func onSegment(p, q, r geom.Coordinate) bool {
-	return q.X <= math.Max(p.X, r.X) && q.X >= math.Min(p.X, r.X) &&
-		q.Y <= math.Max(p.Y, r.Y) && q.Y >= math.Min(p.Y, r.Y)
+	return geom.SegmentsIntersect(a1, a2, b1, b2)
 }
 
 // Segment represents a line segment defined by two coordinates.
-type Segment struct {
-	P0, P1 geom.Coordinate
-}
-
-// getGeometrySegments returns all real segments from a geometry.
-// For rings, only creates segments within the ring (no phantom segments between rings).
-// For multi-geometries, processes each component separately.
-func getGeometrySegments(g geom.Geometry) []Segment {
-	var segments []Segment
-
-	switch v := g.(type) {
-	case *geom.Point:
-		// Points have no segments
-	case *geom.LineString:
-		coords := v.Coordinates()
-		for i := 1; i < len(coords); i++ {
-			segments = append(segments, Segment{coords[i-1], coords[i]})
-		}
-	case *geom.LinearRing:
-		coords := v.Coordinates()
-		for i := 1; i < len(coords); i++ {
-			segments = append(segments, Segment{coords[i-1], coords[i]})
-		}
-	case *geom.Polygon:
-		// Shell segments
-		shellCoords := v.ExteriorRing().Coordinates()
-		for i := 1; i < len(shellCoords); i++ {
-			segments = append(segments, Segment{shellCoords[i-1], shellCoords[i]})
-		}
-		// Hole segments (each hole separate, no phantom segments between shell and holes)
-		for j := 0; j < v.NumInteriorRings(); j++ {
-			holeCoords := v.InteriorRingN(j).Coordinates()
-			for i := 1; i < len(holeCoords); i++ {
-				segments = append(segments, Segment{holeCoords[i-1], holeCoords[i]})
-			}
-		}
-	case *geom.MultiPoint:
-		// MultiPoint has no segments
-	case *geom.MultiLineString:
-		for i := 0; i < v.NumGeometries(); i++ {
-			segments = append(segments, getGeometrySegments(v.GeometryN(i))...)
-		}
-	case *geom.MultiPolygon:
-		for i := 0; i < v.NumGeometries(); i++ {
-			segments = append(segments, getGeometrySegments(v.GeometryN(i))...)
-		}
-	case *geom.GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			segments = append(segments, getGeometrySegments(v.GeometryN(i))...)
-		}
-	}
-	return segments
-}
+type Segment = geom.Segment
 
 // getGeometryPoints returns all vertex coordinates from a geometry.
 func getGeometryPoints(g geom.Geometry) []geom.Coordinate {
@@ -375,8 +294,8 @@ func DistanceGeometryToGeometry(g1, g2 geom.Geometry) float64 {
 	}
 
 	// Get all real segments (respecting geometry boundaries)
-	segments1 := getGeometrySegments(g1)
-	segments2 := getGeometrySegments(g2)
+	segments1 := geom.GeometrySegments(g1)
+	segments2 := geom.GeometrySegments(g2)
 
 	minDist := math.Inf(1)
 
@@ -453,8 +372,8 @@ func NearestPoints(g1, g2 geom.Geometry) (geom.Coordinate, geom.Coordinate) {
 			geom.Coordinate{X: math.NaN(), Y: math.NaN()}
 	}
 
-	segments1 := getGeometrySegments(g1)
-	segments2 := getGeometrySegments(g2)
+	segments1 := geom.GeometrySegments(g1)
+	segments2 := geom.GeometrySegments(g2)
 
 	minDist := math.Inf(1)
 	var nearest1, nearest2 geom.Coordinate

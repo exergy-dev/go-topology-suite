@@ -85,24 +85,32 @@ func setPlacemarkGeometry(pm *Placemark, g geom.Geometry, opts Options) {
 		return
 	}
 
-	switch v := g.(type) {
-	case *geom.Point:
-		pm.Point = createKMLPoint(v, opts)
-	case *geom.LineString:
-		pm.LineString = createKMLLineString(v, opts)
-	case *geom.LinearRing:
-		pm.LinearRing = createKMLLinearRing(v, opts)
-	case *geom.Polygon:
-		pm.Polygon = createKMLPolygon(v, opts)
-	case *geom.MultiPoint:
-		pm.MultiGeometry = createKMLMultiGeometry(v, opts)
-	case *geom.MultiLineString:
-		pm.MultiGeometry = createKMLMultiGeometry(v, opts)
-	case *geom.MultiPolygon:
-		pm.MultiGeometry = createKMLMultiGeometry(v, opts)
-	case *geom.GeometryCollection:
-		pm.MultiGeometry = createKMLMultiGeometry(v, opts)
-	}
+	geom.VisitGeometry(g, geom.GeometryVisitor{
+		Point: func(p *geom.Point) {
+			pm.Point = createKMLPoint(p, opts)
+		},
+		LineString: func(ls *geom.LineString) {
+			pm.LineString = createKMLLineString(ls, opts)
+		},
+		LinearRing: func(lr *geom.LinearRing) {
+			pm.LinearRing = createKMLLinearRing(lr, opts)
+		},
+		Polygon: func(p *geom.Polygon) {
+			pm.Polygon = createKMLPolygon(p, opts)
+		},
+		MultiPoint: func(mp *geom.MultiPoint) {
+			pm.MultiGeometry = createKMLMultiGeometry(mp, opts)
+		},
+		MultiLineString: func(mls *geom.MultiLineString) {
+			pm.MultiGeometry = createKMLMultiGeometry(mls, opts)
+		},
+		MultiPolygon: func(mp *geom.MultiPolygon) {
+			pm.MultiGeometry = createKMLMultiGeometry(mp, opts)
+		},
+		GeometryCollection: func(gc *geom.GeometryCollection) {
+			pm.MultiGeometry = createKMLMultiGeometry(gc, opts)
+		},
+	})
 }
 
 // createKMLPoint creates a KML Point from a geom.Point.

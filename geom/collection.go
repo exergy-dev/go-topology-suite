@@ -1,6 +1,7 @@
 package geom
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -100,6 +101,19 @@ func (gc *GeometryCollection) Coordinates() CoordinateSequence {
 	return coords
 }
 
+// ApplyCoordinateFilter applies a coordinate filter to the collection.
+func (gc *GeometryCollection) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if filter == nil {
+		return
+	}
+	for _, g := range gc.geometries {
+		if cf, ok := g.(CoordinateFilterer); ok {
+			cf.ApplyCoordinateFilter(filter)
+		}
+	}
+	gc.invalidateEnvelope()
+}
+
 // NumGeometries returns the number of geometries.
 func (gc *GeometryCollection) NumGeometries() int {
 	return len(gc.geometries)
@@ -125,14 +139,9 @@ func (gc *GeometryCollection) Normalize() {
 	for _, g := range gc.geometries {
 		g.Normalize()
 	}
-	// Sort geometries
-	for i := 0; i < len(gc.geometries); i++ {
-		for j := i + 1; j < len(gc.geometries); j++ {
-			if Compare(gc.geometries[i], gc.geometries[j]) > 0 {
-				gc.geometries[i], gc.geometries[j] = gc.geometries[j], gc.geometries[i]
-			}
-		}
-	}
+	sort.Slice(gc.geometries, func(i, j int) bool {
+		return Compare(gc.geometries[i], gc.geometries[j]) < 0
+	})
 }
 
 // EqualsExact returns true if the GeometryCollections are exactly equal.

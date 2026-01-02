@@ -94,26 +94,35 @@ func UnmarshalWithFactory(data []byte, factory *geom.GeometryFactory) (geom.Geom
 // --- Marshaling implementation ---
 
 func writeGeometry(sb *strings.Builder, g geom.Geometry, indent int, opts Options) {
-	switch v := g.(type) {
-	case *geom.Point:
-		writePoint(sb, v, opts)
-	case *geom.LineString:
-		writeLineString(sb, v, opts)
-	case *geom.LinearRing:
-		writeLinearRing(sb, v, opts)
-	case *geom.Polygon:
-		writePolygon(sb, v, indent, opts)
-	case *geom.MultiPoint:
-		writeMultiPoint(sb, v, indent, opts)
-	case *geom.MultiLineString:
-		writeMultiLineString(sb, v, indent, opts)
-	case *geom.MultiPolygon:
-		writeMultiPolygon(sb, v, indent, opts)
-	case *geom.GeometryCollection:
-		writeGeometryCollection(sb, v, indent, opts)
-	default:
-		sb.WriteString(g.String())
-	}
+	geom.VisitGeometry(g, geom.GeometryVisitor{
+		Point: func(p *geom.Point) {
+			writePoint(sb, p, opts)
+		},
+		LineString: func(ls *geom.LineString) {
+			writeLineString(sb, ls, opts)
+		},
+		LinearRing: func(lr *geom.LinearRing) {
+			writeLinearRing(sb, lr, opts)
+		},
+		Polygon: func(p *geom.Polygon) {
+			writePolygon(sb, p, indent, opts)
+		},
+		MultiPoint: func(mp *geom.MultiPoint) {
+			writeMultiPoint(sb, mp, indent, opts)
+		},
+		MultiLineString: func(mls *geom.MultiLineString) {
+			writeMultiLineString(sb, mls, indent, opts)
+		},
+		MultiPolygon: func(mp *geom.MultiPolygon) {
+			writeMultiPolygon(sb, mp, indent, opts)
+		},
+		GeometryCollection: func(gc *geom.GeometryCollection) {
+			writeGeometryCollection(sb, gc, indent, opts)
+		},
+		Default: func(g geom.Geometry) {
+			sb.WriteString(g.String())
+		},
+	})
 }
 
 func writePoint(sb *strings.Builder, p *geom.Point, opts Options) {

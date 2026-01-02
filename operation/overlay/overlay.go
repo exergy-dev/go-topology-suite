@@ -165,7 +165,7 @@ func computeOverlay(a, b geom.Geometry, op Op) geom.Geometry {
 
 // overlayPointWith overlays a point geometry with another geometry.
 func overlayPointWith(a, b geom.Geometry, op Op) geom.Geometry {
-	points := extractPoints(a)
+	points := geom.ExtractPoints(a)
 	var resultPoints []*geom.Point
 
 	for _, p := range points {
@@ -200,7 +200,7 @@ func overlayPointWith(a, b geom.Geometry, op Op) geom.Geometry {
 
 // overlayWithPoint overlays a geometry with a point geometry.
 func overlayWithPoint(a, b geom.Geometry, op Op) geom.Geometry {
-	points := extractPoints(b)
+	points := geom.ExtractPoints(b)
 	var resultPoints []*geom.Point
 
 	for _, p := range points {
@@ -243,8 +243,8 @@ func overlayWithPoint(a, b geom.Geometry, op Op) geom.Geometry {
 
 // overlayLineLine overlays two line geometries.
 func overlayLineLine(a, b geom.Geometry, op Op) geom.Geometry {
-	linesA := extractLineStrings(a)
-	linesB := extractLineStrings(b)
+	linesA := geom.ExtractLineStringsWithRings(a)
+	linesB := geom.ExtractLineStringsWithRings(b)
 
 	switch op {
 	case OpIntersection:
@@ -262,8 +262,8 @@ func overlayLineLine(a, b geom.Geometry, op Op) geom.Geometry {
 
 // overlayLinePolygon overlays a line with a polygon.
 func overlayLinePolygon(a, b geom.Geometry, op Op) geom.Geometry {
-	lines := extractLineStrings(a)
-	polygons := extractPolygons(b)
+	lines := geom.ExtractLineStringsWithRings(a)
+	polygons := geom.ExtractPolygons(b)
 
 	switch op {
 	case OpIntersection:
@@ -283,8 +283,8 @@ func overlayLinePolygon(a, b geom.Geometry, op Op) geom.Geometry {
 
 // overlayPolygonLine overlays a polygon with a line.
 func overlayPolygonLine(a, b geom.Geometry, op Op) geom.Geometry {
-	lines := extractLineStrings(b)
-	polygons := extractPolygons(a)
+	lines := geom.ExtractLineStringsWithRings(b)
+	polygons := geom.ExtractPolygons(a)
 
 	switch op {
 	case OpIntersection:
@@ -303,8 +303,8 @@ func overlayPolygonLine(a, b geom.Geometry, op Op) geom.Geometry {
 
 // overlayPolygonPolygon overlays two polygon geometries.
 func overlayPolygonPolygon(a, b geom.Geometry, op Op) geom.Geometry {
-	polysA := extractPolygons(a)
-	polysB := extractPolygons(b)
+	polysA := geom.ExtractPolygons(a)
+	polysB := geom.ExtractPolygons(b)
 
 	switch op {
 	case OpIntersection:
@@ -320,78 +320,6 @@ func overlayPolygonPolygon(a, b geom.Geometry, op Op) geom.Geometry {
 	}
 }
 
-// extractPoints extracts all points from a geometry.
-func extractPoints(g geom.Geometry) []*geom.Point {
-	var points []*geom.Point
-	switch v := g.(type) {
-	case *geom.Point:
-		if !v.IsEmpty() {
-			points = append(points, v)
-		}
-	case *geom.MultiPoint:
-		for i := 0; i < v.NumGeometries(); i++ {
-			p := v.GeometryN(i).(*geom.Point)
-			if !p.IsEmpty() {
-				points = append(points, p)
-			}
-		}
-	case *geom.GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			points = append(points, extractPoints(v.GeometryN(i))...)
-		}
-	}
-	return points
-}
-
-// extractLineStrings extracts all line strings from a geometry.
-func extractLineStrings(g geom.Geometry) []*geom.LineString {
-	var lines []*geom.LineString
-	switch v := g.(type) {
-	case *geom.LineString:
-		if !v.IsEmpty() {
-			lines = append(lines, v)
-		}
-	case *geom.LinearRing:
-		if !v.IsEmpty() {
-			lines = append(lines, v.LineString)
-		}
-	case *geom.MultiLineString:
-		for i := 0; i < v.NumGeometries(); i++ {
-			ls := v.GeometryN(i).(*geom.LineString)
-			if !ls.IsEmpty() {
-				lines = append(lines, ls)
-			}
-		}
-	case *geom.GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			lines = append(lines, extractLineStrings(v.GeometryN(i))...)
-		}
-	}
-	return lines
-}
-
-// extractPolygons extracts all polygons from a geometry.
-func extractPolygons(g geom.Geometry) []*geom.Polygon {
-	var polygons []*geom.Polygon
-	switch v := g.(type) {
-	case *geom.Polygon:
-		if !v.IsEmpty() {
-			polygons = append(polygons, v)
-		}
-	case *geom.MultiPolygon:
-		for i := 0; i < v.NumGeometries(); i++ {
-			p := v.GeometryN(i).(*geom.Polygon)
-			if !p.IsEmpty() {
-				polygons = append(polygons, p)
-			}
-		}
-	case *geom.GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			polygons = append(polygons, extractPolygons(v.GeometryN(i))...)
-		}
-	}
-	return polygons
-}
 
 // createPointResult creates a geometry from a list of points.
 func createPointResult(points []*geom.Point) geom.Geometry {

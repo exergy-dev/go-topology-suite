@@ -24,22 +24,7 @@ const (
 //	Collinear (0) if p1-p2-p3 are collinear
 //	CounterClockwise (1) if p1-p2-p3 makes a counter-clockwise turn
 func OrientationIndex(p1, p2, p3 geom.Coordinate) int {
-	// Use the cross product formula
-	dx1 := p2.X - p1.X
-	dy1 := p2.Y - p1.Y
-	dx2 := p3.X - p2.X
-	dy2 := p3.Y - p2.Y
-
-	cross := dx1*dy2 - dy1*dx2
-
-	// Handle numerical precision
-	if math.Abs(cross) < geom.DefaultEpsilon {
-		return Collinear
-	}
-	if cross > 0 {
-		return CounterClockwise
-	}
-	return Clockwise
+	return geom.OrientationIndex(p1, p2, p3)
 }
 
 // IsCCW returns true if the ring has counter-clockwise orientation.
@@ -56,19 +41,7 @@ func IsCW(ring geom.CoordinateSequence) bool {
 // SignedArea computes the signed area of a ring.
 // Returns positive for counter-clockwise rings, negative for clockwise.
 func SignedArea(ring geom.CoordinateSequence) float64 {
-	if len(ring) < 3 {
-		return 0
-	}
-
-	sum := 0.0
-	for i := 0; i < len(ring)-1; i++ {
-		sum += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
-	}
-	// Handle non-closed rings
-	if !ring.IsClosed(geom.DefaultEpsilon) {
-		sum += ring[len(ring)-1].X*ring[0].Y - ring[0].X*ring[len(ring)-1].Y
-	}
-	return sum / 2
+	return geom.SignedArea(ring)
 }
 
 // Angle computes the angle of the vector from p1 to p2.

@@ -215,35 +215,46 @@ func geometryToMap(g geom.Geometry) map[string]any {
 		return nil
 	}
 
-	switch v := g.(type) {
-	case *geom.Point:
-		return map[string]any{
-			"type":        "Point",
-			"coordinates": coordToArray(v.Coordinate()),
-		}
-	case *geom.LineString:
-		return map[string]any{
-			"type":        "LineString",
-			"coordinates": coordsToArray(v.Coordinates()),
-		}
-	case *geom.LinearRing:
-		return map[string]any{
-			"type":        "LineString",
-			"coordinates": coordsToArray(v.Coordinates()),
-		}
-	case *geom.Polygon:
-		return polygonToMap(v)
-	case *geom.MultiPoint:
-		return multiPointToMap(v)
-	case *geom.MultiLineString:
-		return multiLineStringToMap(v)
-	case *geom.MultiPolygon:
-		return multiPolygonToMap(v)
-	case *geom.GeometryCollection:
-		return geometryCollectionToMap(v)
-	default:
-		return map[string]any{"type": "GeometryCollection", "geometries": []any{}}
-	}
+	var result map[string]any
+	geom.VisitGeometry(g, geom.GeometryVisitor{
+		Point: func(p *geom.Point) {
+			result = map[string]any{
+				"type":        "Point",
+				"coordinates": coordToArray(p.Coordinate()),
+			}
+		},
+		LineString: func(ls *geom.LineString) {
+			result = map[string]any{
+				"type":        "LineString",
+				"coordinates": coordsToArray(ls.Coordinates()),
+			}
+		},
+		LinearRing: func(lr *geom.LinearRing) {
+			result = map[string]any{
+				"type":        "LineString",
+				"coordinates": coordsToArray(lr.Coordinates()),
+			}
+		},
+		Polygon: func(p *geom.Polygon) {
+			result = polygonToMap(p)
+		},
+		MultiPoint: func(mp *geom.MultiPoint) {
+			result = multiPointToMap(mp)
+		},
+		MultiLineString: func(mls *geom.MultiLineString) {
+			result = multiLineStringToMap(mls)
+		},
+		MultiPolygon: func(mp *geom.MultiPolygon) {
+			result = multiPolygonToMap(mp)
+		},
+		GeometryCollection: func(gc *geom.GeometryCollection) {
+			result = geometryCollectionToMap(gc)
+		},
+		Default: func(geom.Geometry) {
+			result = map[string]any{"type": "GeometryCollection", "geometries": []any{}}
+		},
+	})
+	return result
 }
 
 func polygonToMap(p *geom.Polygon) map[string]any {

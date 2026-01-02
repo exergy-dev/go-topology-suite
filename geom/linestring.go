@@ -254,6 +254,17 @@ func (ls *LineString) Coordinates() CoordinateSequence {
 	return ls.coords.Clone()
 }
 
+// ApplyCoordinateFilter applies a coordinate filter to the linestring.
+func (ls *LineString) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if filter == nil {
+		return
+	}
+	for i := range ls.coords {
+		filter.Filter(&ls.coords[i])
+	}
+	ls.invalidateEnvelope()
+}
+
 // NumGeometries returns 1 for LineString.
 func (ls *LineString) NumGeometries() int {
 	return 1

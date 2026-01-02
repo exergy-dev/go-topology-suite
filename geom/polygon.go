@@ -100,6 +100,9 @@ func SignedArea(coords CoordinateSequence) float64 {
 	for i := 0; i < n-1; i++ {
 		sum += coords[i].X*coords[i+1].Y - coords[i+1].X*coords[i].Y
 	}
+	if !coords.IsClosed(DefaultEpsilon) {
+		sum += coords[n-1].X*coords[0].Y - coords[0].X*coords[n-1].Y
+	}
 	return sum / 2
 }
 
@@ -307,6 +310,18 @@ func (p *Polygon) Coordinates() CoordinateSequence {
 	}
 
 	return coords
+}
+
+// ApplyCoordinateFilter applies a coordinate filter to the polygon.
+func (p *Polygon) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if p.IsEmpty() || filter == nil {
+		return
+	}
+	p.shell.ApplyCoordinateFilter(filter)
+	for _, hole := range p.holes {
+		hole.ApplyCoordinateFilter(filter)
+	}
+	p.invalidateEnvelope()
 }
 
 // NumGeometries returns 1 for Polygon.

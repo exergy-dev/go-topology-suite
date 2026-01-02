@@ -9,26 +9,14 @@ import (
 // Area computes the area of a geometry.
 func Area(g geom.Geometry) float64 {
 	switch v := g.(type) {
-	case *geom.Point:
-		return 0
-	case *geom.LineString:
-		return 0
-	case *geom.LinearRing:
-		return RingArea(v.Coordinates())
-	case *geom.Polygon:
-		return PolygonArea(v)
-	case *geom.MultiPoint:
-		return 0
-	case *geom.MultiLineString:
-		return 0
-	case *geom.MultiPolygon:
-		return MultiPolygonArea(v)
 	case *geom.GeometryCollection:
 		total := 0.0
 		for i := 0; i < v.NumGeometries(); i++ {
 			total += Area(v.GeometryN(i))
 		}
 		return total
+	case interface{ Area() float64 }:
+		return v.Area()
 	default:
 		return 0
 	}
@@ -64,26 +52,12 @@ func MultiPolygonArea(mp *geom.MultiPolygon) float64 {
 // Length computes the length of a geometry.
 func Length(g geom.Geometry) float64 {
 	switch v := g.(type) {
-	case *geom.Point:
-		return 0
-	case *geom.LineString:
-		return LineLength(v.Coordinates())
-	case *geom.LinearRing:
-		return LineLength(v.Coordinates())
 	case *geom.Polygon:
-		return PolygonPerimeter(v)
-	case *geom.MultiPoint:
-		return 0
-	case *geom.MultiLineString:
-		total := 0.0
-		for i := 0; i < v.NumGeometries(); i++ {
-			total += LineLength(v.GeometryN(i).(*geom.LineString).Coordinates())
-		}
-		return total
+		return v.Perimeter()
 	case *geom.MultiPolygon:
 		total := 0.0
 		for i := 0; i < v.NumGeometries(); i++ {
-			total += PolygonPerimeter(v.GeometryN(i).(*geom.Polygon))
+			total += v.GeometryN(i).(*geom.Polygon).Perimeter()
 		}
 		return total
 	case *geom.GeometryCollection:
@@ -92,6 +66,8 @@ func Length(g geom.Geometry) float64 {
 			total += Length(v.GeometryN(i))
 		}
 		return total
+	case interface{ Length() float64 }:
+		return v.Length()
 	default:
 		return 0
 	}
@@ -127,11 +103,17 @@ func Centroid(g geom.Geometry) geom.Coordinate {
 	case *geom.Point:
 		return v.Coordinate()
 	case *geom.LineString:
-		return LineCentroid(v.Coordinates())
+		if v.IsEmpty() {
+			return geom.Coordinate{X: math.NaN(), Y: math.NaN()}
+		}
+		return v.Centroid().Coordinate()
 	case *geom.LinearRing:
 		return RingCentroid(v.Coordinates())
 	case *geom.Polygon:
-		return PolygonCentroid(v)
+		if v.IsEmpty() {
+			return geom.Coordinate{X: math.NaN(), Y: math.NaN()}
+		}
+		return v.Centroid().Coordinate()
 	case *geom.MultiPoint:
 		return MultiPointCentroid(v)
 	case *geom.MultiLineString:

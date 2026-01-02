@@ -109,6 +109,11 @@ type CoordinateFilter interface {
 	Filter(coord *Coordinate)
 }
 
+// CoordinateFilterer applies a coordinate filter to a geometry.
+type CoordinateFilterer interface {
+	ApplyCoordinateFilter(filter CoordinateFilter)
+}
+
 // baseGeometry provides common fields for all geometry implementations.
 type baseGeometry struct {
 	srid     int

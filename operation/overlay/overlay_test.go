@@ -282,34 +282,34 @@ func TestOverlayNilGeometries(t *testing.T) {
 
 func TestExtractPoints(t *testing.T) {
 	p := geom.NewPoint(1, 2)
-	points := extractPoints(p)
+	points := geom.ExtractPoints(p)
 	assert.Len(t, points, 1, "Expected 1 point")
 
 	mp := geom.NewMultiPoint([]*geom.Point{
 		geom.NewPoint(0, 0),
 		geom.NewPoint(1, 1),
 	})
-	points = extractPoints(mp)
+	points = geom.ExtractPoints(mp)
 	assert.Len(t, points, 2, "Expected 2 points")
 }
 
 func TestExtractLineStrings(t *testing.T) {
 	ls := geom.NewLineStringXY(0, 0, 10, 10)
-	lines := extractLineStrings(ls)
+	lines := geom.ExtractLineStringsWithRings(ls)
 	assert.Len(t, lines, 1, "Expected 1 line")
 
 	mls := geom.NewMultiLineString([]*geom.LineString{
 		geom.NewLineStringXY(0, 0, 10, 0),
 		geom.NewLineStringXY(0, 10, 10, 10),
 	})
-	lines = extractLineStrings(mls)
+	lines = geom.ExtractLineStringsWithRings(mls)
 	assert.Len(t, lines, 2, "Expected 2 lines")
 }
 
 func TestExtractPolygons(t *testing.T) {
 	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
-	polygons := extractPolygons(poly)
+	polygons := geom.ExtractPolygons(poly)
 	assert.Len(t, polygons, 1, "Expected 1 polygon")
 }
 

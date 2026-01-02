@@ -2,6 +2,7 @@ package geom
 
 import (
 	"math"
+	"sort"
 )
 
 // Spatial predicate implementations for geometry types.
@@ -217,14 +218,18 @@ func containsImpl(g1, g2 Geometry) bool {
 	// For proper contains, need interior intersection
 	// For polygons containing lines/polygons, check edges too
 	if !hasInterior {
-		// Check if any point is in interior
-		switch a := g1.(type) {
+		// Check if any point from g2's interior is in g1's interior
+		switch container := g1.(type) {
 		case *Polygon:
-			// Check centroid or midpoints
+			// Use an envelope sample point as a fallback for polygonal containers
 			centroid := g2.Envelope().Centre()
-			if locatePointIn(centroid, a) == LocationInterior {
+			if locatePointIn(centroid, container) == LocationInterior {
 				hasInterior = true
 			}
+		case *LineString:
+			hasInterior = linealHasInteriorPointIn(container, g2)
+		case *MultiLineString:
+			hasInterior = linealHasInteriorPointIn(container, g2)
 		}
 	}
 
@@ -236,6 +241,13 @@ func containsImpl(g1, g2 Geometry) bool {
 	// A geometry can have all its vertices inside another geometry but still have edges that cross out
 	if !edgesContainedIn(g2, g1) {
 		return false
+	}
+
+	// Special handling for lineal containers (LineString, MultiLineString)
+	// For a line to contain another geometry, segments must lie on the line
+	switch g1.(type) {
+	case *LineString, *MultiLineString:
+		return linealContainsGeometry(g1, g2)
 	}
 
 	return true
@@ -505,6 +517,12 @@ func Covers(g1, g2 Geometry) bool {
 			return false
 		}
 	}
+
+	// Check that edges of g2 don't exit g1 (handles concave containers)
+	if !edgesContainedIn(g2, g1) {
+		return false
+	}
+
 	return true
 }
 
@@ -524,38 +542,58 @@ func Touches(g1, g2 Geometry) bool {
 		return false
 	}
 
-	// Must have boundary intersection but no interior intersection
+	// Must have boundary intersection but no interior-interior intersection
 	hasCommonPoint := false
-	hasInteriorIntersection := false
+	hasInteriorInterior := false
 
 	coords1 := g1.Coordinates()
 	coords2 := g2.Coordinates()
 
+	// Check coords of g1 against g2
 	for _, c := range coords1 {
-		loc := locatePointIn(c, g2)
-		if loc == LocationBoundary {
+		locIn2 := locatePointIn(c, g2)
+		if locIn2 == LocationBoundary {
 			hasCommonPoint = true
-		} else if loc == LocationInterior {
-			hasInteriorIntersection = true
-			break
+		} else if locIn2 == LocationInterior {
+			// c is in g2's interior. Check if c is also in g1's interior (not boundary)
+			locIn1 := locatePointInSelf(c, g1)
+			if locIn1 == LocationInterior {
+				// Interior-interior intersection - NOT touches
+				hasInteriorInterior = true
+				break
+			} else if locIn1 == LocationBoundary {
+				// c is on g1's boundary but in g2's interior
+				// This is boundary-interior intersection, which counts as touching
+				hasCommonPoint = true
+			}
 		}
 	}
 
-	if hasInteriorIntersection {
+	if hasInteriorInterior {
 		return false
 	}
 
+	// Check coords of g2 against g1
 	for _, c := range coords2 {
-		loc := locatePointIn(c, g1)
-		if loc == LocationBoundary {
+		locIn1 := locatePointIn(c, g1)
+		if locIn1 == LocationBoundary {
 			hasCommonPoint = true
-		} else if loc == LocationInterior {
-			hasInteriorIntersection = true
-			break
+		} else if locIn1 == LocationInterior {
+			// c is in g1's interior. Check if c is also in g2's interior
+			locIn2 := locatePointInSelf(c, g2)
+			if locIn2 == LocationInterior {
+				hasInteriorInterior = true
+				break
+			} else if locIn2 == LocationBoundary {
+				// c is on g2's boundary but in g1's interior
+				// This is boundary-interior intersection, not interior-interior
+				// For line-polygon: polygon boundary point in line interior is OK for touches
+				hasCommonPoint = true
+			}
 		}
 	}
 
-	if hasInteriorIntersection {
+	if hasInteriorInterior {
 		return false
 	}
 
@@ -565,6 +603,29 @@ func Touches(g1, g2 Geometry) bool {
 		if hasPolygonInteriorIntersection(g1, g2) {
 			return false
 		}
+	}
+
+	// For line-line and line-area, ensure there is no interior-interior intersection
+	if g1.Dimension() == DimensionLine && g2.Dimension() == DimensionLine {
+		if linesHaveInteriorIntersection(g1, g2) {
+			return false
+		}
+	}
+	if g1.Dimension() == DimensionLine && g2.Dimension() == DimensionArea {
+		if lineIntersectsAreaInterior(g1, g2) {
+			return false
+		}
+	}
+	if g1.Dimension() == DimensionArea && g2.Dimension() == DimensionLine {
+		if lineIntersectsAreaInterior(g2, g1) {
+			return false
+		}
+	}
+
+	// If no common point found via vertices, check for mid-segment boundary overlaps
+	// This handles cases like a line overlapping a polygon edge
+	if !hasCommonPoint {
+		hasCommonPoint = boundariesIntersect(g1, g2)
 	}
 
 	return hasCommonPoint
@@ -617,6 +678,11 @@ func Overlaps(g1, g2 Geometry) bool {
 
 	// Must have same dimension
 	if dim1 != dim2 {
+		return false
+	}
+
+	// Equal geometries do not overlap (OGC definition)
+	if Equals(g1, g2) {
 		return false
 	}
 
@@ -823,45 +889,11 @@ func lineStringsIntersect(ls1, ls2 *LineString) bool {
 }
 
 func segmentsIntersect(a1, a2, b1, b2 Coordinate) bool {
-	o1 := orientation(a1, a2, b1)
-	o2 := orientation(a1, a2, b2)
-	o3 := orientation(b1, b2, a1)
-	o4 := orientation(b1, b2, a2)
-
-	if o1 != o2 && o3 != o4 {
-		return true
-	}
-
-	if o1 == 0 && onSegmentBounds(a1, b1, a2) {
-		return true
-	}
-	if o2 == 0 && onSegmentBounds(a1, b2, a2) {
-		return true
-	}
-	if o3 == 0 && onSegmentBounds(b1, a1, b2) {
-		return true
-	}
-	if o4 == 0 && onSegmentBounds(b1, a2, b2) {
-		return true
-	}
-
-	return false
+	return SegmentsIntersect(a1, a2, b1, b2)
 }
 
 func orientation(p, q, r Coordinate) int {
-	val := (q.Y-p.Y)*(r.X-q.X) - (q.X-p.X)*(r.Y-q.Y)
-	if math.Abs(val) < DefaultEpsilon {
-		return 0
-	}
-	if val > 0 {
-		return 1
-	}
-	return -1
-}
-
-func onSegmentBounds(p, q, r Coordinate) bool {
-	return q.X <= math.Max(p.X, r.X) && q.X >= math.Min(p.X, r.X) &&
-		q.Y <= math.Max(p.Y, r.Y) && q.Y >= math.Min(p.Y, r.Y)
+	return OrientationIndex(p, q, r)
 }
 
 func lineStringPolygonIntersect(ls *LineString, poly *Polygon) bool {
@@ -1034,6 +1066,325 @@ func getPolygons(g Geometry) []*Polygon {
 		}
 	}
 	return result
+}
+
+// locatePointInSelf determines where a point lies within its own geometry
+// Used to distinguish boundary vs interior points of a geometry
+func locatePointInSelf(p Coordinate, g Geometry) Location {
+	switch v := g.(type) {
+	case *Point:
+		if p.Equals2D(v.coord, DefaultEpsilon) {
+			return LocationInterior // A point is its own interior
+		}
+		return LocationExterior
+	case *LineString:
+		coords := v.Coordinates()
+		if len(coords) < 2 {
+			return LocationExterior
+		}
+		// Endpoints are boundary
+		if p.Equals2D(coords[0], DefaultEpsilon) || p.Equals2D(coords[len(coords)-1], DefaultEpsilon) {
+			if !v.IsClosed() {
+				return LocationBoundary
+			}
+		}
+		// Other points on line are interior
+		if pointOnLineString(p, v) {
+			return LocationInterior
+		}
+		return LocationExterior
+	case *Polygon:
+		// Polygon boundary is the rings
+		if pointOnRing(p, v.shell) {
+			return LocationBoundary
+		}
+		for _, hole := range v.holes {
+			if pointOnRing(p, hole) {
+				return LocationBoundary
+			}
+		}
+		if pointInRing(p, v.shell) {
+			// Check not in any hole
+			for _, hole := range v.holes {
+				if pointInRing(p, hole) {
+					return LocationExterior
+				}
+			}
+			return LocationInterior
+		}
+		return LocationExterior
+	case *MultiPoint:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if p.Equals2D(v.GeometryN(i).(*Point).coord, DefaultEpsilon) {
+				return LocationInterior
+			}
+		}
+		return LocationExterior
+	case *MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			loc := locatePointInSelf(p, v.GeometryN(i))
+			if loc != LocationExterior {
+				return loc
+			}
+		}
+		return LocationExterior
+	case *MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			loc := locatePointInSelf(p, v.GeometryN(i))
+			if loc != LocationExterior {
+				return loc
+			}
+		}
+		return LocationExterior
+	case *GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			loc := locatePointInSelf(p, v.GeometryN(i))
+			if loc != LocationExterior {
+				return loc
+			}
+		}
+		return LocationExterior
+	}
+	return LocationExterior
+}
+
+// boundariesIntersect checks if the boundaries of two geometries share any points
+// This handles mid-segment overlaps that vertex checks miss
+func boundariesIntersect(g1, g2 Geometry) bool {
+	// Get boundary segments from each geometry
+	segs1 := BoundarySegments(g1)
+	segs2 := BoundarySegments(g2)
+
+	// Check for segment-segment intersection
+	for _, s1 := range segs1 {
+		for _, s2 := range segs2 {
+			if SegmentsIntersect(s1.P0, s1.P1, s2.P0, s2.P1) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// linealHasInteriorPointIn checks if any interior point of a lineal geometry is inside the container.
+func linealHasInteriorPointIn(container Geometry, lineal Geometry) bool {
+	lines := getLineStrings(lineal)
+	for _, ls := range lines {
+		coords := ls.Coordinates()
+		for i := 1; i < len(coords); i++ {
+			mid := Coordinate{X: (coords[i-1].X + coords[i].X) / 2, Y: (coords[i-1].Y + coords[i].Y) / 2}
+			if locatePointIn(mid, container) == LocationInterior {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// lineIntersectsAreaInterior returns true if a line has interior-interior intersection with an area.
+func lineIntersectsAreaInterior(lineGeom, areaGeom Geometry) bool {
+	if lineCrossesArea(lineGeom, areaGeom) {
+		return true
+	}
+	return Contains(areaGeom, lineGeom)
+}
+
+// linesHaveInteriorIntersection returns true if two lineal geometries intersect in their interiors.
+func linesHaveInteriorIntersection(g1, g2 Geometry) bool {
+	ls1 := getLineStrings(g1)
+	ls2 := getLineStrings(g2)
+
+	for _, l1 := range ls1 {
+		c1 := l1.Coordinates()
+		for _, l2 := range ls2 {
+			c2 := l2.Coordinates()
+			for i := 1; i < len(c1); i++ {
+				a1 := c1[i-1]
+				a2 := c1[i]
+				for j := 1; j < len(c2); j++ {
+					b1 := c2[j-1]
+					b2 := c2[j]
+					info := segmentIntersectionInfo(a1, a2, b1, b2)
+					if !info.intersects {
+						continue
+					}
+					if info.proper || info.collinearOverlap {
+						return true
+					}
+					for _, p := range info.points {
+						if pointInSegmentInterior(p, a1, a2) && pointInSegmentInterior(p, b1, b2) {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func pointInSegmentInterior(p, a, b Coordinate) bool {
+	if !pointOnSegment(p, a, b) {
+		return false
+	}
+	if p.Equals2D(a, DefaultEpsilon) || p.Equals2D(b, DefaultEpsilon) {
+		return false
+	}
+	return true
+}
+
+// linealContainsGeometry checks if a lineal geometry contains another geometry.
+func linealContainsGeometry(container Geometry, g Geometry) bool {
+	lines := getLineStrings(container)
+	if len(lines) == 0 {
+		return false
+	}
+	switch inner := g.(type) {
+	case *Point:
+		return pointOnAnyLine(inner.coord, lines)
+	case *LineString:
+		return lineContainedByLines(lines, inner)
+	case *MultiPoint:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !pointOnAnyLine(inner.GeometryN(i).(*Point).coord, lines) {
+				return false
+			}
+		}
+		return true
+	case *MultiLineString:
+		for i := 0; i < inner.NumGeometries(); i++ {
+			if !lineContainedByLines(lines, inner.GeometryN(i).(*LineString)) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func pointOnAnyLine(p Coordinate, lines []*LineString) bool {
+	for _, line := range lines {
+		if pointOnLineString(p, line) {
+			return true
+		}
+	}
+	return false
+}
+
+func lineContainedByLines(lines []*LineString, inner *LineString) bool {
+	if inner.IsEmpty() {
+		return true
+	}
+	innerCoords := inner.Coordinates()
+	if len(innerCoords) < 2 {
+		return len(innerCoords) == 0 || pointOnAnyLine(innerCoords[0], lines)
+	}
+
+	for i := 1; i < len(innerCoords); i++ {
+		if !segmentCoveredByAnyLine(innerCoords[i-1], innerCoords[i], lines) {
+			return false
+		}
+	}
+	return true
+}
+
+func segmentCoveredByAnyLine(a, b Coordinate, lines []*LineString) bool {
+	for _, line := range lines {
+		if segmentCoveredByLine(a, b, line) {
+			return true
+		}
+	}
+	return false
+}
+
+// segmentCoveredByLine checks if segment (a,b) is fully covered by the line's segments
+// The segment must be collinear with and overlap one or more consecutive segments of the line
+func segmentCoveredByLine(a, b Coordinate, line *LineString) bool {
+	coords := line.Coordinates()
+	if len(coords) < 2 {
+		return false
+	}
+
+	if a.Equals2D(b, DefaultEpsilon) {
+		return pointOnLineString(a, line)
+	}
+
+	// Check if both endpoints are on the line
+	if !pointOnLineString(a, line) || !pointOnLineString(b, line) {
+		return false
+	}
+
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+	useX := math.Abs(dx) >= math.Abs(dy)
+	denom := dx
+	if !useX {
+		denom = dy
+	}
+	if math.Abs(denom) < DefaultEpsilon {
+		return false
+	}
+
+	type interval struct {
+		start float64
+		end   float64
+	}
+	intervals := make([]interval, 0)
+
+	for i := 1; i < len(coords); i++ {
+		p := coords[i-1]
+		q := coords[i]
+		if orientation(a, b, p) != 0 || orientation(a, b, q) != 0 {
+			continue
+		}
+
+		var t1, t2 float64
+		if useX {
+			t1 = (p.X - a.X) / denom
+			t2 = (q.X - a.X) / denom
+		} else {
+			t1 = (p.Y - a.Y) / denom
+			t2 = (q.Y - a.Y) / denom
+		}
+
+		start := math.Min(t1, t2)
+		end := math.Max(t1, t2)
+		if end < 0-DefaultEpsilon || start > 1+DefaultEpsilon {
+			continue
+		}
+		if start < 0 {
+			start = 0
+		}
+		if end > 1 {
+			end = 1
+		}
+		intervals = append(intervals, interval{start: start, end: end})
+	}
+
+	if len(intervals) == 0 {
+		return false
+	}
+
+	sort.Slice(intervals, func(i, j int) bool {
+		return intervals[i].start < intervals[j].start
+	})
+
+	current := intervals[0]
+	if current.start > DefaultEpsilon {
+		return false
+	}
+	for i := 1; i < len(intervals); i++ {
+		next := intervals[i]
+		if next.start <= current.end+DefaultEpsilon {
+			if next.end > current.end {
+				current.end = next.end
+			}
+		} else {
+			return false
+		}
+	}
+
+	return current.end >= 1-DefaultEpsilon
 }
 
 // hasPolygonInteriorIntersection checks if two area geometries have interior-interior intersection

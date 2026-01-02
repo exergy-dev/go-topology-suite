@@ -43,26 +43,17 @@ func intersectsSpherical(g1, g2 geom.Geometry) bool {
 	case *geom.Polygon:
 		return polygonIntersectsSpherical(a, g2)
 	case *geom.MultiPoint:
-		for i := 0; i < a.NumGeometries(); i++ {
-			if pointIntersectsSpherical(a.GeometryN(i).(*geom.Point), g2) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachPoint(a, func(p *geom.Point) bool {
+			return pointIntersectsSpherical(p, g2)
+		})
 	case *geom.MultiLineString:
-		for i := 0; i < a.NumGeometries(); i++ {
-			if lineStringIntersectsSpherical(a.GeometryN(i).(*geom.LineString), g2) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachLineString(a, func(ls *geom.LineString) bool {
+			return lineStringIntersectsSpherical(ls, g2)
+		})
 	case *geom.MultiPolygon:
-		for i := 0; i < a.NumGeometries(); i++ {
-			if polygonIntersectsSpherical(a.GeometryN(i).(*geom.Polygon), g2) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachPolygon(a, func(p *geom.Polygon) bool {
+			return polygonIntersectsSpherical(p, g2)
+		})
 	case *geom.GeometryCollection:
 		for i := 0; i < a.NumGeometries(); i++ {
 			if intersectsSpherical(a.GeometryN(i), g2) {
@@ -127,28 +118,19 @@ func pointIntersectsSpherical(p *geom.Point, g geom.Geometry) bool {
 		s2Point := ToS2Point(p)
 		return s2Poly.ContainsPoint(s2Point)
 	case *geom.MultiPoint:
-		for i := 0; i < b.NumGeometries(); i++ {
-			if Distance(p, b.GeometryN(i).(*geom.Point)) < 0.01 {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachPoint(b, func(pt *geom.Point) bool {
+			return Distance(p, pt) < 0.01
+		})
 	case *geom.MultiLineString:
-		for i := 0; i < b.NumGeometries(); i++ {
-			if PointOnLineString(p, b.GeometryN(i).(*geom.LineString), 0.01) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachLineString(b, func(ls *geom.LineString) bool {
+			return PointOnLineString(p, ls, 0.01)
+		})
 	case *geom.MultiPolygon:
 		s2Point := ToS2Point(p)
-		for i := 0; i < b.NumGeometries(); i++ {
-			s2Poly := ToS2Polygon(b.GeometryN(i).(*geom.Polygon))
-			if s2Poly != nil && s2Poly.ContainsPoint(s2Point) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachPolygon(b, func(poly *geom.Polygon) bool {
+			s2Poly := ToS2Polygon(poly)
+			return s2Poly != nil && s2Poly.ContainsPoint(s2Point)
+		})
 	case *geom.GeometryCollection:
 		for i := 0; i < b.NumGeometries(); i++ {
 			if pointIntersectsSpherical(p, b.GeometryN(i)) {
@@ -176,26 +158,17 @@ func lineStringIntersectsSpherical(ls *geom.LineString, g geom.Geometry) bool {
 	case *geom.Polygon:
 		return LineStringIntersectsPolygon(ls, b)
 	case *geom.MultiPoint:
-		for i := 0; i < b.NumGeometries(); i++ {
-			if PointOnLineString(b.GeometryN(i).(*geom.Point), ls, 0.01) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachPoint(b, func(p *geom.Point) bool {
+			return PointOnLineString(p, ls, 0.01)
+		})
 	case *geom.MultiLineString:
-		for i := 0; i < b.NumGeometries(); i++ {
-			if lineStringsIntersectSpherical(ls, b.GeometryN(i).(*geom.LineString)) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachLineString(b, func(other *geom.LineString) bool {
+			return lineStringsIntersectSpherical(ls, other)
+		})
 	case *geom.MultiPolygon:
-		for i := 0; i < b.NumGeometries(); i++ {
-			if LineStringIntersectsPolygon(ls, b.GeometryN(i).(*geom.Polygon)) {
-				return true
-			}
-		}
-		return false
+		return geom.ForEachPolygon(b, func(p *geom.Polygon) bool {
+			return LineStringIntersectsPolygon(ls, p)
+		})
 	case *geom.GeometryCollection:
 		for i := 0; i < b.NumGeometries(); i++ {
 			if lineStringIntersectsSpherical(ls, b.GeometryN(i)) {

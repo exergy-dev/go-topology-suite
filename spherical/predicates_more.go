@@ -114,8 +114,8 @@ func Equals(g1, g2 geom.Geometry) bool {
 
 // linesCrossSpherical checks if two line geometries cross at a point (not overlap).
 func linesCrossSpherical(g1, g2 geom.Geometry) bool {
-	ls1 := getLineStringsFromGeometry(g1)
-	ls2 := getLineStringsFromGeometry(g2)
+	ls1 := geom.ExtractLineStrings(g1)
+	ls2 := geom.ExtractLineStrings(g2)
 
 	for _, l1 := range ls1 {
 		for _, l2 := range ls2 {
@@ -160,8 +160,8 @@ func lineStringsCrossSpherical(ls1, ls2 *geom.LineString) bool {
 // lineCrossesAreaSpherical checks if a line crosses a polygon
 // (has points both inside and outside).
 func lineCrossesAreaSpherical(lineGeom, areaGeom geom.Geometry) bool {
-	lines := getLineStringsFromGeometry(lineGeom)
-	polys := getPolygonsFromGeometry(areaGeom)
+	lines := geom.ExtractLineStrings(lineGeom)
+	polys := geom.ExtractPolygons(areaGeom)
 
 	for _, ls := range lines {
 		for _, poly := range polys {
@@ -334,40 +334,4 @@ func isPointInInteriorOrBoundarySpherical(coord geom.Coordinate, g geom.Geometry
 	}
 
 	return false
-}
-
-// getLineStringsFromGeometry extracts all LineStrings from a geometry.
-func getLineStringsFromGeometry(g geom.Geometry) []*geom.LineString {
-	var result []*geom.LineString
-	switch v := g.(type) {
-	case *geom.LineString:
-		result = append(result, v)
-	case *geom.MultiLineString:
-		for i := 0; i < v.NumGeometries(); i++ {
-			result = append(result, v.GeometryN(i).(*geom.LineString))
-		}
-	case *geom.GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			result = append(result, getLineStringsFromGeometry(v.GeometryN(i))...)
-		}
-	}
-	return result
-}
-
-// getPolygonsFromGeometry extracts all Polygons from a geometry.
-func getPolygonsFromGeometry(g geom.Geometry) []*geom.Polygon {
-	var result []*geom.Polygon
-	switch v := g.(type) {
-	case *geom.Polygon:
-		result = append(result, v)
-	case *geom.MultiPolygon:
-		for i := 0; i < v.NumGeometries(); i++ {
-			result = append(result, v.GeometryN(i).(*geom.Polygon))
-		}
-	case *geom.GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			result = append(result, getPolygonsFromGeometry(v.GeometryN(i))...)
-		}
-	}
-	return result
 }

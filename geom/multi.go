@@ -3,6 +3,7 @@ package geom
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 )
 
@@ -94,6 +95,17 @@ func (mp *MultiPoint) Coordinates() CoordinateSequence {
 	return coords
 }
 
+// ApplyCoordinateFilter applies a coordinate filter to the multipoint.
+func (mp *MultiPoint) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if filter == nil {
+		return
+	}
+	for _, p := range mp.points {
+		p.ApplyCoordinateFilter(filter)
+	}
+	mp.invalidateEnvelope()
+}
+
 // NumGeometries returns the number of points.
 func (mp *MultiPoint) NumGeometries() int {
 	return len(mp.points)
@@ -116,14 +128,9 @@ func (mp *MultiPoint) Clone() Geometry {
 
 // Normalize normalizes by sorting points.
 func (mp *MultiPoint) Normalize() {
-	// Sort points by coordinates
-	for i := 0; i < len(mp.points); i++ {
-		for j := i + 1; j < len(mp.points); j++ {
-			if Compare(mp.points[i], mp.points[j]) > 0 {
-				mp.points[i], mp.points[j] = mp.points[j], mp.points[i]
-			}
-		}
-	}
+	sort.Slice(mp.points, func(i, j int) bool {
+		return Compare(mp.points[i], mp.points[j]) < 0
+	})
 }
 
 // EqualsExact returns true if the MultiPoints are exactly equal.
@@ -346,6 +353,17 @@ func (mls *MultiLineString) Coordinates() CoordinateSequence {
 	return coords
 }
 
+// ApplyCoordinateFilter applies a coordinate filter to the multilinestring.
+func (mls *MultiLineString) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if filter == nil {
+		return
+	}
+	for _, l := range mls.lines {
+		l.ApplyCoordinateFilter(filter)
+	}
+	mls.invalidateEnvelope()
+}
+
 // NumGeometries returns the number of linestrings.
 func (mls *MultiLineString) NumGeometries() int {
 	return len(mls.lines)
@@ -371,14 +389,9 @@ func (mls *MultiLineString) Normalize() {
 	for _, l := range mls.lines {
 		l.Normalize()
 	}
-	// Sort linestrings
-	for i := 0; i < len(mls.lines); i++ {
-		for j := i + 1; j < len(mls.lines); j++ {
-			if Compare(mls.lines[i], mls.lines[j]) > 0 {
-				mls.lines[i], mls.lines[j] = mls.lines[j], mls.lines[i]
-			}
-		}
-	}
+	sort.Slice(mls.lines, func(i, j int) bool {
+		return Compare(mls.lines[i], mls.lines[j]) < 0
+	})
 }
 
 // EqualsExact returns true if the MultiLineStrings are exactly equal.
@@ -610,6 +623,17 @@ func (mp *MultiPolygon) Coordinates() CoordinateSequence {
 	return coords
 }
 
+// ApplyCoordinateFilter applies a coordinate filter to the multipolygon.
+func (mp *MultiPolygon) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if filter == nil {
+		return
+	}
+	for _, p := range mp.polygons {
+		p.ApplyCoordinateFilter(filter)
+	}
+	mp.invalidateEnvelope()
+}
+
 // NumGeometries returns the number of polygons.
 func (mp *MultiPolygon) NumGeometries() int {
 	return len(mp.polygons)
@@ -635,14 +659,9 @@ func (mp *MultiPolygon) Normalize() {
 	for _, p := range mp.polygons {
 		p.Normalize()
 	}
-	// Sort polygons
-	for i := 0; i < len(mp.polygons); i++ {
-		for j := i + 1; j < len(mp.polygons); j++ {
-			if Compare(mp.polygons[i], mp.polygons[j]) > 0 {
-				mp.polygons[i], mp.polygons[j] = mp.polygons[j], mp.polygons[i]
-			}
-		}
-	}
+	sort.Slice(mp.polygons, func(i, j int) bool {
+		return Compare(mp.polygons[i], mp.polygons[j]) < 0
+	})
 }
 
 // EqualsExact returns true if the MultiPolygons are exactly equal.

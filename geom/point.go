@@ -108,6 +108,15 @@ func (p *Point) Coordinates() CoordinateSequence {
 	return CoordinateSequence{p.coord.Clone()}
 }
 
+// ApplyCoordinateFilter applies a coordinate filter to the point.
+func (p *Point) ApplyCoordinateFilter(filter CoordinateFilter) {
+	if p.isEmpty || filter == nil {
+		return
+	}
+	filter.Filter(&p.coord)
+	p.invalidateEnvelope()
+}
+
 // NumGeometries returns 1 for Point.
 func (p *Point) NumGeometries() int {
 	return 1
