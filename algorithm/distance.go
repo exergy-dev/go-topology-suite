@@ -47,36 +47,16 @@ func computeDistance(g1, g2 geom.Geometry) float64 {
 }
 
 // DistancePointToPoint computes the distance between two points.
+//
+// Deprecated: Use p1.Distance(p2) instead.
 func DistancePointToPoint(p1, p2 geom.Coordinate) float64 {
 	return p1.Distance(p2)
 }
 
 // DistancePointToSegment computes the distance from a point to a line segment.
 func DistancePointToSegment(p, a, b geom.Coordinate) float64 {
-	if a.Equals2D(b, geom.DefaultEpsilon) {
-		return p.Distance(a)
-	}
-
-	// Vector from a to b
-	dx := b.X - a.X
-	dy := b.Y - a.Y
-	lenSq := dx*dx + dy*dy
-
-	// Parameter t for the projection of p onto the line
-	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / lenSq
-
-	if t < 0 {
-		// Closest to point a
-		return p.Distance(a)
-	}
-	if t > 1 {
-		// Closest to point b
-		return p.Distance(b)
-	}
-
-	// Closest to projection on segment
-	proj := geom.NewCoordinate(a.X+t*dx, a.Y+t*dy)
-	return p.Distance(proj)
+	closest := closestPointOnSegmentCoord(p, a, b)
+	return p.Distance(closest)
 }
 
 // DistancePointToLine computes the perpendicular distance from a point to an infinite line.
@@ -437,7 +417,7 @@ func closestPointOnSegmentCoord(p, a, b geom.Coordinate) geom.Coordinate {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
 
-	if dx == 0 && dy == 0 {
+	if a.Equals2D(b, geom.DefaultEpsilon) {
 		return a
 	}
 

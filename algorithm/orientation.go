@@ -105,14 +105,15 @@ func ToRadians(degrees float64) float64 {
 }
 
 // AngleOfLine computes the angle of the line from start to end.
+//
+// Deprecated: Use Angle instead.
 func AngleOfLine(start, end geom.Coordinate) float64 {
 	return Angle(start, end)
 }
 
 // InteriorAngle computes the interior angle between two line segments.
 func InteriorAngle(p0, p1, p2 geom.Coordinate) float64 {
-	angle := AngleBetween(p0, p1, p2)
-	return math.Pi - angle
+	return AngleBetween(p0, p1, p2)
 }
 
 // IsAcute returns true if the angle at p1 is acute (< 90 degrees).
@@ -149,21 +150,29 @@ func IsRight(p0, p1, p2 geom.Coordinate) bool {
 }
 
 // TurnDirection returns the turn direction going from p0 through p1 to p2.
+//
+// Deprecated: Use OrientationIndex instead.
 func TurnDirection(p0, p1, p2 geom.Coordinate) int {
 	return OrientationIndex(p0, p1, p2)
 }
 
 // LeftTurn returns true if going from p0 through p1 to p2 is a left turn.
+//
+// Deprecated: Use OrientationIndex(p0, p1, p2) == CounterClockwise instead.
 func LeftTurn(p0, p1, p2 geom.Coordinate) bool {
 	return OrientationIndex(p0, p1, p2) == CounterClockwise
 }
 
 // RightTurn returns true if going from p0 through p1 to p2 is a right turn.
+//
+// Deprecated: Use OrientationIndex(p0, p1, p2) == Clockwise instead.
 func RightTurn(p0, p1, p2 geom.Coordinate) bool {
 	return OrientationIndex(p0, p1, p2) == Clockwise
 }
 
 // StraightTurn returns true if p0, p1, p2 are collinear.
+//
+// Deprecated: Use OrientationIndex(p0, p1, p2) == Collinear instead.
 func StraightTurn(p0, p1, p2 geom.Coordinate) bool {
 	return OrientationIndex(p0, p1, p2) == Collinear
 }
@@ -173,5 +182,6 @@ func StraightTurn(p0, p1, p2 geom.Coordinate) bool {
 func Bisector(p0, p1, p2 geom.Coordinate) float64 {
 	a0 := Angle(p1, p0)
 	a2 := Angle(p1, p2)
-	return NormalizeAngle((a0 + a2) / 2)
+	diff := NormalizeAngle(a2 - a0)
+	return NormalizeAngle(a0 + diff/2)
 }

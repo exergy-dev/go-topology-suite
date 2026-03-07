@@ -207,8 +207,8 @@ func TestLineLength(t *testing.T) {
 
 func TestCentroidGeometryTypes(t *testing.T) {
 	tests := []struct {
-		name     string
-		geom     geom.Geometry
+		name      string
+		geom      geom.Geometry
 		expectedX float64
 		expectedY float64
 	}{
@@ -437,6 +437,28 @@ func TestRingCentroid(t *testing.T) {
 	// Should fall back to line centroid
 	assert.False(t, math.IsNaN(degenerateCentroid.X), "Expected valid centroid X for degenerate ring")
 	assert.False(t, math.IsNaN(degenerateCentroid.Y), "Expected valid centroid Y for degenerate ring")
+}
+
+func TestRingCentroid_OpenRing(t *testing.T) {
+	open := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+	closed := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+
+	openCentroid := algorithm.RingCentroid(open)
+	closedCentroid := algorithm.RingCentroid(closed)
+
+	assert.InDelta(t, closedCentroid.X, openCentroid.X, 0.001, "Expected X to match closed ring")
+	assert.InDelta(t, closedCentroid.Y, openCentroid.Y, 0.001, "Expected Y to match closed ring")
+}
+
+func TestRingCentroid_NearZeroAreaFallback(t *testing.T) {
+	eps := geom.DefaultEpsilon / 2
+	thin := geom.NewCoordinateSequenceXY(0, 0, 1, 0, 2, eps, 0, 0)
+
+	expected := algorithm.LineCentroid(thin)
+	actual := algorithm.RingCentroid(thin)
+
+	assert.InDelta(t, expected.X, actual.X, 0.001, "Expected fallback to line centroid X")
+	assert.InDelta(t, expected.Y, actual.Y, 0.001, "Expected fallback to line centroid Y")
 }
 
 func TestPolygonCentroid(t *testing.T) {
