@@ -122,8 +122,8 @@ func TestTransformCoordinate(t *testing.T) {
 	assert.InDelta(t, 15.0, result3D.X, epsilon)
 	assert.InDelta(t, 35.0, result3D.Y, epsilon)
 
-	require.NotNil(t, result3D.Z, "Z coordinate should be preserved")
-	assert.InDelta(t, 100.0, *result3D.Z, epsilon, "Z coordinate value")
+	require.True(t, result3D.HasZ(), "Z coordinate should be preserved")
+	assert.InDelta(t, 100.0, result3D.Z, epsilon, "Z coordinate value")
 
 	// Test coordinate with M value
 	m := 42.0
@@ -131,8 +131,8 @@ func TestTransformCoordinate(t *testing.T) {
 	resultM, err := TransformCoordinate(translation, coordM)
 	require.NoError(t, err, "TransformCoordinate() error")
 
-	require.NotNil(t, resultM.M, "M value should be preserved")
-	assert.InDelta(t, 42.0, *resultM.M, epsilon, "M value")
+	require.True(t, resultM.HasM(), "M value should be preserved")
+	assert.InDelta(t, 42.0, resultM.M, epsilon, "M value")
 }
 
 func TestTransformCoordinates(t *testing.T) {

@@ -525,8 +525,8 @@ func TestJTS_CoordinateSequence_Access(t *testing.T) {
 func TestJTS_Coordinate3D(t *testing.T) {
 	coord := geom.NewCoordinateZ(10, 20, 30)
 
-	if coord.X != 10 || coord.Y != 20 || coord.Z == nil || *coord.Z != 30 {
-		t.Errorf("3D coordinate incorrect: (%.2f, %.2f, %.2f)", coord.X, coord.Y, *coord.Z)
+	if coord.X != 10 || coord.Y != 20 || !coord.HasZ() || coord.Z != 30 {
+		t.Errorf("3D coordinate incorrect: (%.2f, %.2f, %.2f)", coord.X, coord.Y, coord.Z)
 	}
 }
 

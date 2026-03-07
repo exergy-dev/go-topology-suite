@@ -366,13 +366,13 @@ func writeCoordinate(sb *strings.Builder, c geom.Coordinate, opts Options) {
 	sb.WriteString(" ")
 	writeNumber(sb, c.Y, opts)
 
-	if opts.OutputDimension >= 3 && c.Z != nil {
+	if opts.OutputDimension >= 3 && c.HasZ() {
 		sb.WriteString(" ")
-		writeNumber(sb, *c.Z, opts)
+		writeNumber(sb, c.Z, opts)
 	}
-	if opts.OutputDimension >= 4 && c.M != nil {
+	if opts.OutputDimension >= 4 && c.HasM() {
 		sb.WriteString(" ")
-		writeNumber(sb, *c.M, opts)
+		writeNumber(sb, c.M, opts)
 	}
 }
 
@@ -800,18 +800,18 @@ func (p *parser) parseCoordinate() (geom.Coordinate, error) {
 			z, err := p.parseNumber()
 			if err == nil {
 				if p.hasZ {
-					coord.Z = &z
+					coord.Z = z
 				} else if p.hasM {
-					coord.M = &z
+					coord.M = z
 				} else {
-					coord.Z = &z
+					coord.Z = z
 				}
 
 				p.skipWhitespace()
 				if p.isDigitOrSign() {
 					m, err := p.parseNumber()
 					if err == nil {
-						coord.M = &m
+						coord.M = m
 					}
 				}
 			}

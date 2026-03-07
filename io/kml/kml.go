@@ -208,9 +208,9 @@ func formatCoordinate(c geom.Coordinate, opts Options) string {
 	writeNumber(&sb, c.X, opts)
 	sb.WriteByte(',')
 	writeNumber(&sb, c.Y, opts)
-	if opts.IncludeAltitude && c.Z != nil {
+	if opts.IncludeAltitude && c.HasZ() {
 		sb.WriteByte(',')
-		writeNumber(&sb, *c.Z, opts)
+		writeNumber(&sb, c.Z, opts)
 	}
 	return sb.String()
 }
@@ -475,7 +475,7 @@ func parseCoordinates(s string) (geom.CoordinateSequence, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid altitude: %w", err)
 			}
-			coord.Z = &alt
+			coord.Z = alt
 		}
 
 		coords = append(coords, coord)

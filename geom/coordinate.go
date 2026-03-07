@@ -16,62 +16,54 @@ const DefaultEpsilon = 1e-10
 
 // Coordinate represents a location in 2D space with optional Z and M values.
 // X and Y are required; Z (elevation) and M (measure) are optional.
+// When Z or M is absent, the value is math.NaN().
 type Coordinate struct {
 	X, Y float64
-	Z    *float64 // Optional elevation
-	M    *float64 // Optional measure value
+	Z    float64 // NaN if absent
+	M    float64 // NaN if absent
 }
 
 // NewCoordinate creates a new 2D coordinate.
 func NewCoordinate(x, y float64) Coordinate {
-	return Coordinate{X: x, Y: y}
+	return Coordinate{X: x, Y: y, Z: math.NaN(), M: math.NaN()}
 }
 
 // NewCoordinateZ creates a new 3D coordinate with Z value.
 func NewCoordinateZ(x, y, z float64) Coordinate {
-	return Coordinate{X: x, Y: y, Z: &z}
+	return Coordinate{X: x, Y: y, Z: z, M: math.NaN()}
 }
 
 // NewCoordinateZM creates a new coordinate with Z and M values.
 func NewCoordinateZM(x, y, z, m float64) Coordinate {
-	return Coordinate{X: x, Y: y, Z: &z, M: &m}
+	return Coordinate{X: x, Y: y, Z: z, M: m}
 }
 
 // NewCoordinateM creates a new coordinate with M value (no Z).
 func NewCoordinateM(x, y, m float64) Coordinate {
-	return Coordinate{X: x, Y: y, M: &m}
+	return Coordinate{X: x, Y: y, Z: math.NaN(), M: m}
 }
 
 // NewCoordinateNaN creates a coordinate with NaN values, useful for marking
 // "no value" in optional coordinate fields.
 func NewCoordinateNaN() Coordinate {
-	return Coordinate{X: math.NaN(), Y: math.NaN()}
+	return Coordinate{X: math.NaN(), Y: math.NaN(), Z: math.NaN(), M: math.NaN()}
 }
 
-// Clone returns a deep copy of the coordinate.
+// Clone returns a copy of the coordinate.
 func (c Coordinate) Clone() Coordinate {
-	clone := Coordinate{X: c.X, Y: c.Y}
-	if c.Z != nil {
-		z := *c.Z
-		clone.Z = &z
-	}
-	if c.M != nil {
-		m := *c.M
-		clone.M = &m
-	}
-	return clone
+	return Coordinate{X: c.X, Y: c.Y, Z: c.Z, M: c.M}
 }
 
 // String returns a string representation of the coordinate.
 func (c Coordinate) String() string {
-	if c.Z != nil && c.M != nil {
-		return fmt.Sprintf("(%g, %g, %g, %g)", c.X, c.Y, *c.Z, *c.M)
+	if c.HasZ() && c.HasM() {
+		return fmt.Sprintf("(%g, %g, %g, %g)", c.X, c.Y, c.Z, c.M)
 	}
-	if c.Z != nil {
-		return fmt.Sprintf("(%g, %g, %g)", c.X, c.Y, *c.Z)
+	if c.HasZ() {
+		return fmt.Sprintf("(%g, %g, %g)", c.X, c.Y, c.Z)
 	}
-	if c.M != nil {
-		return fmt.Sprintf("(%g, %g, M=%g)", c.X, c.Y, *c.M)
+	if c.HasM() {
+		return fmt.Sprintf("(%g, %g, M=%g)", c.X, c.Y, c.M)
 	}
 	return fmt.Sprintf("(%g, %g)", c.X, c.Y)
 }
@@ -87,17 +79,17 @@ func (c Coordinate) Equals(other Coordinate, epsilon float64) bool {
 		return false
 	}
 	// Check Z values
-	if (c.Z == nil) != (other.Z == nil) {
+	if c.HasZ() != other.HasZ() {
 		return false
 	}
-	if c.Z != nil && math.Abs(*c.Z-*other.Z) >= epsilon {
+	if c.HasZ() && math.Abs(c.Z-other.Z) >= epsilon {
 		return false
 	}
 	// Check M values
-	if (c.M == nil) != (other.M == nil) {
+	if c.HasM() != other.HasM() {
 		return false
 	}
-	if c.M != nil && math.Abs(*c.M-*other.M) >= epsilon {
+	if c.HasM() && math.Abs(c.M-other.M) >= epsilon {
 		return false
 	}
 	return true
@@ -113,12 +105,12 @@ func (c Coordinate) Distance(other Coordinate) float64 {
 // Distance3D returns the 3D Euclidean distance to another coordinate.
 // Returns 2D distance if either coordinate lacks a Z value.
 func (c Coordinate) Distance3D(other Coordinate) float64 {
-	if c.Z == nil || other.Z == nil {
+	if !c.HasZ() || !other.HasZ() {
 		return c.Distance(other)
 	}
 	dx := c.X - other.X
 	dy := c.Y - other.Y
-	dz := *c.Z - *other.Z
+	dz := c.Z - other.Z
 	return math.Sqrt(dx*dx + dy*dy + dz*dz)
 }
 
@@ -127,30 +119,43 @@ func (c Coordinate) IsNaN() bool {
 	return math.IsNaN(c.X) || math.IsNaN(c.Y)
 }
 
-// HasZ returns true if this coordinate has a Z value.
-func (c Coordinate) HasZ() bool {
-	return c.Z != nil
+// CoordinateXY is a 2D coordinate suitable for use as a Go map key.
+// Unlike Coordinate, it contains no NaN fields and is safe for == comparison.
+type CoordinateXY struct {
+	X, Y float64
 }
 
-// HasM returns true if this coordinate has an M value.
+// XY returns a CoordinateXY suitable for use as a Go map key.
+// This is necessary because Coordinate contains NaN fields (Z, M)
+// and NaN != NaN in IEEE 754, making Coordinate unusable as a map key.
+func (c Coordinate) XY() CoordinateXY {
+	return CoordinateXY{X: c.X, Y: c.Y}
+}
+
+// HasZ returns true if this coordinate has a Z value (not NaN).
+func (c Coordinate) HasZ() bool {
+	return !math.IsNaN(c.Z)
+}
+
+// HasM returns true if this coordinate has an M value (not NaN).
 func (c Coordinate) HasM() bool {
-	return c.M != nil
+	return !math.IsNaN(c.M)
 }
 
 // GetZ returns the Z value or 0 if not set.
 func (c Coordinate) GetZ() float64 {
-	if c.Z == nil {
+	if !c.HasZ() {
 		return 0
 	}
-	return *c.Z
+	return c.Z
 }
 
 // GetM returns the M value or 0 if not set.
 func (c Coordinate) GetM() float64 {
-	if c.M == nil {
+	if !c.HasM() {
 		return 0
 	}
-	return *c.M
+	return c.M
 }
 
 // CoordinateSequence is an ordered list of coordinates.

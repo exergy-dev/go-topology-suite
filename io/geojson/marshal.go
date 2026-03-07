@@ -324,8 +324,8 @@ func geometryCollectionToMap(gc *geom.GeometryCollection) map[string]any {
 }
 
 func coordToArray(c geom.Coordinate) []float64 {
-	if c.Z != nil {
-		return []float64{c.X, c.Y, *c.Z}
+	if c.HasZ() {
+		return []float64{c.X, c.Y, c.Z}
 	}
 	return []float64{c.X, c.Y}
 }
@@ -388,8 +388,7 @@ func parsePoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Poin
 
 	coord := geom.NewCoordinate(coords[0], coords[1])
 	if len(coords) >= 3 {
-		z := coords[2]
-		coord.Z = &z
+		coord.Z = coords[2]
 	}
 
 	return factory.CreatePointFromCoordinate(coord), nil
@@ -453,8 +452,7 @@ func parseMultiPoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom
 		}
 		coord := geom.NewCoordinate(coords[0], coords[1])
 		if len(coords) >= 3 {
-			z := coords[2]
-			coord.Z = &z
+			coord.Z = coords[2]
 		}
 		points[i] = factory.CreatePointFromCoordinate(coord)
 	}
@@ -546,8 +544,7 @@ func parseCoordinateArray(data json.RawMessage) (geom.CoordinateSequence, error)
 		}
 		coords[i] = geom.NewCoordinate(arr[0], arr[1])
 		if len(arr) >= 3 {
-			z := arr[2]
-			coords[i].Z = &z
+			coords[i].Z = arr[2]
 		}
 	}
 

@@ -204,8 +204,8 @@ func TestAltitude(t *testing.T) {
 	require.True(t, ok, "Expected Point, got %T", g)
 
 	coord := point.Coordinate()
-	require.NotNil(t, coord.Z, "Expected Z value")
-	assert.InDelta(t, 100.5, *coord.Z, 0.0001, "Z should be altitude")
+	require.True(t, coord.HasZ(), "Expected Z value")
+	assert.InDelta(t, 100.5, coord.Z, 0.0001, "Z should be altitude")
 
 	// Test marshaling with altitude
 	opts := Options{
@@ -345,7 +345,7 @@ func TestParseCoordinates(t *testing.T) {
 			assert.Len(t, coords, tc.expected, "Unexpected coordinate count")
 
 			if tc.expected > 0 && tc.hasZ {
-				assert.NotNil(t, coords[0].Z, "Expected Z value")
+				assert.True(t, coords[0].HasZ(), "Expected Z value")
 			}
 		})
 	}

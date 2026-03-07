@@ -44,13 +44,13 @@ func (p *Point) Y() float64 {
 	return p.coord.Y
 }
 
-// Z returns the Z coordinate (or nil if not present).
-func (p *Point) Z() *float64 {
+// Z returns the Z coordinate (NaN if not present).
+func (p *Point) Z() float64 {
 	return p.coord.Z
 }
 
-// M returns the M coordinate (or nil if not present).
-func (p *Point) M() *float64 {
+// M returns the M coordinate (NaN if not present).
+func (p *Point) M() float64 {
 	return p.coord.M
 }
 
@@ -168,14 +168,14 @@ func (p *Point) String() string {
 	if p.isEmpty {
 		return "POINT EMPTY"
 	}
-	if p.coord.Z != nil && p.coord.M != nil {
-		return fmt.Sprintf("POINT ZM (%g %g %g %g)", p.coord.X, p.coord.Y, *p.coord.Z, *p.coord.M)
+	if p.coord.HasZ() && p.coord.HasM() {
+		return fmt.Sprintf("POINT ZM (%g %g %g %g)", p.coord.X, p.coord.Y, p.coord.Z, p.coord.M)
 	}
-	if p.coord.Z != nil {
-		return fmt.Sprintf("POINT Z (%g %g %g)", p.coord.X, p.coord.Y, *p.coord.Z)
+	if p.coord.HasZ() {
+		return fmt.Sprintf("POINT Z (%g %g %g)", p.coord.X, p.coord.Y, p.coord.Z)
 	}
-	if p.coord.M != nil {
-		return fmt.Sprintf("POINT M (%g %g %g)", p.coord.X, p.coord.Y, *p.coord.M)
+	if p.coord.HasM() {
+		return fmt.Sprintf("POINT M (%g %g %g)", p.coord.X, p.coord.Y, p.coord.M)
 	}
 	return fmt.Sprintf("POINT (%g %g)", p.coord.X, p.coord.Y)
 }

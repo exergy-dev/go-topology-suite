@@ -406,8 +406,8 @@ func computeInteriorPoint(ring geom.CoordinateSequence) geom.Coordinate {
 
 // EdgeGraph represents a planar graph of edges for polygonization.
 type EdgeGraph struct {
-	// Map from coordinate to list of edges starting at that coordinate
-	edges map[geom.Coordinate][]*DirectedEdge
+	// Map from coordinate key to list of edges starting at that coordinate
+	edges map[geom.CoordinateXY][]*DirectedEdge
 }
 
 // DirectedEdge represents an edge in a specific direction.
@@ -421,7 +421,7 @@ type DirectedEdge struct {
 // newEdgeGraph creates a new EdgeGraph.
 func newEdgeGraph() *EdgeGraph {
 	return &EdgeGraph{
-		edges: make(map[geom.Coordinate][]*DirectedEdge),
+		edges: make(map[geom.CoordinateXY][]*DirectedEdge),
 	}
 }
 
@@ -442,34 +442,15 @@ func (g *EdgeGraph) addEdge(start, end geom.Coordinate) {
 	g.addEdgeToMap(end, rev)
 }
 
-// addEdgeToMap adds an edge to the adjacency map with fuzzy coordinate matching.
+// addEdgeToMap adds an edge to the adjacency map.
 func (g *EdgeGraph) addEdgeToMap(coord geom.Coordinate, edge *DirectedEdge) {
-	// Try to find existing coordinate that matches
-	for existingCoord := range g.edges {
-		if coord.Equals2D(existingCoord, geom.DefaultEpsilon) {
-			g.edges[existingCoord] = append(g.edges[existingCoord], edge)
-			return
-		}
-	}
-	// No match found, add new coordinate
-	g.edges[coord] = []*DirectedEdge{edge}
+	key := coord.XY()
+	g.edges[key] = append(g.edges[key], edge)
 }
 
-// getEdges returns all edges starting at a coordinate (with fuzzy matching).
+// getEdges returns all edges starting at a coordinate.
 func (g *EdgeGraph) getEdges(coord geom.Coordinate) []*DirectedEdge {
-	// Try exact match first
-	if edges, ok := g.edges[coord]; ok {
-		return edges
-	}
-
-	// Try fuzzy match
-	for existingCoord, edges := range g.edges {
-		if coord.Equals2D(existingCoord, geom.DefaultEpsilon) {
-			return edges
-		}
-	}
-
-	return nil
+	return g.edges[coord.XY()]
 }
 
 // findRings finds all minimal cycles in the graph using the "rightmost turn" algorithm.

@@ -621,7 +621,7 @@ func (p *parser) readCoordinate() (geom.Coordinate, error) {
 		if err != nil {
 			return geom.Coordinate{}, err
 		}
-		coord.Z = &z
+		coord.Z = z
 	}
 
 	if p.hasM {
@@ -629,7 +629,7 @@ func (p *parser) readCoordinate() (geom.Coordinate, error) {
 		if err != nil {
 			return geom.Coordinate{}, err
 		}
-		coord.M = &m
+		coord.M = m
 	}
 
 	return coord, nil

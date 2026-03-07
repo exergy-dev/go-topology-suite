@@ -413,12 +413,12 @@ func TestCoordinate_EdgeCases(t *testing.T) {
 
 	t.Run("3D coordinate", func(t *testing.T) {
 		c := geom.NewCoordinateZ(1, 2, 3)
-		if c.Z == nil || *c.Z != 3 {
+		if !c.HasZ() || c.Z != 3 {
 			t.Error("3D coordinate should have Z value")
 		}
 
 		clone := c.Clone()
-		if clone.Z == nil || *clone.Z != 3 {
+		if !clone.HasZ() || clone.Z != 3 {
 			t.Error("Cloned 3D coordinate should preserve Z")
 		}
 	})
@@ -552,8 +552,8 @@ func TestPrecisionModel_EdgeCases(t *testing.T) {
 		coord := geom.NewCoordinateZ(1.23456, 2.34567, 3.45678)
 		pm.MakePrecise(&coord)
 
-		if coord.Z != nil && (*coord.Z < 3.3 || *coord.Z > 3.5) {
-			t.Errorf("Expected Z ~3.4, got %f", *coord.Z)
+		if coord.HasZ() && (coord.Z < 3.3 || coord.Z > 3.5) {
+			t.Errorf("Expected Z ~3.4, got %f", coord.Z)
 		}
 	})
 }

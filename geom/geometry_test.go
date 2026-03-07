@@ -13,16 +13,16 @@ func TestCoordinate(t *testing.T) {
 		c := geom.NewCoordinate(1.5, 2.5)
 		assert.Equal(t, 1.5, c.X)
 		assert.Equal(t, 2.5, c.Y)
-		assert.Nil(t, c.Z)
-		assert.Nil(t, c.M)
+		assert.False(t, c.HasZ())
+		assert.False(t, c.HasM())
 	})
 
 	t.Run("NewCoordinateZ", func(t *testing.T) {
 		c := geom.NewCoordinateZ(1.0, 2.0, 3.0)
 		assert.Equal(t, 1.0, c.X)
 		assert.Equal(t, 2.0, c.Y)
-		require.NotNil(t, c.Z)
-		assert.Equal(t, 3.0, *c.Z)
+		assert.True(t, c.HasZ())
+		assert.Equal(t, 3.0, c.Z)
 	})
 
 	t.Run("Distance", func(t *testing.T) {
