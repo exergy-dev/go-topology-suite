@@ -371,7 +371,7 @@ func segmentContainedInPolygon(a, b Coordinate, poly *Polygon) bool {
 		}
 		// Also check if midpoint of segment is inside the hole
 		mid := Coordinate{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
-		if pointInRing(mid, hole) && !pointOnRing(mid, hole) {
+		if PointInRing(mid, hole) && !PointOnRing(mid, hole) {
 			return false
 		}
 	}
@@ -722,14 +722,15 @@ func Equals(g1, g2 Geometry) bool {
 func pointOnLineString(p Coordinate, ls *LineString) bool {
 	coords := ls.Coordinates()
 	for i := 1; i < len(coords); i++ {
-		if pointOnSegment(p, coords[i-1], coords[i]) {
+		if PointOnSegment(p, coords[i-1], coords[i]) {
 			return true
 		}
 	}
 	return false
 }
 
-func pointOnSegment(p, a, b Coordinate) bool {
+// PointOnSegment reports whether p lies on segment (a,b), within DefaultEpsilon.
+func PointOnSegment(p, a, b Coordinate) bool {
 	// Check collinearity
 	cross := (p.X-a.X)*(b.Y-a.Y) - (p.Y-a.Y)*(b.X-a.X)
 	if math.Abs(cross) > DefaultEpsilon {
@@ -753,23 +754,23 @@ func pointInPolygon(p Coordinate, poly *Polygon) Location {
 	}
 
 	// Check boundary first
-	if pointOnRing(p, poly.shell) {
+	if PointOnRing(p, poly.shell) {
 		return LocationBoundary
 	}
 	for _, hole := range poly.holes {
-		if pointOnRing(p, hole) {
+		if PointOnRing(p, hole) {
 			return LocationBoundary
 		}
 	}
 
 	// Check interior
-	if !pointInRing(p, poly.shell) {
+	if !PointInRing(p, poly.shell) {
 		return LocationExterior
 	}
 
 	// Check if in any hole
 	for _, hole := range poly.holes {
-		if pointInRing(p, hole) {
+		if PointInRing(p, hole) {
 			return LocationExterior
 		}
 	}
@@ -777,18 +778,20 @@ func pointInPolygon(p Coordinate, poly *Polygon) Location {
 	return LocationInterior
 }
 
-func pointOnRing(p Coordinate, ring *LinearRing) bool {
-	coords := ring.Coordinates()
+// PointOnRing reports whether p lies on any segment of ring.
+func PointOnRing(p Coordinate, ring *LinearRing) bool {
+	coords := ring.coords
 	for i := 1; i < len(coords); i++ {
-		if pointOnSegment(p, coords[i-1], coords[i]) {
+		if PointOnSegment(p, coords[i-1], coords[i]) {
 			return true
 		}
 	}
 	return false
 }
 
-func pointInRing(p Coordinate, ring *LinearRing) bool {
-	coords := ring.Coordinates()
+// PointInRing determines whether p is inside ring using ray casting.
+func PointInRing(p Coordinate, ring *LinearRing) bool {
+	coords := ring.coords
 	n := len(coords)
 	if n < 4 {
 		return false
@@ -819,6 +822,12 @@ func locatePointIn(p Coordinate, g Geometry) Location {
 		}
 		if p.Equals2D(v.coord, DefaultEpsilon) {
 			return LocationInterior
+		}
+		return LocationExterior
+	case *LinearRing:
+		// Closed ring: boundary is the ring itself, no boundary endpoints
+		if PointOnRing(p, v) {
+			return LocationBoundary
 		}
 		return LocationExterior
 	case *LineString:
@@ -1077,6 +1086,11 @@ func locatePointInSelf(p Coordinate, g Geometry) Location {
 			return LocationInterior // A point is its own interior
 		}
 		return LocationExterior
+	case *LinearRing:
+		if PointOnRing(p, v) {
+			return LocationBoundary
+		}
+		return LocationExterior
 	case *LineString:
 		coords := v.Coordinates()
 		if len(coords) < 2 {
@@ -1095,18 +1109,18 @@ func locatePointInSelf(p Coordinate, g Geometry) Location {
 		return LocationExterior
 	case *Polygon:
 		// Polygon boundary is the rings
-		if pointOnRing(p, v.shell) {
+		if PointOnRing(p, v.shell) {
 			return LocationBoundary
 		}
 		for _, hole := range v.holes {
-			if pointOnRing(p, hole) {
+			if PointOnRing(p, hole) {
 				return LocationBoundary
 			}
 		}
-		if pointInRing(p, v.shell) {
+		if PointInRing(p, v.shell) {
 			// Check not in any hole
 			for _, hole := range v.holes {
-				if pointInRing(p, hole) {
+				if PointInRing(p, hole) {
 					return LocationExterior
 				}
 			}
@@ -1224,7 +1238,7 @@ func linesHaveInteriorIntersection(g1, g2 Geometry) bool {
 }
 
 func pointInSegmentInterior(p, a, b Coordinate) bool {
-	if !pointOnSegment(p, a, b) {
+	if !PointOnSegment(p, a, b) {
 		return false
 	}
 	if p.Equals2D(a, DefaultEpsilon) || p.Equals2D(b, DefaultEpsilon) {

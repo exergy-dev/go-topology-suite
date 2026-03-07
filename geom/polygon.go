@@ -6,8 +6,11 @@ import (
 	"strings"
 )
 
-// LinearRing is a closed LineString that forms the boundary of a polygon.
-// The first and last coordinates must be equal.
+// LinearRing is a closed, simple LineString that forms the boundary of a polygon.
+// A valid LinearRing has at least 4 coordinates (including the closing point),
+// where the first and last coordinates are equal. When used as a polygon shell,
+// it should be counter-clockwise; when used as a hole, clockwise.
+// NewLinearRing automatically closes the ring if needed.
 type LinearRing struct {
 	*LineString
 }
@@ -156,15 +159,22 @@ type Polygon struct {
 }
 
 // NewPolygon creates a new Polygon with an exterior ring and optional holes.
+// The shell and holes are cloned to prevent external mutation.
 func NewPolygon(shell *LinearRing, holes []*LinearRing) *Polygon {
-	p := &Polygon{
-		shell: shell,
-		holes: holes,
+	var clonedShell *LinearRing
+	if shell != nil {
+		clonedShell = shell.Clone().(*LinearRing)
 	}
-	if p.holes == nil {
-		p.holes = []*LinearRing{}
+	clonedHoles := make([]*LinearRing, len(holes))
+	for i, h := range holes {
+		if h != nil {
+			clonedHoles[i] = h.Clone().(*LinearRing)
+		}
 	}
-	return p
+	return &Polygon{
+		shell: clonedShell,
+		holes: clonedHoles,
+	}
 }
 
 // NewPolygonFromCoords creates a Polygon from coordinate sequences.
@@ -339,12 +349,7 @@ func (p *Polygon) GeometryN(n int) Geometry {
 
 // Clone returns a deep copy.
 func (p *Polygon) Clone() Geometry {
-	shellClone := p.shell.Clone().(*LinearRing)
-	holesClone := make([]*LinearRing, len(p.holes))
-	for i, hole := range p.holes {
-		holesClone[i] = hole.Clone().(*LinearRing)
-	}
-	clone := NewPolygon(shellClone, holesClone)
+	clone := NewPolygon(p.shell, p.holes)
 	clone.srid = p.srid
 	return clone
 }
@@ -530,6 +535,12 @@ func (p *Polygon) Centroid() *Point {
 	return NewPoint(totalCx/totalArea, totalCy/totalArea)
 }
 
+// RingCentroidAndArea computes the centroid and area of a closed ring.
+// The input must include the closing coordinate; area is always positive.
+func RingCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
+	return ringCentroidAndArea(coords)
+}
+
 // ringCentroidAndArea computes the centroid and area of a ring using the shoelace formula.
 // Returns (cx, cy, area) where area is always positive.
 func ringCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
@@ -568,50 +579,11 @@ func (p *Polygon) ContainsPoint(c Coordinate) bool {
 	if p.IsEmpty() {
 		return false
 	}
-
-	// Check if point is in envelope
 	if !p.Envelope().Contains(c) {
 		return false
 	}
-
-	// Check if point is inside shell
-	if !isPointInRing(c, p.shell) {
-		return false
-	}
-
-	// Check if point is inside any hole
-	for _, hole := range p.holes {
-		if isPointInRing(c, hole) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// isPointInRing uses the ray casting algorithm.
-func isPointInRing(p Coordinate, ring *LinearRing) bool {
-	coords := ring.coords
-	n := len(coords)
-	if n < 4 {
-		return false
-	}
-
-	inside := false
-	j := n - 2 // Second to last point (since ring is closed)
-
-	for i := 0; i < n-1; i++ {
-		xi, yi := coords[i].X, coords[i].Y
-		xj, yj := coords[j].X, coords[j].Y
-
-		if ((yi > p.Y) != (yj > p.Y)) &&
-			(p.X < (xj-xi)*(p.Y-yi)/(yj-yi)+xi) {
-			inside = !inside
-		}
-		j = i
-	}
-
-	return inside
+	loc := pointInPolygon(c, p)
+	return loc == LocationInterior
 }
 
 // hasRingSelfIntersection checks if a ring's non-adjacent segments properly intersect.
@@ -636,7 +608,7 @@ func ringsProperlyIntersect(r1, r2 *LinearRing) bool {
 	coords1, coords2 := r1.Coordinates(), r2.Coordinates()
 	for i := 0; i < len(coords1)-1; i++ {
 		for j := 0; j < len(coords2)-1; j++ {
-			if segmentsIntersect(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
+			if segmentsCrossProper(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
 				return true
 			}
 		}
@@ -649,5 +621,5 @@ func isRingInsideRing(inner, outer *LinearRing) bool {
 	if inner.IsEmpty() {
 		return false
 	}
-	return isPointInRing(inner.Coordinates()[0], outer)
+	return PointInRing(inner.Coordinates()[0], outer)
 }
