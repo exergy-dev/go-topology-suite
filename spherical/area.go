@@ -9,6 +9,7 @@ import (
 // Area returns the area of a Polygon in square meters on the WGS84 ellipsoid.
 // The area is computed using spherical geometry on the mean Earth radius.
 // Returns 0 if the polygon is nil or empty.
+// Holes are accounted for via the polygon's interior rings.
 //
 // The result is always positive, regardless of the winding order of the rings.
 func Area(poly *geom.Polygon) float64 {
@@ -64,39 +65,6 @@ func SignedRingArea(ring *geom.LinearRing) float64 {
 	// Convert to square meters
 	areaSteradians := loop.Area()
 	return areaSteradians * EarthMeanRadius * EarthMeanRadius
-}
-
-// PolygonAreaWithHoles calculates the area of a polygon accounting for holes.
-// This returns: exterior_area - sum(hole_areas).
-// Returns 0 if the polygon is nil or empty.
-func PolygonAreaWithHoles(poly *geom.Polygon) float64 {
-	if poly == nil || poly.IsEmpty() {
-		return 0
-	}
-
-	// Get exterior ring area
-	totalArea := RingArea(poly.ExteriorRing())
-
-	// Subtract hole areas
-	for i := 0; i < poly.NumInteriorRings(); i++ {
-		if hole := poly.InteriorRingN(i); hole != nil && !hole.IsEmpty() {
-			totalArea -= RingArea(hole)
-		}
-	}
-
-	return totalArea
-}
-
-// MultiPolygonArea returns the total area of all polygons in a collection.
-// This is a convenience function for calculating area of multiple polygons.
-func MultiPolygonArea(polygons []*geom.Polygon) float64 {
-	totalArea := 0.0
-	for _, poly := range polygons {
-		if poly != nil && !poly.IsEmpty() {
-			totalArea += Area(poly)
-		}
-	}
-	return totalArea
 }
 
 // Centroid returns the spherical centroid of a polygon.

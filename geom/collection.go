@@ -182,13 +182,15 @@ func (gc *GeometryCollection) String() string {
 	return sb.String()
 }
 
-// Add adds a geometry to the collection.
+// Deprecated: Add mutates the collection, breaking immutability guarantees.
+// Prefer constructing a new GeometryCollection with the desired geometries instead.
 func (gc *GeometryCollection) Add(g Geometry) {
 	gc.geometries = append(gc.geometries, g.Clone())
 	gc.invalidateEnvelope()
 }
 
-// Remove removes the geometry at the given index.
+// Deprecated: Remove mutates the collection, breaking immutability guarantees.
+// Prefer constructing a new GeometryCollection with the desired geometries instead.
 func (gc *GeometryCollection) Remove(index int) {
 	if index < 0 || index >= len(gc.geometries) {
 		return

@@ -11,7 +11,7 @@ import (
 // This uses S2's robust intersection tests which properly handle edge cases
 // on the sphere, including the antimeridian and poles.
 func Intersects(g1, g2 geom.Geometry) bool {
-	if g1 == nil || g1.IsEmpty() || g2 == nil || g2.IsEmpty() {
+	if isEmptyGeometry(g1) || isEmptyGeometry(g2) {
 		return false
 	}
 
@@ -24,7 +24,7 @@ func Intersects(g1, g2 geom.Geometry) bool {
 // This uses S2's robust containment tests which properly handle edge cases
 // on the sphere, including the antimeridian and poles.
 func Contains(g1, g2 geom.Geometry) bool {
-	if g1 == nil || g1.IsEmpty() || g2 == nil || g2.IsEmpty() {
+	if isEmptyGeometry(g1) || isEmptyGeometry(g2) {
 		return false
 	}
 
@@ -100,16 +100,16 @@ func pointIntersectsSpherical(p *geom.Point, g geom.Geometry) bool {
 			return false
 		}
 		// Use small distance tolerance for point equality on sphere
-		return Distance(p, b) < 0.01 // 1cm tolerance
+		return Distance(p, b) < defaultToleranceMeters
 	case *geom.LineString:
-		return PointOnLineString(p, b, 0.01) // 1cm tolerance
+		return PointOnLineString(p, b, defaultToleranceMeters)
 	case *geom.LinearRing:
 		loop := ToS2Loop(b)
 		if loop == nil {
 			return false
 		}
 		s2Point := ToS2Point(p)
-		return loop.ContainsPoint(s2Point) || PointOnRing(p, b, 0.01)
+		return loop.ContainsPoint(s2Point) || PointOnRing(p, b, defaultToleranceMeters)
 	case *geom.Polygon:
 		s2Poly := ToS2Polygon(b)
 		if s2Poly == nil {
@@ -119,11 +119,11 @@ func pointIntersectsSpherical(p *geom.Point, g geom.Geometry) bool {
 		return s2Poly.ContainsPoint(s2Point)
 	case *geom.MultiPoint:
 		return geom.ForEachPoint(b, func(pt *geom.Point) bool {
-			return Distance(p, pt) < 0.01
+			return Distance(p, pt) < defaultToleranceMeters
 		})
 	case *geom.MultiLineString:
 		return geom.ForEachLineString(b, func(ls *geom.LineString) bool {
-			return PointOnLineString(p, ls, 0.01)
+			return PointOnLineString(p, ls, defaultToleranceMeters)
 		})
 	case *geom.MultiPolygon:
 		s2Point := ToS2Point(p)
@@ -150,16 +150,16 @@ func lineStringIntersectsSpherical(ls *geom.LineString, g geom.Geometry) bool {
 
 	switch b := g.(type) {
 	case *geom.Point:
-		return PointOnLineString(b, ls, 0.01)
+		return PointOnLineString(b, ls, defaultToleranceMeters)
 	case *geom.LineString:
 		return lineStringsIntersectSpherical(ls, b)
 	case *geom.LinearRing:
 		return lineStringRingIntersectSpherical(ls, b)
 	case *geom.Polygon:
-		return LineStringIntersectsPolygon(ls, b)
+		return lineStringIntersectsPolygon(ls, b)
 	case *geom.MultiPoint:
 		return geom.ForEachPoint(b, func(p *geom.Point) bool {
-			return PointOnLineString(p, ls, 0.01)
+			return PointOnLineString(p, ls, defaultToleranceMeters)
 		})
 	case *geom.MultiLineString:
 		return geom.ForEachLineString(b, func(other *geom.LineString) bool {
@@ -167,7 +167,7 @@ func lineStringIntersectsSpherical(ls *geom.LineString, g geom.Geometry) bool {
 		})
 	case *geom.MultiPolygon:
 		return geom.ForEachPolygon(b, func(p *geom.Polygon) bool {
-			return LineStringIntersectsPolygon(ls, p)
+			return lineStringIntersectsPolygon(ls, p)
 		})
 	case *geom.GeometryCollection:
 		for i := 0; i < b.NumGeometries(); i++ {
@@ -188,7 +188,7 @@ func linearRingIntersectsSpherical(ring *geom.LinearRing, g geom.Geometry) bool 
 
 	switch b := g.(type) {
 	case *geom.Point:
-		return PointOnRing(b, ring, 0.01) || LoopContainsPoint(ring, b)
+		return PointOnRing(b, ring, defaultToleranceMeters) || LoopContainsPoint(ring, b)
 	case *geom.LineString:
 		return lineStringRingIntersectSpherical(b, ring)
 	case *geom.LinearRing:
@@ -202,7 +202,7 @@ func linearRingIntersectsSpherical(ring *geom.LinearRing, g geom.Geometry) bool 
 		return loopIntersectsPolygon(loop, s2Poly)
 	case *geom.MultiPoint:
 		for i := 0; i < b.NumGeometries(); i++ {
-			if PointOnRing(b.GeometryN(i).(*geom.Point), ring, 0.01) || LoopContainsPoint(ring, b.GeometryN(i).(*geom.Point)) {
+			if PointOnRing(b.GeometryN(i).(*geom.Point), ring, defaultToleranceMeters) || LoopContainsPoint(ring, b.GeometryN(i).(*geom.Point)) {
 				return true
 			}
 		}
@@ -253,7 +253,7 @@ func polygonIntersectsSpherical(poly *geom.Polygon, g geom.Geometry) bool {
 		s2Point := ToS2Point(b)
 		return s2Poly.ContainsPoint(s2Point)
 	case *geom.LineString:
-		return LineStringIntersectsPolygon(b, poly)
+		return lineStringIntersectsPolygon(b, poly)
 	case *geom.LinearRing:
 		loop := ToS2Loop(b)
 		if loop == nil {
@@ -276,7 +276,7 @@ func polygonIntersectsSpherical(poly *geom.Polygon, g geom.Geometry) bool {
 		return false
 	case *geom.MultiLineString:
 		for i := 0; i < b.NumGeometries(); i++ {
-			if LineStringIntersectsPolygon(b.GeometryN(i).(*geom.LineString), poly) {
+			if lineStringIntersectsPolygon(b.GeometryN(i).(*geom.LineString), poly) {
 				return true
 			}
 		}
@@ -312,7 +312,7 @@ func pointContainsSpherical(p *geom.Point, g geom.Geometry) bool {
 		if b.IsEmpty() {
 			return true // Empty geometry is contained by everything
 		}
-		return Distance(p, b) < 0.01 // 1cm tolerance
+		return Distance(p, b) < defaultToleranceMeters
 	}
 	return false
 }
@@ -328,20 +328,20 @@ func lineStringContainsSpherical(ls *geom.LineString, g geom.Geometry) bool {
 		if b.IsEmpty() {
 			return true
 		}
-		return PointOnLineString(b, ls, 0.01)
+		return PointOnLineString(b, ls, defaultToleranceMeters)
 	case *geom.LineString:
 		// Check if all points of b are on ls
 		coords := b.Coordinates()
 		for _, c := range coords {
 			pt := geom.NewPoint(c.X, c.Y)
-			if !PointOnLineString(pt, ls, 0.01) {
+			if !PointOnLineString(pt, ls, defaultToleranceMeters) {
 				return false
 			}
 		}
 		return true
 	case *geom.MultiPoint:
 		for i := 0; i < b.NumGeometries(); i++ {
-			if !PointOnLineString(b.GeometryN(i).(*geom.Point), ls, 0.01) {
+			if !PointOnLineString(b.GeometryN(i).(*geom.Point), ls, defaultToleranceMeters) {
 				return false
 			}
 		}
@@ -485,7 +485,7 @@ func multiPointContainsSpherical(mp *geom.MultiPoint, g geom.Geometry) bool {
 			return true
 		}
 		for i := 0; i < mp.NumGeometries(); i++ {
-			if Distance(mp.GeometryN(i).(*geom.Point), b) < 0.01 {
+			if Distance(mp.GeometryN(i).(*geom.Point), b) < defaultToleranceMeters {
 				return true
 			}
 		}
@@ -495,7 +495,7 @@ func multiPointContainsSpherical(mp *geom.MultiPoint, g geom.Geometry) bool {
 		for i := 0; i < b.NumGeometries(); i++ {
 			found := false
 			for j := 0; j < mp.NumGeometries(); j++ {
-				if Distance(mp.GeometryN(j).(*geom.Point), b.GeometryN(i).(*geom.Point)) < 0.01 {
+				if Distance(mp.GeometryN(j).(*geom.Point), b.GeometryN(i).(*geom.Point)) < defaultToleranceMeters {
 					found = true
 					break
 				}
@@ -517,7 +517,7 @@ func multiLineStringContainsSpherical(mls *geom.MultiLineString, g geom.Geometry
 			return true
 		}
 		for i := 0; i < mls.NumGeometries(); i++ {
-			if PointOnLineString(b, mls.GeometryN(i).(*geom.LineString), 0.01) {
+			if PointOnLineString(b, mls.GeometryN(i).(*geom.LineString), defaultToleranceMeters) {
 				return true
 			}
 		}
@@ -526,7 +526,7 @@ func multiLineStringContainsSpherical(mls *geom.MultiLineString, g geom.Geometry
 		for i := 0; i < b.NumGeometries(); i++ {
 			found := false
 			for j := 0; j < mls.NumGeometries(); j++ {
-				if PointOnLineString(b.GeometryN(i).(*geom.Point), mls.GeometryN(j).(*geom.LineString), 0.01) {
+				if PointOnLineString(b.GeometryN(i).(*geom.Point), mls.GeometryN(j).(*geom.LineString), defaultToleranceMeters) {
 					found = true
 					break
 				}
@@ -633,14 +633,14 @@ func lineStringsIntersectSpherical(ls1, ls2 *geom.LineString) bool {
 	// Check if any endpoint is on the other linestring
 	for _, c := range coords1 {
 		pt := geom.NewPoint(c.X, c.Y)
-		if PointOnLineString(pt, ls2, 0.01) {
+		if PointOnLineString(pt, ls2, defaultToleranceMeters) {
 			return true
 		}
 	}
 
 	for _, c := range coords2 {
 		pt := geom.NewPoint(c.X, c.Y)
-		if PointOnLineString(pt, ls1, 0.01) {
+		if PointOnLineString(pt, ls1, defaultToleranceMeters) {
 			return true
 		}
 	}
@@ -841,90 +841,9 @@ func PointOnRing(p *geom.Point, ring *geom.LinearRing, toleranceMeters float64) 
 	return false
 }
 
-// Disjoint checks if two polygons are disjoint (do not intersect).
-// Returns true if the polygons share no points.
-// Returns false if either polygon is nil or empty.
-func Disjoint(p1, p2 *geom.Polygon) bool {
-	return !Intersects(p1, p2)
-}
-
-// Within checks if polygon p1 is completely within polygon p2.
-// This is equivalent to p2.Contains(p1).
-func Within(p1, p2 *geom.Polygon) bool {
-	return PolygonContainsPolygon(p2, p1)
-}
-
-// Overlaps checks if two polygons overlap (intersect but neither contains the other).
-// Returns true if the polygons intersect and neither is completely contained in the other.
-func Overlaps(p1, p2 *geom.Polygon) bool {
-	if !Intersects(p1, p2) {
-		return false
-	}
-
-	if PolygonContainsPolygon(p1, p2) || PolygonContainsPolygon(p2, p1) {
-		return false
-	}
-
-	return true
-}
-
-// Touches checks if two polygons touch (share boundary points but not interior points).
-// This is a more expensive operation as it requires checking the intersection type.
-func Touches(p1, p2 *geom.Polygon) bool {
-	if p1 == nil || p1.IsEmpty() || p2 == nil || p2.IsEmpty() {
-		return false
-	}
-
-	// Polygons touch if they intersect but neither contains the other's interior
-	// This is approximated by checking if they intersect but have no significant
-	// area of overlap
-	if !Intersects(p1, p2) {
-		return false
-	}
-
-	s2Poly1 := ToS2Polygon(p1)
-	s2Poly2 := ToS2Polygon(p2)
-	if s2Poly1 == nil || s2Poly2 == nil {
-		return false
-	}
-
-	// Approximate touch detection: if they intersect but the intersection
-	// area is negligible compared to either polygon's area
-	// Note: S2 doesn't have a built-in Union operation, so we use a heuristic
-
-	// For a proper touch test, we would need to check if intersection is only
-	// on boundaries. For now, we use a simplified approach:
-	// If they intersect but neither contains the other, they likely touch or overlap
-	if PolygonContainsPolygon(p1, p2) || PolygonContainsPolygon(p2, p1) {
-		return false
-	}
-
-	// This is a simplified touch test - a full implementation would check
-	// if the intersection is only at boundaries
-	return true
-}
-
-// PointInRingWindingNumber uses the winding number algorithm on the sphere
-// to determine if a point is inside a ring. This is an alternative to
-// LoopContainsPoint that doesn't require S2 loop validation.
-func PointInRingWindingNumber(ring *geom.LinearRing, p *geom.Point) bool {
-	if ring == nil || ring.IsEmpty() || p == nil || p.IsEmpty() {
-		return false
-	}
-
-	// Use S2's robust containment test via loop
-	loop := ToS2Loop(ring)
-	if loop == nil {
-		return false
-	}
-
-	s2Point := ToS2Point(p)
-	return loop.ContainsPoint(s2Point)
-}
-
-// LineStringIntersectsPolygon checks if a linestring intersects a polygon.
+// lineStringIntersectsPolygon checks if a linestring intersects a polygon.
 // Returns true if any part of the linestring is inside or crosses the polygon boundary.
-func LineStringIntersectsPolygon(ls *geom.LineString, poly *geom.Polygon) bool {
+func lineStringIntersectsPolygon(ls *geom.LineString, poly *geom.Polygon) bool {
 	if ls == nil || ls.IsEmpty() || poly == nil || poly.IsEmpty() {
 		return false
 	}
@@ -961,7 +880,7 @@ func LineStringIntersectsPolygon(ls *geom.LineString, poly *geom.Polygon) bool {
 			closest, _ := polyline.Project(point)
 			dist := point.Distance(closest)
 			// If polygon boundary is very close to linestring, they intersect
-			if dist.Radians()*EarthMeanRadius < 1.0 { // 1 meter tolerance
+			if dist.Radians()*EarthMeanRadius < defaultToleranceMeters {
 				return true
 			}
 		}
