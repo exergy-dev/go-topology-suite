@@ -46,13 +46,6 @@ func computeDistance(g1, g2 geom.Geometry) float64 {
 	return DistanceGeometryToGeometry(g1, g2)
 }
 
-// DistancePointToPoint computes the distance between two points.
-//
-// Deprecated: Use p1.Distance(p2) instead.
-func DistancePointToPoint(p1, p2 geom.Coordinate) float64 {
-	return p1.Distance(p2)
-}
-
 // DistancePointToSegment computes the distance from a point to a line segment.
 func DistancePointToSegment(p, a, b geom.Coordinate) float64 {
 	closest := closestPointOnSegmentCoord(p, a, b)
@@ -150,74 +143,20 @@ func DistancePointToGeometry(p geom.Coordinate, g geom.Geometry) float64 {
 		return distancePointToRing(p, v)
 	case *geom.Polygon:
 		return DistancePointToPolygon(p, v)
-	case *geom.MultiPoint:
-		return distancePointToMultiPoint(p, v)
-	case *geom.MultiLineString:
-		return distancePointToMultiLineString(p, v)
-	case *geom.MultiPolygon:
-		return distancePointToMultiPolygon(p, v)
-	case *geom.GeometryCollection:
-		return distancePointToCollection(p, v)
+	case *geom.MultiPoint, *geom.MultiLineString, *geom.MultiPolygon, *geom.GeometryCollection:
+		return distancePointToMultiGeometry(p, v)
 	default:
 		return math.Inf(1)
 	}
 }
 
-func distancePointToMultiPoint(p geom.Coordinate, mp *geom.MultiPoint) float64 {
-	if mp.IsEmpty() {
+func distancePointToMultiGeometry(p geom.Coordinate, g geom.Geometry) float64 {
+	if g.IsEmpty() {
 		return math.Inf(1)
 	}
 	minDist := math.Inf(1)
-	for i := 0; i < mp.NumGeometries(); i++ {
-		pt := mp.GeometryN(i).(*geom.Point)
-		dist := p.Distance(pt.Coordinate())
-		if dist < minDist {
-			minDist = dist
-		}
-	}
-	return minDist
-}
-
-func distancePointToMultiLineString(p geom.Coordinate, mls *geom.MultiLineString) float64 {
-	if mls.IsEmpty() {
-		return math.Inf(1)
-	}
-	minDist := math.Inf(1)
-	for i := 0; i < mls.NumGeometries(); i++ {
-		ls := mls.GeometryN(i).(*geom.LineString)
-		dist := DistancePointToLineString(p, ls)
-		if dist < minDist {
-			minDist = dist
-		}
-	}
-	return minDist
-}
-
-func distancePointToMultiPolygon(p geom.Coordinate, mp *geom.MultiPolygon) float64 {
-	if mp.IsEmpty() {
-		return math.Inf(1)
-	}
-	minDist := math.Inf(1)
-	for i := 0; i < mp.NumGeometries(); i++ {
-		poly := mp.GeometryN(i).(*geom.Polygon)
-		dist := DistancePointToPolygon(p, poly)
-		if dist < minDist {
-			minDist = dist
-		}
-		if dist == 0 {
-			return 0
-		}
-	}
-	return minDist
-}
-
-func distancePointToCollection(p geom.Coordinate, gc *geom.GeometryCollection) float64 {
-	if gc.IsEmpty() {
-		return math.Inf(1)
-	}
-	minDist := math.Inf(1)
-	for i := 0; i < gc.NumGeometries(); i++ {
-		dist := DistancePointToGeometry(p, gc.GeometryN(i))
+	for i := 0; i < g.NumGeometries(); i++ {
+		dist := DistancePointToGeometry(p, g.GeometryN(i))
 		if dist < minDist {
 			minDist = dist
 		}

@@ -171,13 +171,6 @@ func IsPointInRing(p geom.Coordinate, ring *geom.LinearRing) bool {
 	return geom.PointInRing(p, ring)
 }
 
-// IsPointInEnvelope returns true if a point is within an envelope.
-//
-// Deprecated: Use env.Contains(p) instead.
-func IsPointInEnvelope(p geom.Coordinate, env *geom.Envelope) bool {
-	return env.Contains(p)
-}
-
 // LocatePointInTriangle determines the location of a point relative to a triangle.
 func LocatePointInTriangle(p, t0, t1, t2 geom.Coordinate) geom.Location {
 	// Check if on any edge

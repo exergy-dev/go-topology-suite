@@ -259,38 +259,6 @@ func TestRaySegmentIntersection(t *testing.T) {
 	}
 }
 
-func TestPerpendicularDistance(t *testing.T) {
-	tests := []struct {
-		name      string
-		p         geom.Coordinate
-		lineStart geom.Coordinate
-		lineEnd   geom.Coordinate
-		expected  float64
-	}{
-		{
-			name:      "PerpendicularDistance",
-			p:         geom.NewCoordinate(5, 5),
-			lineStart: geom.NewCoordinate(0, 0),
-			lineEnd:   geom.NewCoordinate(10, 0),
-			expected:  5,
-		},
-		{
-			name:      "OnLine",
-			p:         geom.NewCoordinate(5, 0),
-			lineStart: geom.NewCoordinate(0, 0),
-			lineEnd:   geom.NewCoordinate(10, 0),
-			expected:  0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := algorithm.PerpendicularDistance(tt.p, tt.lineStart, tt.lineEnd)
-			assert.InDelta(t, tt.expected, result, 0.001, "Expected %v", tt.expected)
-		})
-	}
-}
-
 func TestProjectPointOntoLine(t *testing.T) {
 	tests := []struct {
 		name      string

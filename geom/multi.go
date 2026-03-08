@@ -254,30 +254,13 @@ func (mls *MultiLineString) linesIntersectImproperly(l1, l2 *LineString) bool {
 	// Check all segment pairs between the two linestrings
 	for i := 0; i < len(l1.coords)-1; i++ {
 		for j := 0; j < len(l2.coords)-1; j++ {
-			if segmentsIntersectProperly(
+			if segmentsCrossProper(
 				l1.coords[i], l1.coords[i+1],
 				l2.coords[j], l2.coords[j+1]) {
 				return true
 			}
 		}
 	}
-	return false
-}
-
-// segmentsIntersectProperly returns true if segments (p1,p2) and (p3,p4)
-// intersect in their interiors (not at endpoints).
-func segmentsIntersectProperly(p1, p2, p3, p4 Coordinate) bool {
-	d1 := direction(p3, p4, p1)
-	d2 := direction(p3, p4, p2)
-	d3 := direction(p1, p2, p3)
-	d4 := direction(p1, p2, p4)
-
-	// Segments cross if directions are strictly opposite
-	if ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-		((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)) {
-		return true
-	}
-
 	return false
 }
 

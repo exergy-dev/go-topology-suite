@@ -119,13 +119,6 @@ func TestCentroid(t *testing.T) {
 }
 
 func TestDistance(t *testing.T) {
-	t.Run("PointToPoint", func(t *testing.T) {
-		p1 := geom.NewCoordinate(0, 0)
-		p2 := geom.NewCoordinate(3, 4)
-		dist := algorithm.DistancePointToPoint(p1, p2)
-		assert.Equal(t, 5.0, dist)
-	})
-
 	t.Run("PointToSegment", func(t *testing.T) {
 		p := geom.NewCoordinate(5, 5)
 		a := geom.NewCoordinate(0, 0)

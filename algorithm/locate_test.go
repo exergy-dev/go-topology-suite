@@ -193,39 +193,6 @@ func TestPointLocationInPolygon(t *testing.T) {
 	})
 }
 
-func TestIsPointInEnvelope(t *testing.T) {
-	env := geom.NewEnvelope(0, 0, 10, 10)
-
-	tests := []struct {
-		name     string
-		p        geom.Coordinate
-		expected bool
-	}{
-		{
-			name:     "Inside",
-			p:        geom.NewCoordinate(5, 5),
-			expected: true,
-		},
-		{
-			name:     "OnBoundary",
-			p:        geom.NewCoordinate(0, 5),
-			expected: true,
-		},
-		{
-			name:     "Outside",
-			p:        geom.NewCoordinate(15, 5),
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := algorithm.IsPointInEnvelope(tt.p, env)
-			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
-		})
-	}
-}
-
 func TestLocatePointInTriangle(t *testing.T) {
 	t0 := geom.NewCoordinate(0, 0)
 	t1 := geom.NewCoordinate(10, 0)

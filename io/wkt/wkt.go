@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/io/ioutil"
 )
 
 // Options configures WKT marshaling behavior.
@@ -362,25 +363,17 @@ func writeCoordinateSequence(sb *strings.Builder, coords geom.CoordinateSequence
 }
 
 func writeCoordinate(sb *strings.Builder, c geom.Coordinate, opts Options) {
-	writeNumber(sb, c.X, opts)
+	ioutil.WriteNumber(sb, c.X, opts.Precision)
 	sb.WriteString(" ")
-	writeNumber(sb, c.Y, opts)
+	ioutil.WriteNumber(sb, c.Y, opts.Precision)
 
 	if opts.OutputDimension >= 3 && c.HasZ() {
 		sb.WriteString(" ")
-		writeNumber(sb, c.Z, opts)
+		ioutil.WriteNumber(sb, c.Z, opts.Precision)
 	}
 	if opts.OutputDimension >= 4 && c.HasM() {
 		sb.WriteString(" ")
-		writeNumber(sb, c.M, opts)
-	}
-}
-
-func writeNumber(sb *strings.Builder, n float64, opts Options) {
-	if opts.Precision < 0 {
-		sb.WriteString(fmt.Sprintf("%g", n))
-	} else {
-		sb.WriteString(fmt.Sprintf("%.*f", opts.Precision, n))
+		ioutil.WriteNumber(sb, c.M, opts.Precision)
 	}
 }
 

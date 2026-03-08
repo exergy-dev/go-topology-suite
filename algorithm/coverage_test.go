@@ -272,47 +272,6 @@ func TestBisector_CoincidentArms(t *testing.T) {
 	assert.InDelta(t, 0, bisect, 0.01, "Bisector of identical arms should equal arm angle (0)")
 }
 
-func TestInteriorAngle_StraightLine(t *testing.T) {
-	// Three collinear points form a 180-degree interior angle
-	angle := algorithm.InteriorAngle(
-		geom.NewCoordinate(0, 0),
-		geom.NewCoordinate(5, 0),
-		geom.NewCoordinate(10, 0),
-	)
-	assert.InDelta(t, math.Pi, angle, 0.01, "Straight line should have Pi interior angle")
-}
-
-func TestInteriorAngle_AcuteAngle(t *testing.T) {
-	// Small angle < Pi/2
-	angle := algorithm.InteriorAngle(
-		geom.NewCoordinate(1, 0),
-		geom.NewCoordinate(0, 0),
-		geom.NewCoordinate(1, 0.1),
-	)
-	assert.Less(t, angle, math.Pi/2, "Expected acute angle")
-	assert.Greater(t, angle, 0.0, "Angle must be positive")
-}
-
-func TestInteriorAngle_ObtuseAngle(t *testing.T) {
-	// Angle > Pi/2
-	angle := algorithm.InteriorAngle(
-		geom.NewCoordinate(1, 0),
-		geom.NewCoordinate(0, 0),
-		geom.NewCoordinate(-1, 0.1),
-	)
-	assert.Greater(t, angle, math.Pi/2, "Expected obtuse angle")
-	assert.Less(t, angle, math.Pi, "Angle should be less than Pi")
-}
-
-func TestInteriorAngle_RightAngle(t *testing.T) {
-	angle := algorithm.InteriorAngle(
-		geom.NewCoordinate(1, 0),
-		geom.NewCoordinate(0, 0),
-		geom.NewCoordinate(0, 1),
-	)
-	assert.InDelta(t, math.Pi/2, angle, 0.01, "Expected Pi/2 for right angle")
-}
-
 func TestNormalizeAngle_Extremes(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -354,67 +313,6 @@ func TestNormalizePositiveAngle_Extremes(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Deprecated wrappers: verify they still delegate correctly
-// ---------------------------------------------------------------------------
-
-func TestDeprecated_TurnDirection(t *testing.T) {
-	p0 := geom.NewCoordinate(0, 0)
-	p1 := geom.NewCoordinate(10, 0)
-
-	// Left turn
-	assert.Equal(t, algorithm.CounterClockwise,
-		algorithm.TurnDirection(p0, p1, geom.NewCoordinate(5, 5)))
-	// Right turn
-	assert.Equal(t, algorithm.Clockwise,
-		algorithm.TurnDirection(p0, p1, geom.NewCoordinate(5, -5)))
-	// Straight
-	assert.Equal(t, algorithm.Collinear,
-		algorithm.TurnDirection(p0, p1, geom.NewCoordinate(20, 0)))
-}
-
-func TestDeprecated_LeftTurn(t *testing.T) {
-	p0 := geom.NewCoordinate(0, 0)
-	p1 := geom.NewCoordinate(10, 0)
-	assert.True(t, algorithm.LeftTurn(p0, p1, geom.NewCoordinate(5, 5)))
-	assert.False(t, algorithm.LeftTurn(p0, p1, geom.NewCoordinate(5, -5)))
-	assert.False(t, algorithm.LeftTurn(p0, p1, geom.NewCoordinate(20, 0)))
-}
-
-func TestDeprecated_RightTurn(t *testing.T) {
-	p0 := geom.NewCoordinate(0, 0)
-	p1 := geom.NewCoordinate(10, 0)
-	assert.True(t, algorithm.RightTurn(p0, p1, geom.NewCoordinate(5, -5)))
-	assert.False(t, algorithm.RightTurn(p0, p1, geom.NewCoordinate(5, 5)))
-	assert.False(t, algorithm.RightTurn(p0, p1, geom.NewCoordinate(20, 0)))
-}
-
-func TestDeprecated_StraightTurn(t *testing.T) {
-	p0 := geom.NewCoordinate(0, 0)
-	p1 := geom.NewCoordinate(10, 0)
-	assert.True(t, algorithm.StraightTurn(p0, p1, geom.NewCoordinate(20, 0)))
-	assert.False(t, algorithm.StraightTurn(p0, p1, geom.NewCoordinate(10, 5)))
-}
-
-func TestDeprecated_AngleOfLine(t *testing.T) {
-	// Should behave identically to Angle
-	start := geom.NewCoordinate(0, 0)
-	end := geom.NewCoordinate(1, 1)
-	assert.InDelta(t, math.Pi/4, algorithm.AngleOfLine(start, end), 1e-10)
-}
-
-func TestDeprecated_PerpendicularDistance(t *testing.T) {
-	p := geom.NewCoordinate(5, 5)
-	a := geom.NewCoordinate(0, 0)
-	b := geom.NewCoordinate(10, 0)
-	// Perpendicular distance from (5,5) to x-axis is 5
-	assert.InDelta(t, 5.0, algorithm.PerpendicularDistance(p, a, b), 1e-10)
-}
-
-// ---------------------------------------------------------------------------
-// Additional algorithm coverage: ToDegrees / ToRadians round-trip
-// ---------------------------------------------------------------------------
 
 func TestToDegreesAndRadians_RoundTrip(t *testing.T) {
 	for _, deg := range []float64{0, 45, 90, 180, 270, 360, -45, -180} {

@@ -103,10 +103,6 @@ func (ls *LineString) segmentsIntersect(i, j int) bool {
 	return len(info.points) == 0
 }
 
-func direction(p1, p2, p3 Coordinate) float64 {
-	return (p3.X-p1.X)*(p2.Y-p1.Y) - (p2.X-p1.X)*(p3.Y-p1.Y)
-}
-
 type segmentIntersection struct {
 	intersects       bool
 	proper           bool

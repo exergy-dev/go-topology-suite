@@ -189,13 +189,6 @@ func RaySegmentIntersection(origin, dir, segStart, segEnd geom.Coordinate) (geom
 	return intersection, t, true
 }
 
-// PerpendicularDistance computes the perpendicular distance from a point to a line.
-//
-// Deprecated: Use DistancePointToLine instead.
-func PerpendicularDistance(p, lineStart, lineEnd geom.Coordinate) float64 {
-	return DistancePointToLine(p, lineStart, lineEnd)
-}
-
 // ProjectPointOntoLine projects a point onto an infinite line.
 func ProjectPointOntoLine(p, lineStart, lineEnd geom.Coordinate) geom.Coordinate {
 	dx := lineEnd.X - lineStart.X
