@@ -66,6 +66,7 @@ jobs:
       - name: Check for tidiness
         run: |
           go mod tidy
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git diff --exit-code go.mod go.sum
 
   benchmark:
