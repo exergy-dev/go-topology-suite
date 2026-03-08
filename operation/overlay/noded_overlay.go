@@ -479,7 +479,7 @@ func polygonizeEdges(edges []*DirectedEdge) geom.Geometry {
 
 		// Try to build a ring starting from this edge
 		ring := buildRing(startEdge, edgeMap, used)
-		if ring != nil && len(ring) >= 4 {
+		if len(ring) >= 4 {
 			rings = append(rings, ring)
 		}
 	}

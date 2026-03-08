@@ -703,7 +703,7 @@ func BenchmarkWritePoints(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		filename := filepath.Join(tmpDir, "bench.shp")
-		WriteAll(filename, points)
+		_ = WriteAll(filename, points)
 		_ = os.Remove(filename)
 		_ = os.Remove(filename[:len(filename)-4] + ".shx")
 		_ = os.Remove(filename[:len(filename)-4] + ".dbf")
@@ -719,10 +719,10 @@ func BenchmarkReadPoints(b *testing.B) {
 	for i := 0; i < 1000; i++ {
 		points[i] = factory.CreatePoint(float64(i), float64(i))
 	}
-	WriteAll(filename, points)
+	_ = WriteAll(filename, points)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ReadAll(filename)
+		_, _ = ReadAll(filename)
 	}
 }
