@@ -68,21 +68,3 @@ jobs:
           go mod tidy
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git diff --exit-code go.mod go.sum
-
-  benchmark:
-    name: Benchmarks
-    runs-on: ubuntu-latest
-    container: golang:1.25
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run benchmarks
-        run: go test -bench=. -benchmem -run=^$ ./... | tee benchmark.txt
-
-      - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results
-          path: benchmark.txt
