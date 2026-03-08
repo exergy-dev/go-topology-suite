@@ -312,7 +312,7 @@ func BenchmarkTransformPoint(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformGeometry(transform, point)
+		_, _ = TransformGeometry(transform, point)
 	}
 }
 
@@ -328,7 +328,7 @@ func BenchmarkTransformLineString(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformGeometry(transform, ls)
+		_, _ = TransformGeometry(transform, ls)
 	}
 }
 
@@ -348,6 +348,6 @@ func BenchmarkTransformPolygon(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformGeometry(transform, poly)
+		_, _ = TransformGeometry(transform, poly)
 	}
 }

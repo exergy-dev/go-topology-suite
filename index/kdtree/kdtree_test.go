@@ -548,7 +548,7 @@ func TestNearestKWithNegativeK(t *testing.T) {
 	tree.InsertXY(5, 5, "point")
 
 	results := tree.NearestK(0, 0, -1)
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Error("Expected nil or empty results for negative k")
 	}
 }

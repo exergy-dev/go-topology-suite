@@ -184,11 +184,11 @@ func TestEmptyQuery(t *testing.T) {
 
 	// Query empty quadtree
 	results := qt.Query(geom.NewEnvelope(0, 0, 10, 10))
-	assert.True(t, results == nil || len(results) == 0, "Expected nil or empty results from empty quadtree")
+	assert.True(t, len(results) == 0, "Expected nil or empty results from empty quadtree")
 
 	// Query with nil envelope
 	results = qt.Query(nil)
-	assert.True(t, results == nil || len(results) == 0, "Expected nil or empty results for nil envelope query")
+	assert.True(t, len(results) == 0, "Expected nil or empty results for nil envelope query")
 }
 
 func TestNullEnvelopeInsert(t *testing.T) {

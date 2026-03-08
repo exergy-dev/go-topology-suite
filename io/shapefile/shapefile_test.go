@@ -85,7 +85,7 @@ func TestWriteReadLineString(t *testing.T) {
 	// Read linestring back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	assert.Equal(t, ShapeTypePolyLine, reader.ShapeType(), "Expected PolyLine shape type")
 
@@ -133,7 +133,7 @@ func TestWriteReadPolygon(t *testing.T) {
 	// Read polygon back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	assert.Equal(t, ShapeTypePolygon, reader.ShapeType(), "Expected Polygon shape type")
 
@@ -185,7 +185,7 @@ func TestWriteReadPolygonWithHole(t *testing.T) {
 	// Read polygon back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	require.True(t, reader.Next(), "Expected at least one record")
 	g, err := reader.Geometry()
@@ -224,7 +224,7 @@ func TestWriteReadMultiPoint(t *testing.T) {
 	// Read multipoint back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	assert.Equal(t, ShapeTypeMultiPoint, reader.ShapeType(), "Expected MultiPoint shape type")
 
@@ -262,7 +262,7 @@ func TestWriteReadMultiLineString(t *testing.T) {
 	// Read multilinestring back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	require.True(t, reader.Next(), "Expected at least one record")
 	g, err := reader.Geometry()
@@ -301,7 +301,7 @@ func TestWriteReadMultiPolygon(t *testing.T) {
 	// Read multipolygon back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	require.True(t, reader.Next(), "Expected at least one record")
 	g, err := reader.Geometry()
@@ -395,7 +395,7 @@ func TestEmptyGeometries(t *testing.T) {
 	// Read back - we expect at least the non-empty points to be readable
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	var geoms []geom.Geometry
 	for reader.Next() {
@@ -433,7 +433,7 @@ func TestBoundingBox(t *testing.T) {
 	// Read and check bounding box
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	bbox := reader.BoundingBox()
 	assert.InDelta(t, 0.0, bbox.MinX, 0.0001, "MinX mismatch")
@@ -562,7 +562,7 @@ func TestReaderWithFactory(t *testing.T) {
 	customFactory := geom.NewGeometryFactoryWithSRID(4326)
 	reader, err := NewReaderWithFactory(filename, customFactory)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	require.True(t, reader.Next(), "Expected at least one record")
 	g, err := reader.Geometry()
@@ -639,7 +639,7 @@ func TestFields(t *testing.T) {
 	// Read back and verify fields
 	reader, err := NewReader(filename)
 	require.NoError(t, err)
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	fieldNames := reader.Fields()
 	assert.Len(t, fieldNames, 3)
@@ -675,7 +675,7 @@ func TestWriteFeature(t *testing.T) {
 	// Read back and verify
 	reader, err := NewReader(filename)
 	require.NoError(t, err)
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	require.True(t, reader.Next())
 	readFeature, err := reader.Feature()
