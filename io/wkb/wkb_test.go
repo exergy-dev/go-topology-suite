@@ -496,7 +496,7 @@ func BenchmarkMarshalPoint(b *testing.B) {
 	p := geom.NewPoint(1.5, 2.5)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Marshal(p)
+		_, _ = Marshal(p)
 	}
 }
 
@@ -505,7 +505,7 @@ func BenchmarkUnmarshalPoint(b *testing.B) {
 	data, _ := Marshal(p)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Unmarshal(data)
+		_, _ = Unmarshal(data)
 	}
 }
 
@@ -521,7 +521,7 @@ func BenchmarkMarshalPolygon(b *testing.B) {
 	poly := factory.CreatePolygon(shell, nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Marshal(poly)
+		_, _ = Marshal(poly)
 	}
 }
 
@@ -538,6 +538,6 @@ func BenchmarkUnmarshalPolygon(b *testing.B) {
 	data, _ := Marshal(poly)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Unmarshal(data)
+		_, _ = Unmarshal(data)
 	}
 }

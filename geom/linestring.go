@@ -165,10 +165,7 @@ func collinearIntersectionInfo(a1, a2, b1, b2 Coordinate) segmentIntersection {
 	shared = addSharedEndpoint(shared, a2, b1)
 	shared = addSharedEndpoint(shared, a2, b2)
 
-	overlap := false
-	if len(shared) >= 2 {
-		overlap = true
-	}
+	overlap := len(shared) >= 2
 	if (onA1 && !isSharedPoint(shared, a1)) ||
 		(onA2 && !isSharedPoint(shared, a2)) ||
 		(onB1 && !isSharedPoint(shared, b1)) ||

@@ -36,7 +36,7 @@ func TestWriteReadPoint(t *testing.T) {
 	// Read points back
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to create reader")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	assert.Equal(t, ShapeTypePoint, reader.ShapeType(), "Expected Point shape type")
 
@@ -670,7 +670,7 @@ func TestWriteFeature(t *testing.T) {
 	}
 	err = writer.WriteFeature(f)
 	require.NoError(t, err)
-	writer.Close()
+	_ = writer.Close()
 
 	// Read back and verify
 	reader, err := NewReader(filename)

@@ -468,13 +468,13 @@ func TestNullEnvelopeQuery(t *testing.T) {
 
 	// Query with nil envelope
 	results := tree.Query(nil)
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Error("Expected nil or empty results for nil envelope query")
 	}
 
 	// Query with empty envelope
 	results = tree.Query(geom.NewEnvelopeEmpty())
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Error("Expected nil or empty results for empty envelope query")
 	}
 }
@@ -538,7 +538,7 @@ func TestNearestKWithZeroK(t *testing.T) {
 	tree.InsertXY(5, 5, "point")
 
 	results := tree.NearestK(0, 0, 0)
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Error("Expected nil or empty results for k=0")
 	}
 }
