@@ -17,6 +17,11 @@ const DefaultEpsilon = 1e-10
 // Coordinate represents a location in 2D space with optional Z and M values.
 // X and Y are required; Z (elevation) and M (measure) are optional.
 // When Z or M is absent, the value is math.NaN().
+//
+// IMPORTANT: Always use constructors (NewCoordinate, NewCoordinateZ, etc.)
+// to create Coordinate values. A bare struct literal like Coordinate{X: 1, Y: 2}
+// sets Z and M to 0 (not NaN), causing HasZ() and HasM() to return true incorrectly.
+// Coordinate must NOT be used as a Go map key because NaN != NaN; use CoordinateXY instead.
 type Coordinate struct {
 	X, Y float64
 	Z    float64 // NaN if absent

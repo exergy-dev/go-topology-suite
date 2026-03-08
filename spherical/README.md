@@ -228,7 +228,7 @@ This is crucial for implementing the `Touches` predicate correctly.
 
 #### Tolerance
 
-The implementation uses a 1-meter tolerance for coincidence tests. Two points are considered the same if they are within 1 meter of each other on the Earth's surface.
+The implementation uses a 0.1-meter (10 cm) tolerance for coincidence tests. Two points are considered the same if they are within 0.1 meters of each other on the Earth's surface.
 
 #### Interior Intersection Detection
 
@@ -348,7 +348,7 @@ BenchmarkCovering-32        55,890 ops  21,444 ns/op
 
 3. **Caching**: The S2 conversion functions create new S2 objects each time. For repeated operations on the same geometries, consider caching the S2 representations.
 
-4. **Tolerance**: The 1-meter tolerance is reasonable for most applications but can be adjusted if needed for higher precision requirements.
+4. **Tolerance**: The 0.1-meter tolerance is reasonable for most applications. To adjust it, modify the `defaultToleranceMeters` constant in the source.
 
 ## Accuracy
 

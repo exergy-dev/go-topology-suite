@@ -564,7 +564,7 @@ func ringCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
 	}
 
 	signedArea /= 2
-	if signedArea == 0 {
+	if math.Abs(signedArea) < DefaultEpsilon {
 		return coords[0].X, coords[0].Y, 0
 	}
 

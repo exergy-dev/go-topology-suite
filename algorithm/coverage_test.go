@@ -347,3 +347,56 @@ func TestIsRight_Perpendicular(t *testing.T) {
 	p2 := geom.NewCoordinate(0, 1)
 	assert.True(t, algorithm.IsRight(p0, p1, p2))
 }
+
+// ---------------------------------------------------------------------------
+// Part 5: ProjectPointOntoLine edge cases
+// ---------------------------------------------------------------------------
+
+func TestProjectPointOntoLine_NearDegenerateLine(t *testing.T) {
+	// A segment with length ~1e-8 (well above the squared-epsilon threshold
+	// of 1e-20, but below the old buggy threshold of 1e-10).
+	// This must project correctly, not collapse to the start point.
+	p := geom.NewCoordinate(0, 1)
+	lineStart := geom.NewCoordinate(0, 0)
+	lineEnd := geom.NewCoordinate(1e-8, 0)
+
+	result := algorithm.ProjectPointOntoLine(p, lineStart, lineEnd)
+	// Projection of (0,1) onto the X-axis line should land at (0,0)
+	assert.InDelta(t, 0, result.X, 1e-6)
+	assert.InDelta(t, 0, result.Y, 1e-6)
+}
+
+func TestProjectPointOntoLine_TrulyDegenerateLine(t *testing.T) {
+	// A zero-length segment should return the start point.
+	p := geom.NewCoordinate(5, 5)
+	lineStart := geom.NewCoordinate(1, 1)
+	lineEnd := geom.NewCoordinate(1, 1)
+
+	result := algorithm.ProjectPointOntoLine(p, lineStart, lineEnd)
+	assert.InDelta(t, 1, result.X, geom.DefaultEpsilon)
+	assert.InDelta(t, 1, result.Y, geom.DefaultEpsilon)
+}
+
+// ---------------------------------------------------------------------------
+// Part 6: ConvexHull input immutability
+// ---------------------------------------------------------------------------
+
+func TestConvexHull_DoesNotMutateInput(t *testing.T) {
+	coords := geom.CoordinateSequence{
+		geom.NewCoordinate(3, 1),
+		geom.NewCoordinate(1, 3),
+		geom.NewCoordinate(2, 2),
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(4, 4),
+	}
+	// Save original order
+	original := coords.Clone()
+
+	ls := geom.NewLineString(coords)
+	_ = algorithm.ConvexHull(ls)
+
+	for i, c := range coords {
+		assert.InDelta(t, original[i].X, c.X, geom.DefaultEpsilon, "input coord %d X was mutated", i)
+		assert.InDelta(t, original[i].Y, c.Y, geom.DefaultEpsilon, "input coord %d Y was mutated", i)
+	}
+}

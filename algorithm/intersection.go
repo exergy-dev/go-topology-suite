@@ -195,7 +195,7 @@ func ProjectPointOntoLine(p, lineStart, lineEnd geom.Coordinate) geom.Coordinate
 	dy := lineEnd.Y - lineStart.Y
 	lenSq := dx*dx + dy*dy
 
-	if lenSq < geom.DefaultEpsilon {
+	if lenSq < geom.DefaultEpsilon*geom.DefaultEpsilon {
 		return lineStart
 	}
 
