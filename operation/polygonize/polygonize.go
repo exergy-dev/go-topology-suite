@@ -473,7 +473,7 @@ func (g *EdgeGraph) findRings() []geom.CoordinateSequence {
 		}
 
 		ring := g.buildRing(startEdge)
-		if ring != nil && len(ring) >= 4 {
+		if len(ring) >= 4 {
 			rings = append(rings, ring)
 		}
 	}

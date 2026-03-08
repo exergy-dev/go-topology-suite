@@ -216,6 +216,6 @@ func BenchmarkTransformCoordinates(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformCoordinates(transform, coords)
+		_, _ = TransformCoordinates(transform, coords)
 	}
 }
