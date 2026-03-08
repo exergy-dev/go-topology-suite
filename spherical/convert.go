@@ -102,16 +102,12 @@ func ToS2Polygon(poly *geom.Polygon) *s2.Polygon {
 		return nil
 	}
 
-	// Convert holes
-	loops := make([]*s2.Loop, 1+poly.NumInteriorRings())
-	loops[0] = shell
-
+	loops := []*s2.Loop{shell}
 	for i := 0; i < poly.NumInteriorRings(); i++ {
 		hole := ToS2Loop(poly.InteriorRingN(i))
-		if hole == nil {
-			continue
+		if hole != nil {
+			loops = append(loops, hole)
 		}
-		loops[i+1] = hole
 	}
 
 	return s2.PolygonFromLoops(loops)

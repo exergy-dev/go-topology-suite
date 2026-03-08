@@ -23,19 +23,19 @@ func TestDouglasPeucker(t *testing.T) {
 		},
 		{
 			name:      "LineString",
-			geom:      geom.NewLineStringXY(0, 0, 1, 0.1, 2, -0.1, 3, 0.1, 4, -0.1, 5, 0),
+			geom:      mustLineStringXY(0, 0, 1, 0.1, 2, -0.1, 3, 0.1, 4, -0.1, 5, 0),
 			tolerance: 0.5,
 			maxPoints: 6, // Should simplify to fewer points
 		},
 		{
 			name:      "LinearRing",
-			geom:      geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+			geom:      mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 			tolerance: 1.0,
 			maxPoints: 5,
 		},
 		{
 			name:      "Polygon",
-			geom:      geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+			geom:      geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
 			tolerance: 1.0,
 			maxPoints: 10,
 		},
@@ -61,7 +61,7 @@ func TestDouglasPeucker(t *testing.T) {
 
 func TestDouglasPeuckerLineString(t *testing.T) {
 	// Create a zigzag line
-	ls := geom.NewLineStringXY(0, 0, 1, 0.1, 2, -0.1, 3, 0.1, 4, -0.1, 5, 0)
+	ls := mustLineStringXY(0, 0, 1, 0.1, 2, -0.1, 3, 0.1, 4, -0.1, 5, 0)
 
 	tests := []struct {
 		name      string
@@ -100,7 +100,7 @@ func TestDouglasPeuckerLineString(t *testing.T) {
 
 	// Test very short line
 	t.Run("ShortLine", func(t *testing.T) {
-		shortLine := geom.NewLineStringXY(0, 0, 1, 0)
+		shortLine := mustLineStringXY(0, 0, 1, 0)
 		result := algorithm.DouglasPeucker(shortLine, 1.0)
 		coords := result.Coordinates()
 		assert.Equal(t, 2, len(coords), "Expected 2 points for short line")
@@ -109,7 +109,7 @@ func TestDouglasPeuckerLineString(t *testing.T) {
 
 func TestDouglasPeuckerPolygon(t *testing.T) {
 	// Create polygon with extra vertices
-	shell := geom.NewLinearRingXY(0, 0, 5, 0.1, 10, 0, 10, 5, 10.1, 10, 10, 10, 5, 10, 0, 10, 0, 5, 0, 0)
+	shell := mustLinearRingXY(0, 0, 5, 0.1, 10, 0, 10, 5, 10.1, 10, 10, 10, 5, 10, 0, 10, 0, 5, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	result := algorithm.DouglasPeucker(poly, 0.5)
@@ -121,8 +121,8 @@ func TestDouglasPeuckerPolygon(t *testing.T) {
 
 	// Test polygon with hole
 	t.Run("PolygonWithHole", func(t *testing.T) {
-		shellWithHole := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-		hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+		shellWithHole := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+		hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 		polyWithHole := geom.NewPolygon(shellWithHole, []*geom.LinearRing{hole})
 
 		resultWithHole := algorithm.DouglasPeucker(polyWithHole, 1.0)
@@ -136,8 +136,8 @@ func TestDouglasPeuckerMultiGeometries(t *testing.T) {
 	// Test MultiLineString
 	t.Run("MultiLineString", func(t *testing.T) {
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 5, 0, 10, 0),
-			geom.NewLineStringXY(0, 10, 5, 10, 10, 10),
+			mustLineStringXY(0, 0, 5, 0, 10, 0),
+			mustLineStringXY(0, 10, 5, 10, 10, 10),
 		})
 		result := algorithm.DouglasPeucker(mls, 1.0)
 		assert.Equal(t, "MultiLineString", result.GeometryType())
@@ -146,8 +146,8 @@ func TestDouglasPeuckerMultiGeometries(t *testing.T) {
 	// Test MultiPolygon
 	t.Run("MultiPolygon", func(t *testing.T) {
 		mp := geom.NewMultiPolygon([]*geom.Polygon{
-			geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
-			geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
+			geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+			geom.NewPolygon(mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
 		})
 		result := algorithm.DouglasPeucker(mp, 1.0)
 		assert.Equal(t, "MultiPolygon", result.GeometryType())
@@ -157,7 +157,7 @@ func TestDouglasPeuckerMultiGeometries(t *testing.T) {
 	t.Run("GeometryCollection", func(t *testing.T) {
 		gc := geom.NewGeometryCollection([]geom.Geometry{
 			geom.NewPoint(5, 5),
-			geom.NewLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(0, 0, 10, 0),
 		})
 		result := algorithm.DouglasPeucker(gc, 1.0)
 		assert.Equal(t, "GeometryCollection", result.GeometryType())
@@ -172,12 +172,12 @@ func TestVisvalingamWhyatt(t *testing.T) {
 	}{
 		{
 			name:      "LineString",
-			geom:      geom.NewLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0),
+			geom:      mustLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0),
 			threshold: 0.5,
 		},
 		{
 			name:      "Polygon",
-			geom:      geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 5, 12, 0, 10, 0, 0), nil),
+			geom:      geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 5, 12, 0, 10, 0, 0), nil),
 			threshold: 1.0,
 		},
 		{
@@ -198,7 +198,7 @@ func TestVisvalingamWhyatt(t *testing.T) {
 
 	// Test with very small threshold
 	t.Run("SmallThreshold", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0)
+		ls := mustLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0)
 		result := algorithm.VisvalingamWhyatt(ls, 0.01)
 		coords := result.Coordinates()
 		assert.GreaterOrEqual(t, len(coords), 3, "Expected at least 3 points")
@@ -206,8 +206,8 @@ func TestVisvalingamWhyatt(t *testing.T) {
 
 	// Test polygon with hole
 	t.Run("PolygonWithHole", func(t *testing.T) {
-		shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-		hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+		shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+		hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 		poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 		result := algorithm.VisvalingamWhyatt(poly, 10.0)
@@ -226,13 +226,13 @@ func TestRadialDistance(t *testing.T) {
 	}{
 		{
 			name:      "LineString",
-			geom:      geom.NewLineStringXY(0, 0, 0.1, 0, 0.2, 0, 5, 0, 5.1, 0, 10, 0),
+			geom:      mustLineStringXY(0, 0, 0.1, 0, 0.2, 0, 5, 0, 5.1, 0, 10, 0),
 			threshold: 1.0,
 			maxPoints: 4,
 		},
 		{
 			name:      "ShortLine",
-			geom:      geom.NewLineStringXY(0, 0, 1, 0),
+			geom:      mustLineStringXY(0, 0, 1, 0),
 			threshold: 1.0,
 			maxPoints: 2,
 		},
@@ -254,7 +254,7 @@ func TestRadialDistance(t *testing.T) {
 
 	// Test that endpoints are always kept
 	t.Run("EndpointsKept", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 0.1, 0, 0.2, 0, 10, 0)
+		ls := mustLineStringXY(0, 0, 0.1, 0, 0.2, 0, 10, 0)
 		result := algorithm.RadialDistance(ls, 1.0)
 		coords := result.Coordinates()
 
@@ -286,14 +286,14 @@ func TestSimplifyEdgeCases(t *testing.T) {
 
 	// Test degenerate cases
 	t.Run("TwoPointLineString", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 10, 0)
+		ls := mustLineStringXY(0, 0, 10, 0)
 		result := algorithm.DouglasPeucker(ls, 1.0)
 		coords := result.Coordinates()
 		assert.Equal(t, 2, len(coords), "Expected 2 points")
 	})
 
 	t.Run("TriangleRing", func(t *testing.T) {
-		ring := geom.NewLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0)
+		ring := mustLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0)
 		result := algorithm.DouglasPeucker(ring, 1.0)
 		coords := result.Coordinates()
 		assert.GreaterOrEqual(t, len(coords), 4, "Expected at least 4 points (triangle + closure)")
@@ -301,7 +301,7 @@ func TestSimplifyEdgeCases(t *testing.T) {
 
 	// Test with very high tolerance
 	t.Run("HighTolerance", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 1, 0.1, 2, -0.1, 3, 0.1, 4, 0)
+		ls := mustLineStringXY(0, 0, 1, 0.1, 2, -0.1, 3, 0.1, 4, 0)
 		result := algorithm.DouglasPeucker(ls, 10.0)
 		coords := result.Coordinates()
 		// Should simplify to just endpoints
@@ -310,7 +310,7 @@ func TestSimplifyEdgeCases(t *testing.T) {
 
 	// Test linear ring that simplifies too much
 	t.Run("LinearRingMinimumPoints", func(t *testing.T) {
-		ring := geom.NewLinearRingXY(0, 0, 1, 0, 2, 0, 3, 0, 0, 0)
+		ring := mustLinearRingXY(0, 0, 1, 0, 2, 0, 3, 0, 0, 0)
 		result := algorithm.DouglasPeucker(ring, 10.0)
 		coords := result.Coordinates()
 		// Should maintain at least 4 points for a valid ring
@@ -326,22 +326,22 @@ func TestSimplifyPreservesGeometryType(t *testing.T) {
 	}{
 		{
 			name:         "LineString",
-			geom:         geom.NewLineStringXY(0, 0, 5, 0, 10, 0),
+			geom:         mustLineStringXY(0, 0, 5, 0, 10, 0),
 			expectedType: "LineString",
 		},
 		{
 			name:         "Polygon",
-			geom:         geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+			geom:         geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
 			expectedType: "Polygon",
 		},
 		{
 			name:         "MultiLineString",
-			geom:         geom.NewMultiLineString([]*geom.LineString{geom.NewLineStringXY(0, 0, 10, 0)}),
+			geom:         geom.NewMultiLineString([]*geom.LineString{mustLineStringXY(0, 0, 10, 0)}),
 			expectedType: "MultiLineString",
 		},
 		{
 			name:         "MultiPolygon",
-			geom:         geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
+			geom:         geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
 			expectedType: "MultiPolygon",
 		},
 	}

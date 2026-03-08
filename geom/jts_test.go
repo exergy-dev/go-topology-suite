@@ -281,7 +281,7 @@ func TestJTS_GeometryValid_SelfIntersecting(t *testing.T) {
 func TestJTS_GeometryValid_UnclosedRing(t *testing.T) {
 	// This test depends on whether the parser auto-closes rings
 	// Most implementations auto-close, so we test the manual construction
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+	coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 	ring := geom.NewLinearRing(coords)
 
 	// After auto-close, should be valid
@@ -293,7 +293,7 @@ func TestJTS_GeometryValid_UnclosedRing(t *testing.T) {
 // TestJTS_GeometryValid_TooFewPoints tests validity of polygon with too few points.
 func TestJTS_GeometryValid_TooFewPoints(t *testing.T) {
 	// A valid polygon needs at least 4 points (including closure)
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 0, 0)
+	coords := mustCoordsXY(0, 0, 10, 0, 0, 0)
 	ring := geom.NewLinearRing(coords)
 	poly := geom.NewPolygon(ring, nil)
 
@@ -449,7 +449,7 @@ func TestJTS_PrecisionModel_Floating(t *testing.T) {
 // TestJTS_GeometryFactory_WithPrecision tests geometry factory with precision model.
 func TestJTS_GeometryFactory_WithPrecision(t *testing.T) {
 	pm := geom.NewFixedPrecision(10) // 1 decimal place
-	factory := geom.NewGeometryFactoryWithPrecision(pm)
+	factory := geom.NewGeometryFactory(pm, 0)
 
 	point := factory.CreatePoint(1.23456, 2.34567)
 
@@ -502,7 +502,7 @@ func TestJTS_EmptyGeometry_Polygon(t *testing.T) {
 
 // TestJTS_CoordinateSequence_Access tests coordinate sequence access.
 func TestJTS_CoordinateSequence_Access(t *testing.T) {
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
+	coords := mustCoordsXY(0, 0, 10, 10, 20, 0)
 
 	if len(coords) != 3 {
 		t.Errorf("Expected 3 coordinates, got %d", len(coords))
@@ -525,8 +525,8 @@ func TestJTS_CoordinateSequence_Access(t *testing.T) {
 func TestJTS_Coordinate3D(t *testing.T) {
 	coord := geom.NewCoordinateZ(10, 20, 30)
 
-	if coord.X != 10 || coord.Y != 20 || coord.Z == nil || *coord.Z != 30 {
-		t.Errorf("3D coordinate incorrect: (%.2f, %.2f, %.2f)", coord.X, coord.Y, *coord.Z)
+	if coord.X != 10 || coord.Y != 20 || !coord.HasZ() || coord.Z != 30 {
+		t.Errorf("3D coordinate incorrect: (%.2f, %.2f, %.2f)", coord.X, coord.Y, coord.Z)
 	}
 }
 

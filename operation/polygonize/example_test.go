@@ -11,10 +11,10 @@ import (
 func ExamplePolygonize() {
 	// Create edges forming a rectangle
 	edges := []*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),   // Bottom edge
-		geom.NewLineStringXY(10, 0, 10, 10), // Right edge
-		geom.NewLineStringXY(10, 10, 0, 10), // Top edge
-		geom.NewLineStringXY(0, 10, 0, 0),   // Left edge
+		mustLineStringXY(0, 0, 10, 0),   // Bottom edge
+		mustLineStringXY(10, 0, 10, 10), // Right edge
+		mustLineStringXY(10, 10, 0, 10), // Top edge
+		mustLineStringXY(0, 10, 0, 0),   // Left edge
 	}
 
 	// Polygonize the edges
@@ -37,10 +37,10 @@ func ExamplePolygonizer() {
 	p := polygonize.NewPolygonizer()
 
 	// Add edges one by one
-	p.Add(geom.NewLineStringXY(0, 0, 5, 0))
-	p.Add(geom.NewLineStringXY(5, 0, 5, 5))
-	p.Add(geom.NewLineStringXY(5, 5, 0, 5))
-	p.Add(geom.NewLineStringXY(0, 5, 0, 0))
+	p.Add(mustLineStringXY(0, 0, 5, 0))
+	p.Add(mustLineStringXY(5, 0, 5, 5))
+	p.Add(mustLineStringXY(5, 5, 0, 5))
+	p.Add(mustLineStringXY(0, 5, 0, 0))
 
 	// Get the resulting polygons
 	polygons := p.GetPolygons()
@@ -59,9 +59,9 @@ func ExamplePolygonizer() {
 func ExamplePolygonize_triangle() {
 	// Create edges forming a triangle
 	edges := []*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 5, 8),
-		geom.NewLineStringXY(5, 8, 0, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 5, 8),
+		mustLineStringXY(5, 8, 0, 0),
 	}
 
 	polygons := polygonize.Polygonize(edges)

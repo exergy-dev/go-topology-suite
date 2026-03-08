@@ -93,11 +93,6 @@ func (st ShapeType) IsZ() bool {
 	return st >= 11 && st <= 18
 }
 
-// IsM returns true if this shape type has M coordinates.
-func (st ShapeType) IsM() bool {
-	return st >= 21 && st <= 28
-}
-
 // GeometryToShapeType determines the appropriate shapefile shape type for a geometry.
 // Returns ShapeTypeNull for nil or unsupported geometry types.
 func GeometryToShapeType(g geom.Geometry) ShapeType {
@@ -151,7 +146,7 @@ func InferShapeType(geometries []geom.Geometry) ShapeType {
 	}
 
 	// Find first non-nil, non-empty geometry
-	var firstType ShapeType = ShapeTypeNull
+	firstType := ShapeTypeNull
 	for _, g := range geometries {
 		if g != nil && !g.IsEmpty() {
 			firstType = GeometryToShapeType(g)

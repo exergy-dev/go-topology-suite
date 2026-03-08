@@ -22,8 +22,10 @@
 //
 // Example usage:
 //
-//	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-//	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+//	seq1, _ := geom.NewCoordinateSequenceXY(0, 0, 1, 1)
+//	line1 := geom.NewLineString(seq1)
+//	seq2, _ := geom.NewCoordinateSequenceXY(1, 1, 2, 2)
+//	line2 := geom.NewLineString(seq2)
 //
 //	merger := NewLineMerger()
 //	merger.Add(line1)
@@ -355,11 +357,6 @@ type node struct {
 // addEdge adds an edge to this node.
 func (n *node) addEdge(e *edge) {
 	n.edges = append(n.edges, e)
-}
-
-// degree returns the number of edges connected to this node.
-func (n *node) degree() int {
-	return len(n.edges)
 }
 
 // edge represents a LineString in the graph.

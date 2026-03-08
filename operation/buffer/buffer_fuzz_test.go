@@ -23,10 +23,8 @@ func FuzzBufferPoint(f *testing.F) {
 			t.Error("Buffer returned nil")
 		}
 
-		// If distance > 0, result should not be empty
-		if distance > geom.DefaultEpsilon && result.IsEmpty() {
-			// This is OK for very small or NaN distances
-		}
+		// If distance > 0, result should not be empty (but small/NaN distances may be)
+		_ = distance > geom.DefaultEpsilon && result.IsEmpty()
 	})
 }
 
@@ -38,7 +36,7 @@ func FuzzBufferLineString(f *testing.F) {
 	f.Add(0.0, 0.0, 0.0, 10.0, 0.5)
 
 	f.Fuzz(func(t *testing.T, x1, y1, x2, y2, distance float64) {
-		ls := geom.NewLineStringXY(x1, y1, x2, y2)
+		ls := mustLineStringXY(x1, y1, x2, y2)
 		result := Buffer(ls, distance)
 
 		if result == nil {
@@ -64,7 +62,7 @@ func FuzzBufferPolygon(f *testing.F) {
 		}
 
 		half := size / 2
-		shell := geom.NewLinearRingXY(
+		shell := mustLinearRingXY(
 			cx-half, cy-half,
 			cx+half, cy-half,
 			cx+half, cy+half,

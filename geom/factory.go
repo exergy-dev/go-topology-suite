@@ -22,11 +22,6 @@ func NewGeometryFactoryDefault() *GeometryFactory {
 	return NewGeometryFactory(Floating, 0)
 }
 
-// NewGeometryFactoryWithPrecision creates a factory with specified precision.
-func NewGeometryFactoryWithPrecision(pm PrecisionModel) *GeometryFactory {
-	return NewGeometryFactory(pm, 0)
-}
-
 // NewGeometryFactoryWithSRID creates a factory with specified SRID.
 func NewGeometryFactoryWithSRID(srid int) *GeometryFactory {
 	return NewGeometryFactory(Floating, srid)
@@ -76,11 +71,6 @@ func (gf *GeometryFactory) CreateLineString(coords CoordinateSequence) *LineStri
 	return ls
 }
 
-// CreateLineStringXY creates a LineString from x,y pairs.
-func (gf *GeometryFactory) CreateLineStringXY(values ...float64) *LineString {
-	return gf.CreateLineString(NewCoordinateSequenceXY(values...))
-}
-
 // CreateLineStringEmpty creates an empty LineString.
 func (gf *GeometryFactory) CreateLineStringEmpty() *LineString {
 	ls := NewLineStringEmpty()
@@ -95,11 +85,6 @@ func (gf *GeometryFactory) CreateLinearRing(coords CoordinateSequence) *LinearRi
 	lr := NewLinearRing(c)
 	lr.srid = gf.srid
 	return lr
-}
-
-// CreateLinearRingXY creates a LinearRing from x,y pairs.
-func (gf *GeometryFactory) CreateLinearRingXY(values ...float64) *LinearRing {
-	return gf.CreateLinearRing(NewCoordinateSequenceXY(values...))
 }
 
 // CreateLinearRingEmpty creates an empty LinearRing.
@@ -227,73 +212,6 @@ func (gf *GeometryFactory) CreateGeometryCollectionEmpty() *GeometryCollection {
 	gc := NewGeometryCollectionEmpty()
 	gc.srid = gf.srid
 	return gc
-}
-
-// ToGeometry converts a slice of coordinates to an appropriate geometry.
-// 0 coords -> empty point
-// 1 coord -> point
-// 2 coords -> linestring
-// 3+ coords (unclosed) -> linestring
-// 4+ coords (closed) -> polygon
-func (gf *GeometryFactory) ToGeometry(coords CoordinateSequence) Geometry {
-	switch len(coords) {
-	case 0:
-		return gf.CreatePointEmpty()
-	case 1:
-		return gf.CreatePointFromCoordinate(coords[0])
-	default:
-		if len(coords) >= 4 && coords.IsClosed(DefaultEpsilon) {
-			return gf.CreatePolygonFromCoords(coords)
-		}
-		return gf.CreateLineString(coords)
-	}
-}
-
-// BuildGeometry constructs a geometry from a collection of geometries.
-// If all are same type, returns multi version. Otherwise GeometryCollection.
-func (gf *GeometryFactory) BuildGeometry(geometries []Geometry) Geometry {
-	if len(geometries) == 0 {
-		return gf.CreateGeometryCollectionEmpty()
-	}
-
-	if len(geometries) == 1 {
-		return geometries[0].Clone()
-	}
-
-	// Check if all same type
-	firstType := geometries[0].GeometryType()
-	allSame := true
-	for _, g := range geometries[1:] {
-		if g.GeometryType() != firstType {
-			allSame = false
-			break
-		}
-	}
-
-	if allSame {
-		switch firstType {
-		case "Point":
-			points := make([]*Point, len(geometries))
-			for i, g := range geometries {
-				points[i] = g.(*Point)
-			}
-			return gf.CreateMultiPoint(points)
-		case "LineString":
-			lines := make([]*LineString, len(geometries))
-			for i, g := range geometries {
-				lines[i] = g.(*LineString)
-			}
-			return gf.CreateMultiLineString(lines)
-		case "Polygon":
-			polys := make([]*Polygon, len(geometries))
-			for i, g := range geometries {
-				polys[i] = g.(*Polygon)
-			}
-			return gf.CreateMultiPolygon(polys)
-		}
-	}
-
-	return gf.CreateGeometryCollection(geometries)
 }
 
 // Default factory with floating precision and no SRID.

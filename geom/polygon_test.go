@@ -174,8 +174,8 @@ func TestPolygon_IsValid_SimpleValidPolygon(t *testing.T) {
 	assert.True(t, poly.IsValid(), "Simple valid polygon should be valid")
 }
 
-func TestPolygon_IsValid_WrongShellOrientation(t *testing.T) {
-	// Clockwise shell (wrong orientation - should be CCW)
+func TestPolygon_IsValid_CWShellIsValid(t *testing.T) {
+	// Clockwise shell - orientation should not affect validity
 	shell := geom.NewLinearRing(geom.CoordinateSequence{
 		geom.NewCoordinate(0, 0),
 		geom.NewCoordinate(0, 10),
@@ -184,11 +184,11 @@ func TestPolygon_IsValid_WrongShellOrientation(t *testing.T) {
 		geom.NewCoordinate(0, 0),
 	})
 	poly := geom.NewPolygon(shell, nil)
-	assert.False(t, poly.IsValid(), "Polygon with clockwise shell should be invalid")
+	assert.True(t, poly.IsValid(), "Polygon with clockwise shell should be valid (orientation-agnostic)")
 }
 
-func TestPolygon_IsValid_WrongHoleOrientation(t *testing.T) {
-	// Counter-clockwise shell (correct)
+func TestPolygon_IsValid_CCWHoleIsValid(t *testing.T) {
+	// Counter-clockwise shell
 	shell := geom.NewLinearRing(geom.CoordinateSequence{
 		geom.NewCoordinate(0, 0),
 		geom.NewCoordinate(20, 0),
@@ -196,7 +196,7 @@ func TestPolygon_IsValid_WrongHoleOrientation(t *testing.T) {
 		geom.NewCoordinate(0, 20),
 		geom.NewCoordinate(0, 0),
 	})
-	// Counter-clockwise hole (wrong - should be CW)
+	// Counter-clockwise hole - orientation should not affect validity
 	hole := geom.NewLinearRing(geom.CoordinateSequence{
 		geom.NewCoordinate(5, 5),
 		geom.NewCoordinate(15, 5),
@@ -205,7 +205,36 @@ func TestPolygon_IsValid_WrongHoleOrientation(t *testing.T) {
 		geom.NewCoordinate(5, 5),
 	})
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
-	assert.False(t, poly.IsValid(), "Polygon with counter-clockwise hole should be invalid")
+	assert.True(t, poly.IsValid(), "Polygon with counter-clockwise hole should be valid (orientation-agnostic)")
+}
+
+func TestPolygon_Normalize_EnforcesOrientation(t *testing.T) {
+	// Clockwise shell
+	shell := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(0, 10),
+		geom.NewCoordinate(10, 10),
+		geom.NewCoordinate(10, 0),
+		geom.NewCoordinate(0, 0),
+	})
+	assert.True(t, shell.IsCW(), "Shell should start as CW")
+
+	// CCW hole
+	hole := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(2, 2),
+		geom.NewCoordinate(8, 2),
+		geom.NewCoordinate(8, 8),
+		geom.NewCoordinate(2, 8),
+		geom.NewCoordinate(2, 2),
+	})
+	assert.True(t, hole.IsCCW(), "Hole should start as CCW")
+
+	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+	normalized := poly.Normalized().(*geom.Polygon)
+
+	// After Normalized, shell should be CCW and hole should be CW
+	assert.True(t, normalized.ExteriorRing().IsCCW(), "After Normalized, shell should be CCW")
+	assert.True(t, normalized.InteriorRingN(0).IsCW(), "After Normalized, hole should be CW")
 }
 
 func TestLinearRing_IsValid_Empty(t *testing.T) {

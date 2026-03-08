@@ -13,16 +13,16 @@ func TestCoordinate(t *testing.T) {
 		c := geom.NewCoordinate(1.5, 2.5)
 		assert.Equal(t, 1.5, c.X)
 		assert.Equal(t, 2.5, c.Y)
-		assert.Nil(t, c.Z)
-		assert.Nil(t, c.M)
+		assert.False(t, c.HasZ())
+		assert.False(t, c.HasM())
 	})
 
 	t.Run("NewCoordinateZ", func(t *testing.T) {
 		c := geom.NewCoordinateZ(1.0, 2.0, 3.0)
 		assert.Equal(t, 1.0, c.X)
 		assert.Equal(t, 2.0, c.Y)
-		require.NotNil(t, c.Z)
-		assert.Equal(t, 3.0, *c.Z)
+		assert.True(t, c.HasZ())
+		assert.Equal(t, 3.0, c.Z)
 	})
 
 	t.Run("Distance", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestPoint(t *testing.T) {
 }
 
 func TestLineString(t *testing.T) {
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
+	coords := mustCoordsXY(0, 0, 10, 10, 20, 0)
 
 	t.Run("Creation", func(t *testing.T) {
 		ls := geom.NewLineString(coords)
@@ -119,13 +119,13 @@ func TestLineString(t *testing.T) {
 	})
 
 	t.Run("Length", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 3, 4)
+		ls := mustLineStringXY(0, 0, 3, 4)
 		assert.Equal(t, 5.0, ls.Length())
 	})
 
 	t.Run("IsClosed", func(t *testing.T) {
-		open := geom.NewLineStringXY(0, 0, 10, 0, 10, 10)
-		closed := geom.NewLineStringXY(0, 0, 10, 0, 10, 10, 0, 0)
+		open := mustLineStringXY(0, 0, 10, 0, 10, 10)
+		closed := mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 0)
 
 		assert.False(t, open.IsClosed(), "Expected open linestring to not be closed")
 		assert.True(t, closed.IsClosed(), "Expected closed linestring to be closed")
@@ -142,7 +142,7 @@ func TestLineString(t *testing.T) {
 }
 
 func TestPolygon(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	t.Run("Creation", func(t *testing.T) {
 		p := geom.NewPolygon(shell, nil)
@@ -160,7 +160,7 @@ func TestPolygon(t *testing.T) {
 	})
 
 	t.Run("WithHole", func(t *testing.T) {
-		hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+		hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 		p := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 		expected := 100.0 - 36.0 // 10x10 - 6x6
 		assert.InDelta(t, expected, p.Area(), 0.001)
@@ -182,7 +182,7 @@ func TestPolygon(t *testing.T) {
 
 	t.Run("Centroid_WithSymmetricHole", func(t *testing.T) {
 		// A symmetric hole centered at (5,5) should not change the centroid
-		hole := geom.NewLinearRingXY(3, 3, 7, 3, 7, 7, 3, 7, 3, 3)
+		hole := mustLinearRingXY(3, 3, 7, 3, 7, 7, 3, 7, 3, 3)
 		p := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 		centroid := p.Centroid()
 		require.False(t, centroid.IsEmpty())
@@ -193,8 +193,8 @@ func TestPolygon(t *testing.T) {
 	t.Run("Centroid_WithAsymmetricHole", func(t *testing.T) {
 		// Shell: 20x10 rectangle from (0,0) to (20,10), centroid at (10, 5)
 		// Hole: 4x4 square from (2,3) to (6,7), centroid at (4, 5)
-		asymShell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 10, 0, 10, 0, 0)
-		hole := geom.NewLinearRingXY(2, 3, 6, 3, 6, 7, 2, 7, 2, 3)
+		asymShell := mustLinearRingXY(0, 0, 20, 0, 20, 10, 0, 10, 0, 0)
+		hole := mustLinearRingXY(2, 3, 6, 3, 6, 7, 2, 7, 2, 3)
 		p := geom.NewPolygon(asymShell, []*geom.LinearRing{hole})
 
 		// Shell area: 20*10 = 200, shell centroid: (10, 5)
@@ -230,7 +230,7 @@ func TestMultiPoint(t *testing.T) {
 func TestGeometryCollection(t *testing.T) {
 	geoms := []geom.Geometry{
 		geom.NewPoint(0, 0),
-		geom.NewLineStringXY(0, 0, 10, 10),
+		mustLineStringXY(0, 0, 10, 10),
 	}
 
 	t.Run("Creation", func(t *testing.T) {
@@ -254,7 +254,7 @@ func TestGeometryFactory(t *testing.T) {
 	})
 
 	t.Run("CreateLineString", func(t *testing.T) {
-		ls := factory.CreateLineStringXY(0, 0, 10, 10)
+		ls := mustCreateLineStringXY(factory, 0, 0, 10, 10)
 		assert.Equal(t, 2, ls.NumPoints())
 	})
 
@@ -290,7 +290,7 @@ func TestPrecisionModel(t *testing.T) {
 func TestLinearRing(t *testing.T) {
 	t.Run("AutoClose", func(t *testing.T) {
 		// Ring without explicit closure
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 		lr := geom.NewLinearRing(coords)
 		// Should be auto-closed
 		assert.True(t, lr.IsClosed(), "Expected ring to be closed")
@@ -298,18 +298,18 @@ func TestLinearRing(t *testing.T) {
 
 	t.Run("IsCCW", func(t *testing.T) {
 		// Counter-clockwise ring
-		ccwCoords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		ccwCoords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		ccwRing := geom.NewLinearRing(ccwCoords)
 		assert.True(t, ccwRing.IsCCW(), "Expected ring to be counter-clockwise")
 
 		// Clockwise ring
-		cwCoords := geom.NewCoordinateSequenceXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
+		cwCoords := mustCoordsXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
 		cwRing := geom.NewLinearRing(cwCoords)
 		assert.True(t, cwRing.IsCW(), "Expected ring to be clockwise")
 	})
 
 	t.Run("Area", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		lr := geom.NewLinearRing(coords)
 		area := lr.Area()
 		assert.Equal(t, 100.0, area)

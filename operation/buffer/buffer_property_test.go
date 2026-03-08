@@ -33,7 +33,7 @@ func generatePolygon(cx, cy, size float64) *geom.Polygon {
 	}
 	// Create a square centered at (cx, cy)
 	half := size / 2
-	shell := geom.NewLinearRingXY(
+	shell := mustLinearRingXY(
 		cx-half, cy-half,
 		cx+half, cy-half,
 		cx+half, cy+half,
@@ -208,7 +208,7 @@ func TestBufferLineAreaApproximation(t *testing.T) {
 			return true // Skip very long lines
 		}
 
-		ls := geom.NewLineStringXY(x1, y1, x2, y2)
+		ls := mustLineStringXY(x1, y1, x2, y2)
 		result := Buffer(ls, r)
 
 		// Expected area: rectangle (2*r*length) + two semicircles (pi*r^2)

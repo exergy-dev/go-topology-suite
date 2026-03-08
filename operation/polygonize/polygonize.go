@@ -161,7 +161,7 @@ func (p *Polygonizer) markDanglingEdges() {
 		changed = false
 		for _, edgeList := range p.graph.edges {
 			for _, edge := range edgeList {
-				if edge.Used {
+				if edge.Multiplicity <= 0 {
 					continue
 				}
 
@@ -180,9 +180,11 @@ func (p *Polygonizer) markDanglingEdges() {
 						}
 					}
 
-					// Mark edge and its symmetric as used (dangling)
+					// Mark edge and its symmetric as exhausted (dangling)
+					edge.Multiplicity = 0
 					edge.Used = true
 					if edge.Sym != nil {
+						edge.Sym.Multiplicity = 0
 						edge.Sym.Used = true
 					}
 
@@ -406,70 +408,59 @@ func computeInteriorPoint(ring geom.CoordinateSequence) geom.Coordinate {
 
 // EdgeGraph represents a planar graph of edges for polygonization.
 type EdgeGraph struct {
-	// Map from coordinate to list of edges starting at that coordinate
-	edges map[geom.Coordinate][]*DirectedEdge
+	// Map from coordinate key to list of edges starting at that coordinate
+	edges map[geom.CoordinateXY][]*DirectedEdge
 }
 
 // DirectedEdge represents an edge in a specific direction.
 type DirectedEdge struct {
-	Start geom.Coordinate
-	End   geom.Coordinate
-	Used  bool
-	Sym   *DirectedEdge // Symmetric edge (reverse direction)
+	Start        geom.Coordinate
+	End          geom.Coordinate
+	Used         bool
+	Sym          *DirectedEdge // Symmetric edge (reverse direction)
+	Multiplicity int           // times this directed edge can still be traversed
 }
 
 // newEdgeGraph creates a new EdgeGraph.
 func newEdgeGraph() *EdgeGraph {
 	return &EdgeGraph{
-		edges: make(map[geom.Coordinate][]*DirectedEdge),
+		edges: make(map[geom.CoordinateXY][]*DirectedEdge),
 	}
 }
 
 // addEdge adds a directed edge to the graph.
+// If an edge with the same start→end already exists, its multiplicity is incremented.
 func (g *EdgeGraph) addEdge(start, end geom.Coordinate) {
+	startKey := start.XY()
+	// Check for existing edge with same start→end
+	for _, existing := range g.edges[startKey] {
+		if existing.End.Equals2D(end, geom.DefaultEpsilon) {
+			existing.Multiplicity++
+			return
+		}
+	}
+
 	// Create forward edge
-	fwd := &DirectedEdge{Start: start, End: end}
-
+	fwd := &DirectedEdge{Start: start, End: end, Multiplicity: 1}
 	// Create reverse edge
-	rev := &DirectedEdge{Start: end, End: start}
-
+	rev := &DirectedEdge{Start: end, End: start, Multiplicity: 1}
 	// Link them as symmetric
 	fwd.Sym = rev
 	rev.Sym = fwd
-
-	// Add to adjacency map (using fuzzy lookup)
+	// Add to adjacency map
 	g.addEdgeToMap(start, fwd)
 	g.addEdgeToMap(end, rev)
 }
 
-// addEdgeToMap adds an edge to the adjacency map with fuzzy coordinate matching.
+// addEdgeToMap adds an edge to the adjacency map.
 func (g *EdgeGraph) addEdgeToMap(coord geom.Coordinate, edge *DirectedEdge) {
-	// Try to find existing coordinate that matches
-	for existingCoord := range g.edges {
-		if coord.Equals2D(existingCoord, geom.DefaultEpsilon) {
-			g.edges[existingCoord] = append(g.edges[existingCoord], edge)
-			return
-		}
-	}
-	// No match found, add new coordinate
-	g.edges[coord] = []*DirectedEdge{edge}
+	key := coord.XY()
+	g.edges[key] = append(g.edges[key], edge)
 }
 
-// getEdges returns all edges starting at a coordinate (with fuzzy matching).
+// getEdges returns all edges starting at a coordinate.
 func (g *EdgeGraph) getEdges(coord geom.Coordinate) []*DirectedEdge {
-	// Try exact match first
-	if edges, ok := g.edges[coord]; ok {
-		return edges
-	}
-
-	// Try fuzzy match
-	for existingCoord, edges := range g.edges {
-		if coord.Equals2D(existingCoord, geom.DefaultEpsilon) {
-			return edges
-		}
-	}
-
-	return nil
+	return g.edges[coord.XY()]
 }
 
 // findRings finds all minimal cycles in the graph using the "rightmost turn" algorithm.
@@ -485,14 +476,14 @@ func (g *EdgeGraph) findRings() []geom.CoordinateSequence {
 	// Sort edges by start coordinate then end coordinate for deterministic order
 	sortEdges(allEdges)
 
-	// Try to build a ring from each unused edge
+	// Try to build a ring from each available edge
 	for _, startEdge := range allEdges {
-		if startEdge.Used {
+		if startEdge.Multiplicity <= 0 {
 			continue
 		}
 
 		ring := g.buildRing(startEdge)
-		if ring != nil && len(ring) >= 4 {
+		if len(ring) >= 4 {
 			rings = append(rings, ring)
 		}
 	}
@@ -520,7 +511,7 @@ func sortEdges(edges []*DirectedEdge) {
 
 // buildRing builds a ring starting from the given edge using rightmost turn.
 func (g *EdgeGraph) buildRing(startEdge *DirectedEdge) geom.CoordinateSequence {
-	if startEdge.Used {
+	if startEdge.Multiplicity <= 0 {
 		return nil
 	}
 
@@ -540,9 +531,12 @@ func (g *EdgeGraph) buildRing(startEdge *DirectedEdge) geom.CoordinateSequence {
 
 		// Check if we've closed the ring
 		if current.End.Equals2D(startEdge.Start, geom.DefaultEpsilon) && len(ring) >= 4 {
-			// Successfully closed ring - mark all edges as permanently used
+			// Successfully closed ring - decrement multiplicity on all edges
 			for edge := range visited {
-				edge.Used = true
+				edge.Multiplicity--
+				if edge.Multiplicity <= 0 {
+					edge.Used = true
+				}
 			}
 			return ring
 		}
@@ -569,10 +563,10 @@ func (g *EdgeGraph) findNextEdgeRightmost(incoming *DirectedEdge) *DirectedEdge 
 		return nil
 	}
 
-	// Filter out used edges and the symmetric edge (backtrack)
+	// Filter out exhausted edges and the symmetric edge (backtrack)
 	var available []*DirectedEdge
 	for _, edge := range candidates {
-		if !edge.Used && edge != incoming.Sym {
+		if edge.Multiplicity > 0 && edge != incoming.Sym {
 			available = append(available, edge)
 		}
 	}
@@ -585,10 +579,12 @@ func (g *EdgeGraph) findNextEdgeRightmost(incoming *DirectedEdge) *DirectedEdge 
 		return available[0]
 	}
 
-	// Find edge with smallest clockwise angle (rightmost turn)
-	incomingAngle := math.Atan2(
-		incoming.End.Y-incoming.Start.Y,
-		incoming.End.X-incoming.Start.X,
+	// For minimal face extraction, we want the first edge encountered when
+	// rotating clockwise from the reverse of the incoming direction.
+	// The reverse of the incoming direction is the direction we came from.
+	reverseAngle := math.Atan2(
+		incoming.Start.Y-incoming.End.Y,
+		incoming.Start.X-incoming.End.X,
 	)
 
 	var bestEdge *DirectedEdge
@@ -600,18 +596,20 @@ func (g *EdgeGraph) findNextEdgeRightmost(incoming *DirectedEdge) *DirectedEdge 
 			edge.End.X-edge.Start.X,
 		)
 
-		// Compute signed angle difference (CCW positive, CW negative)
-		angleDiff := outgoingAngle - incomingAngle
+		// Compute clockwise angle from reverse direction to outgoing edge.
+		// Clockwise rotation = negative angle in standard math convention.
+		// We compute: reverseAngle - outgoingAngle, normalized to (0, 2π].
+		angleDiff := reverseAngle - outgoingAngle
 
-		// Normalize to (-π, π]
-		for angleDiff <= -math.Pi {
+		// Normalize to (0, 2π]
+		for angleDiff <= 0 {
 			angleDiff += 2 * math.Pi
 		}
-		for angleDiff > math.Pi {
+		for angleDiff > 2*math.Pi {
 			angleDiff -= 2 * math.Pi
 		}
 
-		// For rightmost turn, we want most negative angle (most clockwise)
+		// Smallest clockwise rotation gives the minimal face to the left
 		if angleDiff < bestAngleDiff {
 			bestAngleDiff = angleDiff
 			bestEdge = edge

@@ -117,13 +117,6 @@ func (e *Ellipsoid) Eccentricity() float64 {
 	return math.Sqrt(e.EccentricitySquared())
 }
 
-// SecondEccentricitySquared returns the square of the second eccentricity.
-// e'² = (a² - b²) / b²
-func (e *Ellipsoid) SecondEccentricitySquared() float64 {
-	eSq := e.EccentricitySquared()
-	return eSq / (1 - eSq)
-}
-
 // Standard ellipsoid definitions
 
 var (

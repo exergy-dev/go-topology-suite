@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"math"
+	"sort"
 
 	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
@@ -278,13 +279,9 @@ func mergeEdges(edges []*DirectedEdge) []*DirectedEdge {
 
 // sortEdges sorts edges by their start and end coordinates for deterministic ordering
 func sortEdges(edges []*DirectedEdge) {
-	for i := 0; i < len(edges)-1; i++ {
-		for j := i + 1; j < len(edges); j++ {
-			if compareEdges(edges[i], edges[j]) > 0 {
-				edges[i], edges[j] = edges[j], edges[i]
-			}
-		}
-	}
+	sort.Slice(edges, func(i, j int) bool {
+		return compareEdges(edges[i], edges[j]) < 0
+	})
 }
 
 // compareEdges compares two edges for sorting
@@ -389,9 +386,6 @@ func locateInPolygonSet(pt geom.Coordinate, polys []*geom.Polygon) geom.Location
 	return geom.LocationExterior
 }
 
-// debugEdgeSelection controls whether to print debug info for edge selection
-var debugEdgeSelection = false
-
 // selectEdges selects edges based on the overlay operation type.
 // This implements the core logic of overlay operations using proper DE-9IM topology.
 // We consider both left and right sides of each edge.
@@ -466,11 +460,10 @@ func polygonizeEdges(edges []*DirectedEdge) geom.Geometry {
 	}
 
 	// Build an adjacency map: start coordinate -> edges starting there
-	edgeMap := make(map[geom.Coordinate][]*DirectedEdge)
+	edgeMap := make(map[geom.CoordinateXY][]*DirectedEdge)
 	for _, edge := range edges {
-		// Normalize coordinate for map key (handle floating point)
-		start := edge.Start
-		edgeMap[start] = append(edgeMap[start], edge)
+		key := edge.Start.XY()
+		edgeMap[key] = append(edgeMap[key], edge)
 	}
 
 	// Track which edges have been used
@@ -486,7 +479,7 @@ func polygonizeEdges(edges []*DirectedEdge) geom.Geometry {
 
 		// Try to build a ring starting from this edge
 		ring := buildRing(startEdge, edgeMap, used)
-		if ring != nil && len(ring) >= 4 {
+		if len(ring) >= 4 {
 			rings = append(rings, ring)
 		}
 	}
@@ -587,7 +580,7 @@ func polygonizeEdges(edges []*DirectedEdge) geom.Geometry {
 
 // buildRing attempts to build a closed ring starting from a given edge.
 // It uses the "rightmost turn" rule at each junction to properly trace individual rings.
-func buildRing(startEdge *DirectedEdge, edgeMap map[geom.Coordinate][]*DirectedEdge, used map[*DirectedEdge]bool) geom.CoordinateSequence {
+func buildRing(startEdge *DirectedEdge, edgeMap map[geom.CoordinateXY][]*DirectedEdge, used map[*DirectedEdge]bool) geom.CoordinateSequence {
 	var ring geom.CoordinateSequence
 	ring = append(ring, startEdge.Start)
 
@@ -621,39 +614,16 @@ func buildRing(startEdge *DirectedEdge, edgeMap map[geom.Coordinate][]*DirectedE
 // findNextEdgeRightmost finds the unused edge at a junction that makes the rightmost turn
 // (smallest counter-clockwise angle from the incoming direction).
 // This ensures proper ring tracing when multiple edges meet at a point.
-func findNextEdgeRightmost(incoming *DirectedEdge, edgeMap map[geom.Coordinate][]*DirectedEdge, used map[*DirectedEdge]bool) *DirectedEdge {
-	start := incoming.End
+func findNextEdgeRightmost(incoming *DirectedEdge, edgeMap map[geom.CoordinateXY][]*DirectedEdge, used map[*DirectedEdge]bool) *DirectedEdge {
+	key := incoming.End.XY()
 
 	// Collect all candidate edges (unused edges starting at this point)
 	var candidates []*DirectedEdge
 
-	// Try exact match first
-	if edges, ok := edgeMap[start]; ok {
+	if edges, ok := edgeMap[key]; ok {
 		for _, edge := range edges {
 			if !used[edge] {
 				candidates = append(candidates, edge)
-			}
-		}
-	}
-
-	// Try fuzzy match
-	for coord, edges := range edgeMap {
-		if !coord.Equals2D(start, geom.DefaultEpsilon) || coord == start {
-			continue
-		}
-		for _, edge := range edges {
-			if !used[edge] {
-				// Check if this edge is already in candidates
-				found := false
-				for _, c := range candidates {
-					if c == edge {
-						found = true
-						break
-					}
-				}
-				if !found {
-					candidates = append(candidates, edge)
-				}
 			}
 		}
 	}

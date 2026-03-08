@@ -67,10 +67,10 @@ func TestFloatingPrecisionModel(t *testing.T) {
 	t.Run("MakePrecise_WithZ", func(t *testing.T) {
 		pm := precision.NewFloatingPrecision()
 		coord := geom.NewCoordinateZ(1.5, 2.5, 3.5)
-		originalZ := *coord.Z
+		originalZ := coord.Z
 		pm.MakePrecise(&coord)
 
-		if *coord.Z != originalZ {
+		if coord.Z != originalZ {
 			t.Error("Floating precision should not modify Z coordinate")
 		}
 	})
@@ -78,10 +78,10 @@ func TestFloatingPrecisionModel(t *testing.T) {
 	t.Run("MakePrecise_WithM", func(t *testing.T) {
 		pm := precision.NewFloatingPrecision()
 		coord := geom.NewCoordinateM(1.5, 2.5, 4.5)
-		originalM := *coord.M
+		originalM := coord.M
 		pm.MakePrecise(&coord)
 
-		if *coord.M != originalM {
+		if coord.M != originalM {
 			t.Error("Floating precision should not modify M coordinate")
 		}
 	})
@@ -167,8 +167,8 @@ func TestFloatingSinglePrecisionModel(t *testing.T) {
 		pm.MakePrecise(&coord)
 
 		expectedZ := float64(float32(3.567890123))
-		if *coord.Z != expectedZ {
-			t.Errorf("Expected Z=%v, got %v", expectedZ, *coord.Z)
+		if coord.Z != expectedZ {
+			t.Errorf("Expected Z=%v, got %v", expectedZ, coord.Z)
 		}
 	})
 
@@ -178,8 +178,8 @@ func TestFloatingSinglePrecisionModel(t *testing.T) {
 		pm.MakePrecise(&coord)
 
 		expectedM := float64(float32(4.123456789))
-		if *coord.M != expectedM {
-			t.Errorf("Expected M=%v, got %v", expectedM, *coord.M)
+		if coord.M != expectedM {
+			t.Errorf("Expected M=%v, got %v", expectedM, coord.M)
 		}
 	})
 
@@ -315,8 +315,8 @@ func TestFixedPrecisionModel(t *testing.T) {
 		if coord.Y != 2.35 {
 			t.Errorf("Expected Y=2.35, got %v", coord.Y)
 		}
-		if *coord.Z != 3.46 {
-			t.Errorf("Expected Z=3.46, got %v", *coord.Z)
+		if coord.Z != 3.46 {
+			t.Errorf("Expected Z=3.46, got %v", coord.Z)
 		}
 	})
 
@@ -325,8 +325,8 @@ func TestFixedPrecisionModel(t *testing.T) {
 		coord := geom.NewCoordinateM(1.23456, 2.34567, 4.56789)
 		pm.MakePrecise(&coord)
 
-		if coord.X != 1.23 || coord.Y != 2.35 || *coord.M != 4.57 {
-			t.Errorf("Unexpected coordinate values: (%v, %v, M=%v)", coord.X, coord.Y, *coord.M)
+		if coord.X != 1.23 || coord.Y != 2.35 || coord.M != 4.57 {
+			t.Errorf("Unexpected coordinate values: (%v, %v, M=%v)", coord.X, coord.Y, coord.M)
 		}
 	})
 
@@ -335,9 +335,9 @@ func TestFixedPrecisionModel(t *testing.T) {
 		coord := geom.NewCoordinateZM(1.26, 2.34, 3.45, 4.56)
 		pm.MakePrecise(&coord)
 
-		if coord.X != 1.3 || coord.Y != 2.3 || *coord.Z != 3.5 || *coord.M != 4.6 {
+		if coord.X != 1.3 || coord.Y != 2.3 || coord.Z != 3.5 || coord.M != 4.6 {
 			t.Errorf("Unexpected coordinate values: (%v, %v, Z=%v, M=%v)",
-				coord.X, coord.Y, *coord.Z, *coord.M)
+				coord.X, coord.Y, coord.Z, coord.M)
 		}
 	})
 
@@ -438,13 +438,13 @@ func TestMakePreciseSequence(t *testing.T) {
 		)
 		precision.MakePreciseSequence(pm, coords)
 
-		if coords[0].X != 1.3 || coords[0].Y != 2.3 || *coords[0].Z != 3.5 {
+		if coords[0].X != 1.3 || coords[0].Y != 2.3 || coords[0].Z != 3.5 {
 			t.Errorf("Unexpected first coordinate: (%v, %v, %v)",
-				coords[0].X, coords[0].Y, *coords[0].Z)
+				coords[0].X, coords[0].Y, coords[0].Z)
 		}
-		if coords[1].X != 4.6 || coords[1].Y != 5.7 || *coords[1].Z != 6.8 {
+		if coords[1].X != 4.6 || coords[1].Y != 5.7 || coords[1].Z != 6.8 {
 			t.Errorf("Unexpected second coordinate: (%v, %v, %v)",
-				coords[1].X, coords[1].Y, *coords[1].Z)
+				coords[1].X, coords[1].Y, coords[1].Z)
 		}
 	})
 

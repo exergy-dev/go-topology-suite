@@ -38,7 +38,7 @@ func TestGeometryFactory_WithSRID(t *testing.T) {
 // TestGeometryFactory_WithPrecision tests factory with custom precision
 func TestGeometryFactory_WithPrecision(t *testing.T) {
 	pm := geom.NewFixedPrecision(100) // 2 decimal places
-	factory := geom.NewGeometryFactoryWithPrecision(pm)
+	factory := geom.NewGeometryFactory(pm, 0)
 
 	p := factory.CreatePoint(1.23456, 2.34567)
 
@@ -130,7 +130,7 @@ func TestGeometryFactory_CreatePointEmpty(t *testing.T) {
 // TestGeometryFactory_CreateLineString tests linestring creation
 func TestGeometryFactory_CreateLineString(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
+	coords := mustCoordsXY(0, 0, 10, 10, 20, 0)
 
 	ls := factory.CreateLineString(coords)
 
@@ -143,11 +143,11 @@ func TestGeometryFactory_CreateLineString(t *testing.T) {
 	}
 }
 
-// TestGeometryFactory_CreateLineStringXY tests linestring creation from xy pairs
-func TestGeometryFactory_CreateLineStringXY(t *testing.T) {
+// TestGeometryFactory_CreateLineStringFromXYPairs tests linestring creation from xy pairs
+func TestGeometryFactory_CreateLineStringFromXYPairs(t *testing.T) {
 	factory := geom.NewGeometryFactoryDefault()
 
-	ls := factory.CreateLineStringXY(0, 0, 10, 10, 20, 0)
+	ls := mustCreateLineStringXY(factory, 0, 0, 10, 10, 20, 0)
 
 	if ls.NumPoints() != 3 {
 		t.Errorf("Expected 3 points, got %d", ls.NumPoints())
@@ -177,7 +177,7 @@ func TestGeometryFactory_CreateLineStringEmpty(t *testing.T) {
 // TestGeometryFactory_CreateLinearRing tests linear ring creation
 func TestGeometryFactory_CreateLinearRing(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	lr := factory.CreateLinearRing(coords)
 
@@ -190,11 +190,11 @@ func TestGeometryFactory_CreateLinearRing(t *testing.T) {
 	}
 }
 
-// TestGeometryFactory_CreateLinearRingXY tests linear ring creation from xy pairs
-func TestGeometryFactory_CreateLinearRingXY(t *testing.T) {
+// TestGeometryFactory_CreateLinearRingFromXYPairs tests linear ring creation from xy pairs
+func TestGeometryFactory_CreateLinearRingFromXYPairs(t *testing.T) {
 	factory := geom.NewGeometryFactoryDefault()
 
-	lr := factory.CreateLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	lr := mustCreateLinearRingXY(factory, 0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	if !lr.IsClosed() {
 		t.Error("Linear ring should be closed")
@@ -219,8 +219,8 @@ func TestGeometryFactory_CreateLinearRingEmpty(t *testing.T) {
 // TestGeometryFactory_CreatePolygon tests polygon creation
 func TestGeometryFactory_CreatePolygon(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-	hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 
 	poly := factory.CreatePolygon(shell, []*geom.LinearRing{hole})
 
@@ -242,8 +242,8 @@ func TestGeometryFactory_CreatePolygon(t *testing.T) {
 // TestGeometryFactory_CreatePolygonFromCoords tests polygon creation from coordinates
 func TestGeometryFactory_CreatePolygonFromCoords(t *testing.T) {
 	factory := geom.NewGeometryFactoryDefault()
-	shell := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-	hole := geom.NewCoordinateSequenceXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+	shell := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	hole := mustCoordsXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 
 	poly := factory.CreatePolygonFromCoords(shell, hole)
 
@@ -291,7 +291,7 @@ func TestGeometryFactory_CreateMultiPoint(t *testing.T) {
 // TestGeometryFactory_CreateMultiPointFromCoords tests multipoint creation from coordinates
 func TestGeometryFactory_CreateMultiPointFromCoords(t *testing.T) {
 	factory := geom.NewGeometryFactoryDefault()
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 20)
+	coords := mustCoordsXY(0, 0, 10, 10, 20, 20)
 
 	mp := factory.CreateMultiPointFromCoords(coords)
 
@@ -319,8 +319,8 @@ func TestGeometryFactory_CreateMultiPointEmpty(t *testing.T) {
 func TestGeometryFactory_CreateMultiLineString(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
 	lines := []*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
 	}
 
 	mls := factory.CreateMultiLineString(lines)
@@ -353,8 +353,8 @@ func TestGeometryFactory_CreateMultiLineStringEmpty(t *testing.T) {
 func TestGeometryFactory_CreateMultiPolygon(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
 	polys := []*geom.Polygon{
-		geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
-		geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
+		geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+		geom.NewPolygon(mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
 	}
 
 	mp := factory.CreateMultiPolygon(polys)
@@ -388,7 +388,7 @@ func TestGeometryFactory_CreateGeometryCollection(t *testing.T) {
 	factory := geom.NewGeometryFactoryWithSRID(4326)
 	geoms := []geom.Geometry{
 		geom.NewPoint(0, 0),
-		geom.NewLineStringXY(0, 0, 10, 10),
+		mustLineStringXY(0, 0, 10, 10),
 	}
 
 	gc := factory.CreateGeometryCollection(geoms)
@@ -417,100 +417,10 @@ func TestGeometryFactory_CreateGeometryCollectionEmpty(t *testing.T) {
 	}
 }
 
-// TestGeometryFactory_ToGeometry tests coordinate sequence to geometry conversion
-func TestGeometryFactory_ToGeometry(t *testing.T) {
-	factory := geom.NewGeometryFactoryDefault()
-
-	// 0 coords -> empty point
-	empty := factory.ToGeometry(geom.CoordinateSequence{})
-	if !empty.IsEmpty() || empty.GeometryType() != "Point" {
-		t.Error("Empty coords should create empty point")
-	}
-
-	// 1 coord -> point
-	point := factory.ToGeometry(geom.NewCoordinateSequenceXY(5, 10))
-	if point.GeometryType() != "Point" {
-		t.Error("Single coord should create point")
-	}
-
-	// 2 coords -> linestring
-	line := factory.ToGeometry(geom.NewCoordinateSequenceXY(0, 0, 10, 10))
-	if line.GeometryType() != "LineString" {
-		t.Error("Two coords should create linestring")
-	}
-
-	// 3 coords (unclosed) -> linestring
-	line2 := factory.ToGeometry(geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0))
-	if line2.GeometryType() != "LineString" {
-		t.Error("Three unclosed coords should create linestring")
-	}
-
-	// 4+ coords (closed) -> polygon
-	poly := factory.ToGeometry(geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0))
-	if poly.GeometryType() != "Polygon" {
-		t.Error("Closed coords should create polygon")
-	}
-}
-
-// TestGeometryFactory_BuildGeometry tests building geometry from collection
-func TestGeometryFactory_BuildGeometry(t *testing.T) {
-	factory := geom.NewGeometryFactoryDefault()
-
-	// Empty list
-	empty := factory.BuildGeometry([]geom.Geometry{})
-	if !empty.IsEmpty() {
-		t.Error("Empty list should create empty geometry collection")
-	}
-
-	// Single geometry
-	single := factory.BuildGeometry([]geom.Geometry{
-		geom.NewPoint(0, 0),
-	})
-	if single.GeometryType() != "Point" {
-		t.Error("Single geometry should be returned as-is")
-	}
-
-	// Multiple points -> MultiPoint
-	points := factory.BuildGeometry([]geom.Geometry{
-		geom.NewPoint(0, 0),
-		geom.NewPoint(10, 10),
-	})
-	if points.GeometryType() != "MultiPoint" {
-		t.Errorf("Multiple points should create MultiPoint, got %s", points.GeometryType())
-	}
-
-	// Multiple lines -> MultiLineString
-	lines := factory.BuildGeometry([]geom.Geometry{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
-	})
-	if lines.GeometryType() != "MultiLineString" {
-		t.Errorf("Multiple lines should create MultiLineString, got %s", lines.GeometryType())
-	}
-
-	// Multiple polygons -> MultiPolygon
-	polys := factory.BuildGeometry([]geom.Geometry{
-		geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
-		geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
-	})
-	if polys.GeometryType() != "MultiPolygon" {
-		t.Errorf("Multiple polygons should create MultiPolygon, got %s", polys.GeometryType())
-	}
-
-	// Mixed types -> GeometryCollection
-	mixed := factory.BuildGeometry([]geom.Geometry{
-		geom.NewPoint(0, 0),
-		geom.NewLineStringXY(0, 0, 10, 10),
-	})
-	if mixed.GeometryType() != "GeometryCollection" {
-		t.Errorf("Mixed types should create GeometryCollection, got %s", mixed.GeometryType())
-	}
-}
-
 // TestGeometryFactory_PrecisionApplication tests precision model application
 func TestGeometryFactory_PrecisionApplication(t *testing.T) {
 	pm := geom.NewFixedPrecision(10) // 1 decimal place
-	factory := geom.NewGeometryFactoryWithPrecision(pm)
+	factory := geom.NewGeometryFactory(pm, 0)
 
 	// Test point
 	p := factory.CreatePoint(1.23456, 2.34567)
@@ -519,14 +429,14 @@ func TestGeometryFactory_PrecisionApplication(t *testing.T) {
 	}
 
 	// Test linestring
-	ls := factory.CreateLineStringXY(1.23456, 2.34567, 3.45678, 4.56789)
+	ls := mustCreateLineStringXY(factory, 1.23456, 2.34567, 3.45678, 4.56789)
 	coords := ls.Coordinates()
 	if math.Abs(coords[0].X-1.2) > 0.01 {
 		t.Errorf("LineString precision not applied: %f", coords[0].X)
 	}
 
 	// Test polygon
-	shell := geom.NewLinearRingXY(1.23, 2.34, 10.56, 2.34, 10.56, 10.78, 1.23, 10.78, 1.23, 2.34)
+	shell := mustLinearRingXY(1.23, 2.34, 10.56, 2.34, 10.56, 10.78, 1.23, 10.78, 1.23, 2.34)
 	poly := factory.CreatePolygon(shell, nil)
 	polyCoords := poly.Coordinates()
 	if math.Abs(polyCoords[0].X-1.2) > 0.01 {
@@ -557,7 +467,7 @@ func TestGeometryFactory_DefaultFactory(t *testing.T) {
 func TestGeometryFactory_CoordinateCloning(t *testing.T) {
 	factory := geom.NewGeometryFactoryDefault()
 
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10)
+	coords := mustCoordsXY(0, 0, 10, 10)
 	ls := factory.CreateLineString(coords)
 
 	// Modify original

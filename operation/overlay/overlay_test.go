@@ -32,10 +32,10 @@ func geometryArea(g geom.Geometry) float64 {
 // TestPolygonIntersectionArea tests that polygon intersection computes correct area.
 func TestPolygonIntersectionArea(t *testing.T) {
 	// Two overlapping 10x10 squares with 5x5 overlap at (5,5)-(10,10)
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	intersection := Intersection(poly1, poly2)
@@ -52,10 +52,10 @@ func TestPolygonIntersectionArea(t *testing.T) {
 // TestPolygonUnionArea tests that polygon union computes correct area.
 func TestPolygonUnionArea(t *testing.T) {
 	// Two overlapping 10x10 squares
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	union := Union(poly1, poly2)
@@ -87,7 +87,7 @@ func TestIntersectionPointPointDisjoint(t *testing.T) {
 
 func TestIntersectionPointLine(t *testing.T) {
 	p := geom.NewPoint(5, 0)
-	ls := geom.NewLineStringXY(0, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 10, 0)
 
 	result := Intersection(p, ls)
 	assert.False(t, result.IsEmpty(), "Point on line should intersect")
@@ -100,7 +100,7 @@ func TestIntersectionPointLine(t *testing.T) {
 
 func TestIntersectionPointPolygon(t *testing.T) {
 	p := geom.NewPoint(5, 5)
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Intersection(p, poly)
@@ -113,16 +113,16 @@ func TestIntersectionPointPolygon(t *testing.T) {
 }
 
 func TestIntersectionLineLine(t *testing.T) {
-	ls1 := geom.NewLineStringXY(0, 0, 10, 10)
-	ls2 := geom.NewLineStringXY(0, 10, 10, 0)
+	ls1 := mustLineStringXY(0, 0, 10, 10)
+	ls2 := mustLineStringXY(0, 10, 10, 0)
 
 	result := Intersection(ls1, ls2)
 	assert.False(t, result.IsEmpty(), "Crossing lines should have intersection")
 }
 
 func TestIntersectionLinePolygon(t *testing.T) {
-	ls := geom.NewLineStringXY(5, -5, 5, 15) // Vertical line through polygon
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	ls := mustLineStringXY(5, -5, 5, 15) // Vertical line through polygon
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Intersection(ls, poly)
@@ -145,10 +145,10 @@ func TestIntersectionLinePolygon(t *testing.T) {
 }
 
 func TestIntersectionPolygonPolygon(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Intersection(poly1, poly2)
@@ -156,10 +156,10 @@ func TestIntersectionPolygonPolygon(t *testing.T) {
 }
 
 func TestIntersectionDisjointPolygons(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10)
+	shell2 := mustLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Intersection(poly1, poly2)
@@ -189,10 +189,10 @@ func TestUnionEmptyGeometries(t *testing.T) {
 }
 
 func TestUnionPolygonPolygon(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Union(poly1, poly2)
@@ -202,7 +202,7 @@ func TestUnionPolygonPolygon(t *testing.T) {
 func TestDifferencePointPolygon(t *testing.T) {
 	// Point inside polygon
 	p := geom.NewPoint(5, 5)
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Difference(p, poly)
@@ -215,7 +215,7 @@ func TestDifferencePointPolygon(t *testing.T) {
 }
 
 func TestDifferencePolygonPoint(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	p := geom.NewPoint(5, 5)
 
@@ -224,10 +224,10 @@ func TestDifferencePolygonPoint(t *testing.T) {
 }
 
 func TestDifferencePolygonPolygon(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Difference(poly1, poly2)
@@ -235,10 +235,10 @@ func TestDifferencePolygonPolygon(t *testing.T) {
 }
 
 func TestDifferenceDisjointPolygons(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10)
+	shell2 := mustLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := Difference(poly1, poly2)
@@ -254,10 +254,10 @@ func TestSymDifferencePointPoint(t *testing.T) {
 }
 
 func TestSymDifferencePolygonPolygon(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := SymDifference(poly1, poly2)
@@ -294,20 +294,20 @@ func TestExtractPoints(t *testing.T) {
 }
 
 func TestExtractLineStrings(t *testing.T) {
-	ls := geom.NewLineStringXY(0, 0, 10, 10)
+	ls := mustLineStringXY(0, 0, 10, 10)
 	lines := geom.ExtractLineStringsWithRings(ls)
 	assert.Len(t, lines, 1, "Expected 1 line")
 
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(0, 10, 10, 10),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(0, 10, 10, 10),
 	})
 	lines = geom.ExtractLineStringsWithRings(mls)
 	assert.Len(t, lines, 2, "Expected 2 lines")
 }
 
 func TestExtractPolygons(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	polygons := geom.ExtractPolygons(poly)
 	assert.Len(t, polygons, 1, "Expected 1 polygon")
@@ -339,7 +339,7 @@ func TestIntersectionMultiPoint(t *testing.T) {
 		geom.NewPoint(5, 5),
 		geom.NewPoint(15, 15),
 	})
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	result := Intersection(mp, poly)
@@ -348,10 +348,10 @@ func TestIntersectionMultiPoint(t *testing.T) {
 }
 
 func BenchmarkIntersectionPolygonPolygon(b *testing.B) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	b.ResetTimer()
@@ -361,14 +361,134 @@ func BenchmarkIntersectionPolygonPolygon(b *testing.B) {
 }
 
 func BenchmarkUnionPolygonPolygon(b *testing.B) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Union(poly1, poly2)
 	}
+}
+
+// --- Line/Line overlay tests ---
+
+func TestLineLineIntersectionCollinearOverlap(t *testing.T) {
+	// Two collinear lines that partially overlap:
+	// lineA: (0,0)-(10,0), lineB: (5,0)-(15,0)
+	// Expected intersection: LineString (5,0)-(10,0)
+	lineA := mustLineStringXY(0, 0, 10, 0)
+	lineB := mustLineStringXY(5, 0, 15, 0)
+
+	result := Intersection(lineA, lineB)
+	require.False(t, result.IsEmpty(), "Collinear overlapping lines should have non-empty intersection")
+
+	ls, ok := result.(*geom.LineString)
+	require.True(t, ok, "Expected LineString for collinear overlap, got %T", result)
+
+	coords := ls.Coordinates()
+	require.Equal(t, 2, len(coords), "Expected 2 coordinates in intersection LineString")
+
+	// The overlap is from x=5 to x=10
+	assert.InDelta(t, 5.0, coords[0].X, 0.01)
+	assert.InDelta(t, 0.0, coords[0].Y, 0.01)
+	assert.InDelta(t, 10.0, coords[1].X, 0.01)
+	assert.InDelta(t, 0.0, coords[1].Y, 0.01)
+}
+
+func TestLineLineIntersectionIdentical(t *testing.T) {
+	// Identical lines: intersection should return the line itself
+	lineA := mustLineStringXY(0, 0, 10, 0)
+	lineB := mustLineStringXY(0, 0, 10, 0)
+
+	result := Intersection(lineA, lineB)
+	require.False(t, result.IsEmpty(), "Identical lines should have non-empty intersection")
+
+	ls, ok := result.(*geom.LineString)
+	require.True(t, ok, "Expected LineString for identical lines, got %T", result)
+
+	coords := ls.Coordinates()
+	require.Equal(t, 2, len(coords))
+	assert.InDelta(t, 0.0, coords[0].X, 0.01)
+	assert.InDelta(t, 10.0, coords[1].X, 0.01)
+}
+
+func TestLineLineIntersectionDisjoint(t *testing.T) {
+	// Disjoint lines: no common points
+	lineA := mustLineStringXY(0, 0, 5, 0)
+	lineB := mustLineStringXY(0, 5, 5, 5)
+
+	result := Intersection(lineA, lineB)
+	assert.True(t, result.IsEmpty(), "Disjoint lines should have empty intersection")
+}
+
+func TestLineLineIntersectionCrossing(t *testing.T) {
+	// Two lines crossing at a point: (0,0)-(10,10) and (0,10)-(10,0) cross at (5,5)
+	lineA := mustLineStringXY(0, 0, 10, 10)
+	lineB := mustLineStringXY(0, 10, 10, 0)
+
+	result := Intersection(lineA, lineB)
+	require.False(t, result.IsEmpty(), "Crossing lines should have non-empty intersection")
+
+	pt, ok := result.(*geom.Point)
+	require.True(t, ok, "Expected Point for crossing lines, got %T", result)
+
+	assert.InDelta(t, 5.0, pt.X(), 0.01)
+	assert.InDelta(t, 5.0, pt.Y(), 0.01)
+}
+
+func TestLineLineDifferenceCollinearOverlap(t *testing.T) {
+	// lineA: (0,0)-(10,0), lineB: (5,0)-(15,0)
+	// Difference A-B should return (0,0)-(5,0)
+	lineA := mustLineStringXY(0, 0, 10, 0)
+	lineB := mustLineStringXY(5, 0, 15, 0)
+
+	result := Difference(lineA, lineB)
+	require.False(t, result.IsEmpty(), "Difference of partially overlapping lines should not be empty")
+
+	ls, ok := result.(*geom.LineString)
+	require.True(t, ok, "Expected LineString, got %T", result)
+
+	coords := ls.Coordinates()
+	require.Equal(t, 2, len(coords))
+	assert.InDelta(t, 0.0, coords[0].X, 0.01)
+	assert.InDelta(t, 5.0, coords[1].X, 0.01)
+}
+
+func TestLineLineDifferenceIdentical(t *testing.T) {
+	// Identical lines: difference should be empty
+	lineA := mustLineStringXY(0, 0, 10, 0)
+	lineB := mustLineStringXY(0, 0, 10, 0)
+
+	result := Difference(lineA, lineB)
+	assert.True(t, result.IsEmpty(), "Difference of identical lines should be empty")
+}
+
+func TestLineLineDifferenceDisjoint(t *testing.T) {
+	// Disjoint lines: difference should return the original line
+	lineA := mustLineStringXY(0, 0, 10, 0)
+	lineB := mustLineStringXY(0, 5, 10, 5)
+
+	result := Difference(lineA, lineB)
+	require.False(t, result.IsEmpty(), "Difference of disjoint lines should not be empty")
+
+	ls, ok := result.(*geom.LineString)
+	require.True(t, ok, "Expected LineString, got %T", result)
+
+	coords := ls.Coordinates()
+	require.Equal(t, 2, len(coords))
+	assert.InDelta(t, 0.0, coords[0].X, 0.01)
+	assert.InDelta(t, 10.0, coords[1].X, 0.01)
+}
+
+func TestLineLineSymDifferenceCollinearOverlap(t *testing.T) {
+	// lineA: (0,0)-(10,0), lineB: (5,0)-(15,0)
+	// SymDifference should return (0,0)-(5,0) and (10,0)-(15,0)
+	lineA := mustLineStringXY(0, 0, 10, 0)
+	lineB := mustLineStringXY(5, 0, 15, 0)
+
+	result := SymDifference(lineA, lineB)
+	require.False(t, result.IsEmpty(), "SymDifference of partially overlapping lines should not be empty")
 }

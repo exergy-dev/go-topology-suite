@@ -49,7 +49,7 @@ func TestDistancePointToLine(t *testing.T) {
 }
 
 func TestDistancePointToPolygon(t *testing.T) {
-	poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 
 	tests := []struct {
 		name     string
@@ -86,8 +86,8 @@ func TestDistancePointToPolygon(t *testing.T) {
 	assert.True(t, math.IsInf(emptyDist, 1), "Expected Inf for empty polygon")
 
 	// Test polygon with hole
-	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-	hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	// Point inside hole
@@ -117,19 +117,19 @@ func TestDistancePointToGeometry(t *testing.T) {
 		{
 			name:     "LineString",
 			p:        geom.NewCoordinate(5, 5),
-			g:        geom.NewLineStringXY(0, 0, 10, 0),
+			g:        mustLineStringXY(0, 0, 10, 0),
 			expected: 5,
 		},
 		{
 			name:     "LinearRing",
 			p:        geom.NewCoordinate(15, 5),
-			g:        geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+			g:        mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 			expected: 5,
 		},
 		{
 			name:     "Polygon",
 			p:        geom.NewCoordinate(15, 5),
-			g:        geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+			g:        geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
 			expected: 5,
 		},
 		{
@@ -141,13 +141,13 @@ func TestDistancePointToGeometry(t *testing.T) {
 		{
 			name:     "MultiLineString",
 			p:        geom.NewCoordinate(5, 5),
-			g:        geom.NewMultiLineString([]*geom.LineString{geom.NewLineStringXY(0, 0, 10, 0)}),
+			g:        geom.NewMultiLineString([]*geom.LineString{mustLineStringXY(0, 0, 10, 0)}),
 			expected: 5,
 		},
 		{
 			name:     "MultiPolygon",
 			p:        geom.NewCoordinate(5, 5),
-			g:        geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
+			g:        geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
 			expected: 0,
 		},
 		{
@@ -227,13 +227,13 @@ func TestDistanceGeometryToGeometry(t *testing.T) {
 		{
 			name:     "PointAndLine",
 			g1:       geom.NewPoint(5, 5),
-			g2:       geom.NewLineStringXY(0, 0, 10, 0),
+			g2:       mustLineStringXY(0, 0, 10, 0),
 			expected: 5,
 		},
 		{
 			name:     "TwoLines",
-			g1:       geom.NewLineStringXY(0, 0, 10, 0),
-			g2:       geom.NewLineStringXY(0, 5, 10, 5),
+			g1:       mustLineStringXY(0, 0, 10, 0),
+			g2:       mustLineStringXY(0, 5, 10, 5),
 			expected: 5,
 		},
 	}
@@ -313,7 +313,7 @@ func TestNearestPoints(t *testing.T) {
 		{
 			name:       "PointAndLine",
 			g1:         geom.NewPoint(5, 5),
-			g2:         geom.NewLineStringXY(0, 0, 10, 0),
+			g2:         mustLineStringXY(0, 0, 10, 0),
 			expectedX1: 5,
 			expectedY1: 5,
 			expectedX2: 5, // NearestPoints now correctly finds the projection point on segment
@@ -357,13 +357,13 @@ func TestDistancePointToLineString(t *testing.T) {
 		{
 			name:     "SinglePointLineString",
 			p:        geom.NewCoordinate(0, 0),
-			ls:       geom.NewLineString(geom.NewCoordinateSequenceXY(3, 4)),
+			ls:       geom.NewLineString(mustCoordsXY(3, 4)),
 			expected: 5,
 		},
 		{
 			name:     "MultiSegmentLineString",
 			p:        geom.NewCoordinate(5, 5),
-			ls:       geom.NewLineStringXY(0, 0, 10, 0, 10, 10),
+			ls:       mustLineStringXY(0, 0, 10, 0, 10, 10),
 			expected: 5, // Closest to segment (0,0)-(10,0) is (5,0) at distance 5
 		},
 	}
@@ -400,8 +400,8 @@ func TestDistanceToMultiGeometries(t *testing.T) {
 
 	// Test MultiPolygon with point inside one polygon
 	mp := geom.NewMultiPolygon([]*geom.Polygon{
-		geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
-		geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
+		geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+		geom.NewPolygon(mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil),
 	})
 	distToMp := algorithm.DistancePointToGeometry(p, mp)
 	assert.Equal(t, float64(0), distToMp, "Expected 0 for point inside MultiPolygon")
@@ -413,7 +413,7 @@ func TestDistanceToMultiGeometries(t *testing.T) {
 
 	// Test GeometryCollection with point inside polygon
 	gc := geom.NewGeometryCollection([]geom.Geometry{
-		geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+		geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
 	})
 	distToGc := algorithm.DistancePointToGeometry(p, gc)
 	assert.Equal(t, float64(0), distToGc, "Expected 0 for point inside GeometryCollection")
@@ -426,8 +426,8 @@ func TestDistanceGeometryToGeometry_PolygonWithHole(t *testing.T) {
 	// Create a polygon with a hole
 	// Shell: 0,0 to 20,20
 	// Hole: 5,5 to 15,15
-	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-	hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	// A point in the center of the hole (10, 10)
@@ -447,8 +447,8 @@ func TestDistanceGeometryToGeometry_PolygonWithHole(t *testing.T) {
 // between disjoint polygons in a MultiPolygon.
 func TestDistanceGeometryToGeometry_MultiPolygon(t *testing.T) {
 	// Two disjoint polygons
-	poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-	poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0), nil)
+	poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly2 := geom.NewPolygon(mustLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 
 	// A point between the two polygons
@@ -459,7 +459,7 @@ func TestDistanceGeometryToGeometry_MultiPolygon(t *testing.T) {
 	assert.InDelta(t, 5.0, dist, 0.001, "Distance from point between polygons should be 5")
 
 	// Distance between two disjoint polygons
-	anotherPoly := geom.NewPolygon(geom.NewLinearRingXY(14, 4, 16, 4, 16, 6, 14, 6, 14, 4), nil)
+	anotherPoly := geom.NewPolygon(mustLinearRingXY(14, 4, 16, 4, 16, 6, 14, 6, 14, 4), nil)
 	distBetweenPolys := algorithm.DistanceGeometryToGeometry(mp, anotherPoly)
 	assert.InDelta(t, 4.0, distBetweenPolys, 0.001, "Distance between MultiPolygon and another polygon")
 }
@@ -468,8 +468,8 @@ func TestDistanceGeometryToGeometry_MultiPolygon(t *testing.T) {
 // calculated for polygons with holes.
 func TestNearestPoints_PolygonWithHole(t *testing.T) {
 	// Polygon with hole
-	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-	hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	// Point at center of hole
@@ -494,8 +494,8 @@ func TestNearestPoints_PolygonWithHole(t *testing.T) {
 // between lines in a MultiLineString.
 func TestNearestPoints_MultiLineString(t *testing.T) {
 	// Two separate horizontal line segments with a gap
-	line1 := geom.NewLineStringXY(0, 0, 10, 0)
-	line2 := geom.NewLineStringXY(20, 0, 30, 0)
+	line1 := mustLineStringXY(0, 0, 10, 0)
+	line2 := mustLineStringXY(20, 0, 30, 0)
 	mls := geom.NewMultiLineString([]*geom.LineString{line1, line2})
 
 	// A point at (15, 0) - between the two lines
@@ -522,8 +522,8 @@ func TestNearestPoints_MultiLineString(t *testing.T) {
 // inside a polygon hole.
 func TestDistance_PolygonHoleInterior(t *testing.T) {
 	// Large polygon with a small hole
-	shell := geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
-	hole := geom.NewLinearRingXY(40, 40, 60, 40, 60, 60, 40, 60, 40, 40)
+	shell := mustLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
+	hole := mustLinearRingXY(40, 40, 60, 40, 60, 60, 40, 60, 40, 40)
 	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	// Point at center of hole (50, 50)
@@ -548,8 +548,8 @@ func TestDistanceGeometryToGeometry_NoPhantomSegments(t *testing.T) {
 	// Hole: square from (10,10) to (20,20)
 	// If there's a phantom segment from (0,0) to (10,10), it would be closer
 	// to a point at (5,5) than the actual hole boundary
-	shell := geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
-	hole := geom.NewLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10)
+	shell := mustLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
+	hole := mustLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10)
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	// Point at (5, 5) - inside the polygon but outside the hole

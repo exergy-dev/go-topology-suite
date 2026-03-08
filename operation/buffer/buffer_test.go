@@ -46,7 +46,7 @@ func TestBufferPointNegativeDistance(t *testing.T) {
 }
 
 func TestBufferLineString(t *testing.T) {
-	ls := geom.NewLineStringXY(0, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 10, 0)
 	distance := 5.0
 
 	result := Buffer(ls, distance)
@@ -68,7 +68,7 @@ func TestBufferLineString(t *testing.T) {
 }
 
 func TestBufferLineStringFlatCap(t *testing.T) {
-	ls := geom.NewLineStringXY(0, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 10, 0)
 	distance := 5.0
 
 	params := DefaultParams()
@@ -91,7 +91,7 @@ func TestBufferLineStringFlatCap(t *testing.T) {
 }
 
 func TestBufferPolygon(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	originalArea := poly.Area()
 	distance := 2.0
@@ -118,7 +118,7 @@ func TestBufferPolygon(t *testing.T) {
 }
 
 func TestBufferPolygonNegative(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	originalArea := poly.Area()
 	distance := -2.0
@@ -146,8 +146,8 @@ func TestBufferPolygonWithHole_Expansion(t *testing.T) {
 	// Create a 20x20 square with a 10x10 hole in the center
 	// Shell: CCW from (0,0) -> (20,0) -> (20,20) -> (0,20) -> (0,0)
 	// Hole: CW from (5,5) -> (5,15) -> (15,15) -> (15,5) -> (5,5)
-	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-	hole := geom.NewLinearRingXY(5, 5, 5, 15, 15, 15, 15, 5, 5, 5)
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(5, 5, 5, 15, 15, 15, 15, 5, 5, 5)
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	originalArea := poly.Area()           // 400 - 100 = 300
@@ -185,8 +185,8 @@ func TestBufferPolygonWithHole_Expansion(t *testing.T) {
 func TestBufferPolygonWithHole_Erosion(t *testing.T) {
 	// Create a 20x20 square with a 6x6 hole in the center
 	// Use a smaller hole so it doesn't disappear when expanding
-	shell := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-	hole := geom.NewLinearRingXY(7, 7, 7, 13, 13, 13, 13, 7, 7, 7)
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(7, 7, 7, 13, 13, 13, 13, 7, 7, 7)
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	originalArea := poly.Area()           // 400 - 36 = 364
@@ -264,8 +264,8 @@ func TestBufferMultiPoint(t *testing.T) {
 
 func TestBufferMultiLineString(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(0, 20, 10, 20),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(0, 20, 10, 20),
 	})
 	distance := 2.0
 
@@ -283,11 +283,11 @@ func TestBufferMultiLineString(t *testing.T) {
 
 func TestBufferMultiPolygon(t *testing.T) {
 	poly1 := geom.NewPolygon(
-		geom.NewLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0),
+		mustLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0),
 		nil,
 	)
 	poly2 := geom.NewPolygon(
-		geom.NewLinearRingXY(10, 0, 15, 0, 15, 5, 10, 5, 10, 0),
+		mustLinearRingXY(10, 0, 15, 0, 15, 5, 10, 5, 10, 0),
 		nil,
 	)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
@@ -393,7 +393,7 @@ func TestBufferCustomQuadrantSegments(t *testing.T) {
 }
 
 func TestCapStyles(t *testing.T) {
-	ls := geom.NewLineStringXY(0, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 10, 0)
 	distance := 5.0
 
 	testCases := []struct {
@@ -459,7 +459,7 @@ func BenchmarkBufferPoint(b *testing.B) {
 }
 
 func BenchmarkBufferLineString(b *testing.B) {
-	ls := geom.NewLineStringXY(0, 0, 100, 100)
+	ls := mustLineStringXY(0, 0, 100, 100)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Buffer(ls, 5.0)
@@ -467,7 +467,7 @@ func BenchmarkBufferLineString(b *testing.B) {
 }
 
 func BenchmarkBufferPolygon(b *testing.B) {
-	shell := geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
+	shell := mustLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -41,7 +41,7 @@ func TestTransformEmptyPoint(t *testing.T) {
 func TestTransformLineString(t *testing.T) {
 	scale := NewAffineScale(2, 3)
 
-	ls := geom.NewLineStringXY(0, 0, 10, 10, 20, 20)
+	ls := mustLineStringXY(0, 0, 10, 10, 20, 20)
 	ls.SetSRID(4326)
 
 	result, err := TransformGeometry(scale, ls)
@@ -72,7 +72,7 @@ func TestTransformPolygon(t *testing.T) {
 	rotation := NewAffineRotation(math.Pi / 2) // 90 degrees counter-clockwise
 
 	// Create a square polygon
-	shell := geom.NewLinearRingXY(0, 0, 4, 0, 4, 4, 0, 4, 0, 0)
+	shell := mustLinearRingXY(0, 0, 4, 0, 4, 4, 0, 4, 0, 0)
 	polygon := geom.NewPolygon(shell, []*geom.LinearRing{})
 	polygon.SetSRID(4326)
 
@@ -104,8 +104,8 @@ func TestTransformPolygonWithHoles(t *testing.T) {
 	translation := NewAffineTranslation(10, 20)
 
 	// Create a polygon with a hole
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-	hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 	polygon := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	result, err := TransformGeometry(translation, polygon)
@@ -166,8 +166,8 @@ func TestTransformMultiLineString(t *testing.T) {
 	translation := NewAffineTranslation(5, 10)
 
 	linestrings := []*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(0, 10, 10, 10),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(0, 10, 10, 10),
 	}
 	mls := geom.NewMultiLineString(linestrings)
 	mls.SetSRID(4326)
@@ -194,8 +194,8 @@ func TestTransformMultiPolygon(t *testing.T) {
 	scale := NewAffineScale(2, 2)
 
 	polygons := []*geom.Polygon{
-		geom.NewPolygon(geom.NewLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0), []*geom.LinearRing{}),
-		geom.NewPolygon(geom.NewLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10), []*geom.LinearRing{}),
+		geom.NewPolygon(mustLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0), []*geom.LinearRing{}),
+		geom.NewPolygon(mustLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10), []*geom.LinearRing{}),
 	}
 	mpoly := geom.NewMultiPolygon(polygons)
 	mpoly.SetSRID(4326)
@@ -230,8 +230,8 @@ func TestTransformGeometryCollection(t *testing.T) {
 
 	geometries := []geom.Geometry{
 		geom.NewPoint(0, 0),
-		geom.NewLineStringXY(0, 0, 10, 10),
-		geom.NewPolygon(geom.NewLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0), []*geom.LinearRing{}),
+		mustLineStringXY(0, 0, 10, 10),
+		geom.NewPolygon(mustLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0), []*geom.LinearRing{}),
 	}
 	gc := geom.NewGeometryCollection(geometries)
 	gc.SetSRID(4326)
@@ -312,7 +312,7 @@ func BenchmarkTransformPoint(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformGeometry(transform, point)
+		_, _ = TransformGeometry(transform, point)
 	}
 }
 
@@ -328,7 +328,7 @@ func BenchmarkTransformLineString(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformGeometry(transform, ls)
+		_, _ = TransformGeometry(transform, ls)
 	}
 }
 
@@ -348,6 +348,6 @@ func BenchmarkTransformPolygon(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		TransformGeometry(transform, poly)
+		_, _ = TransformGeometry(transform, poly)
 	}
 }

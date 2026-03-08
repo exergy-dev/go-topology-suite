@@ -6,8 +6,11 @@ import (
 	"strings"
 )
 
-// LinearRing is a closed LineString that forms the boundary of a polygon.
-// The first and last coordinates must be equal.
+// LinearRing is a closed, simple LineString that forms the boundary of a polygon.
+// A valid LinearRing has at least 4 coordinates (including the closing point),
+// where the first and last coordinates are equal. When used as a polygon shell,
+// it should be counter-clockwise; when used as a hole, clockwise.
+// NewLinearRing automatically closes the ring if needed.
 type LinearRing struct {
 	*LineString
 }
@@ -27,11 +30,6 @@ func NewLinearRing(coords CoordinateSequence) *LinearRing {
 			coords: coords,
 		},
 	}
-}
-
-// NewLinearRingXY creates a LinearRing from x,y pairs.
-func NewLinearRingXY(values ...float64) *LinearRing {
-	return NewLinearRing(NewCoordinateSequenceXY(values...))
 }
 
 // NewLinearRingEmpty creates an empty LinearRing.
@@ -113,31 +111,34 @@ func (lr *LinearRing) Reverse() *LinearRing {
 	}
 }
 
-// Normalize normalizes the ring to canonical form.
-func (lr *LinearRing) Normalize() {
+// Normalized returns a new ring normalized to canonical form.
+func (lr *LinearRing) Normalized() Geometry {
 	if lr.IsEmpty() || len(lr.coords) < 4 {
-		return
+		return lr.Clone()
 	}
+
+	clone := lr.Clone().(*LinearRing)
 
 	// Find the minimum coordinate
 	minIdx := 0
-	for i := 1; i < len(lr.coords)-1; i++ { // Exclude the closing point
-		if lr.coords[i].X < lr.coords[minIdx].X ||
-			(lr.coords[i].X == lr.coords[minIdx].X && lr.coords[i].Y < lr.coords[minIdx].Y) {
+	for i := 1; i < len(clone.coords)-1; i++ { // Exclude the closing point
+		if clone.coords[i].X < clone.coords[minIdx].X ||
+			(clone.coords[i].X == clone.coords[minIdx].X && clone.coords[i].Y < clone.coords[minIdx].Y) {
 			minIdx = i
 		}
 	}
 
 	// Rotate the ring so the minimum point is first
 	if minIdx > 0 {
-		n := len(lr.coords) - 1 // Exclude closing point
+		n := len(clone.coords) - 1 // Exclude closing point
 		newCoords := make(CoordinateSequence, n+1)
 		for i := 0; i < n; i++ {
-			newCoords[i] = lr.coords[(i+minIdx)%n].Clone()
+			newCoords[i] = clone.coords[(i+minIdx)%n].Clone()
 		}
 		newCoords[n] = newCoords[0].Clone()
-		lr.coords = newCoords
+		clone.coords = newCoords
 	}
+	return clone
 }
 
 // String returns the WKT representation.
@@ -156,25 +157,22 @@ type Polygon struct {
 }
 
 // NewPolygon creates a new Polygon with an exterior ring and optional holes.
+// The shell and holes are cloned to prevent external mutation.
 func NewPolygon(shell *LinearRing, holes []*LinearRing) *Polygon {
-	p := &Polygon{
-		shell: shell,
-		holes: holes,
+	var clonedShell *LinearRing
+	if shell != nil {
+		clonedShell = shell.Clone().(*LinearRing)
 	}
-	if p.holes == nil {
-		p.holes = []*LinearRing{}
-	}
-	return p
-}
-
-// NewPolygonFromCoords creates a Polygon from coordinate sequences.
-func NewPolygonFromCoords(shell CoordinateSequence, holes ...CoordinateSequence) *Polygon {
-	shellRing := NewLinearRing(shell)
-	holeRings := make([]*LinearRing, len(holes))
+	clonedHoles := make([]*LinearRing, len(holes))
 	for i, h := range holes {
-		holeRings[i] = NewLinearRing(h)
+		if h != nil {
+			clonedHoles[i] = h.Clone().(*LinearRing)
+		}
 	}
-	return NewPolygon(shellRing, holeRings)
+	return &Polygon{
+		shell: clonedShell,
+		holes: clonedHoles,
+	}
 }
 
 // NewPolygonEmpty creates an empty Polygon.
@@ -192,14 +190,17 @@ func (p *Polygon) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (p *Polygon) Envelope() *Envelope {
-	if p.envelope == nil {
-		if p.shell == nil || p.shell.IsEmpty() {
-			p.envelope = NewEnvelopeEmpty()
-		} else {
-			p.envelope = p.shell.Envelope()
-		}
+	if env := p.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return p.envelope.Clone()
+	var env *Envelope
+	if p.shell == nil || p.shell.IsEmpty() {
+		env = NewEnvelopeEmpty()
+	} else {
+		env = p.shell.Envelope()
+	}
+	p.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if the polygon has no shell.
@@ -214,8 +215,8 @@ func (p *Polygon) IsSimple() bool {
 
 // IsValid returns true if the polygon is valid.
 // A valid polygon has:
-// - A valid shell with counter-clockwise orientation
-// - Valid holes with clockwise orientation
+// - A valid shell
+// - Valid holes
 // - Holes inside the shell
 // - No shell/hole crossings
 // - No nested holes
@@ -230,17 +231,9 @@ func (p *Polygon) IsValid() bool {
 		return false
 	}
 
-	// Check shell has correct orientation (counter-clockwise)
-	if !p.shell.IsCCW() {
-		return false
-	}
-
-	// Check holes are valid and have correct orientation (clockwise)
+	// Check holes are valid
 	for _, hole := range p.holes {
 		if !hole.IsValid() {
-			return false
-		}
-		if !hole.IsCW() {
 			return false
 		}
 
@@ -339,36 +332,34 @@ func (p *Polygon) GeometryN(n int) Geometry {
 
 // Clone returns a deep copy.
 func (p *Polygon) Clone() Geometry {
-	shellClone := p.shell.Clone().(*LinearRing)
-	holesClone := make([]*LinearRing, len(p.holes))
-	for i, hole := range p.holes {
-		holesClone[i] = hole.Clone().(*LinearRing)
-	}
-	clone := NewPolygon(shellClone, holesClone)
+	clone := NewPolygon(p.shell, p.holes)
 	clone.srid = p.srid
 	return clone
 }
 
-// Normalize normalizes the polygon to canonical form.
-func (p *Polygon) Normalize() {
+// Normalized returns a new polygon in canonical form.
+func (p *Polygon) Normalized() Geometry {
 	if p.IsEmpty() {
-		return
+		return p.Clone()
 	}
 
-	p.shell.Normalize()
+	clone := p.Clone().(*Polygon)
+
+	clone.shell = clone.shell.Normalized().(*LinearRing)
 
 	// Ensure counter-clockwise orientation for shell
-	if p.shell.IsCW() {
-		p.shell = p.shell.Reverse()
+	if clone.shell.IsCW() {
+		clone.shell = clone.shell.Reverse()
 	}
 
-	for i, hole := range p.holes {
-		hole.Normalize()
+	for i, hole := range clone.holes {
+		clone.holes[i] = hole.Normalized().(*LinearRing)
 		// Ensure clockwise orientation for holes
-		if hole.IsCCW() {
-			p.holes[i] = hole.Reverse()
+		if clone.holes[i].IsCCW() {
+			clone.holes[i] = clone.holes[i].Reverse()
 		}
 	}
+	return clone
 }
 
 // EqualsExact returns true if the polygons are exactly equal.
@@ -530,6 +521,12 @@ func (p *Polygon) Centroid() *Point {
 	return NewPoint(totalCx/totalArea, totalCy/totalArea)
 }
 
+// RingCentroidAndArea computes the centroid and area of a closed ring.
+// The input must include the closing coordinate; area is always positive.
+func RingCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
+	return ringCentroidAndArea(coords)
+}
+
 // ringCentroidAndArea computes the centroid and area of a ring using the shoelace formula.
 // Returns (cx, cy, area) where area is always positive.
 func ringCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
@@ -553,7 +550,7 @@ func ringCentroidAndArea(coords CoordinateSequence) (cx, cy, area float64) {
 	}
 
 	signedArea /= 2
-	if signedArea == 0 {
+	if math.Abs(signedArea) < DefaultEpsilon {
 		return coords[0].X, coords[0].Y, 0
 	}
 
@@ -568,50 +565,11 @@ func (p *Polygon) ContainsPoint(c Coordinate) bool {
 	if p.IsEmpty() {
 		return false
 	}
-
-	// Check if point is in envelope
 	if !p.Envelope().Contains(c) {
 		return false
 	}
-
-	// Check if point is inside shell
-	if !isPointInRing(c, p.shell) {
-		return false
-	}
-
-	// Check if point is inside any hole
-	for _, hole := range p.holes {
-		if isPointInRing(c, hole) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// isPointInRing uses the ray casting algorithm.
-func isPointInRing(p Coordinate, ring *LinearRing) bool {
-	coords := ring.coords
-	n := len(coords)
-	if n < 4 {
-		return false
-	}
-
-	inside := false
-	j := n - 2 // Second to last point (since ring is closed)
-
-	for i := 0; i < n-1; i++ {
-		xi, yi := coords[i].X, coords[i].Y
-		xj, yj := coords[j].X, coords[j].Y
-
-		if ((yi > p.Y) != (yj > p.Y)) &&
-			(p.X < (xj-xi)*(p.Y-yi)/(yj-yi)+xi) {
-			inside = !inside
-		}
-		j = i
-	}
-
-	return inside
+	loc := pointInPolygon(c, p)
+	return loc == LocationInterior
 }
 
 // hasRingSelfIntersection checks if a ring's non-adjacent segments properly intersect.
@@ -636,7 +594,7 @@ func ringsProperlyIntersect(r1, r2 *LinearRing) bool {
 	coords1, coords2 := r1.Coordinates(), r2.Coordinates()
 	for i := 0; i < len(coords1)-1; i++ {
 		for j := 0; j < len(coords2)-1; j++ {
-			if segmentsIntersect(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
+			if segmentsCrossProper(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
 				return true
 			}
 		}
@@ -649,5 +607,5 @@ func isRingInsideRing(inner, outer *LinearRing) bool {
 	if inner.IsEmpty() {
 		return false
 	}
-	return isPointInRing(inner.Coordinates()[0], outer)
+	return PointInRing(inner.Coordinates()[0], outer)
 }

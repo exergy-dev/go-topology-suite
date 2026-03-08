@@ -119,7 +119,7 @@ func TestLength(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ls := geom.NewLineStringXY(tt.coords...)
+			ls := mustLineStringXY(tt.coords...)
 			length := Length(ls)
 
 			tolerance := math.Max(distanceTolerance, tt.expected*0.01)
@@ -161,7 +161,7 @@ func TestArea(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ring := geom.NewLinearRingXY(tt.coords...)
+			ring := mustLinearRingXY(tt.coords...)
 			poly := geom.NewPolygon(ring, nil)
 			area := Area(poly)
 
@@ -178,7 +178,7 @@ func TestArea(t *testing.T) {
 // TestAreaWithHoles tests polygon area with holes.
 func TestAreaWithHoles(t *testing.T) {
 	// Outer ring: 1° × 1° square
-	outer := geom.NewLinearRingXY(
+	outer := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -187,7 +187,7 @@ func TestAreaWithHoles(t *testing.T) {
 	)
 
 	// Inner ring (hole): 0.5° × 0.5° square in the center
-	hole := geom.NewLinearRingXY(
+	hole := mustLinearRingXY(
 		0.25, 0.25,
 		0.75, 0.25,
 		0.75, 0.75,
@@ -197,7 +197,7 @@ func TestAreaWithHoles(t *testing.T) {
 
 	poly := geom.NewPolygon(outer, []*geom.LinearRing{hole})
 
-	area := PolygonAreaWithHoles(poly)
+	area := Area(poly)
 
 	// Outer area - hole area
 	outerArea := Area(geom.NewPolygon(outer, nil))
@@ -205,13 +205,13 @@ func TestAreaWithHoles(t *testing.T) {
 	expectedArea := outerArea - holeArea
 
 	tolerance := math.Max(areaTolerance, expectedArea*0.05)
-	assert.InDelta(t, expectedArea, area, tolerance, "PolygonAreaWithHoles() = %v, want %v", area, expectedArea)
+	assert.InDelta(t, expectedArea, area, tolerance, "Area() = %v, want %v", area, expectedArea)
 }
 
 // TestContains tests point-in-polygon containment.
 func TestContains(t *testing.T) {
 	// Create a polygon around (0, 0)
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -264,7 +264,7 @@ func TestContains(t *testing.T) {
 // TestIntersects tests polygon intersection.
 func TestIntersects(t *testing.T) {
 	// Polygon 1: square from (-1,-1) to (1,1)
-	ring1 := geom.NewLinearRingXY(
+	ring1 := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -318,7 +318,7 @@ func TestIntersects(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ring2 := geom.NewLinearRingXY(tt.coords...)
+			ring2 := mustLinearRingXY(tt.coords...)
 			poly2 := geom.NewPolygon(ring2, nil)
 			result := Intersects(poly1, poly2)
 			assert.Equal(t, tt.expected, result, "Intersects() = %v, want %v", result, tt.expected)
@@ -363,7 +363,7 @@ func TestCellToken(t *testing.T) {
 // TestCovering tests geometry covering with S2 cells.
 func TestCovering(t *testing.T) {
 	// Create a small polygon
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -388,7 +388,7 @@ func TestCovering(t *testing.T) {
 
 // TestCoveringTokens tests token-based covering.
 func TestCoveringTokens(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -420,7 +420,7 @@ func TestConversions(t *testing.T) {
 	})
 
 	t.Run("LineString conversion", func(t *testing.T) {
-		original := geom.NewLineStringXY(
+		original := mustLineStringXY(
 			0.0, 0.0,
 			1.0, 1.0,
 			2.0, 0.0,
@@ -432,7 +432,7 @@ func TestConversions(t *testing.T) {
 	})
 
 	t.Run("Polygon conversion", func(t *testing.T) {
-		ring := geom.NewLinearRingXY(
+		ring := mustLinearRingXY(
 			0.0, 0.0,
 			1.0, 0.0,
 			1.0, 1.0,
@@ -451,7 +451,7 @@ func TestConversions(t *testing.T) {
 // TestPerimeter tests polygon perimeter calculations.
 func TestPerimeter(t *testing.T) {
 	// Square at equator: 1° × 1°
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -472,7 +472,7 @@ func TestPerimeter(t *testing.T) {
 // TestCentroid tests centroid calculations.
 func TestCentroid(t *testing.T) {
 	// Square centered at origin
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -549,7 +549,7 @@ func BenchmarkDistance(b *testing.B) {
 
 // BenchmarkArea benchmarks area calculations.
 func BenchmarkArea(b *testing.B) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -566,7 +566,7 @@ func BenchmarkArea(b *testing.B) {
 
 // BenchmarkContains benchmarks containment tests.
 func BenchmarkContains(b *testing.B) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -584,7 +584,7 @@ func BenchmarkContains(b *testing.B) {
 
 // BenchmarkCovering benchmarks S2 cell covering.
 func BenchmarkCovering(b *testing.B) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -647,7 +647,7 @@ func TestRingArea(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ring := geom.NewLinearRingXY(tt.coords...)
+			ring := mustLinearRingXY(tt.coords...)
 			area := RingArea(ring)
 
 			tolerance := math.Max(areaTolerance, tt.expected*0.10) // 10% tolerance for ring area
@@ -673,7 +673,7 @@ func TestRingAreaEmpty(t *testing.T) {
 // TestSignedRingArea tests SignedRingArea for orientation detection.
 func TestSignedRingArea(t *testing.T) {
 	// Counter-clockwise ring (small area - interior of the small square)
-	ccwRing := geom.NewLinearRingXY(
+	ccwRing := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -684,7 +684,7 @@ func TestSignedRingArea(t *testing.T) {
 	// Clockwise ring (huge area - complement of the small square)
 	// In S2, loop.Area() returns the area to the LEFT of the traversal.
 	// For CW traversal, that's the exterior (almost the whole sphere).
-	cwRing := geom.NewLinearRingXY(
+	cwRing := mustLinearRingXY(
 		0.0, 0.0,
 		0.0, 1.0,
 		1.0, 1.0,
@@ -706,62 +706,10 @@ func TestSignedRingArea(t *testing.T) {
 		"CCW and CW areas should sum to sphere surface")
 }
 
-// TestMultiPolygonArea tests MultiPolygonArea calculations.
-func TestMultiPolygonArea(t *testing.T) {
-	// Create two non-overlapping polygons
-	ring1 := geom.NewLinearRingXY(
-		0.0, 0.0,
-		1.0, 0.0,
-		1.0, 1.0,
-		0.0, 1.0,
-		0.0, 0.0,
-	)
-	poly1 := geom.NewPolygon(ring1, nil)
-
-	ring2 := geom.NewLinearRingXY(
-		5.0, 5.0,
-		6.0, 5.0,
-		6.0, 6.0,
-		5.0, 6.0,
-		5.0, 5.0,
-	)
-	poly2 := geom.NewPolygon(ring2, nil)
-
-	polygons := []*geom.Polygon{poly1, poly2}
-	totalArea := MultiPolygonArea(polygons)
-
-	// Total should be sum of individual areas
-	expectedArea := Area(poly1) + Area(poly2)
-	tolerance := math.Max(areaTolerance, expectedArea*0.05)
-
-	assert.InDelta(t, expectedArea, totalArea, tolerance, "MultiPolygonArea() = %v, want %v", totalArea, expectedArea)
-}
-
-// TestMultiPolygonAreaEmpty tests MultiPolygonArea with empty/nil polygons.
-func TestMultiPolygonAreaEmpty(t *testing.T) {
-	// Nil slice
-	var nilSlice []*geom.Polygon
-	assert.Equal(t, 0.0, MultiPolygonArea(nilSlice), "MultiPolygonArea(nil) should be 0")
-
-	// Empty slice
-	emptySlice := []*geom.Polygon{}
-	assert.Equal(t, 0.0, MultiPolygonArea(emptySlice), "MultiPolygonArea(empty) should be 0")
-
-	// Slice with nil elements
-	withNils := []*geom.Polygon{nil, nil}
-	assert.Equal(t, 0.0, MultiPolygonArea(withNils), "MultiPolygonArea with nils should be 0")
-
-	// Slice with mix of valid and nil
-	ring := geom.NewLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
-	poly := geom.NewPolygon(ring, nil)
-	mixed := []*geom.Polygon{nil, poly, nil}
-	assert.Greater(t, MultiPolygonArea(mixed), 0.0, "MultiPolygonArea with valid poly should be > 0")
-}
-
 // TestRingCentroid tests RingCentroid calculations.
 func TestRingCentroid(t *testing.T) {
 	// Square centered at origin
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -792,7 +740,7 @@ func TestRingCentroidEmpty(t *testing.T) {
 // TestDistanceToLineString tests point-to-linestring distance calculations.
 func TestDistanceToLineString(t *testing.T) {
 	// Horizontal line at equator from 0° to 10°
-	line := geom.NewLineStringXY(
+	line := mustLineStringXY(
 		0.0, 0.0,
 		10.0, 0.0,
 	)
@@ -845,7 +793,7 @@ func TestDistanceToLineString(t *testing.T) {
 
 // TestDistanceToLineStringEmpty tests DistanceToLineString with empty geometries.
 func TestDistanceToLineStringEmpty(t *testing.T) {
-	line := geom.NewLineStringXY(0.0, 0.0, 10.0, 0.0)
+	line := mustLineStringXY(0.0, 0.0, 10.0, 0.0)
 	point := geom.NewPoint(5.0, 1.0)
 
 	// Empty point
@@ -863,7 +811,7 @@ func TestDistanceToLineStringEmpty(t *testing.T) {
 // TestDistanceToPolygon tests point-to-polygon distance calculations.
 func TestDistanceToPolygon(t *testing.T) {
 	// Square polygon centered at origin
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -920,7 +868,7 @@ func TestDistanceToPolygon(t *testing.T) {
 
 // TestDistanceToPolygonEmpty tests DistanceToPolygon with empty geometries.
 func TestDistanceToPolygonEmpty(t *testing.T) {
-	ring := geom.NewLinearRingXY(-1, -1, 1, -1, 1, 1, -1, 1, -1, -1)
+	ring := mustLinearRingXY(-1, -1, 1, -1, 1, 1, -1, 1, -1, -1)
 	poly := geom.NewPolygon(ring, nil)
 	point := geom.NewPoint(5.0, 5.0)
 
@@ -936,7 +884,7 @@ func TestDistanceToPolygonEmpty(t *testing.T) {
 // TestInteriorCovering tests interior cell covering.
 func TestInteriorCovering(t *testing.T) {
 	// Large polygon to ensure interior cells exist
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-5.0, -5.0,
 		5.0, -5.0,
 		5.0, 5.0,
@@ -974,7 +922,7 @@ func TestInteriorCoveringEmpty(t *testing.T) {
 
 // TestInteriorCoveringTokens tests token-based interior covering.
 func TestInteriorCoveringTokens(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-5.0, -5.0,
 		5.0, -5.0,
 		5.0, 5.0,
@@ -994,7 +942,7 @@ func TestInteriorCoveringTokens(t *testing.T) {
 
 // TestCellUnion tests CellUnion construction.
 func TestCellUnion(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		-1.0, -1.0,
 		1.0, -1.0,
 		1.0, 1.0,
@@ -1102,7 +1050,7 @@ func TestCellContainsInvalid(t *testing.T) {
 // TestAntimeridianCrossing tests geometries crossing the antimeridian (±180°).
 func TestAntimeridianCrossing(t *testing.T) {
 	// Line crossing the antimeridian
-	line := geom.NewLineStringXY(
+	line := mustLineStringXY(
 		170.0, 0.0, // East of antimeridian
 		-170.0, 0.0, // West of antimeridian (short path crosses ±180)
 	)
@@ -1144,7 +1092,7 @@ func TestPolarRegions(t *testing.T) {
 
 	t.Run("Polygon around North Pole", func(t *testing.T) {
 		// Small cap around north pole
-		ring := geom.NewLinearRingXY(
+		ring := mustLinearRingXY(
 			0.0, 89.0,
 			90.0, 89.0,
 			180.0, 89.0,
@@ -1199,7 +1147,7 @@ func TestNilInputs(t *testing.T) {
 
 // TestToS2Loop tests direct S2 loop conversion.
 func TestToS2Loop(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -1240,8 +1188,8 @@ func TestCoveringMultiPoint(t *testing.T) {
 
 // TestCoveringMultiLineString tests Covering with MultiLineString geometry.
 func TestCoveringMultiLineString(t *testing.T) {
-	ls1 := geom.NewLineStringXY(0.0, 0.0, 1.0, 0.0)
-	ls2 := geom.NewLineStringXY(2.0, 2.0, 3.0, 3.0)
+	ls1 := mustLineStringXY(0.0, 0.0, 1.0, 0.0)
+	ls2 := mustLineStringXY(2.0, 2.0, 3.0, 3.0)
 	mls := geom.NewMultiLineString([]*geom.LineString{ls1, ls2})
 
 	cells := Covering(mls, 5, 10, 8)
@@ -1251,8 +1199,8 @@ func TestCoveringMultiLineString(t *testing.T) {
 
 // TestCoveringMultiPolygon tests Covering with MultiPolygon geometry.
 func TestCoveringMultiPolygon(t *testing.T) {
-	ring1 := geom.NewLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
-	ring2 := geom.NewLinearRingXY(5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0)
+	ring1 := mustLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
+	ring2 := mustLinearRingXY(5.0, 5.0, 6.0, 5.0, 6.0, 6.0, 5.0, 6.0, 5.0, 5.0)
 	poly1 := geom.NewPolygon(ring1, nil)
 	poly2 := geom.NewPolygon(ring2, nil)
 	mpoly := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
@@ -1265,8 +1213,8 @@ func TestCoveringMultiPolygon(t *testing.T) {
 // TestCoveringGeometryCollection tests Covering with GeometryCollection.
 func TestCoveringGeometryCollection(t *testing.T) {
 	point := geom.NewPoint(0.0, 0.0)
-	line := geom.NewLineStringXY(1.0, 1.0, 2.0, 2.0)
-	ring := geom.NewLinearRingXY(3.0, 3.0, 4.0, 3.0, 4.0, 4.0, 3.0, 4.0, 3.0, 3.0)
+	line := mustLineStringXY(1.0, 1.0, 2.0, 2.0)
+	ring := mustLinearRingXY(3.0, 3.0, 4.0, 3.0, 4.0, 4.0, 3.0, 4.0, 3.0, 3.0)
 	poly := geom.NewPolygon(ring, nil)
 	gc := geom.NewGeometryCollection([]geom.Geometry{point, line, poly})
 
@@ -1278,8 +1226,8 @@ func TestCoveringGeometryCollection(t *testing.T) {
 // TestInteriorCoveringMultiPolygon tests InteriorCovering with MultiPolygon.
 func TestInteriorCoveringMultiPolygon(t *testing.T) {
 	// Larger polygons to have interior
-	ring1 := geom.NewLinearRingXY(0.0, 0.0, 5.0, 0.0, 5.0, 5.0, 0.0, 5.0, 0.0, 0.0)
-	ring2 := geom.NewLinearRingXY(10.0, 10.0, 15.0, 10.0, 15.0, 15.0, 10.0, 15.0, 10.0, 10.0)
+	ring1 := mustLinearRingXY(0.0, 0.0, 5.0, 0.0, 5.0, 5.0, 0.0, 5.0, 0.0, 0.0)
+	ring2 := mustLinearRingXY(10.0, 10.0, 15.0, 10.0, 15.0, 15.0, 10.0, 15.0, 10.0, 10.0)
 	poly1 := geom.NewPolygon(ring1, nil)
 	poly2 := geom.NewPolygon(ring2, nil)
 	mpoly := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
@@ -1291,7 +1239,7 @@ func TestInteriorCoveringMultiPolygon(t *testing.T) {
 
 // TestInteriorCoveringGeometryCollection tests InteriorCovering with GeometryCollection.
 func TestInteriorCoveringGeometryCollection(t *testing.T) {
-	ring := geom.NewLinearRingXY(0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0, 0.0, 0.0)
+	ring := mustLinearRingXY(0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0, 0.0, 0.0)
 	poly := geom.NewPolygon(ring, nil)
 	gc := geom.NewGeometryCollection([]geom.Geometry{poly})
 
@@ -1302,14 +1250,14 @@ func TestInteriorCoveringGeometryCollection(t *testing.T) {
 // TestLoopsIntersect tests LoopsIntersect function.
 func TestLoopsIntersect(t *testing.T) {
 	// Two overlapping rings
-	ring1 := geom.NewLinearRingXY(
+	ring1 := mustLinearRingXY(
 		0.0, 0.0,
 		2.0, 0.0,
 		2.0, 2.0,
 		0.0, 2.0,
 		0.0, 0.0,
 	)
-	ring2 := geom.NewLinearRingXY(
+	ring2 := mustLinearRingXY(
 		1.0, 1.0,
 		3.0, 1.0,
 		3.0, 3.0,
@@ -1320,7 +1268,7 @@ func TestLoopsIntersect(t *testing.T) {
 	assert.True(t, LoopsIntersect(ring1, ring2), "Overlapping rings should intersect")
 
 	// Two disjoint rings
-	ring3 := geom.NewLinearRingXY(
+	ring3 := mustLinearRingXY(
 		10.0, 10.0,
 		11.0, 10.0,
 		11.0, 11.0,
@@ -1332,7 +1280,7 @@ func TestLoopsIntersect(t *testing.T) {
 
 // TestLoopsIntersectEmpty tests LoopsIntersect with empty/nil rings.
 func TestLoopsIntersectEmpty(t *testing.T) {
-	ring := geom.NewLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
+	ring := mustLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
 	emptyRing := geom.NewLinearRingEmpty()
 	var nilRing *geom.LinearRing
 
@@ -1342,45 +1290,9 @@ func TestLoopsIntersectEmpty(t *testing.T) {
 	assert.False(t, LoopsIntersect(nilRing, ring), "Nil ring and ring should not intersect")
 }
 
-// TestPointInRingWindingNumber tests PointInRingWindingNumber function.
-func TestPointInRingWindingNumber(t *testing.T) {
-	ring := geom.NewLinearRingXY(
-		0.0, 0.0,
-		2.0, 0.0,
-		2.0, 2.0,
-		0.0, 2.0,
-		0.0, 0.0,
-	)
-
-	// Point inside
-	inside := geom.NewPoint(1.0, 1.0)
-	assert.True(t, PointInRingWindingNumber(ring, inside), "Point inside ring should return true")
-
-	// Point outside
-	outside := geom.NewPoint(5.0, 5.0)
-	assert.False(t, PointInRingWindingNumber(ring, outside), "Point outside ring should return false")
-
-	// Point on boundary
-	boundary := geom.NewPoint(0.0, 1.0)
-	// Boundary behavior may vary
-	_ = PointInRingWindingNumber(ring, boundary)
-}
-
-// TestPointInRingWindingNumberEmpty tests PointInRingWindingNumber with empty inputs.
-func TestPointInRingWindingNumberEmpty(t *testing.T) {
-	ring := geom.NewLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
-	point := geom.NewPoint(0.5, 0.5)
-
-	emptyRing := geom.NewLinearRingEmpty()
-	emptyPoint := geom.NewPointEmpty()
-
-	assert.False(t, PointInRingWindingNumber(emptyRing, point), "Point in empty ring should return false")
-	assert.False(t, PointInRingWindingNumber(ring, emptyPoint), "Empty point in ring should return false")
-}
-
-// TestLinearRingContains tests LinearRing containment through GenericWithin.
+// TestLinearRingContains tests LinearRing containment through Within.
 func TestLinearRingContains(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
@@ -1400,7 +1312,7 @@ func TestLinearRingContains(t *testing.T) {
 
 // TestLinearRingIntersects tests LinearRing intersection through Intersects.
 func TestLinearRingIntersects(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		2.0, 0.0,
 		2.0, 2.0,
@@ -1409,11 +1321,11 @@ func TestLinearRingIntersects(t *testing.T) {
 	)
 
 	// LineString crossing the ring
-	crossingLine := geom.NewLineStringXY(-1.0, 1.0, 3.0, 1.0)
+	crossingLine := mustLineStringXY(-1.0, 1.0, 3.0, 1.0)
 	assert.True(t, Intersects(ring, crossingLine), "LinearRing should intersect crossing line")
 
 	// LineString not touching the ring
-	disjointLine := geom.NewLineStringXY(10.0, 10.0, 11.0, 11.0)
+	disjointLine := mustLineStringXY(10.0, 10.0, 11.0, 11.0)
 	assert.False(t, Intersects(ring, disjointLine), "LinearRing should not intersect disjoint line")
 }
 
@@ -1425,12 +1337,12 @@ func TestGeometryToRegion(t *testing.T) {
 	assert.NotNil(t, cells, "Point covering should work")
 
 	// LineString
-	line := geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0)
+	line := mustLineStringXY(0.0, 0.0, 1.0, 1.0)
 	cells = Covering(line, 5, 10, 4)
 	assert.NotNil(t, cells, "LineString covering should work")
 
 	// LinearRing (as polygon-like)
-	ring := geom.NewLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
+	ring := mustLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
 	cells = Covering(ring, 5, 10, 4)
 	assert.NotNil(t, cells, "LinearRing covering should work")
 
@@ -1442,14 +1354,14 @@ func TestGeometryToRegion(t *testing.T) {
 
 // TestToS2Polygon tests ToS2Polygon with polygon with holes.
 func TestToS2PolygonWithHoles(t *testing.T) {
-	outer := geom.NewLinearRingXY(
+	outer := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
 		0.0, 10.0,
 		0.0, 0.0,
 	)
-	hole := geom.NewLinearRingXY(
+	hole := mustLinearRingXY(
 		2.0, 2.0,
 		8.0, 2.0,
 		8.0, 8.0,
@@ -1466,7 +1378,7 @@ func TestToS2PolygonWithHoles(t *testing.T) {
 // TestFromS2Polygon tests FromS2Polygon conversion.
 func TestFromS2Polygon(t *testing.T) {
 	// Create a simple polygon and convert to S2 and back
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		1.0, 0.0,
 		1.0, 1.0,
@@ -1493,7 +1405,7 @@ func TestFromS2PolygonNil(t *testing.T) {
 // TestFromS2Polyline tests FromS2Polyline conversion.
 func TestFromS2Polyline(t *testing.T) {
 	// Create a simple linestring and convert to S2 and back
-	originalLine := geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0, 2.0, 0.0)
+	originalLine := mustLineStringXY(0.0, 0.0, 1.0, 1.0, 2.0, 0.0)
 
 	s2Polyline := ToS2Polyline(originalLine)
 	require.NotNil(t, s2Polyline, "ToS2Polyline should not return nil")
@@ -1514,7 +1426,7 @@ func TestFromS2PolylineNil(t *testing.T) {
 // TestContainsMultiTypes tests Contains with multi-geometry types.
 func TestContainsMultiTypes(t *testing.T) {
 	// Large polygon that contains other geometries
-	outerRing := geom.NewLinearRingXY(
+	outerRing := mustLinearRingXY(
 		-10.0, -10.0,
 		10.0, -10.0,
 		10.0, 10.0,
@@ -1530,14 +1442,14 @@ func TestContainsMultiTypes(t *testing.T) {
 	assert.True(t, Contains(container, mp), "Polygon should contain MultiPoint inside")
 
 	// MultiLineString inside
-	ls1 := geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0)
-	ls2 := geom.NewLineStringXY(2.0, 2.0, 3.0, 3.0)
+	ls1 := mustLineStringXY(0.0, 0.0, 1.0, 1.0)
+	ls2 := mustLineStringXY(2.0, 2.0, 3.0, 3.0)
 	mls := geom.NewMultiLineString([]*geom.LineString{ls1, ls2})
 	assert.True(t, Contains(container, mls), "Polygon should contain MultiLineString inside")
 
 	// MultiPolygon inside
-	ring1 := geom.NewLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
-	ring2 := geom.NewLinearRingXY(2.0, 2.0, 3.0, 2.0, 3.0, 3.0, 2.0, 3.0, 2.0, 2.0)
+	ring1 := mustLinearRingXY(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0)
+	ring2 := mustLinearRingXY(2.0, 2.0, 3.0, 2.0, 3.0, 3.0, 2.0, 3.0, 2.0, 2.0)
 	poly1 := geom.NewPolygon(ring1, nil)
 	poly2 := geom.NewPolygon(ring2, nil)
 	mpoly := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
@@ -1546,7 +1458,7 @@ func TestContainsMultiTypes(t *testing.T) {
 
 // TestPointOnRing tests PointOnRing function.
 func TestPointOnRing(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		2.0, 0.0,
 		2.0, 2.0,
@@ -1571,7 +1483,7 @@ func TestPointOnRing(t *testing.T) {
 
 // TestPointOnLineString tests PointOnLineString function.
 func TestPointOnLineString(t *testing.T) {
-	line := geom.NewLineStringXY(0.0, 0.0, 2.0, 2.0, 4.0, 0.0)
+	line := mustLineStringXY(0.0, 0.0, 2.0, 2.0, 4.0, 0.0)
 
 	// Use a larger tolerance for spherical calculations (degrees)
 	tolerance := 1e-6
@@ -1606,7 +1518,7 @@ func TestPointContainsPoint(t *testing.T) {
 	assert.False(t, Contains(p1, p3), "Point should not contain different point")
 
 	// Point doesn't contain non-point geometry
-	line := geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0)
+	line := mustLineStringXY(0.0, 0.0, 1.0, 1.0)
 	assert.False(t, Contains(p1, line), "Point should not contain linestring")
 }
 
@@ -1638,8 +1550,8 @@ func TestMultiPointContainsGeometry(t *testing.T) {
 // TestMultiLineStringContainsGeometry tests MultiLineString containment.
 // This triggers multiLineStringContainsSpherical.
 func TestMultiLineStringContainsGeometry(t *testing.T) {
-	ls1 := geom.NewLineStringXY(0.0, 0.0, 2.0, 0.0)
-	ls2 := geom.NewLineStringXY(5.0, 5.0, 7.0, 5.0)
+	ls1 := mustLineStringXY(0.0, 0.0, 2.0, 0.0)
+	ls2 := mustLineStringXY(5.0, 5.0, 7.0, 5.0)
 	mls := geom.NewMultiLineString([]*geom.LineString{ls1, ls2})
 
 	// MultiLineString contains endpoint
@@ -1662,7 +1574,7 @@ func TestMultiLineStringContainsGeometry(t *testing.T) {
 // TestGeometryCollectionContainsGeometry tests GeometryCollection containment.
 // This triggers geometryCollectionContainsSpherical.
 func TestGeometryCollectionContainsGeometry(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
@@ -1688,7 +1600,7 @@ func TestGeometryCollectionContainsGeometry(t *testing.T) {
 // TestLinearRingIntersectsVariousGeometries tests LinearRing intersection.
 // This triggers linearRingIntersectsSpherical with different geometry types.
 func TestLinearRingIntersectsVariousGeometries(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		5.0, 0.0,
 		5.0, 5.0,
@@ -1709,15 +1621,15 @@ func TestLinearRingIntersectsVariousGeometries(t *testing.T) {
 	assert.False(t, Intersects(ring, pointOutside), "Ring should not intersect point outside")
 
 	// Ring intersects crossing LineString
-	crossingLine := geom.NewLineStringXY(-1.0, 2.5, 6.0, 2.5)
+	crossingLine := mustLineStringXY(-1.0, 2.5, 6.0, 2.5)
 	assert.True(t, Intersects(ring, crossingLine), "Ring should intersect crossing line")
 
 	// Ring intersects line inside
-	lineInside := geom.NewLineStringXY(1.0, 1.0, 2.0, 2.0)
+	lineInside := mustLineStringXY(1.0, 1.0, 2.0, 2.0)
 	assert.True(t, Intersects(ring, lineInside), "Ring should intersect line inside")
 
 	// Ring intersects overlapping ring
-	overlappingRing := geom.NewLinearRingXY(
+	overlappingRing := mustLinearRingXY(
 		2.0, 2.0,
 		7.0, 2.0,
 		7.0, 7.0,
@@ -1727,7 +1639,7 @@ func TestLinearRingIntersectsVariousGeometries(t *testing.T) {
 	assert.True(t, Intersects(ring, overlappingRing), "Ring should intersect overlapping ring")
 
 	// Ring intersects overlapping polygon
-	polyRing := geom.NewLinearRingXY(
+	polyRing := mustLinearRingXY(
 		2.0, 2.0,
 		7.0, 2.0,
 		7.0, 7.0,
@@ -1757,7 +1669,7 @@ func TestLinearRingIntersectsVariousGeometries(t *testing.T) {
 // TestLinearRingContainsVariousGeometries tests LinearRing containment.
 // This triggers linearRingContainsSpherical with different geometry types.
 func TestLinearRingContainsVariousGeometries(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
@@ -1774,15 +1686,15 @@ func TestLinearRingContainsVariousGeometries(t *testing.T) {
 	assert.False(t, Contains(ring, pointOutside), "Ring should not contain point outside")
 
 	// Ring contains LineString entirely inside
-	lineInside := geom.NewLineStringXY(2.0, 2.0, 5.0, 5.0)
+	lineInside := mustLineStringXY(2.0, 2.0, 5.0, 5.0)
 	assert.True(t, Contains(ring, lineInside), "Ring should contain line inside")
 
 	// Ring doesn't contain LineString that extends outside
-	lineCrossing := geom.NewLineStringXY(5.0, 5.0, 15.0, 15.0)
+	lineCrossing := mustLineStringXY(5.0, 5.0, 15.0, 15.0)
 	assert.False(t, Contains(ring, lineCrossing), "Ring should not contain line extending outside")
 
 	// Ring contains smaller ring inside
-	smallerRing := geom.NewLinearRingXY(
+	smallerRing := mustLinearRingXY(
 		2.0, 2.0,
 		8.0, 2.0,
 		8.0, 8.0,
@@ -1799,7 +1711,7 @@ func TestLinearRingContainsVariousGeometries(t *testing.T) {
 // TestPolygonContainsLinearRing tests Polygon containing LinearRing.
 // This triggers polygonContainsLoop.
 func TestPolygonContainsLinearRing(t *testing.T) {
-	outerRing := geom.NewLinearRingXY(
+	outerRing := mustLinearRingXY(
 		0.0, 0.0,
 		20.0, 0.0,
 		20.0, 20.0,
@@ -1809,7 +1721,7 @@ func TestPolygonContainsLinearRing(t *testing.T) {
 	poly := geom.NewPolygon(outerRing, nil)
 
 	// Polygon contains smaller ring inside
-	smallRing := geom.NewLinearRingXY(
+	smallRing := mustLinearRingXY(
 		5.0, 5.0,
 		15.0, 5.0,
 		15.0, 15.0,
@@ -1819,7 +1731,7 @@ func TestPolygonContainsLinearRing(t *testing.T) {
 	assert.True(t, Contains(poly, smallRing), "Polygon should contain ring inside")
 
 	// Polygon doesn't contain ring that extends outside
-	extendingRing := geom.NewLinearRingXY(
+	extendingRing := mustLinearRingXY(
 		10.0, 10.0,
 		25.0, 10.0,
 		25.0, 25.0,
@@ -1844,15 +1756,15 @@ func TestPointIntersectsVariousGeometries(t *testing.T) {
 
 	// Point at endpoint intersects LineString
 	endpointPoint := geom.NewPoint(0.0, 0.0)
-	lineThrough := geom.NewLineStringXY(0.0, 0.0, 10.0, 10.0)
+	lineThrough := mustLineStringXY(0.0, 0.0, 10.0, 10.0)
 	assert.True(t, Intersects(endpointPoint, lineThrough), "Point at endpoint should intersect line")
 
 	// Point doesn't intersect LineString not through it
-	lineAway := geom.NewLineStringXY(20.0, 20.0, 30.0, 30.0)
+	lineAway := mustLineStringXY(20.0, 20.0, 30.0, 30.0)
 	assert.False(t, Intersects(point, lineAway), "Point should not intersect line away from it")
 
 	// Point intersects LinearRing containing it
-	ringAround := geom.NewLinearRingXY(0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0, 0.0, 0.0)
+	ringAround := mustLinearRingXY(0.0, 0.0, 10.0, 0.0, 10.0, 10.0, 0.0, 10.0, 0.0, 0.0)
 	assert.True(t, Intersects(point, ringAround), "Point should intersect ring containing it")
 
 	// Point intersects Polygon containing it
@@ -1879,7 +1791,7 @@ func TestPointIntersectsVariousGeometries(t *testing.T) {
 // TestLineStringIntersectsVariousGeometries tests LineString intersection with all types.
 // This triggers lineStringIntersectsSpherical with different target types.
 func TestLineStringIntersectsVariousGeometries(t *testing.T) {
-	line := geom.NewLineStringXY(0.0, 0.0, 10.0, 10.0)
+	line := mustLineStringXY(0.0, 0.0, 10.0, 10.0)
 
 	// LineString intersects point at endpoint
 	endPoint := geom.NewPoint(0.0, 0.0)
@@ -1890,19 +1802,19 @@ func TestLineStringIntersectsVariousGeometries(t *testing.T) {
 	assert.False(t, Intersects(line, pointOff), "Line should not intersect point off it")
 
 	// LineString intersects crossing linestring
-	crossingLine := geom.NewLineStringXY(0.0, 10.0, 10.0, 0.0)
+	crossingLine := mustLineStringXY(0.0, 10.0, 10.0, 0.0)
 	assert.True(t, Intersects(line, crossingLine), "Line should intersect crossing line")
 
 	// LineString doesn't intersect parallel linestring
-	parallelLine := geom.NewLineStringXY(20.0, 20.0, 30.0, 30.0)
+	parallelLine := mustLineStringXY(20.0, 20.0, 30.0, 30.0)
 	assert.False(t, Intersects(line, parallelLine), "Line should not intersect parallel line")
 
 	// LineString intersects ring it goes through
-	ring := geom.NewLinearRingXY(-5.0, -5.0, 15.0, -5.0, 15.0, 15.0, -5.0, 15.0, -5.0, -5.0)
+	ring := mustLinearRingXY(-5.0, -5.0, 15.0, -5.0, 15.0, 15.0, -5.0, 15.0, -5.0, -5.0)
 	assert.True(t, Intersects(line, ring), "Line should intersect ring it goes through")
 
 	// LineString intersects polygon it goes through
-	polyRing := geom.NewLinearRingXY(-5.0, -5.0, 15.0, -5.0, 15.0, 15.0, -5.0, 15.0, -5.0, -5.0)
+	polyRing := mustLinearRingXY(-5.0, -5.0, 15.0, -5.0, 15.0, 15.0, -5.0, 15.0, -5.0, -5.0)
 	poly := geom.NewPolygon(polyRing, nil)
 	assert.True(t, Intersects(line, poly), "Line should intersect polygon it goes through")
 
@@ -1927,7 +1839,7 @@ func TestLineStringIntersectsVariousGeometries(t *testing.T) {
 // This triggers more coverage in the Touches function.
 func TestTouchesPolygons(t *testing.T) {
 	// Two overlapping polygons (the simplified Touches implementation returns true for these)
-	ring1 := geom.NewLinearRingXY(
+	ring1 := mustLinearRingXY(
 		0.0, 0.0,
 		5.0, 0.0,
 		5.0, 5.0,
@@ -1936,7 +1848,7 @@ func TestTouchesPolygons(t *testing.T) {
 	)
 	poly1 := geom.NewPolygon(ring1, nil)
 
-	ring2 := geom.NewLinearRingXY(
+	ring2 := mustLinearRingXY(
 		3.0, 0.0,
 		8.0, 0.0,
 		8.0, 5.0,
@@ -1952,7 +1864,7 @@ func TestTouchesPolygons(t *testing.T) {
 	_ = result
 
 	// Disjoint polygons don't touch
-	ring3 := geom.NewLinearRingXY(
+	ring3 := mustLinearRingXY(
 		20.0, 20.0,
 		25.0, 20.0,
 		25.0, 25.0,
@@ -1963,7 +1875,7 @@ func TestTouchesPolygons(t *testing.T) {
 	assert.False(t, Touches(poly1, poly3), "Disjoint polygons should not touch")
 
 	// Contained polygon doesn't touch (containment != touch)
-	smallRing := geom.NewLinearRingXY(
+	smallRing := mustLinearRingXY(
 		1.0, 1.0,
 		4.0, 1.0,
 		4.0, 4.0,
@@ -1982,7 +1894,7 @@ func TestTouchesPolygons(t *testing.T) {
 // TestPolygonIntersectsVariousGeometries tests polygon intersection with all types.
 // This triggers polygonIntersectsSpherical with different target types.
 func TestPolygonIntersectsVariousGeometries(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
@@ -2000,15 +1912,15 @@ func TestPolygonIntersectsVariousGeometries(t *testing.T) {
 	assert.False(t, Intersects(poly, pointOutside), "Polygon should not intersect point outside")
 
 	// Polygon intersects linestring inside
-	lineInside := geom.NewLineStringXY(2.0, 2.0, 8.0, 8.0)
+	lineInside := mustLineStringXY(2.0, 2.0, 8.0, 8.0)
 	assert.True(t, Intersects(poly, lineInside), "Polygon should intersect line inside")
 
 	// Polygon intersects ring inside
-	ringInside := geom.NewLinearRingXY(2.0, 2.0, 8.0, 2.0, 8.0, 8.0, 2.0, 8.0, 2.0, 2.0)
+	ringInside := mustLinearRingXY(2.0, 2.0, 8.0, 2.0, 8.0, 8.0, 2.0, 8.0, 2.0, 2.0)
 	assert.True(t, Intersects(poly, ringInside), "Polygon should intersect ring inside")
 
 	// Polygon intersects overlapping polygon
-	overlappingRing := geom.NewLinearRingXY(5.0, 5.0, 15.0, 5.0, 15.0, 15.0, 5.0, 15.0, 5.0, 5.0)
+	overlappingRing := mustLinearRingXY(5.0, 5.0, 15.0, 5.0, 15.0, 15.0, 5.0, 15.0, 5.0, 5.0)
 	overlappingPoly := geom.NewPolygon(overlappingRing, nil)
 	assert.True(t, Intersects(poly, overlappingPoly), "Polygon should intersect overlapping polygon")
 
@@ -2031,7 +1943,7 @@ func TestPolygonIntersectsVariousGeometries(t *testing.T) {
 
 // TestLoopContainsPoint tests LoopContainsPoint directly.
 func TestLoopContainsPointFunction(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
@@ -2061,7 +1973,7 @@ func TestLoopContainsPointFunction(t *testing.T) {
 
 // TestPolygonContainsPolygonFunction tests PolygonContainsPolygon directly.
 func TestPolygonContainsPolygonFunction(t *testing.T) {
-	outerRing := geom.NewLinearRingXY(
+	outerRing := mustLinearRingXY(
 		0.0, 0.0,
 		20.0, 0.0,
 		20.0, 20.0,
@@ -2070,7 +1982,7 @@ func TestPolygonContainsPolygonFunction(t *testing.T) {
 	)
 	largePoly := geom.NewPolygon(outerRing, nil)
 
-	innerRing := geom.NewLinearRingXY(
+	innerRing := mustLinearRingXY(
 		5.0, 5.0,
 		15.0, 5.0,
 		15.0, 15.0,
@@ -2095,9 +2007,9 @@ func TestPolygonContainsPolygonFunction(t *testing.T) {
 	assert.False(t, PolygonContainsPolygon(largePoly, emptyPoly), "Should not contain empty polygon")
 }
 
-// TestLineStringIntersectsPolygonFunction tests LineStringIntersectsPolygon directly.
-func TestLineStringIntersectsPolygonFunction(t *testing.T) {
-	ring := geom.NewLinearRingXY(
+// TestLineStringIntersectsPolygonInternal tests lineStringIntersectsPolygon directly.
+func TestLineStringIntersectsPolygonInternal(t *testing.T) {
+	ring := mustLinearRingXY(
 		0.0, 0.0,
 		10.0, 0.0,
 		10.0, 10.0,
@@ -2107,12 +2019,12 @@ func TestLineStringIntersectsPolygonFunction(t *testing.T) {
 	poly := geom.NewPolygon(ring, nil)
 
 	// Line inside
-	lineInside := geom.NewLineStringXY(2.0, 2.0, 8.0, 8.0)
-	assert.True(t, LineStringIntersectsPolygon(lineInside, poly), "Line inside should intersect polygon")
+	lineInside := mustLineStringXY(2.0, 2.0, 8.0, 8.0)
+	assert.True(t, lineStringIntersectsPolygon(lineInside, poly), "Line inside should intersect polygon")
 
 	// Line outside
-	lineOutside := geom.NewLineStringXY(20.0, 20.0, 30.0, 30.0)
-	assert.False(t, LineStringIntersectsPolygon(lineOutside, poly), "Line outside should not intersect polygon")
+	lineOutside := mustLineStringXY(20.0, 20.0, 30.0, 30.0)
+	assert.False(t, lineStringIntersectsPolygon(lineOutside, poly), "Line outside should not intersect polygon")
 
 	// Nil/empty inputs
 	var nilLine *geom.LineString
@@ -2120,8 +2032,8 @@ func TestLineStringIntersectsPolygonFunction(t *testing.T) {
 	emptyLine := geom.NewLineStringEmpty()
 	emptyPoly := geom.NewPolygonEmpty()
 
-	assert.False(t, LineStringIntersectsPolygon(nilLine, poly), "Nil line should not intersect")
-	assert.False(t, LineStringIntersectsPolygon(lineInside, nilPoly), "Should not intersect nil polygon")
-	assert.False(t, LineStringIntersectsPolygon(emptyLine, poly), "Empty line should not intersect")
-	assert.False(t, LineStringIntersectsPolygon(lineInside, emptyPoly), "Should not intersect empty polygon")
+	assert.False(t, lineStringIntersectsPolygon(nilLine, poly), "Nil line should not intersect")
+	assert.False(t, lineStringIntersectsPolygon(lineInside, nilPoly), "Should not intersect nil polygon")
+	assert.False(t, lineStringIntersectsPolygon(emptyLine, poly), "Empty line should not intersect")
+	assert.False(t, lineStringIntersectsPolygon(lineInside, emptyPoly), "Should not intersect empty polygon")
 }

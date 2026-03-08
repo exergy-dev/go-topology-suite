@@ -122,7 +122,7 @@ func TestPoint_EdgeCases(t *testing.T) {
 	t.Run("Distance", func(t *testing.T) {
 		p1 := geom.NewPoint(0, 0)
 		p2 := geom.NewPoint(3, 4)
-		dist := p1.Distance(p2)
+		dist := p1.Coordinate().Distance(p2.Coordinate())
 		if dist != 5.0 {
 			t.Errorf("Expected distance 5, got %f", dist)
 		}
@@ -172,7 +172,7 @@ func TestLineString_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("Single point LineString", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0)
+		coords := mustCoordsXY(0, 0)
 		ls := geom.NewLineString(coords)
 		if ls.IsValid() {
 			t.Error("Single-point LineString should be invalid")
@@ -180,14 +180,14 @@ func TestLineString_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("IsSimple", func(t *testing.T) {
-		simple := geom.NewLineStringXY(0, 0, 10, 10, 20, 20)
+		simple := mustLineStringXY(0, 0, 10, 10, 20, 20)
 		if !simple.IsSimple() {
 			t.Error("Non-self-intersecting line should be simple")
 		}
 	})
 
 	t.Run("Dimension", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 10, 10)
+		ls := mustLineStringXY(0, 0, 10, 10)
 		if ls.Dimension() != geom.DimensionLine {
 			t.Errorf("Expected dimension %d, got %d", geom.DimensionLine, ls.Dimension())
 		}
@@ -195,14 +195,14 @@ func TestLineString_EdgeCases(t *testing.T) {
 
 	t.Run("Boundary", func(t *testing.T) {
 		// Open linestring has boundary
-		open := geom.NewLineStringXY(0, 0, 10, 10)
+		open := mustLineStringXY(0, 0, 10, 10)
 		boundary := open.Boundary()
 		if boundary.IsEmpty() {
 			t.Error("Open linestring should have boundary")
 		}
 
 		// Closed linestring has no boundary
-		closed := geom.NewLineStringXY(0, 0, 10, 0, 10, 10, 0, 0)
+		closed := mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 0)
 		closedBoundary := closed.Boundary()
 		if !closedBoundary.IsEmpty() {
 			t.Error("Closed linestring should have empty boundary")
@@ -210,14 +210,14 @@ func TestLineString_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("NumGeometries", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 10, 10)
+		ls := mustLineStringXY(0, 0, 10, 10)
 		if ls.NumGeometries() != 1 {
 			t.Errorf("LineString should have 1 geometry, got %d", ls.NumGeometries())
 		}
 	})
 
 	t.Run("GeometryN", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 10, 10)
+		ls := mustLineStringXY(0, 0, 10, 10)
 		if ls.GeometryN(0) != ls {
 			t.Error("GeometryN(0) should return the linestring itself")
 		}
@@ -227,7 +227,7 @@ func TestLineString_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("PointN out of bounds", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 10, 10)
+		ls := mustLineStringXY(0, 0, 10, 10)
 		if ls.PointN(-1) != nil {
 			t.Error("PointN(-1) should return nil")
 		}
@@ -236,12 +236,12 @@ func TestLineString_EdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("Normalize", func(t *testing.T) {
-		ls := geom.NewLineStringXY(10, 10, 0, 0)
-		ls.Normalize()
+	t.Run("Normalized", func(t *testing.T) {
+		ls := mustLineStringXY(10, 10, 0, 0)
+		normalized := ls.Normalized().(*geom.LineString)
 		// After normalization, should be in canonical form
-		if ls.NumPoints() != 2 {
-			t.Error("Normalize should not change number of points")
+		if normalized.NumPoints() != 2 {
+			t.Error("Normalized should not change number of points")
 		}
 	})
 }
@@ -262,14 +262,14 @@ func TestPolygon_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("NumGeometries", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 		if poly.NumGeometries() != 1 {
 			t.Errorf("Polygon should have 1 geometry, got %d", poly.NumGeometries())
 		}
 	})
 
 	t.Run("GeometryN", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 		if poly.GeometryN(0) != poly {
 			t.Error("GeometryN(0) should return the polygon itself")
 		}
@@ -279,21 +279,21 @@ func TestPolygon_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("Dimension", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 		if poly.Dimension() != geom.DimensionArea {
 			t.Errorf("Expected dimension %d, got %d", geom.DimensionArea, poly.Dimension())
 		}
 	})
 
 	t.Run("IsSimple", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 		if !poly.IsSimple() {
 			t.Error("Valid polygon should be simple")
 		}
 	})
 
 	t.Run("Boundary", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 		boundary := poly.Boundary()
 		if boundary.IsEmpty() {
 			t.Error("Polygon boundary should not be empty")
@@ -301,7 +301,7 @@ func TestPolygon_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("ExteriorRing", func(t *testing.T) {
-		ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		poly := geom.NewPolygon(ring, nil)
 		exterior := poly.ExteriorRing()
 		if exterior == nil {
@@ -310,8 +310,8 @@ func TestPolygon_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("NumInteriorRings", func(t *testing.T) {
-		shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-		hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+		shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 		poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 		if poly.NumInteriorRings() != 1 {
@@ -320,8 +320,8 @@ func TestPolygon_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("InteriorRingN", func(t *testing.T) {
-		shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-		hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+		shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 		poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 		if poly.InteriorRingN(-1) != nil {
@@ -337,12 +337,12 @@ func TestPolygon_EdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("Normalize", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-		poly.Normalize()
+	t.Run("Normalized", func(t *testing.T) {
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		normalized := poly.Normalized().(*geom.Polygon)
 		// After normalization, should be in canonical form
-		if poly.IsEmpty() {
-			t.Error("Normalize should not make polygon empty")
+		if normalized.IsEmpty() {
+			t.Error("Normalized should not make polygon empty")
 		}
 	})
 }
@@ -350,7 +350,7 @@ func TestPolygon_EdgeCases(t *testing.T) {
 // TestLinearRing_EdgeCases tests edge cases for LinearRing
 func TestLinearRing_EdgeCases(t *testing.T) {
 	t.Run("Auto-close behavior", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 		lr := geom.NewLinearRing(coords)
 		if !lr.IsClosed() {
 			t.Error("LinearRing should auto-close")
@@ -365,7 +365,7 @@ func TestLinearRing_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("Too few points", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0)
+		coords := mustCoordsXY(0, 0, 10, 0)
 		lr := geom.NewLinearRing(coords)
 		if lr.IsValid() {
 			t.Error("LinearRing with < 4 points should be invalid")
@@ -374,20 +374,20 @@ func TestLinearRing_EdgeCases(t *testing.T) {
 
 	t.Run("SignedArea", func(t *testing.T) {
 		// CCW ring has positive signed area
-		ccwCoords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		ccwCoords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		if geom.SignedArea(ccwCoords) <= 0 {
 			t.Error("CCW ring should have positive signed area")
 		}
 
 		// CW ring has negative signed area
-		cwCoords := geom.NewCoordinateSequenceXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
+		cwCoords := mustCoordsXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
 		if geom.SignedArea(cwCoords) >= 0 {
 			t.Error("CW ring should have negative signed area")
 		}
 	})
 
 	t.Run("Reverse", func(t *testing.T) {
-		lr := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		lr := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		wasIsCCW := lr.IsCCW()
 
 		reversed := lr.Reverse()
@@ -413,12 +413,12 @@ func TestCoordinate_EdgeCases(t *testing.T) {
 
 	t.Run("3D coordinate", func(t *testing.T) {
 		c := geom.NewCoordinateZ(1, 2, 3)
-		if c.Z == nil || *c.Z != 3 {
+		if !c.HasZ() || c.Z != 3 {
 			t.Error("3D coordinate should have Z value")
 		}
 
 		clone := c.Clone()
-		if clone.Z == nil || *clone.Z != 3 {
+		if !clone.HasZ() || clone.Z != 3 {
 			t.Error("Cloned 3D coordinate should preserve Z")
 		}
 	})
@@ -443,7 +443,7 @@ func TestCoordinate_EdgeCases(t *testing.T) {
 // TestCoordinateSequence_EdgeCases tests edge cases for CoordinateSequence
 func TestCoordinateSequence_EdgeCases(t *testing.T) {
 	t.Run("Clone", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 10, 10)
+		seq := mustCoordsXY(0, 0, 10, 10)
 		clone := seq.Clone()
 
 		clone[0].X = 999
@@ -454,7 +454,7 @@ func TestCoordinateSequence_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("First and Last", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 20)
+		seq := mustCoordsXY(0, 0, 10, 10, 20, 20)
 
 		first := seq.First()
 		if first.X != 0 || first.Y != 0 {
@@ -468,12 +468,12 @@ func TestCoordinateSequence_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("IsClosed", func(t *testing.T) {
-		closed := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 0)
+		closed := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 0)
 		if !closed.IsClosed(0.0001) {
 			t.Error("Closed sequence should report IsClosed")
 		}
 
-		open := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10)
+		open := mustCoordsXY(0, 0, 10, 0, 10, 10)
 		if open.IsClosed(0.0001) {
 			t.Error("Open sequence should not report IsClosed")
 		}
@@ -496,7 +496,7 @@ func TestMultiGeometry_EmptyComponents(t *testing.T) {
 
 	t.Run("MultiLineString with empty line", func(t *testing.T) {
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(0, 0, 10, 0),
 			geom.NewLineStringEmpty(),
 		})
 
@@ -507,7 +507,7 @@ func TestMultiGeometry_EmptyComponents(t *testing.T) {
 
 	t.Run("MultiPolygon with empty polygon", func(t *testing.T) {
 		mp := geom.NewMultiPolygon([]*geom.Polygon{
-			geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+			geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
 			geom.NewPolygonEmpty(),
 		})
 
@@ -552,8 +552,8 @@ func TestPrecisionModel_EdgeCases(t *testing.T) {
 		coord := geom.NewCoordinateZ(1.23456, 2.34567, 3.45678)
 		pm.MakePrecise(&coord)
 
-		if coord.Z != nil && (*coord.Z < 3.3 || *coord.Z > 3.5) {
-			t.Errorf("Expected Z ~3.4, got %f", *coord.Z)
+		if coord.HasZ() && (coord.Z < 3.3 || coord.Z > 3.5) {
+			t.Errorf("Expected Z ~3.4, got %f", coord.Z)
 		}
 	})
 }

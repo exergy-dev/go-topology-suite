@@ -29,33 +29,6 @@ const (
 	wkbMultiPolygon       = 6
 	wkbGeometryCollection = 7
 
-	// With Z
-	wkbPointZ              = 1001
-	wkbLineStringZ         = 1002
-	wkbPolygonZ            = 1003
-	wkbMultiPointZ         = 1004
-	wkbMultiLineStringZ    = 1005
-	wkbMultiPolygonZ       = 1006
-	wkbGeometryCollectionZ = 1007
-
-	// With M
-	wkbPointM              = 2001
-	wkbLineStringM         = 2002
-	wkbPolygonM            = 2003
-	wkbMultiPointM         = 2004
-	wkbMultiLineStringM    = 2005
-	wkbMultiPolygonM       = 2006
-	wkbGeometryCollectionM = 2007
-
-	// With ZM
-	wkbPointZM              = 3001
-	wkbLineStringZM         = 3002
-	wkbPolygonZM            = 3003
-	wkbMultiPointZM         = 3004
-	wkbMultiLineStringZM    = 3005
-	wkbMultiPolygonZM       = 3006
-	wkbGeometryCollectionZM = 3007
-
 	// EWKB SRID flag
 	wkbSRIDFlag = 0x20000000
 )
@@ -341,6 +314,15 @@ func (b *buffer) writeFloat64(v float64) {
 
 // --- Parsing implementation ---
 
+type parserState struct {
+	hasZ      bool
+	hasM      bool
+	hasSRID   bool
+	srid      int
+	coordSize int
+	order     binary.ByteOrder
+}
+
 type parser struct {
 	data      []byte
 	pos       int
@@ -353,6 +335,26 @@ type parser struct {
 	coordSize int
 }
 
+func (p *parser) saveState() parserState {
+	return parserState{
+		hasZ:      p.hasZ,
+		hasM:      p.hasM,
+		hasSRID:   p.hasSRID,
+		srid:      p.srid,
+		coordSize: p.coordSize,
+		order:     p.order,
+	}
+}
+
+func (p *parser) restoreState(s parserState) {
+	p.hasZ = s.hasZ
+	p.hasM = s.hasM
+	p.hasSRID = s.hasSRID
+	p.srid = s.srid
+	p.coordSize = s.coordSize
+	p.order = s.order
+}
+
 func (p *parser) readGeometry() (geom.Geometry, error) {
 	// Read byte order
 	if p.pos >= len(p.data) {
@@ -362,11 +364,12 @@ func (p *parser) readGeometry() (geom.Geometry, error) {
 	byteOrder := p.data[p.pos]
 	p.pos++
 
-	if byteOrder == wkbXDR {
+	switch byteOrder {
+	case wkbXDR:
 		p.order = binary.BigEndian
-	} else if byteOrder == wkbNDR {
+	case wkbNDR:
 		p.order = binary.LittleEndian
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid byte order: %d", byteOrder)
 	}
 
@@ -428,7 +431,11 @@ func (p *parser) readGeometry() (geom.Geometry, error) {
 	}
 
 	if p.hasSRID {
-		g.SetSRID(p.srid)
+		// SetSRID is available on all concrete geometry types but not the Geometry interface.
+		type sridSetter interface{ SetSRID(int) }
+		if s, ok := g.(sridSetter); ok {
+			s.SetSRID(p.srid)
+		}
 	}
 
 	return g, nil
@@ -516,7 +523,9 @@ func (p *parser) readMultiPoint() (*geom.MultiPoint, error) {
 
 	points := make([]*geom.Point, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
+		state := p.saveState()
 		g, err := p.readGeometry()
+		p.restoreState(state)
 		if err != nil {
 			return nil, err
 		}
@@ -542,7 +551,9 @@ func (p *parser) readMultiLineString() (*geom.MultiLineString, error) {
 
 	lines := make([]*geom.LineString, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
+		state := p.saveState()
 		g, err := p.readGeometry()
+		p.restoreState(state)
 		if err != nil {
 			return nil, err
 		}
@@ -568,7 +579,9 @@ func (p *parser) readMultiPolygon() (*geom.MultiPolygon, error) {
 
 	polys := make([]*geom.Polygon, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
+		state := p.saveState()
 		g, err := p.readGeometry()
+		p.restoreState(state)
 		if err != nil {
 			return nil, err
 		}
@@ -594,7 +607,9 @@ func (p *parser) readGeometryCollection() (*geom.GeometryCollection, error) {
 
 	geoms := make([]geom.Geometry, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
+		state := p.saveState()
 		g, err := p.readGeometry()
+		p.restoreState(state)
 		if err != nil {
 			return nil, err
 		}
@@ -621,7 +636,7 @@ func (p *parser) readCoordinate() (geom.Coordinate, error) {
 		if err != nil {
 			return geom.Coordinate{}, err
 		}
-		coord.Z = &z
+		coord.Z = z
 	}
 
 	if p.hasM {
@@ -629,7 +644,7 @@ func (p *parser) readCoordinate() (geom.Coordinate, error) {
 		if err != nil {
 			return geom.Coordinate{}, err
 		}
-		coord.M = &m
+		coord.M = m
 	}
 
 	return coord, nil

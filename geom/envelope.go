@@ -93,22 +93,6 @@ func (e *Envelope) Area() float64 {
 	return e.Width() * e.Height()
 }
 
-// MinExtent returns the minimum of width and height.
-func (e *Envelope) MinExtent() float64 {
-	if e.IsNull() {
-		return 0
-	}
-	return math.Min(e.Width(), e.Height())
-}
-
-// MaxExtent returns the maximum of width and height.
-func (e *Envelope) MaxExtent() float64 {
-	if e.IsNull() {
-		return 0
-	}
-	return math.Max(e.Width(), e.Height())
-}
-
 // Centre returns the center point of the envelope.
 func (e *Envelope) Centre() Coordinate {
 	if e.IsNull() {
@@ -158,26 +142,6 @@ func (e *Envelope) ExpandToIncludeXY(x, y float64) {
 	}
 }
 
-// ExpandBy expands the envelope by a distance in all directions.
-func (e *Envelope) ExpandBy(distance float64) {
-	e.ExpandByXY(distance, distance)
-}
-
-// ExpandByXY expands the envelope by different distances in X and Y.
-func (e *Envelope) ExpandByXY(deltaX, deltaY float64) {
-	if e.IsNull() {
-		return
-	}
-	e.MinX -= deltaX
-	e.MaxX += deltaX
-	e.MinY -= deltaY
-	e.MaxY += deltaY
-	// Check for envelope collapse
-	if e.MinX > e.MaxX || e.MinY > e.MaxY {
-		*e = *NewEnvelopeEmpty()
-	}
-}
-
 // Contains returns true if this envelope contains the given coordinate.
 func (e *Envelope) Contains(c Coordinate) bool {
 	return e.ContainsXY(c.X, c.Y)
@@ -200,22 +164,6 @@ func (e *Envelope) ContainsEnvelope(other *Envelope) bool {
 		other.MinY >= e.MinY && other.MaxY <= e.MaxY
 }
 
-// Covers returns true if this envelope covers a coordinate.
-// Cover is inclusive of the boundary.
-func (e *Envelope) Covers(c Coordinate) bool {
-	return e.CoversXY(c.X, c.Y)
-}
-
-// CoversXY returns true if this envelope covers a point.
-func (e *Envelope) CoversXY(x, y float64) bool {
-	return e.ContainsXY(x, y)
-}
-
-// CoversEnvelope returns true if this envelope covers another envelope.
-func (e *Envelope) CoversEnvelope(other *Envelope) bool {
-	return e.ContainsEnvelope(other)
-}
-
 // Intersects returns true if this envelope intersects another.
 func (e *Envelope) Intersects(other *Envelope) bool {
 	if e.IsNull() || other.IsNull() {
@@ -225,35 +173,6 @@ func (e *Envelope) Intersects(other *Envelope) bool {
 		other.MaxX < e.MinX ||
 		other.MinY > e.MaxY ||
 		other.MaxY < e.MinY)
-}
-
-// IntersectsCoord returns true if this envelope intersects a coordinate.
-func (e *Envelope) IntersectsCoord(c Coordinate) bool {
-	return e.ContainsXY(c.X, c.Y)
-}
-
-// IntersectsXY returns true if this envelope intersects a point.
-func (e *Envelope) IntersectsXY(x, y float64) bool {
-	return e.ContainsXY(x, y)
-}
-
-// Disjoint returns true if this envelope is disjoint from another.
-func (e *Envelope) Disjoint(other *Envelope) bool {
-	return !e.Intersects(other)
-}
-
-// Intersection returns the intersection of this envelope with another.
-// Returns an empty envelope if they don't intersect.
-func (e *Envelope) Intersection(other *Envelope) *Envelope {
-	if !e.Intersects(other) {
-		return NewEnvelopeEmpty()
-	}
-	return &Envelope{
-		MinX: math.Max(e.MinX, other.MinX),
-		MinY: math.Max(e.MinY, other.MinY),
-		MaxX: math.Min(e.MaxX, other.MaxX),
-		MaxY: math.Min(e.MaxY, other.MaxY),
-	}
 }
 
 // Equals returns true if this envelope equals another within epsilon.
@@ -299,28 +218,4 @@ func (e *Envelope) Distance(other *Envelope) float64 {
 		return dx
 	}
 	return math.Sqrt(dx*dx + dy*dy)
-}
-
-// Translate moves the envelope by the given offsets.
-func (e *Envelope) Translate(dx, dy float64) {
-	if e.IsNull() {
-		return
-	}
-	e.MinX += dx
-	e.MaxX += dx
-	e.MinY += dy
-	e.MaxY += dy
-}
-
-// SetToNull makes this envelope empty.
-func (e *Envelope) SetToNull() {
-	*e = *NewEnvelopeEmpty()
-}
-
-// Init reinitializes the envelope.
-func (e *Envelope) Init(x1, y1, x2, y2 float64) {
-	e.MinX = math.Min(x1, x2)
-	e.MinY = math.Min(y1, y2)
-	e.MaxX = math.Max(x1, x2)
-	e.MaxY = math.Max(y1, y2)
 }

@@ -27,17 +27,6 @@ func OrientationIndex(p1, p2, p3 geom.Coordinate) int {
 	return geom.OrientationIndex(p1, p2, p3)
 }
 
-// IsCCW returns true if the ring has counter-clockwise orientation.
-// Uses the signed area test.
-func IsCCW(ring geom.CoordinateSequence) bool {
-	return SignedArea(ring) > 0
-}
-
-// IsCW returns true if the ring has clockwise orientation.
-func IsCW(ring geom.CoordinateSequence) bool {
-	return SignedArea(ring) < 0
-}
-
 // SignedArea computes the signed area of a ring.
 // Returns positive for counter-clockwise rings, negative for clockwise.
 func SignedArea(ring geom.CoordinateSequence) float64 {
@@ -104,17 +93,6 @@ func ToRadians(degrees float64) float64 {
 	return degrees * math.Pi / 180
 }
 
-// AngleOfLine computes the angle of the line from start to end.
-func AngleOfLine(start, end geom.Coordinate) float64 {
-	return Angle(start, end)
-}
-
-// InteriorAngle computes the interior angle between two line segments.
-func InteriorAngle(p0, p1, p2 geom.Coordinate) float64 {
-	angle := AngleBetween(p0, p1, p2)
-	return math.Pi - angle
-}
-
 // IsAcute returns true if the angle at p1 is acute (< 90 degrees).
 func IsAcute(p0, p1, p2 geom.Coordinate) bool {
 	// Vector from p1 to p0
@@ -148,30 +126,11 @@ func IsRight(p0, p1, p2 geom.Coordinate) bool {
 	return math.Abs(dot) < geom.DefaultEpsilon
 }
 
-// TurnDirection returns the turn direction going from p0 through p1 to p2.
-func TurnDirection(p0, p1, p2 geom.Coordinate) int {
-	return OrientationIndex(p0, p1, p2)
-}
-
-// LeftTurn returns true if going from p0 through p1 to p2 is a left turn.
-func LeftTurn(p0, p1, p2 geom.Coordinate) bool {
-	return OrientationIndex(p0, p1, p2) == CounterClockwise
-}
-
-// RightTurn returns true if going from p0 through p1 to p2 is a right turn.
-func RightTurn(p0, p1, p2 geom.Coordinate) bool {
-	return OrientationIndex(p0, p1, p2) == Clockwise
-}
-
-// StraightTurn returns true if p0, p1, p2 are collinear.
-func StraightTurn(p0, p1, p2 geom.Coordinate) bool {
-	return OrientationIndex(p0, p1, p2) == Collinear
-}
-
 // Bisector computes the angle bisector of the angle formed at p1.
 // Returns the direction of the bisector as an angle.
 func Bisector(p0, p1, p2 geom.Coordinate) float64 {
 	a0 := Angle(p1, p0)
 	a2 := Angle(p1, p2)
-	return NormalizeAngle((a0 + a2) / 2)
+	diff := NormalizeAngle(a2 - a0)
+	return NormalizeAngle(a0 + diff/2)
 }

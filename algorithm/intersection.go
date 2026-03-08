@@ -189,18 +189,13 @@ func RaySegmentIntersection(origin, dir, segStart, segEnd geom.Coordinate) (geom
 	return intersection, t, true
 }
 
-// PerpendicularDistance computes the perpendicular distance from a point to a line.
-func PerpendicularDistance(p, lineStart, lineEnd geom.Coordinate) float64 {
-	return DistancePointToLine(p, lineStart, lineEnd)
-}
-
 // ProjectPointOntoLine projects a point onto an infinite line.
 func ProjectPointOntoLine(p, lineStart, lineEnd geom.Coordinate) geom.Coordinate {
 	dx := lineEnd.X - lineStart.X
 	dy := lineEnd.Y - lineStart.Y
 	lenSq := dx*dx + dy*dy
 
-	if lenSq == 0 {
+	if lenSq < geom.DefaultEpsilon*geom.DefaultEpsilon {
 		return lineStart
 	}
 
@@ -211,18 +206,7 @@ func ProjectPointOntoLine(p, lineStart, lineEnd geom.Coordinate) geom.Coordinate
 
 // ProjectPointOntoSegment projects a point onto a line segment.
 func ProjectPointOntoSegment(p, segStart, segEnd geom.Coordinate) geom.Coordinate {
-	dx := segEnd.X - segStart.X
-	dy := segEnd.Y - segStart.Y
-	lenSq := dx*dx + dy*dy
-
-	if lenSq == 0 {
-		return segStart
-	}
-
-	t := ((p.X-segStart.X)*dx + (p.Y-segStart.Y)*dy) / lenSq
-	t = math.Max(0, math.Min(1, t))
-
-	return geom.NewCoordinate(segStart.X+t*dx, segStart.Y+t*dy)
+	return geom.ClosestPointOnSegment(p, segStart, segEnd)
 }
 
 // ReflectPointOverLine reflects a point over a line.

@@ -10,10 +10,10 @@ import (
 // TestPolygonizeSimpleRectangle tests polygonizing a simple rectangle from 4 edges.
 func TestPolygonizeSimpleRectangle(t *testing.T) {
 	// Create 4 edges forming a rectangle: (0,0)-(10,0)-(10,10)-(0,10)-(0,0)
-	edge1 := geom.NewLineStringXY(0, 0, 10, 0)    // Bottom
-	edge2 := geom.NewLineStringXY(10, 0, 10, 10)  // Right
-	edge3 := geom.NewLineStringXY(10, 10, 0, 10)  // Top
-	edge4 := geom.NewLineStringXY(0, 10, 0, 0)    // Left
+	edge1 := mustLineStringXY(0, 0, 10, 0)    // Bottom
+	edge2 := mustLineStringXY(10, 0, 10, 10)  // Right
+	edge3 := mustLineStringXY(10, 10, 0, 10)  // Top
+	edge4 := mustLineStringXY(0, 10, 0, 0)    // Left
 
 	lines := []*geom.LineString{edge1, edge2, edge3, edge4}
 
@@ -50,40 +50,32 @@ func TestPolygonizeSimpleRectangle(t *testing.T) {
 // Note: Shared edges require special handling. This test is skipped as the current
 // implementation treats each shared edge only once.
 func TestPolygonizeMultipleAdjacentPolygons(t *testing.T) {
-	t.Skip("Shared edge handling requires additional implementation - provide edges in both directions or as separate polygons")
-
 	// Create two adjacent squares where the shared edge is provided in BOTH directions
-	// This is the proper way to polygonize adjacent polygons with the current implementation
 	edges := []*geom.LineString{
 		// Square 1 (complete cycle)
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 10, 10),
-		geom.NewLineStringXY(10, 10, 0, 10),
-		geom.NewLineStringXY(0, 10, 0, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 10, 10),
+		mustLineStringXY(10, 10, 0, 10),
+		mustLineStringXY(0, 10, 0, 0),
 
 		// Square 2 (complete cycle)
-		geom.NewLineStringXY(10, 0, 20, 0),
-		geom.NewLineStringXY(20, 0, 20, 10),
-		geom.NewLineStringXY(20, 10, 10, 10),
-		geom.NewLineStringXY(10, 10, 10, 0), // Shared edge in reverse direction
+		mustLineStringXY(10, 0, 20, 0),
+		mustLineStringXY(20, 0, 20, 10),
+		mustLineStringXY(20, 10, 10, 10),
+		mustLineStringXY(10, 10, 10, 0), // Shared edge in reverse direction
 	}
 
 	polys := Polygonize(edges)
 
 	// Should produce 2 polygons
-	if len(polys) < 1 {
-		t.Errorf("Expected at least 1 polygon, got %d", len(polys))
-		return
-	}
+	assert.Equal(t, 2, len(polys), "Expected 2 polygons")
 
 	// Check total area
 	totalArea := 0.0
 	for _, poly := range polys {
 		totalArea += poly.Area()
 	}
-
-	expectedArea := 200.0
-	assert.InDelta(t, expectedArea, totalArea, 10.0, "Total area")
+	assert.InDelta(t, 200.0, totalArea, 0.001, "Total area should be 200")
 }
 
 // TestPolygonizePolygonWithHole tests polygonizing a polygon with a hole.
@@ -94,16 +86,16 @@ func TestPolygonizePolygonWithHole(t *testing.T) {
 
 	edges := []*geom.LineString{
 		// Outer ring (CCW)
-		geom.NewLineStringXY(0, 0, 20, 0),
-		geom.NewLineStringXY(20, 0, 20, 20),
-		geom.NewLineStringXY(20, 20, 0, 20),
-		geom.NewLineStringXY(0, 20, 0, 0),
+		mustLineStringXY(0, 0, 20, 0),
+		mustLineStringXY(20, 0, 20, 20),
+		mustLineStringXY(20, 20, 0, 20),
+		mustLineStringXY(0, 20, 0, 0),
 
 		// Inner ring (CW) - this should be detected as a hole
-		geom.NewLineStringXY(5, 5, 5, 15),
-		geom.NewLineStringXY(5, 15, 15, 15),
-		geom.NewLineStringXY(15, 15, 15, 5),
-		geom.NewLineStringXY(15, 5, 5, 5),
+		mustLineStringXY(5, 5, 5, 15),
+		mustLineStringXY(5, 15, 15, 15),
+		mustLineStringXY(15, 15, 15, 5),
+		mustLineStringXY(15, 5, 5, 5),
 	}
 
 	polys := Polygonize(edges)
@@ -146,13 +138,13 @@ func TestPolygonizeDanglingEdges(t *testing.T) {
 	// Rectangle with a dangling edge extending from one corner
 	edges := []*geom.LineString{
 		// Rectangle
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 10, 10),
-		geom.NewLineStringXY(10, 10, 0, 10),
-		geom.NewLineStringXY(0, 10, 0, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 10, 10),
+		mustLineStringXY(10, 10, 0, 10),
+		mustLineStringXY(0, 10, 0, 0),
 
 		// Dangling edge
-		geom.NewLineStringXY(0, 0, -5, -5),
+		mustLineStringXY(0, 0, -5, -5),
 	}
 
 	p := NewPolygonizer()
@@ -191,7 +183,7 @@ func TestPolygonizeEmptyInput(t *testing.T) {
 
 // TestPolygonizeSingleEdge tests polygonizing a single edge (should produce no polygons).
 func TestPolygonizeSingleEdge(t *testing.T) {
-	edge := geom.NewLineStringXY(0, 0, 10, 0)
+	edge := mustLineStringXY(0, 0, 10, 0)
 	polys := Polygonize([]*geom.LineString{edge})
 
 	if len(polys) != 0 {
@@ -202,9 +194,9 @@ func TestPolygonizeSingleEdge(t *testing.T) {
 // TestPolygonizeTriangle tests polygonizing a triangle from 3 edges.
 func TestPolygonizeTriangle(t *testing.T) {
 	edges := []*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 5, 8),
-		geom.NewLineStringXY(5, 8, 0, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 5, 8),
+		mustLineStringXY(5, 8, 0, 0),
 	}
 
 	polys := Polygonize(edges)
@@ -223,36 +215,35 @@ func TestPolygonizeTriangle(t *testing.T) {
 // TestPolygonizeComplexNetwork tests a more complex network of edges.
 // Note: This requires handling shared edges properly.
 func TestPolygonizeComplexNetwork(t *testing.T) {
-	t.Skip("Complex networks with many shared edges require enhanced implementation")
-
 	// Create a grid of 4 squares (2x2)
 	edges := []*geom.LineString{
 		// Horizontal edges
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 20, 0),
-		geom.NewLineStringXY(0, 10, 10, 10),
-		geom.NewLineStringXY(10, 10, 20, 10),
-		geom.NewLineStringXY(0, 20, 10, 20),
-		geom.NewLineStringXY(10, 20, 20, 20),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 20, 0),
+		mustLineStringXY(0, 10, 10, 10),
+		mustLineStringXY(10, 10, 20, 10),
+		mustLineStringXY(0, 20, 10, 20),
+		mustLineStringXY(10, 20, 20, 20),
 
 		// Vertical edges
-		geom.NewLineStringXY(0, 0, 0, 10),
-		geom.NewLineStringXY(0, 10, 0, 20),
-		geom.NewLineStringXY(10, 0, 10, 10),
-		geom.NewLineStringXY(10, 10, 10, 20),
-		geom.NewLineStringXY(20, 0, 20, 10),
-		geom.NewLineStringXY(20, 10, 20, 20),
+		mustLineStringXY(0, 0, 0, 10),
+		mustLineStringXY(0, 10, 0, 20),
+		mustLineStringXY(10, 0, 10, 10),
+		mustLineStringXY(10, 10, 10, 20),
+		mustLineStringXY(20, 0, 20, 10),
+		mustLineStringXY(20, 10, 20, 20),
 	}
 
 	polys := Polygonize(edges)
 
-	// Should produce multiple polygons
-	if len(polys) == 0 {
-		t.Error("Expected at least some polygons from grid")
-		return
-	}
+	// Should produce 4 polygons
+	assert.Equal(t, 4, len(polys), "Expected 4 polygons from 2x2 grid")
 
-	t.Logf("Found %d polygons", len(polys))
+	totalArea := 0.0
+	for _, poly := range polys {
+		totalArea += poly.Area()
+	}
+	assert.InDelta(t, 400.0, totalArea, 0.001, "Total area should be 400")
 }
 
 // TestPolygonizerAPI tests the Polygonizer API methods.
@@ -260,10 +251,10 @@ func TestPolygonizerAPI(t *testing.T) {
 	p := NewPolygonizer()
 
 	// Add edges one by one
-	p.Add(geom.NewLineStringXY(0, 0, 10, 0))
-	p.Add(geom.NewLineStringXY(10, 0, 10, 10))
-	p.Add(geom.NewLineStringXY(10, 10, 0, 10))
-	p.Add(geom.NewLineStringXY(0, 10, 0, 0))
+	p.Add(mustLineStringXY(0, 0, 10, 0))
+	p.Add(mustLineStringXY(10, 0, 10, 10))
+	p.Add(mustLineStringXY(10, 10, 0, 10))
+	p.Add(mustLineStringXY(0, 10, 0, 0))
 
 	polys := p.GetPolygons()
 
@@ -284,14 +275,14 @@ func TestPolygonizeIntersectingEdges(t *testing.T) {
 	// Create an X pattern with a square around it
 	edges := []*geom.LineString{
 		// Square
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 10, 10),
-		geom.NewLineStringXY(10, 10, 0, 10),
-		geom.NewLineStringXY(0, 10, 0, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 10, 10),
+		mustLineStringXY(10, 10, 0, 10),
+		mustLineStringXY(0, 10, 0, 0),
 
 		// Diagonals forming X
-		geom.NewLineStringXY(0, 0, 10, 10),
-		geom.NewLineStringXY(0, 10, 10, 0),
+		mustLineStringXY(0, 0, 10, 10),
+		mustLineStringXY(0, 10, 10, 0),
 	}
 
 	polys := Polygonize(edges)
@@ -354,16 +345,47 @@ func floatEquals(a, b, tolerance float64) bool {
 // BenchmarkPolygonizeRectangle benchmarks polygonizing a simple rectangle.
 func BenchmarkPolygonizeRectangle(b *testing.B) {
 	edges := []*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(10, 0, 10, 10),
-		geom.NewLineStringXY(10, 10, 0, 10),
-		geom.NewLineStringXY(0, 10, 0, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 10, 10),
+		mustLineStringXY(10, 10, 0, 10),
+		mustLineStringXY(0, 10, 0, 0),
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Polygonize(edges)
 	}
+}
+
+// TestPolygonizeSharedEdgeOnce tests that two adjacent squares can be polygonized
+// when the shared edge is provided only once (the Sym edge handles the reverse).
+func TestPolygonizeSharedEdgeOnce(t *testing.T) {
+	// Two adjacent squares where the shared edge is provided only ONCE
+	// The Sym reverse edge should allow the second face to form
+	edges := []*geom.LineString{
+		// Square 1 boundary (minus shared edge)
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 10, 10),
+		mustLineStringXY(10, 10, 0, 10),
+		mustLineStringXY(0, 10, 0, 0),
+
+		// Square 2 boundary (minus shared edge, uses Sym of Square 1's right edge)
+		mustLineStringXY(10, 0, 20, 0),
+		mustLineStringXY(20, 0, 20, 10),
+		mustLineStringXY(20, 10, 10, 10),
+		// The edge (10,10)→(10,0) is the Sym of Square 1's (10,0)→(10,10)
+	}
+
+	polys := Polygonize(edges)
+
+	// Should produce 2 polygons using the Sym edge for the shared boundary
+	assert.Equal(t, 2, len(polys), "Expected 2 polygons")
+
+	totalArea := 0.0
+	for _, poly := range polys {
+		totalArea += poly.Area()
+	}
+	assert.InDelta(t, 200.0, totalArea, 0.001, "Total area should be 200")
 }
 
 // BenchmarkPolygonizeComplexNetwork benchmarks polygonizing a complex network.
@@ -380,7 +402,7 @@ func BenchmarkPolygonizeComplexNetwork(b *testing.B) {
 			y := float64(i) * cellSize
 			x1 := float64(j) * cellSize
 			x2 := float64(j+1) * cellSize
-			edges = append(edges, geom.NewLineStringXY(x1, y, x2, y))
+			edges = append(edges, mustLineStringXY(x1, y, x2, y))
 		}
 	}
 
@@ -390,7 +412,7 @@ func BenchmarkPolygonizeComplexNetwork(b *testing.B) {
 			x := float64(j) * cellSize
 			y1 := float64(i) * cellSize
 			y2 := float64(i+1) * cellSize
-			edges = append(edges, geom.NewLineStringXY(x, y1, x, y2))
+			edges = append(edges, mustLineStringXY(x, y1, x, y2))
 		}
 	}
 

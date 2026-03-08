@@ -96,11 +96,6 @@ func NewAffineShear(shearX, shearY float64) *Affine {
 	}
 }
 
-// NewAffine creates an affine transformation with the specified matrix values.
-func NewAffine(a, b, c, d, e, f float64) *Affine {
-	return &Affine{A: a, B: b, C: c, D: d, E: e, F: f}
-}
-
 // Forward applies the affine transformation to the given coordinates.
 func (a *Affine) Forward(x, y float64) (float64, float64, error) {
 	xNew := a.A*x + a.B*y + a.C

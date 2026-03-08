@@ -19,7 +19,7 @@ func TestLineMergerEmpty(t *testing.T) {
 
 // TestLineMergerSingleLine tests merging a single line
 func TestLineMergerSingleLine(t *testing.T) {
-	line := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	line := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	merger := NewLineMerger()
 	merger.Add(line)
 	result := merger.GetMergedLineStrings()
@@ -35,8 +35,8 @@ func TestLineMergerSingleLine(t *testing.T) {
 
 // TestLineMergerTwoConnectedLines tests merging two lines that share an endpoint
 func TestLineMergerTwoConnectedLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -47,7 +47,7 @@ func TestLineMergerTwoConnectedLines(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -55,9 +55,9 @@ func TestLineMergerTwoConnectedLines(t *testing.T) {
 
 // TestLineMergerThreeConnectedLines tests merging three lines in sequence
 func TestLineMergerThreeConnectedLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(1, 0, 2, 0)
-	line3 := geom.NewLineStringXY(2, 0, 3, 0)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(1, 0, 2, 0)
+	line3 := mustLineStringXY(2, 0, 3, 0)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -69,7 +69,7 @@ func TestLineMergerThreeConnectedLines(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 0, 2, 0, 3, 0)
+	expected := mustLineStringXY(0, 0, 1, 0, 2, 0, 3, 0)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -77,8 +77,8 @@ func TestLineMergerThreeConnectedLines(t *testing.T) {
 
 // TestLineMergerDisconnectedLines tests lines that don't connect
 func TestLineMergerDisconnectedLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(2, 0, 3, 0)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(2, 0, 3, 0)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -92,8 +92,8 @@ func TestLineMergerDisconnectedLines(t *testing.T) {
 
 // TestLineMergerReversedLines tests merging lines that need to be reversed
 func TestLineMergerReversedLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(2, 2, 1, 1) // Reversed
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(2, 2, 1, 1) // Reversed
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -104,7 +104,7 @@ func TestLineMergerReversedLines(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -112,10 +112,10 @@ func TestLineMergerReversedLines(t *testing.T) {
 
 // TestLineMergerClosedRing tests a closed ring
 func TestLineMergerClosedRing(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(1, 0, 1, 1)
-	line3 := geom.NewLineStringXY(1, 1, 0, 1)
-	line4 := geom.NewLineStringXY(0, 1, 0, 0)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(1, 0, 1, 1)
+	line3 := mustLineStringXY(1, 1, 0, 1)
+	line4 := mustLineStringXY(0, 1, 0, 0)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -133,7 +133,7 @@ func TestLineMergerClosedRing(t *testing.T) {
 		t.Errorf("Expected result to be a closed ring")
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 0, 1, 1, 0, 1, 0, 0)
+	expected := mustLineStringXY(0, 0, 1, 0, 1, 1, 0, 1, 0, 0)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -142,9 +142,9 @@ func TestLineMergerClosedRing(t *testing.T) {
 // TestLineMergerBranchingPoint tests a branching point where 3 lines meet
 func TestLineMergerBranchingPoint(t *testing.T) {
 	// Three lines meeting at (1, 1)
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
-	line3 := geom.NewLineStringXY(1, 1, 2, 0)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
+	line3 := mustLineStringXY(1, 1, 2, 0)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -161,12 +161,12 @@ func TestLineMergerBranchingPoint(t *testing.T) {
 // TestLineMergerMultipleSequences tests multiple separate sequences
 func TestLineMergerMultipleSequences(t *testing.T) {
 	// First sequence
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(1, 0, 2, 0)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(1, 0, 2, 0)
 
 	// Second sequence
-	line3 := geom.NewLineStringXY(0, 5, 1, 5)
-	line4 := geom.NewLineStringXY(1, 5, 2, 5)
+	line3 := mustLineStringXY(0, 5, 1, 5)
+	line4 := mustLineStringXY(1, 5, 2, 5)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -189,8 +189,8 @@ func TestLineMergerMultipleSequences(t *testing.T) {
 
 // TestLineMergerMultiLineString tests merging from a MultiLineString
 func TestLineMergerMultiLineString(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 	mls := geom.NewMultiLineString([]*geom.LineString{line1, line2})
 
 	merger := NewLineMerger()
@@ -201,7 +201,7 @@ func TestLineMergerMultiLineString(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -210,9 +210,9 @@ func TestLineMergerMultiLineString(t *testing.T) {
 // TestLineMergerComplexSequence tests a more complex sequence
 func TestLineMergerComplexSequence(t *testing.T) {
 	// Create a zigzag path that should merge into one line
-	line1 := geom.NewLineStringXY(0, 0, 1, 1, 2, 0)
-	line2 := geom.NewLineStringXY(2, 0, 3, 1, 4, 0)
-	line3 := geom.NewLineStringXY(4, 0, 5, 1)
+	line1 := mustLineStringXY(0, 0, 1, 1, 2, 0)
+	line2 := mustLineStringXY(2, 0, 3, 1, 4, 0)
+	line3 := mustLineStringXY(4, 0, 5, 1)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -224,7 +224,7 @@ func TestLineMergerComplexSequence(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0, 5, 1)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0, 5, 1)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -232,9 +232,9 @@ func TestLineMergerComplexSequence(t *testing.T) {
 
 // TestLineMergerOutOfOrder tests that lines can be added in any order
 func TestLineMergerOutOfOrder(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(1, 0, 2, 0)
-	line3 := geom.NewLineStringXY(2, 0, 3, 0)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(1, 0, 2, 0)
+	line3 := mustLineStringXY(2, 0, 3, 0)
 
 	// Add in reverse order
 	merger := NewLineMerger()
@@ -247,7 +247,7 @@ func TestLineMergerOutOfOrder(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 0, 2, 0, 3, 0)
+	expected := mustLineStringXY(0, 0, 1, 0, 2, 0, 3, 0)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -255,8 +255,8 @@ func TestLineMergerOutOfOrder(t *testing.T) {
 
 // TestLineMergerDuplicateLines tests handling of duplicate lines
 func TestLineMergerDuplicateLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(0, 0, 1, 0) // Duplicate
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(0, 0, 1, 0) // Duplicate
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -271,8 +271,8 @@ func TestLineMergerDuplicateLines(t *testing.T) {
 
 // TestMergeLineStringsConvenience tests the convenience function
 func TestMergeLineStringsConvenience(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 
 	result := MergeLineStrings([]*geom.LineString{line1, line2})
 
@@ -280,7 +280,7 @@ func TestMergeLineStringsConvenience(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -288,8 +288,8 @@ func TestMergeLineStringsConvenience(t *testing.T) {
 
 // TestMergeMultiLineStringConvenience tests the MultiLineString convenience function
 func TestMergeMultiLineStringConvenience(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 	mls := geom.NewMultiLineString([]*geom.LineString{line1, line2})
 
 	result := MergeMultiLineString(mls)
@@ -298,7 +298,7 @@ func TestMergeMultiLineStringConvenience(t *testing.T) {
 		t.Fatalf("Expected 1 merged line, got %d", result.NumGeometries())
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result.LineStringN(0).EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result.LineStringN(0))
 	}
@@ -306,9 +306,9 @@ func TestMergeMultiLineStringConvenience(t *testing.T) {
 
 // TestLineMergerEmptyLines tests handling of empty LineStrings
 func TestLineMergerEmptyLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
+	line1 := mustLineStringXY(0, 0, 1, 1)
 	emptyLine := geom.NewLineStringEmpty()
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -320,7 +320,7 @@ func TestLineMergerEmptyLines(t *testing.T) {
 		t.Fatalf("Expected 1 merged line (empty ignored), got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -328,8 +328,8 @@ func TestLineMergerEmptyLines(t *testing.T) {
 
 // TestLineMergerNilLines tests handling of nil LineStrings
 func TestLineMergerNilLines(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -341,7 +341,7 @@ func TestLineMergerNilLines(t *testing.T) {
 		t.Fatalf("Expected 1 merged line (nil ignored), got %d", len(result))
 	}
 
-	expected := geom.NewLineStringXY(0, 0, 1, 1, 2, 2)
+	expected := mustLineStringXY(0, 0, 1, 1, 2, 2)
 	if !result[0].EqualsExact(expected, 1e-10) {
 		t.Errorf("Expected merged line to be %v, got %v", expected, result[0])
 	}
@@ -350,10 +350,10 @@ func TestLineMergerNilLines(t *testing.T) {
 // TestLineMergerTShapeJunction tests a T-junction (3 lines meeting)
 func TestLineMergerTShapeJunction(t *testing.T) {
 	// Horizontal line split at middle
-	line1 := geom.NewLineStringXY(0, 1, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 1)
+	line1 := mustLineStringXY(0, 1, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 1)
 	// Vertical line connecting at middle
-	line3 := geom.NewLineStringXY(1, 0, 1, 1)
+	line3 := mustLineStringXY(1, 0, 1, 1)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -370,10 +370,10 @@ func TestLineMergerTShapeJunction(t *testing.T) {
 // TestLineMergerCrossJunction tests a cross junction (4 lines meeting)
 func TestLineMergerCrossJunction(t *testing.T) {
 	// Four lines meeting at (1, 1)
-	line1 := geom.NewLineStringXY(0, 1, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 1)
-	line3 := geom.NewLineStringXY(1, 0, 1, 1)
-	line4 := geom.NewLineStringXY(1, 1, 1, 2)
+	line1 := mustLineStringXY(0, 1, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 1)
+	line3 := mustLineStringXY(1, 0, 1, 1)
+	line4 := mustLineStringXY(1, 1, 1, 2)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -394,7 +394,7 @@ func TestLineMergerLongChain(t *testing.T) {
 
 	// Create a chain of 10 connected line segments
 	for i := 0; i < 10; i++ {
-		line := geom.NewLineStringXY(float64(i), 0, float64(i+1), 0)
+		line := mustLineStringXY(float64(i), 0, float64(i+1), 0)
 		merger.Add(line)
 	}
 
@@ -423,8 +423,8 @@ func TestLineMergerLongChain(t *testing.T) {
 
 // TestLineMergerMultipleCalls tests calling GetMergedLineStrings multiple times
 func TestLineMergerMultipleCalls(t *testing.T) {
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 
 	merger := NewLineMerger()
 	merger.Add(line1)
@@ -448,7 +448,7 @@ func TestLineMergerMultipleCalls(t *testing.T) {
 // TestLineMergerSelfLoop tests a line that forms a self-loop
 func TestLineMergerSelfLoop(t *testing.T) {
 	// A closed ring as a single line
-	ring := geom.NewLineStringXY(0, 0, 1, 0, 1, 1, 0, 1, 0, 0)
+	ring := mustLineStringXY(0, 0, 1, 0, 1, 1, 0, 1, 0, 0)
 
 	merger := NewLineMerger()
 	merger.Add(ring)
@@ -470,8 +470,8 @@ func TestLineMergerSelfLoop(t *testing.T) {
 // Example_basicMerge demonstrates basic line merging.
 func Example_basicMerge() {
 	// Create two connected line segments
-	line1 := geom.NewLineStringXY(0, 0, 1, 1)
-	line2 := geom.NewLineStringXY(1, 1, 2, 2)
+	line1 := mustLineStringXY(0, 0, 1, 1)
+	line2 := mustLineStringXY(1, 1, 2, 2)
 
 	// Merge them
 	merger := NewLineMerger()
@@ -486,10 +486,10 @@ func Example_basicMerge() {
 // Example_multipleSequences demonstrates merging multiple disconnected sequences.
 func Example_multipleSequences() {
 	// Create two separate sequences
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(1, 0, 2, 0)
-	line3 := geom.NewLineStringXY(0, 5, 1, 5)
-	line4 := geom.NewLineStringXY(1, 5, 2, 5)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(1, 0, 2, 0)
+	line3 := mustLineStringXY(0, 5, 1, 5)
+	line4 := mustLineStringXY(1, 5, 2, 5)
 
 	// Merge them
 	result := MergeLineStrings([]*geom.LineString{line1, line2, line3, line4})
@@ -507,10 +507,10 @@ func Example_multipleSequences() {
 // Example_closedRing demonstrates merging lines into a closed ring.
 func Example_closedRing() {
 	// Create four lines that form a square
-	line1 := geom.NewLineStringXY(0, 0, 1, 0)
-	line2 := geom.NewLineStringXY(1, 0, 1, 1)
-	line3 := geom.NewLineStringXY(1, 1, 0, 1)
-	line4 := geom.NewLineStringXY(0, 1, 0, 0)
+	line1 := mustLineStringXY(0, 0, 1, 0)
+	line2 := mustLineStringXY(1, 0, 1, 1)
+	line3 := mustLineStringXY(1, 1, 0, 1)
+	line4 := mustLineStringXY(0, 1, 0, 0)
 
 	// Merge them
 	result := MergeLineStrings([]*geom.LineString{line1, line2, line3, line4})

@@ -36,19 +36,9 @@ func (ss *SegmentString) Coordinates() geom.CoordinateSequence {
 	return ss.coords
 }
 
-// SetCoordinates sets the coordinate sequence of this segment string.
-func (ss *SegmentString) SetCoordinates(coords geom.CoordinateSequence) {
-	ss.coords = coords
-}
-
 // Context returns the context data associated with this segment string.
 func (ss *SegmentString) Context() interface{} {
 	return ss.context
-}
-
-// SetContext sets the context data for this segment string.
-func (ss *SegmentString) SetContext(context interface{}) {
-	ss.context = context
 }
 
 // Size returns the number of segments in this segment string.

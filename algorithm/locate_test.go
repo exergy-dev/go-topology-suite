@@ -36,37 +36,37 @@ func TestPointLocationGeometryTypes(t *testing.T) {
 		{
 			name:     "PointOnLineString",
 			p:        geom.NewCoordinate(5, 0),
-			g:        geom.NewLineStringXY(0, 0, 10, 0),
+			g:        mustLineStringXY(0, 0, 10, 0),
 			expected: geom.LocationInterior,
 		},
 		{
 			name:     "PointOnLineStringEndpoint",
 			p:        geom.NewCoordinate(0, 0),
-			g:        geom.NewLineStringXY(0, 0, 10, 0),
+			g:        mustLineStringXY(0, 0, 10, 0),
 			expected: geom.LocationBoundary,
 		},
 		{
 			name:     "PointNotOnLineString",
 			p:        geom.NewCoordinate(5, 5),
-			g:        geom.NewLineStringXY(0, 0, 10, 0),
+			g:        mustLineStringXY(0, 0, 10, 0),
 			expected: geom.LocationExterior,
 		},
 		{
 			name:     "PointOnLinearRingBoundary",
 			p:        geom.NewCoordinate(0, 5),
-			g:        geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+			g:        mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 			expected: geom.LocationBoundary,
 		},
 		{
 			name:     "PointInLinearRing",
 			p:        geom.NewCoordinate(5, 5),
-			g:        geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+			g:        mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 			expected: geom.LocationInterior,
 		},
 		{
 			name:     "PointOutsideLinearRing",
 			p:        geom.NewCoordinate(15, 5),
-			g:        geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+			g:        mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 			expected: geom.LocationExterior,
 		},
 		{
@@ -84,25 +84,25 @@ func TestPointLocationGeometryTypes(t *testing.T) {
 		{
 			name:     "PointInMultiLineString",
 			p:        geom.NewCoordinate(5, 0),
-			g:        geom.NewMultiLineString([]*geom.LineString{geom.NewLineStringXY(0, 0, 10, 0)}),
+			g:        geom.NewMultiLineString([]*geom.LineString{mustLineStringXY(0, 0, 10, 0)}),
 			expected: geom.LocationInterior,
 		},
 		{
 			name:     "PointOnMultiLineStringBoundary",
 			p:        geom.NewCoordinate(0, 0),
-			g:        geom.NewMultiLineString([]*geom.LineString{geom.NewLineStringXY(0, 0, 10, 0)}),
+			g:        geom.NewMultiLineString([]*geom.LineString{mustLineStringXY(0, 0, 10, 0)}),
 			expected: geom.LocationBoundary,
 		},
 		{
 			name:     "PointInMultiPolygon",
 			p:        geom.NewCoordinate(5, 5),
-			g:        geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
+			g:        geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
 			expected: geom.LocationInterior,
 		},
 		{
 			name:     "PointOnMultiPolygonBoundary",
 			p:        geom.NewCoordinate(0, 5),
-			g:        geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
+			g:        geom.NewMultiPolygon([]*geom.Polygon{geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
 			expected: geom.LocationBoundary,
 		},
 		{
@@ -114,7 +114,7 @@ func TestPointLocationGeometryTypes(t *testing.T) {
 		{
 			name:     "PointOnGeometryCollectionBoundary",
 			p:        geom.NewCoordinate(0, 5),
-			g:        geom.NewGeometryCollection([]geom.Geometry{geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
+			g:        geom.NewGeometryCollection([]geom.Geometry{geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)}),
 			expected: geom.LocationBoundary,
 		},
 	}
@@ -129,7 +129,7 @@ func TestPointLocationGeometryTypes(t *testing.T) {
 
 func TestPointLocationInPolygon(t *testing.T) {
 	// Square polygon
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	tests := []struct {
@@ -168,8 +168,8 @@ func TestPointLocationInPolygon(t *testing.T) {
 
 	// Test with hole
 	t.Run("PolygonWithHole", func(t *testing.T) {
-		shellWithHole := geom.NewLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
-		hole := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+		shellWithHole := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+		hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 		polyWithHole := geom.NewPolygon(shellWithHole, []*geom.LinearRing{hole})
 
 		// Point in hole should be exterior
@@ -191,39 +191,6 @@ func TestPointLocationInPolygon(t *testing.T) {
 		result := algorithm.PointLocationInPolygon(geom.NewCoordinate(5, 5), emptyPoly)
 		assert.Equal(t, geom.LocationExterior, result, "Expected Exterior for empty polygon")
 	})
-}
-
-func TestIsPointInEnvelope(t *testing.T) {
-	env := geom.NewEnvelope(0, 0, 10, 10)
-
-	tests := []struct {
-		name     string
-		p        geom.Coordinate
-		expected bool
-	}{
-		{
-			name:     "Inside",
-			p:        geom.NewCoordinate(5, 5),
-			expected: true,
-		},
-		{
-			name:     "OnBoundary",
-			p:        geom.NewCoordinate(0, 5),
-			expected: true,
-		},
-		{
-			name:     "Outside",
-			p:        geom.NewCoordinate(15, 5),
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := algorithm.IsPointInEnvelope(tt.p, env)
-			assert.Equal(t, tt.expected, result, "Expected %v", tt.expected)
-		})
-	}
 }
 
 func TestLocatePointInTriangle(t *testing.T) {
@@ -267,7 +234,7 @@ func TestLocatePointInTriangle(t *testing.T) {
 }
 
 func TestIndexOfPointInRing(t *testing.T) {
-	ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	tests := []struct {
 		name     string
@@ -300,7 +267,7 @@ func TestIndexOfPointInRing(t *testing.T) {
 }
 
 func TestIndexOfClosestPointInSequence(t *testing.T) {
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+	coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 
 	tests := []struct {
 		name     string
@@ -340,21 +307,21 @@ func TestIndexOfClosestPointInSequence(t *testing.T) {
 func TestIsPointInRingEdgeCases(t *testing.T) {
 	// Test with very small ring
 	t.Run("SmallRing", func(t *testing.T) {
-		ring := geom.NewLinearRingXY(0, 0, 1, 0, 0, 1, 0, 0)
-		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(0.25, 0.25), ring), "Expected point to be inside small ring")
+		ring := mustLinearRingXY(0, 0, 1, 0, 0, 1, 0, 0)
+		assert.True(t, geom.PointInRing(geom.NewCoordinate(0.25, 0.25), ring), "Expected point to be inside small ring")
 	})
 
 	// Test with degenerate ring (less than 4 points)
 	t.Run("DegenerateRing", func(t *testing.T) {
-		ring := geom.NewLinearRing(geom.NewCoordinateSequenceXY(0, 0, 1, 0, 0, 0))
-		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(0.5, 0.5), ring), "Expected point to be outside degenerate ring")
+		ring := geom.NewLinearRing(mustCoordsXY(0, 0, 1, 0, 0, 0))
+		assert.False(t, geom.PointInRing(geom.NewCoordinate(0.5, 0.5), ring), "Expected point to be outside degenerate ring")
 	})
 
 	// Test point on vertex
 	t.Run("PointOnVertex", func(t *testing.T) {
-		ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		// Point on vertex - behavior depends on ray casting implementation
-		result := algorithm.IsPointInRing(geom.NewCoordinate(0, 0), ring)
+		result := geom.PointInRing(geom.NewCoordinate(0, 0), ring)
 		// Result can be either true or false depending on implementation
 		_ = result
 	})
@@ -362,10 +329,10 @@ func TestIsPointInRingEdgeCases(t *testing.T) {
 	// Test concave polygon
 	t.Run("ConcavePolygon", func(t *testing.T) {
 		// L-shaped polygon
-		ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 5, 5, 5, 5, 10, 0, 10, 0, 0)
+		ring := mustLinearRingXY(0, 0, 10, 0, 10, 5, 5, 5, 5, 10, 0, 10, 0, 0)
 		// Point in the concave part
-		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(7, 7), ring), "Expected point to be outside concave part")
+		assert.False(t, geom.PointInRing(geom.NewCoordinate(7, 7), ring), "Expected point to be outside concave part")
 		// Point definitely inside
-		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(2, 2), ring), "Expected point to be inside")
+		assert.True(t, geom.PointInRing(geom.NewCoordinate(2, 2), ring), "Expected point to be inside")
 	})
 }

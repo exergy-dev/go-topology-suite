@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/io/ioutil"
 )
 
 // Options configures WKT marshaling behavior.
@@ -83,7 +84,15 @@ func UnmarshalStringWithFactory(wkt string, factory *geom.GeometryFactory) (geom
 		pos:     0,
 		factory: factory,
 	}
-	return p.parse()
+	g, err := p.parse()
+	if err != nil {
+		return nil, err
+	}
+	p.skipWhitespace()
+	if !p.atEnd() {
+		return nil, fmt.Errorf("unexpected content after geometry at position %d", p.pos)
+	}
+	return g, nil
 }
 
 // UnmarshalWithFactory unmarshals WKT bytes using a custom geometry factory.
@@ -362,25 +371,17 @@ func writeCoordinateSequence(sb *strings.Builder, coords geom.CoordinateSequence
 }
 
 func writeCoordinate(sb *strings.Builder, c geom.Coordinate, opts Options) {
-	writeNumber(sb, c.X, opts)
+	ioutil.WriteNumber(sb, c.X, opts.Precision)
 	sb.WriteString(" ")
-	writeNumber(sb, c.Y, opts)
+	ioutil.WriteNumber(sb, c.Y, opts.Precision)
 
-	if opts.OutputDimension >= 3 && c.Z != nil {
+	if opts.OutputDimension >= 3 && c.HasZ() {
 		sb.WriteString(" ")
-		writeNumber(sb, *c.Z, opts)
+		ioutil.WriteNumber(sb, c.Z, opts.Precision)
 	}
-	if opts.OutputDimension >= 4 && c.M != nil {
+	if opts.OutputDimension >= 4 && c.HasM() {
 		sb.WriteString(" ")
-		writeNumber(sb, *c.M, opts)
-	}
-}
-
-func writeNumber(sb *strings.Builder, n float64, opts Options) {
-	if opts.Precision < 0 {
-		sb.WriteString(fmt.Sprintf("%g", n))
-	} else {
-		sb.WriteString(fmt.Sprintf("%.*f", opts.Precision, n))
+		ioutil.WriteNumber(sb, c.M, opts.Precision)
 	}
 }
 
@@ -794,24 +795,63 @@ func (p *parser) parseCoordinate() (geom.Coordinate, error) {
 
 	coord := geom.NewCoordinate(x, y)
 
-	p.skipWhitespace()
-	if p.hasZ || p.hasM || p.isDigitOrSign() {
+	// When modifier is set, enforce strict arity
+	if p.hasZ && p.hasM {
+		// ZM: require exactly 2 more numbers
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate for ZM geometry at position %d", p.pos)
+		}
+		z, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate: %w", err)
+		}
+		coord.Z = z
+
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate for ZM geometry at position %d", p.pos)
+		}
+		m, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate: %w", err)
+		}
+		coord.M = m
+	} else if p.hasZ {
+		// Z: require exactly 1 more number
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate for Z geometry at position %d", p.pos)
+		}
+		z, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate: %w", err)
+		}
+		coord.Z = z
+	} else if p.hasM {
+		// M: require exactly 1 more number (stored as M)
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate for M geometry at position %d", p.pos)
+		}
+		m, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate: %w", err)
+		}
+		coord.M = m
+	} else {
+		// No modifier: auto-detect extra coords (backward compat)
+		p.skipWhitespace()
 		if p.isDigitOrSign() {
 			z, err := p.parseNumber()
 			if err == nil {
-				if p.hasZ {
-					coord.Z = &z
-				} else if p.hasM {
-					coord.M = &z
-				} else {
-					coord.Z = &z
-				}
+				coord.Z = z
 
 				p.skipWhitespace()
 				if p.isDigitOrSign() {
 					m, err := p.parseNumber()
 					if err == nil {
-						coord.M = &m
+						coord.M = m
 					}
 				}
 			}
@@ -899,7 +939,7 @@ func (p *parser) matchWord(word string) bool {
 	if p.pos+len(word) > len(p.input) {
 		return false
 	}
-	if strings.ToUpper(p.input[p.pos:p.pos+len(word)]) == strings.ToUpper(word) {
+	if strings.EqualFold(p.input[p.pos:p.pos+len(word)], word) {
 		if p.pos+len(word) < len(p.input) && unicode.IsLetter(rune(p.input[p.pos+len(word)])) {
 			return false
 		}

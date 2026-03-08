@@ -124,7 +124,7 @@ func ReadAllWithFactory(filename string, factory *geom.GeometryFactory) ([]geom.
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	var geometries []geom.Geometry
 	for reader.Next() {
@@ -152,7 +152,7 @@ func FeaturesWithFactory(filename string, factory *geom.GeometryFactory) iter.Se
 			yield(nil, err)
 			return
 		}
-		defer reader.Close()
+		defer reader.Close() //nolint:errcheck
 
 		for reader.Next() {
 			f, err := reader.Feature()
@@ -275,7 +275,7 @@ func WriteAll(filename string, geometries []geom.Geometry) error {
 	if err != nil {
 		return err
 	}
-	defer writer.Close()
+	defer writer.Close() //nolint:errcheck
 
 	for i, g := range geometries {
 		if err := writer.Write(g); err != nil {

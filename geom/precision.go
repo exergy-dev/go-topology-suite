@@ -80,13 +80,11 @@ func NewFloatingSinglePrecision() PrecisionModel {
 func (f *floatingSinglePrecisionModel) MakePrecise(coord *Coordinate) {
 	coord.X = float64(float32(coord.X))
 	coord.Y = float64(float32(coord.Y))
-	if coord.Z != nil {
-		z := float64(float32(*coord.Z))
-		coord.Z = &z
+	if coord.HasZ() {
+		coord.Z = float64(float32(coord.Z))
 	}
-	if coord.M != nil {
-		m := float64(float32(*coord.M))
-		coord.M = &m
+	if coord.HasM() {
+		coord.M = float64(float32(coord.M))
 	}
 }
 
@@ -127,13 +125,11 @@ func NewFixedPrecision(scale float64) PrecisionModel {
 func (f *fixedPrecisionModel) MakePrecise(coord *Coordinate) {
 	coord.X = f.MakePreciseValue(coord.X)
 	coord.Y = f.MakePreciseValue(coord.Y)
-	if coord.Z != nil {
-		z := f.MakePreciseValue(*coord.Z)
-		coord.Z = &z
+	if coord.HasZ() {
+		coord.Z = f.MakePreciseValue(coord.Z)
 	}
-	if coord.M != nil {
-		m := f.MakePreciseValue(*coord.M)
-		coord.M = &m
+	if coord.HasM() {
+		coord.M = f.MakePreciseValue(coord.M)
 	}
 }
 

@@ -1,5 +1,7 @@
 package geom
 
+import "sync/atomic"
+
 // Dimension represents the topological dimension of a geometry.
 type Dimension int
 
@@ -37,9 +39,6 @@ type Geometry interface {
 	// SRID returns the Spatial Reference System ID.
 	SRID() int
 
-	// SetSRID sets the Spatial Reference System ID.
-	SetSRID(srid int)
-
 	// Envelope returns the bounding box of the geometry.
 	Envelope() *Envelope
 
@@ -72,8 +71,8 @@ type Geometry interface {
 	// Clone returns a deep copy of the geometry.
 	Clone() Geometry
 
-	// Normalize normalizes the geometry to canonical form.
-	Normalize()
+	// Normalized returns a new geometry normalized to canonical form.
+	Normalized() Geometry
 
 	// EqualsExact returns true if the geometries are exactly equal.
 	EqualsExact(other Geometry, tolerance float64) bool
@@ -110,6 +109,9 @@ type CoordinateFilter interface {
 }
 
 // CoordinateFilterer applies a coordinate filter to a geometry.
+// ApplyCoordinateFilter mutates coordinates in place and is NOT safe for
+// concurrent use on the same geometry. For a safe alternative, use Clone
+// first or construct a new geometry with the desired coordinates.
 type CoordinateFilterer interface {
 	ApplyCoordinateFilter(filter CoordinateFilter)
 }
@@ -117,20 +119,31 @@ type CoordinateFilterer interface {
 // baseGeometry provides common fields for all geometry implementations.
 type baseGeometry struct {
 	srid     int
-	envelope *Envelope
+	envelope atomic.Pointer[Envelope]
 }
 
 func (b *baseGeometry) SRID() int {
 	return b.srid
 }
 
+// SetSRID sets the Spatial Reference System ID.
 func (b *baseGeometry) SetSRID(srid int) {
 	b.srid = srid
 }
 
+// cachedEnvelope returns the cached envelope, or nil if not yet computed.
+func (b *baseGeometry) cachedEnvelope() *Envelope {
+	return b.envelope.Load()
+}
+
+// setCachedEnvelope stores the computed envelope atomically.
+func (b *baseGeometry) setCachedEnvelope(env *Envelope) {
+	b.envelope.Store(env)
+}
+
 // invalidateEnvelope clears the cached envelope.
 func (b *baseGeometry) invalidateEnvelope() {
-	b.envelope = nil
+	b.envelope.Store(nil)
 }
 
 // Compare compares two geometries for ordering.
@@ -176,10 +189,3 @@ func Compare(a, b Geometry) int {
 	return 0
 }
 
-// checkSRIDCompatible checks if two geometries have compatible SRIDs.
-// Returns true if they are compatible (same SRID or one is 0).
-func checkSRIDCompatible(g1, g2 Geometry) bool {
-	srid1 := g1.SRID()
-	srid2 := g2.SRID()
-	return srid1 == srid2 || srid1 == 0 || srid2 == 0
-}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/io/ioutil"
 )
 
 // SRID4326 is the SRID for WGS84, which is the coordinate reference system
@@ -205,12 +206,12 @@ func createKMLMultiGeometry(g geom.Geometry, opts Options) *MultiGeometry {
 // formatCoordinate formats a single coordinate as "lon,lat[,alt]".
 func formatCoordinate(c geom.Coordinate, opts Options) string {
 	var sb strings.Builder
-	writeNumber(&sb, c.X, opts)
+	ioutil.WriteNumber(&sb, c.X, opts.Precision)
 	sb.WriteByte(',')
-	writeNumber(&sb, c.Y, opts)
-	if opts.IncludeAltitude && c.Z != nil {
+	ioutil.WriteNumber(&sb, c.Y, opts.Precision)
+	if opts.IncludeAltitude && c.HasZ() {
 		sb.WriteByte(',')
-		writeNumber(&sb, *c.Z, opts)
+		ioutil.WriteNumber(&sb, c.Z, opts.Precision)
 	}
 	return sb.String()
 }
@@ -229,15 +230,6 @@ func formatCoordinates(coords geom.CoordinateSequence, opts Options) string {
 		sb.WriteString(formatCoordinate(c, opts))
 	}
 	return sb.String()
-}
-
-// writeNumber writes a number with the specified precision.
-func writeNumber(sb *strings.Builder, n float64, opts Options) {
-	if opts.Precision < 0 {
-		sb.WriteString(fmt.Sprintf("%g", n))
-	} else {
-		sb.WriteString(fmt.Sprintf("%.*f", opts.Precision, n))
-	}
 }
 
 // parseKML parses a KML structure into a geometry.
@@ -270,7 +262,7 @@ func parseKML(kml *KML, factory *geom.GeometryFactory) (geom.Geometry, error) {
 		if err != nil {
 			return nil, err
 		}
-		if g != nil && !g.IsEmpty() {
+		if !g.IsEmpty() {
 			geoms = append(geoms, g)
 		}
 	}
@@ -475,7 +467,7 @@ func parseCoordinates(s string) (geom.CoordinateSequence, error) {
 			if err != nil {
 				return nil, fmt.Errorf("invalid altitude: %w", err)
 			}
-			coord.Z = &alt
+			coord.Z = alt
 		}
 
 		coords = append(coords, coord)

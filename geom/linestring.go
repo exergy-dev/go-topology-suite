@@ -2,7 +2,6 @@ package geom
 
 import (
 	"fmt"
-	"math"
 	"strings"
 )
 
@@ -19,11 +18,6 @@ func NewLineString(coords CoordinateSequence) *LineString {
 	}
 }
 
-// NewLineStringXY creates a new LineString from x,y pairs.
-func NewLineStringXY(values ...float64) *LineString {
-	return NewLineString(NewCoordinateSequenceXY(values...))
-}
-
 // NewLineStringEmpty creates an empty LineString.
 func NewLineStringEmpty() *LineString {
 	return &LineString{
@@ -38,10 +32,12 @@ func (ls *LineString) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (ls *LineString) Envelope() *Envelope {
-	if ls.envelope == nil {
-		ls.envelope = ls.coords.Envelope()
+	if env := ls.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return ls.envelope.Clone()
+	env := ls.coords.Envelope()
+	ls.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if the linestring has no coordinates.
@@ -101,10 +97,6 @@ func (ls *LineString) segmentsIntersect(i, j int) bool {
 	}
 	// If we couldn't identify an intersection point, treat it as non-simple.
 	return len(info.points) == 0
-}
-
-func direction(p1, p2, p3 Coordinate) float64 {
-	return (p3.X-p1.X)*(p2.Y-p1.Y) - (p2.X-p1.X)*(p3.Y-p1.Y)
 }
 
 type segmentIntersection struct {
@@ -169,10 +161,7 @@ func collinearIntersectionInfo(a1, a2, b1, b2 Coordinate) segmentIntersection {
 	shared = addSharedEndpoint(shared, a2, b1)
 	shared = addSharedEndpoint(shared, a2, b2)
 
-	overlap := false
-	if len(shared) >= 2 {
-		overlap = true
-	}
+	overlap := len(shared) >= 2
 	if (onA1 && !isSharedPoint(shared, a1)) ||
 		(onA2 && !isSharedPoint(shared, a2)) ||
 		(onB1 && !isSharedPoint(shared, b1)) ||
@@ -285,16 +274,18 @@ func (ls *LineString) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes the linestring to canonical form.
-func (ls *LineString) Normalize() {
+// Normalized returns a new linestring in canonical form.
+func (ls *LineString) Normalized() Geometry {
 	if ls.IsEmpty() {
-		return
+		return ls.Clone()
 	}
+	clone := ls.Clone().(*LineString)
 	// For non-closed linestrings, ensure first point < last point
-	if !ls.IsClosed() && Compare(NewPointFromCoordinate(ls.coords.First()),
-		NewPointFromCoordinate(ls.coords.Last())) > 0 {
-		ls.coords = ls.coords.Reverse()
+	if !clone.IsClosed() && Compare(NewPointFromCoordinate(clone.coords.First()),
+		NewPointFromCoordinate(clone.coords.Last())) > 0 {
+		clone.coords = clone.coords.Reverse()
 	}
+	return clone
 }
 
 // EqualsExact returns true if the linestrings are exactly equal.
@@ -393,11 +384,6 @@ func (ls *LineString) IsClosed() bool {
 	return ls.coords.IsClosed(DefaultEpsilon)
 }
 
-// IsRing returns true if the linestring is closed and simple.
-func (ls *LineString) IsRing() bool {
-	return ls.IsClosed() && ls.IsSimple()
-}
-
 // Length returns the length of the linestring.
 func (ls *LineString) Length() float64 {
 	if len(ls.coords) < 2 {
@@ -415,57 +401,6 @@ func (ls *LineString) Reverse() *LineString {
 	reversed := NewLineString(ls.coords.Reverse())
 	reversed.srid = ls.srid
 	return reversed
-}
-
-// CoordinateN returns the nth coordinate (0-indexed).
-func (ls *LineString) CoordinateN(n int) Coordinate {
-	return ls.coords[n]
-}
-
-// SegmentLength returns the length of the nth segment (0-indexed).
-func (ls *LineString) SegmentLength(n int) float64 {
-	if n < 0 || n >= len(ls.coords)-1 {
-		return 0
-	}
-	return ls.coords[n].Distance(ls.coords[n+1])
-}
-
-// PointAlong returns the point at the given fraction along the linestring.
-// Fraction should be between 0 and 1.
-func (ls *LineString) PointAlong(fraction float64) *Point {
-	if ls.IsEmpty() {
-		return NewPointEmpty()
-	}
-	if fraction <= 0 {
-		return ls.StartPoint()
-	}
-	if fraction >= 1 {
-		return ls.EndPoint()
-	}
-
-	totalLength := ls.Length()
-	if totalLength == 0 {
-		return NewPointFromCoordinate(ls.coords.First())
-	}
-	targetLength := totalLength * fraction
-
-	currentLength := 0.0
-	for i := 1; i < len(ls.coords); i++ {
-		segmentLength := ls.coords[i-1].Distance(ls.coords[i])
-		if segmentLength == 0 {
-			continue
-		}
-		if currentLength+segmentLength >= targetLength {
-			// Interpolate within this segment
-			segmentFraction := (targetLength - currentLength) / segmentLength
-			x := ls.coords[i-1].X + segmentFraction*(ls.coords[i].X-ls.coords[i-1].X)
-			y := ls.coords[i-1].Y + segmentFraction*(ls.coords[i].Y-ls.coords[i-1].Y)
-			return NewPoint(x, y)
-		}
-		currentLength += segmentLength
-	}
-
-	return ls.EndPoint()
 }
 
 // Centroid returns the centroid of the linestring.
@@ -496,37 +431,21 @@ func (ls *LineString) Centroid() *Point {
 	return NewPoint(sumX/totalLength, sumY/totalLength)
 }
 
-// ClosestPoint returns the point on this linestring closest to the given coordinate.
-func (ls *LineString) ClosestPoint(c Coordinate) *Point {
-	if ls.IsEmpty() {
-		return NewPointEmpty()
-	}
-
-	minDist := math.MaxFloat64
-	var closest Coordinate
-
-	for i := 1; i < len(ls.coords); i++ {
-		p := closestPointOnSegment(c, ls.coords[i-1], ls.coords[i])
-		dist := c.Distance(p)
-		if dist < minDist {
-			minDist = dist
-			closest = p
-		}
-	}
-
-	return NewPointFromCoordinate(closest)
-}
-
-func closestPointOnSegment(p, a, b Coordinate) Coordinate {
+// ClosestPointOnSegment returns the closest point on segment (a,b) to point p.
+func ClosestPointOnSegment(p, a, b Coordinate) Coordinate {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
 
-	if dx == 0 && dy == 0 {
+	if a.Equals2D(b, DefaultEpsilon) {
 		return a
 	}
 
 	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / (dx*dx + dy*dy)
-	t = math.Max(0, math.Min(1, t))
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
 
 	return NewCoordinate(a.X+t*dx, a.Y+t*dy)
 }

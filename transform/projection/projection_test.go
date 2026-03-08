@@ -356,7 +356,7 @@ func BenchmarkWebMercatorForward(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		wm.Forward(lon, lat)
+		_, _, _ = wm.Forward(lon, lat)
 	}
 }
 
@@ -366,7 +366,7 @@ func BenchmarkWebMercatorInverse(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		wm.Inverse(x, y)
+		_, _, _ = wm.Inverse(x, y)
 	}
 }
 
@@ -376,7 +376,7 @@ func BenchmarkUTMForward(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utm.Forward(lon, lat)
+		_, _, _ = utm.Forward(lon, lat)
 	}
 }
 
@@ -386,6 +386,6 @@ func BenchmarkUTMInverse(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		utm.Inverse(x, y)
+		_, _, _ = utm.Inverse(x, y)
 	}
 }

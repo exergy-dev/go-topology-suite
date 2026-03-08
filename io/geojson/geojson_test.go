@@ -446,8 +446,8 @@ func TestGeometry_UnmarshalJSON_SRID(t *testing.T) {
 			require.NoError(t, err, "Failed to unmarshal %s", tc.name)
 			require.NotNil(t, g.Geometry, "Geometry should not be nil")
 
-			assert.Equal(t, tc.gtype, g.Geometry.GeometryType(), "Expected geometry type %s", tc.gtype)
-			assert.Equal(t, SRID4326, g.Geometry.SRID(), "Expected SRID 4326 for %s", tc.name)
+			assert.Equal(t, tc.gtype, g.GeometryType(), "Expected geometry type %s", tc.gtype)
+			assert.Equal(t, SRID4326, g.SRID(), "Expected SRID 4326 for %s", tc.name)
 		})
 	}
 }
@@ -467,7 +467,7 @@ func TestFeature_UnmarshalJSON_SRID(t *testing.T) {
 	require.NotNil(t, f.Geometry, "Feature geometry should not be nil")
 	require.NotNil(t, f.Geometry.Geometry, "Feature geometry.Geometry should not be nil")
 
-	assert.Equal(t, SRID4326, f.Geometry.Geometry.SRID(), "Expected SRID 4326 for Feature geometry")
+	assert.Equal(t, SRID4326, f.Geometry.SRID(), "Expected SRID 4326 for Feature geometry")
 }
 
 // TestFeatureCollection_UnmarshalJSON_SRID verifies that all geometries in a FeatureCollection
@@ -490,7 +490,7 @@ func TestFeatureCollection_UnmarshalJSON_SRID(t *testing.T) {
 	for i, f := range fc.Features {
 		require.NotNil(t, f.Geometry, "Feature %d geometry should not be nil", i)
 		require.NotNil(t, f.Geometry.Geometry, "Feature %d geometry.Geometry should not be nil", i)
-		assert.Equal(t, SRID4326, f.Geometry.Geometry.SRID(), "Expected SRID 4326 for Feature %d", i)
+		assert.Equal(t, SRID4326, f.Geometry.SRID(), "Expected SRID 4326 for Feature %d", i)
 	}
 }
 
@@ -512,5 +512,5 @@ func TestGeometry_RoundTrip_SRID(t *testing.T) {
 	require.NoError(t, err, "Failed to unmarshal")
 
 	// Verify SRID is preserved
-	assert.Equal(t, SRID4326, wrapped2.Geometry.SRID(), "SRID should be preserved through round-trip")
+	assert.Equal(t, SRID4326, wrapped2.SRID(), "SRID should be preserved through round-trip")
 }

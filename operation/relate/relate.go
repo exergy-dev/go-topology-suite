@@ -535,9 +535,10 @@ func computePolygonPolygonRelate(poly1, poly2 *geom.Polygon, m *IntersectionMatr
 	centroid1 := poly1.Centroid()
 	if !centroid1.IsEmpty() {
 		loc := algorithm.PointLocationInPolygon(centroid1.Coordinate(), poly2)
-		if loc == geom.LocationInterior {
+		switch loc {
+		case geom.LocationInterior:
 			hasInteriorInterior = true
-		} else if loc == geom.LocationExterior {
+		case geom.LocationExterior:
 			hasInteriorExterior = true
 		}
 	}
@@ -708,12 +709,11 @@ func geomDimension(g geom.Geometry) Dimension {
 
 // boundaryDimension returns the dimension of a geometry's boundary.
 func boundaryDimension(g geom.Geometry) Dimension {
-	switch g.(type) {
+	switch g := g.(type) {
 	case *geom.Point, *geom.MultiPoint:
 		return DimFalse // Points have no boundary
 	case *geom.LineString:
-		ls := g.(*geom.LineString)
-		if ls.IsClosed() {
+		if g.IsClosed() {
 			return DimFalse // Closed lines have no boundary
 		}
 		return DimPoint // Boundary is endpoints
@@ -722,19 +722,17 @@ func boundaryDimension(g geom.Geometry) Dimension {
 	case *geom.Polygon, *geom.MultiPolygon:
 		return DimLine // Boundary is rings
 	case *geom.MultiLineString:
-		mls := g.(*geom.MultiLineString)
-		for i := 0; i < mls.NumGeometries(); i++ {
-			ls := mls.GeometryN(i).(*geom.LineString)
+		for i := 0; i < g.NumGeometries(); i++ {
+			ls := g.GeometryN(i).(*geom.LineString)
 			if !ls.IsClosed() {
 				return DimPoint
 			}
 		}
 		return DimFalse
 	case *geom.GeometryCollection:
-		gc := g.(*geom.GeometryCollection)
 		maxDim := DimFalse
-		for i := 0; i < gc.NumGeometries(); i++ {
-			dim := boundaryDimension(gc.GeometryN(i))
+		for i := 0; i < g.NumGeometries(); i++ {
+			dim := boundaryDimension(g.GeometryN(i))
 			if dim > maxDim {
 				maxDim = dim
 			}

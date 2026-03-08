@@ -3,6 +3,7 @@ package wkb
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"testing"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
@@ -324,11 +325,178 @@ func TestMarshalWithOptions(t *testing.T) {
 	assert.Equal(t, byte(wkbNDR), data[0], "Expected NDR byte order marker")
 }
 
+func TestGeometryCollectionMixedDimensions(t *testing.T) {
+	// Manually construct WKB bytes for a GeometryCollection containing:
+	// - An XY Point (type 1, 2 coords)
+	// - An XYZ LineString (type 1002, 3 coords per vertex)
+	order := binary.LittleEndian
+	var data []byte
+
+	// GeometryCollection header
+	data = append(data, wkbNDR) // byte order
+	buf4 := make([]byte, 4)
+	order.PutUint32(buf4, wkbGeometryCollection)
+	data = append(data, buf4...)
+	order.PutUint32(buf4, 2) // 2 children
+	data = append(data, buf4...)
+
+	// Child 1: XY Point(1.0, 2.0)
+	data = append(data, wkbNDR)
+	order.PutUint32(buf4, wkbPoint) // type 1 = XY point
+	data = append(data, buf4...)
+	buf8 := make([]byte, 8)
+	order.PutUint64(buf8, math.Float64bits(1.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(2.0))
+	data = append(data, buf8...)
+
+	// Child 2: XYZ LineString with 2 vertices
+	data = append(data, wkbNDR)
+	order.PutUint32(buf4, 1002) // type 1002 = XYZ linestring
+	data = append(data, buf4...)
+	order.PutUint32(buf4, 2) // 2 points
+	data = append(data, buf4...)
+	// Point 1: (3.0, 4.0, 10.0)
+	order.PutUint64(buf8, math.Float64bits(3.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(4.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(10.0))
+	data = append(data, buf8...)
+	// Point 2: (5.0, 6.0, 20.0)
+	order.PutUint64(buf8, math.Float64bits(5.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(6.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(20.0))
+	data = append(data, buf8...)
+
+	// Parse
+	g, err := Unmarshal(data)
+	require.NoError(t, err, "Failed to unmarshal mixed-dimension GeometryCollection")
+
+	gc, ok := g.(*geom.GeometryCollection)
+	require.True(t, ok, "Expected GeometryCollection, got %T", g)
+	require.Equal(t, 2, gc.NumGeometries())
+
+	// Verify child 1: XY Point
+	pt, ok := gc.GeometryN(0).(*geom.Point)
+	require.True(t, ok, "Expected Point for child 0, got %T", gc.GeometryN(0))
+	ptCoord := pt.Coordinate()
+	assert.Equal(t, 1.0, ptCoord.X)
+	assert.Equal(t, 2.0, ptCoord.Y)
+	assert.False(t, ptCoord.HasZ(), "XY point should not have Z")
+
+	// Verify child 2: XYZ LineString
+	ls, ok := gc.GeometryN(1).(*geom.LineString)
+	require.True(t, ok, "Expected LineString for child 1, got %T", gc.GeometryN(1))
+	lsCoords := ls.Coordinates()
+	require.Len(t, lsCoords, 2)
+	assert.Equal(t, 3.0, lsCoords[0].X)
+	assert.Equal(t, 4.0, lsCoords[0].Y)
+	assert.True(t, lsCoords[0].HasZ(), "XYZ linestring coords should have Z")
+	assert.Equal(t, 10.0, lsCoords[0].GetZ())
+	assert.Equal(t, 5.0, lsCoords[1].X)
+	assert.Equal(t, 6.0, lsCoords[1].Y)
+	assert.Equal(t, 20.0, lsCoords[1].GetZ())
+}
+
+func TestMultiPointRoundtrip(t *testing.T) {
+	factory := geom.DefaultFactory
+	points := []*geom.Point{
+		factory.CreatePoint(10, 20),
+		factory.CreatePoint(30, 40),
+		factory.CreatePoint(50, 60),
+	}
+	mp := factory.CreateMultiPoint(points)
+
+	data, err := Marshal(mp)
+	require.NoError(t, err)
+
+	g, err := Unmarshal(data)
+	require.NoError(t, err)
+
+	result, ok := g.(*geom.MultiPoint)
+	require.True(t, ok)
+	require.Equal(t, 3, result.NumGeometries())
+
+	for i, expected := range []struct{ x, y float64 }{{10, 20}, {30, 40}, {50, 60}} {
+		pt := result.GeometryN(i).(*geom.Point)
+		c := pt.Coordinate()
+		assert.Equal(t, expected.x, c.X, "point %d X", i)
+		assert.Equal(t, expected.y, c.Y, "point %d Y", i)
+	}
+}
+
+func TestNestedCollectionWithSRID(t *testing.T) {
+	// Build EWKB bytes for a GeometryCollection with SRID 4326 containing:
+	// - Point with SRID 4326
+	// - Point with SRID 32632
+	order := binary.LittleEndian
+	var data []byte
+	buf4 := make([]byte, 4)
+	buf8 := make([]byte, 8)
+
+	// GeometryCollection header with SRID
+	data = append(data, wkbNDR)
+	order.PutUint32(buf4, wkbGeometryCollection|wkbSRIDFlag)
+	data = append(data, buf4...)
+	order.PutUint32(buf4, 4326) // SRID
+	data = append(data, buf4...)
+	order.PutUint32(buf4, 2) // 2 children
+	data = append(data, buf4...)
+
+	// Child 1: Point with SRID 4326
+	data = append(data, wkbNDR)
+	order.PutUint32(buf4, wkbPoint|wkbSRIDFlag)
+	data = append(data, buf4...)
+	order.PutUint32(buf4, 4326)
+	data = append(data, buf4...)
+	order.PutUint64(buf8, math.Float64bits(1.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(2.0))
+	data = append(data, buf8...)
+
+	// Child 2: Point with SRID 32632
+	data = append(data, wkbNDR)
+	order.PutUint32(buf4, wkbPoint|wkbSRIDFlag)
+	data = append(data, buf4...)
+	order.PutUint32(buf4, 32632)
+	data = append(data, buf4...)
+	order.PutUint64(buf8, math.Float64bits(500000.0))
+	data = append(data, buf8...)
+	order.PutUint64(buf8, math.Float64bits(4649776.0))
+	data = append(data, buf8...)
+
+	g, err := Unmarshal(data)
+	require.NoError(t, err)
+
+	gc, ok := g.(*geom.GeometryCollection)
+	require.True(t, ok)
+	require.Equal(t, 2, gc.NumGeometries())
+
+	// Parent should have SRID 4326
+	assert.Equal(t, 4326, gc.SRID(), "parent SRID")
+
+	// Child 1 should have SRID 4326
+	pt1 := gc.GeometryN(0).(*geom.Point)
+	assert.Equal(t, 4326, pt1.SRID(), "child 1 SRID")
+	assert.Equal(t, 1.0, pt1.Coordinate().X)
+
+	// Child 2 should have SRID 32632
+	pt2 := gc.GeometryN(1).(*geom.Point)
+	assert.Equal(t, 32632, pt2.SRID(), "child 2 SRID")
+	assert.Equal(t, 500000.0, pt2.Coordinate().X)
+
+	// Verify parent SRID was not corrupted by child 2's different SRID
+	assert.Equal(t, 4326, gc.SRID(), "parent SRID after reading children")
+}
+
 func BenchmarkMarshalPoint(b *testing.B) {
 	p := geom.NewPoint(1.5, 2.5)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Marshal(p)
+		_, _ = Marshal(p)
 	}
 }
 
@@ -337,7 +505,7 @@ func BenchmarkUnmarshalPoint(b *testing.B) {
 	data, _ := Marshal(p)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Unmarshal(data)
+		_, _ = Unmarshal(data)
 	}
 }
 
@@ -353,7 +521,7 @@ func BenchmarkMarshalPolygon(b *testing.B) {
 	poly := factory.CreatePolygon(shell, nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Marshal(poly)
+		_, _ = Marshal(poly)
 	}
 }
 
@@ -370,6 +538,6 @@ func BenchmarkUnmarshalPolygon(b *testing.B) {
 	data, _ := Marshal(poly)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Unmarshal(data)
+		_, _ = Unmarshal(data)
 	}
 }

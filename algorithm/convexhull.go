@@ -71,6 +71,9 @@ func coordKey(c geom.Coordinate) string {
 
 // grahamScan implements the Graham scan algorithm for convex hull.
 func grahamScan(coords geom.CoordinateSequence) geom.CoordinateSequence {
+	// Make a copy to avoid mutating the input slice
+	coords = append(geom.CoordinateSequence{}, coords...)
+
 	// Find the lowest point (and leftmost if tie)
 	lowestIdx := 0
 	for i := 1; i < len(coords); i++ {

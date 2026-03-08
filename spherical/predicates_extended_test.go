@@ -6,8 +6,8 @@ import (
 	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
-// Test GenericWithin with various geometry types
-func TestGenericWithin(t *testing.T) {
+// TestCrosses tests the Crosses predicate.
+func TestCrosses(t *testing.T) {
 	tests := []struct {
 		name     string
 		g1       geom.Geometry
@@ -15,460 +15,399 @@ func TestGenericWithin(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "point within polygon",
-			g1:   geom.NewPoint(0, 0),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
+			name:     "Point/Point cannot cross",
+			g1:       geom.NewPoint(0.0, 0.0),
+			g2:       geom.NewPoint(1.0, 1.0),
+			expected: false,
+		},
+		{
+			name: "Polygon/Polygon cannot cross (same dimension)",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, 0.0,
+			), nil),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.5, 0.5,
+				1.5, 0.5,
+				1.5, 1.5,
+				0.5, 1.5,
+				0.5, 0.5,
+			), nil),
+			expected: false,
+		},
+		{
+			name: "Line/Line crossing",
+			g1: mustLineStringXY(
+				0.0, -1.0,
+				0.0, 1.0,
+			),
+			g2: mustLineStringXY(
+				-1.0, 0.0,
+				1.0, 0.0,
 			),
 			expected: true,
 		},
 		{
-			name: "point outside polygon",
-			g1:   geom.NewPoint(5, 5),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
+			name: "Line/Line parallel (not crossing)",
+			g1: mustLineStringXY(
+				0.0, 0.0,
+				1.0, 0.0,
+			),
+			g2: mustLineStringXY(
+				0.0, 1.0,
+				1.0, 1.0,
 			),
 			expected: false,
 		},
 		{
-			name: "small polygon within larger polygon",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -0.5, Y: -0.5}, {X: 0.5, Y: -0.5}, {X: 0.5, Y: 0.5}, {X: -0.5, Y: 0.5}, {X: -0.5, Y: -0.5},
-				}),
-				nil,
+			name: "Line/Polygon crossing",
+			g1: mustLineStringXY(
+				-0.5, 0.0,
+				1.5, 0.0,
 			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
-			),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, -1.0,
+				1.0, -1.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, -1.0,
+			), nil),
 			expected: true,
 		},
 		{
-			name: "linestring within polygon",
-			g1: geom.NewLineString(geom.CoordinateSequence{
-				{X: -0.5, Y: 0}, {X: 0.5, Y: 0},
-			}),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
+			name: "Line completely inside polygon (not crossing)",
+			g1: mustLineStringXY(
+				0.2, 0.0,
+				0.8, 0.0,
 			),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, -1.0,
+				1.0, -1.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, -1.0,
+			), nil),
+			expected: false,
+		},
+		{
+			name:     "Empty geometries",
+			g1:       geom.NewLineStringEmpty(),
+			g2:       geom.NewLineStringEmpty(),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Crosses(tt.g1, tt.g2)
+			if result != tt.expected {
+				t.Errorf("Crosses() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCovers tests the Covers predicate.
+func TestCovers(t *testing.T) {
+	tests := []struct {
+		name     string
+		g1       geom.Geometry
+		g2       geom.Geometry
+		expected bool
+	}{
+		{
+			name: "Polygon covers point inside",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				2.0, 0.0,
+				2.0, 2.0,
+				0.0, 2.0,
+				0.0, 0.0,
+			), nil),
+			g2:       geom.NewPoint(1.0, 1.0),
 			expected: true,
 		},
 		{
-			name:     "empty geometries",
+			name: "Polygon does not cover point outside",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, 0.0,
+			), nil),
+			g2:       geom.NewPoint(2.0, 2.0),
+			expected: false,
+		},
+		{
+			name: "Polygon covers smaller polygon inside",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				2.0, 0.0,
+				2.0, 2.0,
+				0.0, 2.0,
+				0.0, 0.0,
+			), nil),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.5, 0.5,
+				1.5, 0.5,
+				1.5, 1.5,
+				0.5, 1.5,
+				0.5, 0.5,
+			), nil),
+			expected: true,
+		},
+		{
+			name: "Polygon does not cover overlapping polygon",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, 0.0,
+			), nil),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.5, 0.5,
+				1.5, 0.5,
+				1.5, 1.5,
+				0.5, 1.5,
+				0.5, 0.5,
+			), nil),
+			expected: false,
+		},
+		{
+			name:     "Empty geometries",
+			g1:       geom.NewPolygonEmpty(),
+			g2:       geom.NewPointEmpty(),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := Covers(tt.g1, tt.g2)
+			if result != tt.expected {
+				t.Errorf("Covers() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCoveredBy tests the CoveredBy predicate.
+func TestCoveredBy(t *testing.T) {
+	tests := []struct {
+		name     string
+		g1       geom.Geometry
+		g2       geom.Geometry
+		expected bool
+	}{
+		{
+			name: "Point inside is covered by polygon",
+			g1:   geom.NewPoint(1.0, 1.0),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				2.0, 0.0,
+				2.0, 2.0,
+				0.0, 2.0,
+				0.0, 0.0,
+			), nil),
+			expected: true,
+		},
+		{
+			name: "Point outside is not covered by polygon",
+			g1:   geom.NewPoint(3.0, 3.0),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				2.0, 0.0,
+				2.0, 2.0,
+				0.0, 2.0,
+				0.0, 0.0,
+			), nil),
+			expected: false,
+		},
+		{
+			name: "CoveredBy is inverse of Covers",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.5, 0.5,
+				1.5, 0.5,
+				1.5, 1.5,
+				0.5, 1.5,
+				0.5, 0.5,
+			), nil),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				2.0, 0.0,
+				2.0, 2.0,
+				0.0, 2.0,
+				0.0, 0.0,
+			), nil),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CoveredBy(tt.g1, tt.g2)
+			if result != tt.expected {
+				t.Errorf("CoveredBy() = %v, want %v", result, tt.expected)
+			}
+
+			// Verify CoveredBy(a,b) == Covers(b,a)
+			inverse := Covers(tt.g2, tt.g1)
+			if result != inverse {
+				t.Errorf("CoveredBy() and Covers() not inverse: %v vs %v", result, inverse)
+			}
+		})
+	}
+}
+
+// TestEquals tests the Equals predicate.
+func TestEquals(t *testing.T) {
+	tests := []struct {
+		name     string
+		g1       geom.Geometry
+		g2       geom.Geometry
+		expected bool
+	}{
+		{
+			name:     "Same point",
+			g1:       geom.NewPoint(1.0, 1.0),
+			g2:       geom.NewPoint(1.0, 1.0),
+			expected: true,
+		},
+		{
+			name:     "Different points",
+			g1:       geom.NewPoint(1.0, 1.0),
+			g2:       geom.NewPoint(2.0, 2.0),
+			expected: false,
+		},
+		{
+			name: "Same polygon",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, 0.0,
+			), nil),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, 0.0,
+			), nil),
+			expected: true,
+		},
+		{
+			name: "Different polygons",
+			g1: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				1.0, 0.0,
+				1.0, 1.0,
+				0.0, 1.0,
+				0.0, 0.0,
+			), nil),
+			g2: geom.NewPolygon(mustLinearRingXY(
+				0.0, 0.0,
+				2.0, 0.0,
+				2.0, 2.0,
+				0.0, 2.0,
+				0.0, 0.0,
+			), nil),
+			expected: false,
+		},
+		{
+			name:     "Different geometry types",
+			g1:       geom.NewPoint(0.0, 0.0),
+			g2:       mustLineStringXY(0.0, 0.0, 1.0, 1.0),
+			expected: false,
+		},
+		{
+			name:     "Both empty (same type)",
 			g1:       geom.NewPointEmpty(),
-			g2:       geom.NewPolygonEmpty(),
+			g2:       geom.NewPointEmpty(),
+			expected: true,
+		},
+		{
+			name:     "One empty, one not",
+			g1:       geom.NewPoint(0.0, 0.0),
+			g2:       geom.NewPointEmpty(),
+			expected: false,
+		},
+		{
+			name:     "Both nil",
+			g1:       nil,
+			g2:       nil,
+			expected: true,
+		},
+		{
+			name:     "One nil",
+			g1:       geom.NewPoint(0.0, 0.0),
+			g2:       nil,
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GenericWithin(tt.g1, tt.g2)
+			result := Equals(tt.g1, tt.g2)
 			if result != tt.expected {
-				t.Errorf("GenericWithin() = %v, want %v", result, tt.expected)
+				t.Errorf("Equals() = %v, want %v", result, tt.expected)
+			}
+
+			// Test commutativity
+			if tt.g1 != nil && tt.g2 != nil {
+				result2 := Equals(tt.g2, tt.g1)
+				if result != result2 {
+					t.Errorf("Equals() not commutative: %v vs %v", result, result2)
+				}
 			}
 		})
 	}
 }
 
-// Test GenericDisjoint with various geometry types
-func TestGenericDisjoint(t *testing.T) {
-	tests := []struct {
-		name     string
-		g1       geom.Geometry
-		g2       geom.Geometry
-		expected bool
-	}{
-		{
-			name:   "disjoint polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 2, Y: 2}, {X: 3, Y: 2}, {X: 3, Y: 3}, {X: 2, Y: 3}, {X: 2, Y: 2},
-				}),
-				nil,
-			),
-			expected: true,
-		},
-		{
-			name:   "overlapping polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 2}, {X: 0, Y: 2}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 1, Y: 1}, {X: 3, Y: 1}, {X: 3, Y: 3}, {X: 1, Y: 3}, {X: 1, Y: 1},
-				}),
-				nil,
-			),
-			expected: false,
-		},
-		{
-			name:   "disjoint points",
-			g1:     geom.NewPoint(0, 0),
-			g2:     geom.NewPoint(5, 5),
-			expected: true,
-		},
-		{
-			name:   "disjoint linestrings",
-			g1: geom.NewLineString(geom.CoordinateSequence{
-				{X: 0, Y: 0}, {X: 1, Y: 0},
-			}),
-			g2: geom.NewLineString(geom.CoordinateSequence{
-				{X: 0, Y: 2}, {X: 1, Y: 2},
-			}),
-			expected: true,
-		},
-	}
+// TestHelperFunctions tests the helper functions.
+func TestHelperFunctions(t *testing.T) {
+	t.Run("ExtractLineStrings", func(t *testing.T) {
+		ls := mustLineStringXY(0.0, 0.0, 1.0, 1.0)
+		result := geom.ExtractLineStrings(ls)
+		if len(result) != 1 {
+			t.Errorf("Expected 1 linestring, got %d", len(result))
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := GenericDisjoint(tt.g1, tt.g2)
-			if result != tt.expected {
-				t.Errorf("GenericDisjoint() = %v, want %v", result, tt.expected)
-			}
+		// Test with MultiLineString
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			mustLineStringXY(0.0, 0.0, 1.0, 1.0),
+			mustLineStringXY(2.0, 2.0, 3.0, 3.0),
 		})
-	}
-}
-
-// Test GenericOverlaps with various geometry types
-func TestGenericOverlaps(t *testing.T) {
-	tests := []struct {
-		name     string
-		g1       geom.Geometry
-		g2       geom.Geometry
-		expected bool
-	}{
-		{
-			name:   "overlapping polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 2}, {X: 0, Y: 2}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 1, Y: 1}, {X: 3, Y: 1}, {X: 3, Y: 3}, {X: 1, Y: 3}, {X: 1, Y: 1},
-				}),
-				nil,
-			),
-			expected: true,
-		},
-		{
-			name:   "disjoint polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 2, Y: 2}, {X: 3, Y: 2}, {X: 3, Y: 3}, {X: 2, Y: 3}, {X: 2, Y: 2},
-				}),
-				nil,
-			),
-			expected: false,
-		},
-		{
-			name:   "one polygon contains another",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -0.5, Y: -0.5}, {X: 0.5, Y: -0.5}, {X: 0.5, Y: 0.5}, {X: -0.5, Y: 0.5}, {X: -0.5, Y: -0.5},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
-			),
-			expected: false,
-		},
-		{
-			name:   "different dimensions - point and polygon",
-			g1:     geom.NewPoint(0, 0),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
-			),
-			expected: false,
-		},
-		{
-			name: "overlapping linestrings",
-			g1: geom.NewLineString(geom.CoordinateSequence{
-				{X: 0, Y: 0}, {X: 2, Y: 0},
-			}),
-			g2: geom.NewLineString(geom.CoordinateSequence{
-				{X: 1, Y: 0}, {X: 3, Y: 0},
-			}),
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := GenericOverlaps(tt.g1, tt.g2)
-			if result != tt.expected {
-				t.Errorf("GenericOverlaps() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-// Test GenericTouches with various geometry types
-func TestGenericTouches(t *testing.T) {
-	tests := []struct {
-		name     string
-		g1       geom.Geometry
-		g2       geom.Geometry
-		expected bool
-	}{
-		{
-			name:   "touching polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 1, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 1}, {X: 1, Y: 1}, {X: 1, Y: 0},
-				}),
-				nil,
-			),
-			expected: true,
-		},
-		{
-			name:   "overlapping polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 2}, {X: 0, Y: 2}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 1, Y: 1}, {X: 3, Y: 1}, {X: 3, Y: 3}, {X: 1, Y: 3}, {X: 1, Y: 1},
-				}),
-				nil,
-			),
-			expected: false,
-		},
-		{
-			name:   "disjoint polygons",
-			g1: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 2, Y: 2}, {X: 3, Y: 2}, {X: 3, Y: 3}, {X: 2, Y: 3}, {X: 2, Y: 2},
-				}),
-				nil,
-			),
-			expected: false,
-		},
-		{
-			name: "point touching polygon boundary",
-			g1:   geom.NewPoint(1, 0.5),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			expected: true,
-		},
-		{
-			name: "linestring touching polygon boundary",
-			g1: geom.NewLineString(geom.CoordinateSequence{
-				{X: 1, Y: 0}, {X: 1, Y: 1},
-			}),
-			g2: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := GenericTouches(tt.g1, tt.g2)
-			if result != tt.expected {
-				t.Errorf("GenericTouches() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-// Test locatePointSpherical with various geometry types
-func TestLocatePointSpherical(t *testing.T) {
-	tests := []struct {
-		name     string
-		point    geom.Coordinate
-		geom     geom.Geometry
-		expected geom.Location
-	}{
-		{
-			name:  "point in polygon interior",
-			point: geom.NewCoordinate(0, 0),
-			geom: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: -1, Y: -1}, {X: 1, Y: -1}, {X: 1, Y: 1}, {X: -1, Y: 1}, {X: -1, Y: -1},
-				}),
-				nil,
-			),
-			expected: geom.LocationInterior,
-		},
-		{
-			name:  "point on polygon boundary",
-			point: geom.NewCoordinate(1, 0),
-			geom: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			expected: geom.LocationBoundary,
-		},
-		{
-			name:  "point exterior to polygon",
-			point: geom.NewCoordinate(5, 5),
-			geom: geom.NewPolygon(
-				geom.NewLinearRing(geom.CoordinateSequence{
-					{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-				}),
-				nil,
-			),
-			expected: geom.LocationExterior,
-		},
-		{
-			name:  "point on linestring",
-			point: geom.NewCoordinate(0.5, 0),
-			geom: geom.NewLineString(geom.CoordinateSequence{
-				{X: 0, Y: 0}, {X: 1, Y: 0},
-			}),
-			expected: geom.LocationInterior,
-		},
-		{
-			name:  "point at linestring endpoint",
-			point: geom.NewCoordinate(0, 0),
-			geom: geom.NewLineString(geom.CoordinateSequence{
-				{X: 0, Y: 0}, {X: 1, Y: 0},
-			}),
-			expected: geom.LocationBoundary,
-		},
-		{
-			name:     "point matches point",
-			point:    geom.NewCoordinate(0, 0),
-			geom:     geom.NewPoint(0, 0),
-			expected: geom.LocationInterior,
-		},
-		{
-			name:     "point doesn't match point",
-			point:    geom.NewCoordinate(5, 5),
-			geom:     geom.NewPoint(0, 0),
-			expected: geom.LocationExterior,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := locatePointSpherical(tt.point, tt.geom)
-			if result != tt.expected {
-				t.Errorf("locatePointSpherical() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-// Test with MultiGeometry types
-func TestGenericPredicatesWithMultiGeometries(t *testing.T) {
-	multiPoint := geom.NewMultiPoint([]*geom.Point{
-		geom.NewPoint(0, 0),
-		geom.NewPoint(1, 1),
-		geom.NewPoint(2, 2),
-	})
-
-	multiLineString := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineString(geom.CoordinateSequence{{X: 0, Y: 0}, {X: 1, Y: 0}}),
-		geom.NewLineString(geom.CoordinateSequence{{X: 0, Y: 1}, {X: 1, Y: 1}}),
-	})
-
-	multiPolygon := geom.NewMultiPolygon([]*geom.Polygon{
-		geom.NewPolygon(
-			geom.NewLinearRing(geom.CoordinateSequence{
-				{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
-			}),
-			nil,
-		),
-		geom.NewPolygon(
-			geom.NewLinearRing(geom.CoordinateSequence{
-				{X: 2, Y: 2}, {X: 3, Y: 2}, {X: 3, Y: 3}, {X: 2, Y: 3}, {X: 2, Y: 2},
-			}),
-			nil,
-		),
-	})
-
-	largePoly := geom.NewPolygon(
-		geom.NewLinearRing(geom.CoordinateSequence{
-			{X: -1, Y: -1}, {X: 4, Y: -1}, {X: 4, Y: 4}, {X: -1, Y: 4}, {X: -1, Y: -1},
-		}),
-		nil,
-	)
-
-	t.Run("multipoint within polygon", func(t *testing.T) {
-		if !GenericWithin(multiPoint, largePoly) {
-			t.Error("Expected multipoint to be within large polygon")
+		result = geom.ExtractLineStrings(mls)
+		if len(result) != 2 {
+			t.Errorf("Expected 2 linestrings, got %d", len(result))
 		}
 	})
 
-	t.Run("multilinestring intersects polygon", func(t *testing.T) {
-		if !Intersects(multiLineString, largePoly) {
-			t.Error("Expected multilinestring to intersect large polygon")
+	t.Run("ExtractPolygons", func(t *testing.T) {
+		poly := geom.NewPolygon(mustLinearRingXY(
+			0.0, 0.0,
+			1.0, 0.0,
+			1.0, 1.0,
+			0.0, 1.0,
+			0.0, 0.0,
+		), nil)
+		result := geom.ExtractPolygons(poly)
+		if len(result) != 1 {
+			t.Errorf("Expected 1 polygon, got %d", len(result))
 		}
-	})
 
-	t.Run("multipolygon within large polygon", func(t *testing.T) {
-		if !GenericWithin(multiPolygon, largePoly) {
-			t.Error("Expected multipolygon to be within large polygon")
-		}
-	})
-
-	t.Run("multipolygon overlaps itself", func(t *testing.T) {
-		if GenericOverlaps(multiPolygon, multiPolygon) {
-			t.Error("Expected geometry not to overlap with itself")
+		// Test with MultiPolygon
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly, poly})
+		result = geom.ExtractPolygons(mp)
+		if len(result) != 2 {
+			t.Errorf("Expected 2 polygons, got %d", len(result))
 		}
 	})
 }

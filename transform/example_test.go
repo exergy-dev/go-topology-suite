@@ -12,7 +12,7 @@ import (
 // Example demonstrates basic affine transformations
 func Example_affineTransform() {
 	// Create a square polygon
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	polygon := geom.NewPolygon(shell, []*geom.LinearRing{})
 
 	// Create a composite transformation: scale by 2, then translate by (5, 5)
@@ -111,7 +111,7 @@ func Example_utm() {
 // Example demonstrates transforming a LineString
 func Example_transformLineString() {
 	// Create a line from (0,0) to (10,10)
-	line := geom.NewLineStringXY(0, 0, 5, 5, 10, 10)
+	line := mustLineStringXY(0, 0, 5, 5, 10, 10)
 
 	// Scale by 2 in both directions
 	scale := transform.NewAffineScale(2, 2)

@@ -149,7 +149,7 @@ func LineCentroid(coords geom.CoordinateSequence) geom.Coordinate {
 		totalLength += segLen
 	}
 
-	if totalLength == 0 {
+	if totalLength < geom.DefaultEpsilon {
 		return coords[0].Clone()
 	}
 
@@ -162,29 +162,17 @@ func RingCentroid(coords geom.CoordinateSequence) geom.Coordinate {
 		return LineCentroid(coords)
 	}
 
-	n := len(coords)
-	if coords.IsClosed(geom.DefaultEpsilon) {
-		n-- // Exclude closing point
+	ring := coords
+	if !coords.IsClosed(geom.DefaultEpsilon) {
+		ring = append(coords.Clone(), coords[0].Clone())
 	}
 
-	sumX, sumY := 0.0, 0.0
-	signedArea := 0.0
-
-	for i := 0; i < n; i++ {
-		x0, y0 := coords[i].X, coords[i].Y
-		x1, y1 := coords[(i+1)%n].X, coords[(i+1)%n].Y
-		cross := x0*y1 - x1*y0
-		signedArea += cross
-		sumX += (x0 + x1) * cross
-		sumY += (y0 + y1) * cross
-	}
-
-	signedArea /= 2
-	if math.Abs(signedArea) < geom.DefaultEpsilon {
+	cx, cy, area := geom.RingCentroidAndArea(ring)
+	if area < geom.DefaultEpsilon {
 		return LineCentroid(coords)
 	}
 
-	return geom.NewCoordinate(sumX/(6*signedArea), sumY/(6*signedArea))
+	return geom.NewCoordinate(cx, cy)
 }
 
 // PolygonCentroid computes the centroid of a polygon.
@@ -258,7 +246,7 @@ func MultiLineStringCentroid(mls *geom.MultiLineString) geom.Coordinate {
 		totalLength += length
 	}
 
-	if totalLength == 0 {
+	if totalLength < geom.DefaultEpsilon {
 		// Fall back to first point
 		return mls.GeometryN(0).Coordinates()[0]
 	}
@@ -284,7 +272,7 @@ func MultiPolygonCentroid(mp *geom.MultiPolygon) geom.Coordinate {
 		totalArea += area
 	}
 
-	if totalArea == 0 {
+	if math.Abs(totalArea) < geom.DefaultEpsilon {
 		// Fall back to first polygon's centroid
 		return PolygonCentroid(mp.GeometryN(0).(*geom.Polygon))
 	}
@@ -361,7 +349,7 @@ func weightedCentroid(centroids []geom.Coordinate, weights []float64) geom.Coord
 		totalWeight += w
 	}
 
-	if totalWeight == 0 {
+	if math.Abs(totalWeight) < geom.DefaultEpsilon {
 		return centroids[0]
 	}
 

@@ -47,7 +47,7 @@ func pointLocationInLineString(p geom.Coordinate, ls *geom.LineString) geom.Loca
 
 	// Check if on any segment
 	for i := 1; i < len(coords); i++ {
-		if isPointOnSegment(p, coords[i-1], coords[i]) {
+		if geom.PointOnSegment(p, coords[i-1], coords[i]) {
 			// Check if at endpoint
 			if !ls.IsClosed() && (p.Equals2D(coords[0], geom.DefaultEpsilon) ||
 				p.Equals2D(coords[len(coords)-1], geom.DefaultEpsilon)) {
@@ -65,17 +65,13 @@ func pointLocationInRing(p geom.Coordinate, ring *geom.LinearRing) geom.Location
 		return geom.LocationExterior
 	}
 
-	coords := ring.Coordinates()
-
 	// Check if on boundary
-	for i := 1; i < len(coords); i++ {
-		if isPointOnSegment(p, coords[i-1], coords[i]) {
-			return geom.LocationBoundary
-		}
+	if geom.PointOnRing(p, ring) {
+		return geom.LocationBoundary
 	}
 
 	// Check if inside
-	if IsPointInRing(p, ring) {
+	if geom.PointInRing(p, ring) {
 		return geom.LocationInterior
 	}
 
@@ -89,40 +85,30 @@ func PointLocationInPolygon(p geom.Coordinate, poly *geom.Polygon) geom.Location
 	}
 
 	// Check if on shell boundary
-	if isPointOnRingBoundary(p, poly.ExteriorRing()) {
+	if geom.PointOnRing(p, poly.ExteriorRing()) {
 		return geom.LocationBoundary
 	}
 
 	// Check if on hole boundaries
 	for i := 0; i < poly.NumInteriorRings(); i++ {
-		if isPointOnRingBoundary(p, poly.InteriorRingN(i)) {
+		if geom.PointOnRing(p, poly.InteriorRingN(i)) {
 			return geom.LocationBoundary
 		}
 	}
 
 	// Check if inside shell
-	if !IsPointInRing(p, poly.ExteriorRing()) {
+	if !geom.PointInRing(p, poly.ExteriorRing()) {
 		return geom.LocationExterior
 	}
 
 	// Check if inside any hole
 	for i := 0; i < poly.NumInteriorRings(); i++ {
-		if IsPointInRing(p, poly.InteriorRingN(i)) {
+		if geom.PointInRing(p, poly.InteriorRingN(i)) {
 			return geom.LocationExterior
 		}
 	}
 
 	return geom.LocationInterior
-}
-
-func isPointOnRingBoundary(p geom.Coordinate, ring *geom.LinearRing) bool {
-	coords := ring.Coordinates()
-	for i := 1; i < len(coords); i++ {
-		if isPointOnSegment(p, coords[i-1], coords[i]) {
-			return true
-		}
-	}
-	return false
 }
 
 func pointLocationInMultiPoint(p geom.Coordinate, mp *geom.MultiPoint) geom.Location {
@@ -180,72 +166,10 @@ func pointLocationInCollection(p geom.Coordinate, gc *geom.GeometryCollection) g
 	return geom.LocationExterior
 }
 
-// IsPointInRing determines if a point is inside a ring using the ray casting algorithm.
-func IsPointInRing(p geom.Coordinate, ring *geom.LinearRing) bool {
-	coords := ring.Coordinates()
-	n := len(coords)
-	if n < 4 {
-		return false
-	}
-
-	inside := false
-	j := n - 2 // Second to last point (excluding closing point)
-
-	for i := 0; i < n-1; i++ {
-		xi, yi := coords[i].X, coords[i].Y
-		xj, yj := coords[j].X, coords[j].Y
-
-		if ((yi > p.Y) != (yj > p.Y)) &&
-			(p.X < (xj-xi)*(p.Y-yi)/(yj-yi)+xi) {
-			inside = !inside
-		}
-		j = i
-	}
-
-	return inside
-}
-
-// IsPointOnSegment determines if a point is on a line segment.
-func isPointOnSegment(p, a, b geom.Coordinate) bool {
-	// Check if collinear
-	if OrientationIndex(a, b, p) != Collinear {
-		return false
-	}
-
-	// Check if within bounding box
-	if p.X < min(a.X, b.X)-geom.DefaultEpsilon || p.X > max(a.X, b.X)+geom.DefaultEpsilon {
-		return false
-	}
-	if p.Y < min(a.Y, b.Y)-geom.DefaultEpsilon || p.Y > max(a.Y, b.Y)+geom.DefaultEpsilon {
-		return false
-	}
-
-	return true
-}
-
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b float64) float64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// IsPointInEnvelope returns true if a point is within an envelope.
-func IsPointInEnvelope(p geom.Coordinate, env *geom.Envelope) bool {
-	return env.Contains(p)
-}
-
 // LocatePointInTriangle determines the location of a point relative to a triangle.
 func LocatePointInTriangle(p, t0, t1, t2 geom.Coordinate) geom.Location {
 	// Check if on any edge
-	if isPointOnSegment(p, t0, t1) || isPointOnSegment(p, t1, t2) || isPointOnSegment(p, t2, t0) {
+	if geom.PointOnSegment(p, t0, t1) || geom.PointOnSegment(p, t1, t2) || geom.PointOnSegment(p, t2, t0) {
 		return geom.LocationBoundary
 	}
 

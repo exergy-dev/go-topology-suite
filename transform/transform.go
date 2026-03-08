@@ -114,13 +114,11 @@ func TransformCoordinate(t Transform, coord geom.Coordinate) (geom.Coordinate, e
 	result := geom.NewCoordinate(x, y)
 
 	// Copy Z and M values if present (these are not transformed)
-	if coord.Z != nil {
-		z := *coord.Z
-		result.Z = &z
+	if coord.HasZ() {
+		result.Z = coord.Z
 	}
-	if coord.M != nil {
-		m := *coord.M
-		result.M = &m
+	if coord.HasM() {
+		result.M = coord.M
 	}
 
 	return result, nil

@@ -3,11 +3,17 @@
 package quadtree
 
 import (
+	"sync"
+
 	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Quadtree is a spatial index that subdivides space into four quadrants.
+// Quadtree is safe for concurrent use: multiple goroutines may call
+// read methods (Query, Size, etc.) concurrently, but write methods
+// (Insert, Remove, Clear) require exclusive access.
 type Quadtree struct {
+	mu       sync.RWMutex
 	root     *node
 	envelope *geom.Envelope
 	size     int
@@ -76,6 +82,9 @@ func (q *Quadtree) Insert(envelope *geom.Envelope, data interface{}) {
 		return
 	}
 
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
 	// Auto-expand bounds if needed
 	if q.envelope == nil {
 		q.envelope = envelope.Clone()
@@ -119,7 +128,8 @@ func (q *Quadtree) expandBounds(envelope *geom.Envelope) {
 	q.size = 0
 
 	for _, it := range oldItems {
-		q.Insert(it.envelope, it.data)
+		q.insertIntoNode(q.root, it)
+		q.size++
 	}
 }
 
@@ -223,6 +233,8 @@ func (q *Quadtree) findQuadrant(n *node, envelope *geom.Envelope) int {
 
 // Query returns all items whose envelopes intersect the given envelope.
 func (q *Quadtree) Query(envelope *geom.Envelope) []interface{} {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 	if q.root == nil || envelope == nil || envelope.IsNull() {
 		return nil
 	}
@@ -272,6 +284,8 @@ func (q *Quadtree) QueryAll() []interface{} {
 
 // Remove removes an item from the quadtree.
 func (q *Quadtree) Remove(envelope *geom.Envelope, data interface{}) bool {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	if q.root == nil || envelope == nil || envelope.IsNull() {
 		return false
 	}
@@ -309,16 +323,22 @@ func (q *Quadtree) removeFromNode(n *node, envelope *geom.Envelope, data interfa
 
 // Size returns the number of items in the tree.
 func (q *Quadtree) Size() int {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 	return q.size
 }
 
 // IsEmpty returns true if the tree has no items.
 func (q *Quadtree) IsEmpty() bool {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 	return q.size == 0
 }
 
 // Depth returns the maximum depth of the tree.
 func (q *Quadtree) Depth() int {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 	if q.root == nil {
 		return 0
 	}
@@ -340,6 +360,8 @@ func (q *Quadtree) nodeDepth(n *node) int {
 
 // Envelope returns the bounds of the tree.
 func (q *Quadtree) Envelope() *geom.Envelope {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 	if q.envelope == nil {
 		return geom.NewEnvelopeEmpty()
 	}
@@ -348,6 +370,8 @@ func (q *Quadtree) Envelope() *geom.Envelope {
 
 // Clear removes all items from the tree.
 func (q *Quadtree) Clear() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	q.root = nil
 	q.envelope = nil
 	q.size = 0
@@ -355,6 +379,8 @@ func (q *Quadtree) Clear() {
 
 // Visit traverses all items in the tree.
 func (q *Quadtree) Visit(visitor func(envelope *geom.Envelope, data interface{}) bool) {
+	q.mu.RLock()
+	defer q.mu.RUnlock()
 	if q.root == nil {
 		return
 	}

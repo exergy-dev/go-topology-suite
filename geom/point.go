@@ -44,13 +44,13 @@ func (p *Point) Y() float64 {
 	return p.coord.Y
 }
 
-// Z returns the Z coordinate (or nil if not present).
-func (p *Point) Z() *float64 {
+// Z returns the Z coordinate (NaN if not present).
+func (p *Point) Z() float64 {
 	return p.coord.Z
 }
 
-// M returns the M coordinate (or nil if not present).
-func (p *Point) M() *float64 {
+// M returns the M coordinate (NaN if not present).
+func (p *Point) M() float64 {
 	return p.coord.M
 }
 
@@ -69,10 +69,12 @@ func (p *Point) Envelope() *Envelope {
 	if p.isEmpty {
 		return NewEnvelopeEmpty()
 	}
-	if p.envelope == nil {
-		p.envelope = NewEnvelopeFromCoord(p.coord)
+	if env := p.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return p.envelope.Clone()
+	env := NewEnvelopeFromCoord(p.coord)
+	p.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if this is an empty point.
@@ -140,9 +142,9 @@ func (p *Point) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes the point (no-op for points).
-func (p *Point) Normalize() {
-	// Points don't need normalization
+// Normalized returns the point unchanged (points are already in canonical form).
+func (p *Point) Normalized() Geometry {
+	return p.Clone()
 }
 
 // EqualsExact returns true if the points are exactly equal.
@@ -168,27 +170,15 @@ func (p *Point) String() string {
 	if p.isEmpty {
 		return "POINT EMPTY"
 	}
-	if p.coord.Z != nil && p.coord.M != nil {
-		return fmt.Sprintf("POINT ZM (%g %g %g %g)", p.coord.X, p.coord.Y, *p.coord.Z, *p.coord.M)
+	if p.coord.HasZ() && p.coord.HasM() {
+		return fmt.Sprintf("POINT ZM (%g %g %g %g)", p.coord.X, p.coord.Y, p.coord.Z, p.coord.M)
 	}
-	if p.coord.Z != nil {
-		return fmt.Sprintf("POINT Z (%g %g %g)", p.coord.X, p.coord.Y, *p.coord.Z)
+	if p.coord.HasZ() {
+		return fmt.Sprintf("POINT Z (%g %g %g)", p.coord.X, p.coord.Y, p.coord.Z)
 	}
-	if p.coord.M != nil {
-		return fmt.Sprintf("POINT M (%g %g %g)", p.coord.X, p.coord.Y, *p.coord.M)
+	if p.coord.HasM() {
+		return fmt.Sprintf("POINT M (%g %g %g)", p.coord.X, p.coord.Y, p.coord.M)
 	}
 	return fmt.Sprintf("POINT (%g %g)", p.coord.X, p.coord.Y)
 }
 
-// Distance returns the distance to another point.
-func (p *Point) Distance(other *Point) float64 {
-	if p.isEmpty || other.isEmpty {
-		return 0
-	}
-	return p.coord.Distance(other.coord)
-}
-
-// Equals returns true if the points are equal within the default epsilon.
-func (p *Point) Equals(other *Point) bool {
-	return p.EqualsExact(other, DefaultEpsilon)
-}

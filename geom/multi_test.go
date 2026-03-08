@@ -31,7 +31,7 @@ func TestMultiPoint_Empty(t *testing.T) {
 
 // TestMultiPoint_FromCoords tests creating MultiPoint from coordinates
 func TestMultiPoint_FromCoords(t *testing.T) {
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 20)
+	coords := mustCoordsXY(0, 0, 10, 10, 20, 20)
 	mp := geom.NewMultiPointFromCoords(coords)
 
 	if mp.NumGeometries() != 3 {
@@ -153,11 +153,11 @@ func TestMultiPoint_Normalize(t *testing.T) {
 		geom.NewPoint(10, 10),
 	})
 
-	mp.Normalize()
+	normalized := mp.Normalized().(*geom.MultiPoint)
 
 	// After normalization, points should be sorted
 	// (exact order depends on Compare implementation)
-	coords := mp.Coordinates()
+	coords := normalized.Coordinates()
 	if len(coords) != 3 {
 		t.Errorf("Expected 3 coordinates after normalize, got %d", len(coords))
 	}
@@ -220,9 +220,9 @@ func TestMultiLineString_Empty(t *testing.T) {
 // TestMultiLineString_Length tests length calculation
 func TestMultiLineString_Length(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),       // Length 10
-		geom.NewLineStringXY(0, 0, 3, 4),        // Length 5
-		geom.NewLineStringXY(0, 0, 10, 10, 20, 0), // Length 10√2 + 10√2 ≈ 28.28
+		mustLineStringXY(0, 0, 10, 0),       // Length 10
+		mustLineStringXY(0, 0, 3, 4),        // Length 5
+		mustLineStringXY(0, 0, 10, 10, 20, 0), // Length 10√2 + 10√2 ≈ 28.28
 	})
 
 	length := mls.Length()
@@ -237,8 +237,8 @@ func TestMultiLineString_Length(t *testing.T) {
 func TestMultiLineString_IsClosed(t *testing.T) {
 	// All closed
 	closed := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0, 10, 10, 0, 0),
-		geom.NewLineStringXY(20, 20, 30, 20, 30, 30, 20, 20),
+		mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 0),
+		mustLineStringXY(20, 20, 30, 20, 30, 30, 20, 20),
 	})
 
 	if !closed.IsClosed() {
@@ -247,8 +247,8 @@ func TestMultiLineString_IsClosed(t *testing.T) {
 
 	// One open
 	notClosed := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0, 10, 10, 0, 0), // Closed
-		geom.NewLineStringXY(20, 20, 30, 20),            // Open
+		mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 0), // Closed
+		mustLineStringXY(20, 20, 30, 20),            // Open
 	})
 
 	if notClosed.IsClosed() {
@@ -260,8 +260,8 @@ func TestMultiLineString_IsClosed(t *testing.T) {
 func TestMultiLineString_Boundary(t *testing.T) {
 	// Open linestrings have boundary at endpoints
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
 	})
 
 	boundary := mls.Boundary()
@@ -271,7 +271,7 @@ func TestMultiLineString_Boundary(t *testing.T) {
 
 	// Closed linestrings have no boundary
 	closedMLS := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0, 10, 10, 0, 0),
+		mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 0),
 	})
 
 	closedBoundary := closedMLS.Boundary()
@@ -283,7 +283,7 @@ func TestMultiLineString_Boundary(t *testing.T) {
 // TestMultiLineString_Dimension tests dimension
 func TestMultiLineString_Dimension(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(0, 0, 10, 0),
 	})
 
 	if mls.Dimension() != geom.DimensionLine {
@@ -294,8 +294,8 @@ func TestMultiLineString_Dimension(t *testing.T) {
 // TestMultiLineString_IsValid tests validity
 func TestMultiLineString_IsValid(t *testing.T) {
 	valid := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
 	})
 
 	if !valid.IsValid() {
@@ -303,7 +303,7 @@ func TestMultiLineString_IsValid(t *testing.T) {
 	}
 
 	// LineString with too few points is invalid
-	coords := geom.NewCoordinateSequenceXY(0, 0)
+	coords := mustCoordsXY(0, 0)
 	invalid := geom.NewMultiLineString([]*geom.LineString{
 		geom.NewLineString(coords),
 	})
@@ -316,8 +316,8 @@ func TestMultiLineString_IsValid(t *testing.T) {
 // TestMultiLineString_LineStringN tests LineStringN accessor
 func TestMultiLineString_LineStringN(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
 	})
 
 	if mls.LineStringN(-1) != nil {
@@ -337,8 +337,8 @@ func TestMultiLineString_LineStringN(t *testing.T) {
 // TestMultiLineString_Envelope tests envelope calculation
 func TestMultiLineString_Envelope(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 10),
-		geom.NewLineStringXY(20, 5, 30, 15),
+		mustLineStringXY(0, 0, 10, 10),
+		mustLineStringXY(20, 5, 30, 15),
 	})
 
 	env := mls.Envelope()
@@ -372,8 +372,8 @@ func TestMultiPolygon_Empty(t *testing.T) {
 
 // TestMultiPolygon_Area tests area calculation
 func TestMultiPolygon_Area(t *testing.T) {
-	poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-	poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil)
+	poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly2 := geom.NewPolygon(mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil)
 
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 
@@ -387,8 +387,8 @@ func TestMultiPolygon_Area(t *testing.T) {
 
 // TestMultiPolygon_Perimeter tests perimeter calculation
 func TestMultiPolygon_Perimeter(t *testing.T) {
-	poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-	poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 20, 25, 20, 25, 25, 20, 25, 20, 20), nil)
+	poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly2 := geom.NewPolygon(mustLinearRingXY(20, 20, 25, 20, 25, 25, 20, 25, 20, 20), nil)
 
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 
@@ -402,7 +402,7 @@ func TestMultiPolygon_Perimeter(t *testing.T) {
 
 // TestMultiPolygon_Dimension tests dimension
 func TestMultiPolygon_Dimension(t *testing.T) {
-	poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
 
 	if mp.Dimension() != geom.DimensionArea {
@@ -412,7 +412,7 @@ func TestMultiPolygon_Dimension(t *testing.T) {
 
 // TestMultiPolygon_IsSimple tests simplicity
 func TestMultiPolygon_IsSimple(t *testing.T) {
-	poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
 
 	if !mp.IsSimple() {
@@ -422,7 +422,7 @@ func TestMultiPolygon_IsSimple(t *testing.T) {
 
 // TestMultiPolygon_Boundary tests boundary calculation
 func TestMultiPolygon_Boundary(t *testing.T) {
-	poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
 
 	boundary := mp.Boundary()
@@ -438,8 +438,8 @@ func TestMultiPolygon_Boundary(t *testing.T) {
 
 // TestMultiPolygon_PolygonN tests PolygonN accessor
 func TestMultiPolygon_PolygonN(t *testing.T) {
-	poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-	poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil)
+	poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly2 := geom.NewPolygon(mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 
 	if mp.PolygonN(-1) != nil {
@@ -458,8 +458,8 @@ func TestMultiPolygon_PolygonN(t *testing.T) {
 
 // TestMultiPolygon_Envelope tests envelope calculation
 func TestMultiPolygon_Envelope(t *testing.T) {
-	poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-	poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 5, 30, 5, 30, 15, 20, 15, 20, 5), nil)
+	poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly2 := geom.NewPolygon(mustLinearRingXY(20, 5, 30, 5, 30, 15, 20, 15, 20, 5), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 
 	env := mp.Envelope()
@@ -472,7 +472,7 @@ func TestMultiPolygon_Envelope(t *testing.T) {
 
 // TestMultiPolygon_Clone tests cloning
 func TestMultiPolygon_Clone(t *testing.T) {
-	poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
 
 	clone := mp.Clone().(*geom.MultiPolygon)
@@ -489,9 +489,9 @@ func TestMultiPolygon_Clone(t *testing.T) {
 
 // TestMultiPolygon_WithHoles tests MultiPolygon with holes
 func TestMultiPolygon_WithHoles(t *testing.T) {
-	hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+	hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 	poly := geom.NewPolygon(
-		geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+		mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 		[]*geom.LinearRing{hole},
 	)
 
@@ -523,8 +523,8 @@ func TestMultiGeometry_SRID(t *testing.T) {
 // TestMultiLineString_Coordinates tests coordinate extraction
 func TestMultiLineString_Coordinates(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
 	})
 
 	coords := mls.Coordinates()
@@ -535,7 +535,7 @@ func TestMultiLineString_Coordinates(t *testing.T) {
 
 // TestMultiPolygon_Coordinates tests coordinate extraction
 func TestMultiPolygon_Coordinates(t *testing.T) {
-	poly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+	poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 	mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
 
 	coords := mp.Coordinates()
@@ -583,8 +583,8 @@ func TestMultiGeometry_EqualsExact(t *testing.T) {
 // TestMultiLineString_String tests WKT output
 func TestMultiLineString_String(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(0, 0, 10, 0),
-		geom.NewLineStringXY(20, 0, 30, 0),
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
 	})
 
 	wkt := mls.String()
@@ -612,8 +612,8 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 	t.Run("NonCrossing_IsSimple", func(t *testing.T) {
 		// Two parallel lines - should be simple
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 10, 0),
-			geom.NewLineStringXY(0, 5, 10, 5),
+			mustLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(0, 5, 10, 5),
 		})
 		assert.True(t, mls.IsSimple(), "Parallel lines should be simple")
 	})
@@ -621,8 +621,8 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 	t.Run("Crossing_NotSimple", func(t *testing.T) {
 		// Two crossing lines (X shape) - should not be simple
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 10, 10),
-			geom.NewLineStringXY(0, 10, 10, 0),
+			mustLineStringXY(0, 0, 10, 10),
+			mustLineStringXY(0, 10, 10, 0),
 		})
 		assert.False(t, mls.IsSimple(), "Crossing lines should not be simple")
 	})
@@ -630,8 +630,8 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 	t.Run("TouchingAtEndpoint_IsSimple", func(t *testing.T) {
 		// Two lines that touch only at an endpoint - should be simple
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 10, 0),
-			geom.NewLineStringXY(10, 0, 20, 0),
+			mustLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(10, 0, 20, 0),
 		})
 		assert.True(t, mls.IsSimple(), "Lines touching at endpoints should be simple")
 	})
@@ -639,8 +639,8 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 	t.Run("NonIntersecting_IsSimple", func(t *testing.T) {
 		// Two completely separate lines
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 10, 0),
-			geom.NewLineStringXY(100, 100, 110, 100),
+			mustLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(100, 100, 110, 100),
 		})
 		assert.True(t, mls.IsSimple(), "Non-intersecting lines should be simple")
 	})
@@ -648,7 +648,7 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 	t.Run("SelfIntersectingLine_NotSimple", func(t *testing.T) {
 		// One line that self-intersects (figure 8)
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0, 0, 10, 10, 10, 0, 0, 10),
+			mustLineStringXY(0, 0, 10, 10, 10, 0, 0, 10),
 		})
 		assert.False(t, mls.IsSimple(), "Self-intersecting line should not be simple")
 	})
@@ -658,50 +658,149 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 func TestMultiPolygon_IsValid_Overlap(t *testing.T) {
 	t.Run("NonOverlapping_IsValid", func(t *testing.T) {
 		// Two separate squares
-		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-		poly2 := geom.NewPolygon(geom.NewLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0), nil)
+		poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(mustLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 		assert.True(t, mp.IsValid(), "Non-overlapping polygons should be valid")
 	})
 
 	t.Run("Overlapping_NotValid", func(t *testing.T) {
 		// Two overlapping squares (second square overlaps first)
-		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-		poly2 := geom.NewPolygon(geom.NewLinearRingXY(5, 0, 15, 0, 15, 10, 5, 10, 5, 0), nil)
+		poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(mustLinearRingXY(5, 0, 15, 0, 15, 10, 5, 10, 5, 0), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 		assert.False(t, mp.IsValid(), "Overlapping polygons should not be valid")
 	})
 
 	t.Run("CornerOverlap_NoCentroidContainment_NotValid", func(t *testing.T) {
 		// Overlap only at a corner region; centroids are outside each other.
-		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 4, 0, 4, 4, 0, 4, 0, 0), nil)
-		poly2 := geom.NewPolygon(geom.NewLinearRingXY(3, 3, 7, 3, 7, 7, 3, 7, 3, 3), nil)
+		poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 4, 0, 4, 4, 0, 4, 0, 0), nil)
+		poly2 := geom.NewPolygon(mustLinearRingXY(3, 3, 7, 3, 7, 7, 3, 7, 3, 3), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 		assert.False(t, mp.IsValid(), "Corner-overlapping polygons should not be valid")
 	})
 
 	t.Run("TouchingAtEdge_IsValid", func(t *testing.T) {
 		// Two squares that share an edge (adjacent) - should be valid
-		poly1 := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-		poly2 := geom.NewPolygon(geom.NewLinearRingXY(10, 0, 20, 0, 20, 10, 10, 10, 10, 0), nil)
+		poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(mustLinearRingXY(10, 0, 20, 0, 20, 10, 10, 10, 10, 0), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
 		assert.True(t, mp.IsValid(), "Edge-adjacent polygons should be valid")
 	})
 
 	t.Run("ContainedPolygon_NotValid", func(t *testing.T) {
 		// Small polygon inside larger polygon - should not be valid
-		outerPoly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0), nil)
-		innerPoly := geom.NewPolygon(geom.NewLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10), nil)
+		outerPoly := geom.NewPolygon(mustLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0), nil)
+		innerPoly := geom.NewPolygon(mustLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{outerPoly, innerPoly})
 		assert.False(t, mp.IsValid(), "Contained polygon should not be valid")
 	})
 
 	t.Run("InvalidComponentPolygon_NotValid", func(t *testing.T) {
-		// One polygon is invalid (shell is CW instead of CCW)
-		validPoly := geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
-		// This ring is clockwise, which is invalid for a shell
-		invalidPoly := geom.NewPolygon(geom.NewLinearRingXY(20, 0, 20, 10, 30, 10, 30, 0, 20, 0), nil)
+		// One polygon is invalid (self-intersecting bowtie shell)
+		validPoly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		// This ring self-intersects (figure-8 / bowtie shape)
+		invalidPoly := geom.NewPolygon(geom.NewLinearRing(geom.CoordinateSequence{
+			geom.NewCoordinate(20, 0),
+			geom.NewCoordinate(30, 10),
+			geom.NewCoordinate(30, 0),
+			geom.NewCoordinate(20, 10),
+			geom.NewCoordinate(20, 0),
+		}), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{validPoly, invalidPoly})
 		assert.False(t, mp.IsValid(), "MultiPolygon with invalid component should not be valid")
+	})
+}
+
+// TestMultiPoint_StringZM tests that MultiPoint.String() preserves Z/M dimensions.
+func TestMultiPoint_StringZM(t *testing.T) {
+	t.Run("2D", func(t *testing.T) {
+		mp := geom.NewMultiPoint([]*geom.Point{
+			geom.NewPoint(1, 2),
+			geom.NewPoint(3, 4),
+		})
+		got := mp.String()
+		assert.Equal(t, "MULTIPOINT ((1 2), (3 4))", got)
+	})
+
+	t.Run("Z", func(t *testing.T) {
+		mp := geom.NewMultiPointFromCoords(geom.CoordinateSequence{
+			geom.NewCoordinateZ(1, 2, 3),
+			geom.NewCoordinateZ(4, 5, 6),
+		})
+		got := mp.String()
+		assert.Equal(t, "MULTIPOINT Z ((1 2 3), (4 5 6))", got)
+	})
+
+	t.Run("M", func(t *testing.T) {
+		mp := geom.NewMultiPointFromCoords(geom.CoordinateSequence{
+			geom.NewCoordinateM(1, 2, 10),
+			geom.NewCoordinateM(3, 4, 20),
+		})
+		got := mp.String()
+		assert.Equal(t, "MULTIPOINT M ((1 2 10), (3 4 20))", got)
+	})
+
+	t.Run("ZM", func(t *testing.T) {
+		mp := geom.NewMultiPointFromCoords(geom.CoordinateSequence{
+			geom.NewCoordinateZM(1, 2, 3, 10),
+			geom.NewCoordinateZM(4, 5, 6, 20),
+		})
+		got := mp.String()
+		assert.Equal(t, "MULTIPOINT ZM ((1 2 3 10), (4 5 6 20))", got)
+	})
+}
+
+// TestMultiLineString_StringZM tests that MultiLineString.String() preserves Z/M dimensions.
+func TestMultiLineString_StringZM(t *testing.T) {
+	t.Run("2D", func(t *testing.T) {
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineString(geom.CoordinateSequence{
+				geom.NewCoordinate(0, 0),
+				geom.NewCoordinate(1, 1),
+			}),
+		})
+		got := mls.String()
+		assert.Equal(t, "MULTILINESTRING ((0 0, 1 1))", got)
+	})
+
+	t.Run("ZM", func(t *testing.T) {
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			geom.NewLineString(geom.CoordinateSequence{
+				geom.NewCoordinateZM(0, 0, 1, 10),
+				geom.NewCoordinateZM(1, 1, 2, 20),
+			}),
+		})
+		got := mls.String()
+		assert.Contains(t, got, "MULTILINESTRING ZM ")
+		assert.Contains(t, got, "0 0 1 10")
+		assert.Contains(t, got, "1 1 2 20")
+	})
+}
+
+// TestMultiPolygon_StringZM tests that MultiPolygon.String() preserves Z/M dimensions.
+func TestMultiPolygon_StringZM(t *testing.T) {
+	t.Run("2D", func(t *testing.T) {
+		poly := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
+		got := mp.String()
+		assert.Contains(t, got, "MULTIPOLYGON (")
+		assert.NotContains(t, got, "MULTIPOLYGON Z")
+		assert.NotContains(t, got, "MULTIPOLYGON M")
+	})
+
+	t.Run("M", func(t *testing.T) {
+		ring := geom.NewLinearRing(geom.CoordinateSequence{
+			geom.NewCoordinateM(0, 0, 1),
+			geom.NewCoordinateM(10, 0, 2),
+			geom.NewCoordinateM(10, 10, 3),
+			geom.NewCoordinateM(0, 10, 4),
+			geom.NewCoordinateM(0, 0, 1),
+		})
+		poly := geom.NewPolygon(ring, nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly})
+		got := mp.String()
+		assert.Contains(t, got, "MULTIPOLYGON M ")
+		assert.Contains(t, got, "0 0 1")
 	})
 }

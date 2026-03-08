@@ -72,11 +72,6 @@ func (b BBox) Is2D() bool {
 	return len(b) == 4
 }
 
-// Is3D returns true if this is a 3D bounding box.
-func (b BBox) Is3D() bool {
-	return len(b) == 6
-}
-
 // ToEnvelope converts the BBox to a geom.Envelope.
 func (b BBox) ToEnvelope() *geom.Envelope {
 	if len(b) < 4 {
@@ -88,11 +83,6 @@ func (b BBox) ToEnvelope() *geom.Envelope {
 // NewBBox2D creates a 2D bounding box.
 func NewBBox2D(minX, minY, maxX, maxY float64) BBox {
 	return BBox{minX, minY, maxX, maxY}
-}
-
-// NewBBox3D creates a 3D bounding box.
-func NewBBox3D(minX, minY, minZ, maxX, maxY, maxZ float64) BBox {
-	return BBox{minX, minY, minZ, maxX, maxY, maxZ}
 }
 
 // BBoxFromEnvelope creates a BBox from a geom.Envelope.
@@ -132,13 +122,6 @@ func NewFeature[P any](g geom.Geometry, props P) *Feature[P] {
 	}
 }
 
-// NewFeatureWithID creates a new Feature with an ID.
-func NewFeatureWithID[P any](id FeatureID, g geom.Geometry, props P) *Feature[P] {
-	f := NewFeature(g, props)
-	f.ID = id
-	return f
-}
-
 // SetBBox sets the bounding box from the geometry's envelope.
 func (f *Feature[P]) SetBBox() {
 	if f.Geometry != nil && f.Geometry.Geometry != nil {
@@ -165,43 +148,9 @@ func (fc *FeatureCollection[P]) Add(f *Feature[P]) {
 	fc.Features = append(fc.Features, f)
 }
 
-// AddGeometry creates a feature from a geometry and adds it.
-func (fc *FeatureCollection[P]) AddGeometry(g geom.Geometry, props P) {
-	fc.Add(NewFeature(g, props))
-}
-
 // Len returns the number of features.
 func (fc *FeatureCollection[P]) Len() int {
 	return len(fc.Features)
-}
-
-// SetBBox computes and sets the bounding box from all features.
-func (fc *FeatureCollection[P]) SetBBox() {
-	if len(fc.Features) == 0 {
-		return
-	}
-
-	env := geom.NewEnvelopeEmpty()
-	for _, f := range fc.Features {
-		if f.Geometry != nil && f.Geometry.Geometry != nil {
-			env.ExpandToInclude(f.Geometry.Envelope())
-		}
-	}
-
-	if !env.IsNull() {
-		fc.BBox = BBoxFromEnvelope(env)
-	}
-}
-
-// Geometries returns all geometries from the features.
-func (fc *FeatureCollection[P]) Geometries() []geom.Geometry {
-	geoms := make([]geom.Geometry, 0, len(fc.Features))
-	for _, f := range fc.Features {
-		if f.Geometry != nil && f.Geometry.Geometry != nil {
-			geoms = append(geoms, f.Geometry.Geometry)
-		}
-	}
-	return geoms
 }
 
 // UntypedFeature is a Feature with map[string]any properties for dynamic use.
@@ -218,7 +167,3 @@ func NewUntypedFeature(g geom.Geometry, props map[string]any) *UntypedFeature {
 	return NewFeature(g, props)
 }
 
-// NewUntypedFeatureCollection creates a collection with untyped properties.
-func NewUntypedFeatureCollection() *UntypedFeatureCollection {
-	return NewFeatureCollection[map[string]any]()
-}
