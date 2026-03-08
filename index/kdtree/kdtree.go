@@ -5,13 +5,18 @@ package kdtree
 
 import (
 	"math"
+	"sync"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // KDTree is a binary space partitioning tree for organizing points in k-dimensional space.
 // This implementation is optimized for 2D point data.
+// KDTree is safe for concurrent use: multiple goroutines may call
+// read methods (Query, Size, etc.) concurrently, but write methods
+// (Insert, Remove, Clear) require exclusive access.
 type KDTree struct {
+	mu   sync.RWMutex
 	root *node
 	size int
 }
@@ -36,6 +41,8 @@ func (t *KDTree) Insert(coord geom.Coordinate, data interface{}) {
 	if coord.IsNaN() {
 		return
 	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.root = t.insertNode(t.root, coord, data, 0)
 	t.size++
 }
@@ -92,6 +99,8 @@ func (t *KDTree) insertNode(n *node, coord geom.Coordinate, data interface{}, de
 
 // Query returns all items whose points fall within the given envelope.
 func (t *KDTree) Query(envelope *geom.Envelope) []interface{} {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil || envelope == nil || envelope.IsNull() {
 		return nil
 	}
@@ -187,6 +196,8 @@ func (t *KDTree) QueryGeometry(g geom.Geometry) []interface{} {
 // NearestNeighbor returns the nearest item to the given point.
 // Returns nil if the tree is empty.
 func (t *KDTree) NearestNeighbor(x, y float64) interface{} {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil {
 		return nil
 	}
@@ -263,6 +274,8 @@ func (t *KDTree) nearestNode(n *node, query geom.Coordinate, best *nearestResult
 // NearestK returns the k nearest neighbors to the given point.
 // Results are returned in order of increasing distance.
 func (t *KDTree) NearestK(x, y float64, k int) []interface{} {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil || k <= 0 {
 		return nil
 	}
@@ -371,16 +384,22 @@ func (t *KDTree) nearestKNode(n *node, query geom.Coordinate, knn *kNearestResul
 
 // Size returns the number of items in the tree.
 func (t *KDTree) Size() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.size
 }
 
 // IsEmpty returns true if the tree has no items.
 func (t *KDTree) IsEmpty() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.size == 0
 }
 
 // Depth returns the depth of the tree.
 func (t *KDTree) Depth() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.nodeDepth(t.root)
 }
 
@@ -398,6 +417,8 @@ func (t *KDTree) nodeDepth(n *node) int {
 
 // Envelope returns the bounding envelope of all items.
 func (t *KDTree) Envelope() *geom.Envelope {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil {
 		return geom.NewEnvelopeEmpty()
 	}
@@ -406,6 +427,8 @@ func (t *KDTree) Envelope() *geom.Envelope {
 
 // Items returns all items in the tree.
 func (t *KDTree) Items() []interface{} {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil {
 		return nil
 	}
@@ -427,6 +450,8 @@ func (t *KDTree) collectItems(n *node, results *[]interface{}) {
 // The visitor function receives each coordinate and data.
 // If the visitor returns false, traversal stops.
 func (t *KDTree) Visit(visitor func(coord geom.Coordinate, data interface{}) bool) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	t.visitNode(t.root, visitor)
 }
 
@@ -445,6 +470,8 @@ func (t *KDTree) visitNode(n *node, visitor func(geom.Coordinate, interface{}) b
 
 // Clear removes all items from the tree.
 func (t *KDTree) Clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.root = nil
 	t.size = 0
 }
@@ -453,11 +480,14 @@ func (t *KDTree) Clear() {
 // Note: This operation rebuilds the tree and is O(n log n).
 // For frequent deletions, consider rebuilding the tree from scratch.
 func (t *KDTree) Remove(coord geom.Coordinate, data interface{}) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	// Collect all items except the one to remove
 	var items []nodeData
 	found := false
 
-	t.Visit(func(c geom.Coordinate, d interface{}) bool {
+	t.visitNode(t.root, func(c geom.Coordinate, d interface{}) bool {
 		if !found && c.Equals2D(coord, geom.DefaultEpsilon) && d == data {
 			found = true
 			return true
@@ -471,9 +501,11 @@ func (t *KDTree) Remove(coord geom.Coordinate, data interface{}) bool {
 	}
 
 	// Rebuild tree without the removed item
-	t.Clear()
+	t.root = nil
+	t.size = 0
 	for _, item := range items {
-		t.Insert(item.coord, item.data)
+		t.root = t.insertNode(t.root, item.coord, item.data, 0)
+		t.size++
 	}
 
 	return true

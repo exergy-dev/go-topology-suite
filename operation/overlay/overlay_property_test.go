@@ -55,7 +55,7 @@ func generatePolygon(cx, cy, size float64) *geom.Polygon {
 	}
 	// Create a square centered at (cx, cy)
 	half := size / 2
-	shell := geom.NewLinearRingXY(
+	shell := mustLinearRingXY(
 		cx-half, cy-half,
 		cx+half, cy-half,
 		cx+half, cy+half,

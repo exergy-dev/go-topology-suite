@@ -431,7 +431,11 @@ func (p *parser) readGeometry() (geom.Geometry, error) {
 	}
 
 	if p.hasSRID {
-		g.SetSRID(p.srid)
+		// SetSRID is available on all concrete geometry types but not the Geometry interface.
+		type sridSetter interface{ SetSRID(int) }
+		if s, ok := g.(sridSetter); ok {
+			s.SetSRID(p.srid)
+		}
 	}
 
 	return g, nil

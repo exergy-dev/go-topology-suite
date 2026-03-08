@@ -14,14 +14,10 @@
 // # Example Usage
 //
 //	// Create two crossing line segments
-//	ss1 := noding.NewNodedSegmentString(
-//	    geom.NewCoordinateSequenceXY(0, 0, 10, 10),
-//	    "line1",
-//	)
-//	ss2 := noding.NewNodedSegmentString(
-//	    geom.NewCoordinateSequenceXY(0, 10, 10, 0),
-//	    "line2",
-//	)
+//	coords1, _ := geom.NewCoordinateSequenceXY(0, 0, 10, 10)
+//	ss1 := noding.NewNodedSegmentString(coords1, "line1")
+//	coords2, _ := geom.NewCoordinateSequenceXY(0, 10, 10, 0)
+//	ss2 := noding.NewNodedSegmentString(coords2, "line2")
 //
 //	// Compute nodes (intersections)
 //	noder := noding.NewSimpleNoder(noding.NewIntersectionAdder())

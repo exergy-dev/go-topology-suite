@@ -173,7 +173,7 @@ func TestRelatePointPoint(t *testing.T) {
 
 func TestRelatePointLineString(t *testing.T) {
 	p := geom.NewPoint(5, 0)
-	ls := geom.NewLineStringXY(0, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 10, 0)
 
 	m := Relate(p, ls)
 	assert.True(t, m.IsIntersects(), "Point on line should intersect")
@@ -190,7 +190,7 @@ func TestRelatePointLineString(t *testing.T) {
 }
 
 func TestRelatePointPolygon(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	// Point inside
@@ -211,8 +211,8 @@ func TestRelatePointPolygon(t *testing.T) {
 }
 
 func TestRelateLineStringLineString(t *testing.T) {
-	ls1 := geom.NewLineStringXY(0, 0, 10, 10)
-	ls2 := geom.NewLineStringXY(0, 10, 10, 0)
+	ls1 := mustLineStringXY(0, 0, 10, 10)
+	ls2 := mustLineStringXY(0, 10, 10, 0)
 
 	// Crossing lines
 	m := Relate(ls1, ls2)
@@ -220,22 +220,22 @@ func TestRelateLineStringLineString(t *testing.T) {
 	assert.True(t, m.IsCrosses(1, 1), "Crossing lines should have crosses relationship")
 
 	// Parallel lines
-	ls3 := geom.NewLineStringXY(0, 1, 10, 11)
+	ls3 := mustLineStringXY(0, 1, 10, 11)
 	m = Relate(ls1, ls3)
 	assert.False(t, m.IsIntersects(), "Parallel lines should not intersect")
 }
 
 func TestRelateLineStringPolygon(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	// Line inside polygon
-	lsIn := geom.NewLineStringXY(2, 2, 8, 8)
+	lsIn := mustLineStringXY(2, 2, 8, 8)
 	m := Relate(lsIn, poly)
 	assert.True(t, m.IsIntersects(), "Line inside polygon should intersect")
 
 	// Line crossing polygon
-	lsCross := geom.NewLineStringXY(-5, 5, 15, 5)
+	lsCross := mustLineStringXY(-5, 5, 15, 5)
 	m = Relate(lsCross, poly)
 	assert.True(t, m.IsIntersects(), "Line crossing polygon should intersect")
 	// Crosses means: interior intersects interior AND interior intersects exterior
@@ -244,16 +244,16 @@ func TestRelateLineStringPolygon(t *testing.T) {
 	// Note: IsCrosses for line/polygon may need refinement in the implementation
 
 	// Line outside polygon
-	lsOut := geom.NewLineStringXY(15, 15, 20, 20)
+	lsOut := mustLineStringXY(15, 15, 20, 20)
 	m = Relate(lsOut, poly)
 	assert.False(t, m.IsIntersects(), "Line outside polygon should not intersect")
 }
 
 func TestRelatePolygonPolygon(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	// Overlapping polygons
@@ -264,7 +264,7 @@ func TestRelatePolygonPolygon(t *testing.T) {
 	// Note: Full overlap detection may need refinement in implementation
 
 	// Disjoint polygons
-	shell3 := geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20)
+	shell3 := mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20)
 	poly3 := geom.NewPolygon(shell3, nil)
 	m = Relate(poly1, poly3)
 	assert.False(t, m.IsIntersects(), "Disjoint polygons should not intersect")
@@ -283,7 +283,7 @@ func TestRelateEmptyGeometries(t *testing.T) {
 
 func TestRelatePattern(t *testing.T) {
 	p := geom.NewPoint(5, 5)
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	// Point inside polygon - should match within pattern
@@ -292,11 +292,11 @@ func TestRelatePattern(t *testing.T) {
 
 func TestIsTouches(t *testing.T) {
 	// Line touching polygon at a point
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	// Line that touches corner
-	ls := geom.NewLineStringXY(-5, -5, 0, 0)
+	ls := mustLineStringXY(-5, -5, 0, 0)
 	m := Relate(ls, poly)
 	if !m.IsTouches(1, 2) {
 		t.Log("Matrix:", m.String())
@@ -305,10 +305,10 @@ func TestIsTouches(t *testing.T) {
 }
 
 func TestIsEquals(t *testing.T) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell2 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	m := Relate(poly1, poly2)
@@ -319,7 +319,7 @@ func TestIsEquals(t *testing.T) {
 }
 
 func TestIsCovers(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	// Point inside
@@ -331,7 +331,7 @@ func TestIsCovers(t *testing.T) {
 }
 
 func TestIsCoveredBy(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	// Point inside
@@ -389,7 +389,7 @@ func TestDimensionString(t *testing.T) {
 
 func BenchmarkRelatePointPolygon(b *testing.B) {
 	p := geom.NewPoint(5, 5)
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	b.ResetTimer()
@@ -399,10 +399,10 @@ func BenchmarkRelatePointPolygon(b *testing.B) {
 }
 
 func BenchmarkRelatePolygonPolygon(b *testing.B) {
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	b.ResetTimer()

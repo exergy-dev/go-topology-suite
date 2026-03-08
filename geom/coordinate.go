@@ -174,17 +174,18 @@ func NewCoordinateSequence(coords ...Coordinate) CoordinateSequence {
 }
 
 // NewCoordinateSequenceXY creates a coordinate sequence from x,y pairs.
-// The values slice must have an even number of elements.
-func NewCoordinateSequenceXY(values ...float64) CoordinateSequence {
+// Returns an error if the number of values is odd.
+func NewCoordinateSequenceXY(values ...float64) (CoordinateSequence, error) {
 	if len(values)%2 != 0 {
-		panic("NewCoordinateSequenceXY requires even number of values")
+		return nil, fmt.Errorf("NewCoordinateSequenceXY requires even number of values, got %d", len(values))
 	}
 	seq := make(CoordinateSequence, len(values)/2)
 	for i := 0; i < len(values); i += 2 {
 		seq[i/2] = NewCoordinate(values[i], values[i+1])
 	}
-	return seq
+	return seq, nil
 }
+
 
 // Clone returns a deep copy of the coordinate sequence.
 func (cs CoordinateSequence) Clone() CoordinateSequence {

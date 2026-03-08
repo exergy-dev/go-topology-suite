@@ -15,11 +15,11 @@ import (
 func TestScaledNoder_BasicScaleAndUnscale(t *testing.T) {
 	t.Run("scale factor 10 with no intersections", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 1, 0),
+			mustCoordsXY(0, 0, 1, 0),
 			"seg1",
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 1, 1, 1),
+			mustCoordsXY(0, 1, 1, 1),
 			"seg2",
 		)
 
@@ -39,11 +39,11 @@ func TestScaledNoder_BasicScaleAndUnscale(t *testing.T) {
 
 	t.Run("scale factor 100 with crossing lines", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			"line1",
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			"line2",
 		)
 
@@ -70,7 +70,7 @@ func TestScaledNoder_BasicScaleAndUnscale(t *testing.T) {
 
 	t.Run("context preserved through scaling", func(t *testing.T) {
 		ss := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 5, 5),
+			mustCoordsXY(0, 0, 5, 5),
 			"my-context",
 		)
 
@@ -87,11 +87,11 @@ func TestScaledNoder_BasicScaleAndUnscale(t *testing.T) {
 func TestScaledNoder_GetNodedSubstrings(t *testing.T) {
 	// Three lines forming a triangle pattern with intersections
 	ss1 := NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+		mustCoordsXY(0, 0, 10, 0),
 		nil,
 	)
 	ss2 := NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(5, -5, 5, 5),
+		mustCoordsXY(5, -5, 5, 5),
 		nil,
 	)
 
@@ -121,7 +121,7 @@ func TestScaledNoder_GetNodedSubstrings(t *testing.T) {
 func TestSplitClosedAtNodes_WithNodes(t *testing.T) {
 	t.Run("closed ring with one interior node", func(t *testing.T) {
 		// Square ring: (0,0) -> (10,0) -> (10,10) -> (0,10) -> (0,0)
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 		// Node at (10,0) which is the second vertex
 		nodes := []SegmentNode{
@@ -144,7 +144,7 @@ func TestSplitClosedAtNodes_WithNodes(t *testing.T) {
 	})
 
 	t.Run("closed ring with no nodes returns single segment", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 0)
+		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 0)
 		result := splitClosedAtNodes(coords, nil, nil)
 		assert.Len(t, result, 1, "No nodes should return single segment string")
 		assert.Len(t, result[0].Coordinates(), len(coords),
@@ -153,7 +153,7 @@ func TestSplitClosedAtNodes_WithNodes(t *testing.T) {
 
 	t.Run("closed ring with multiple nodes", func(t *testing.T) {
 		// Triangle ring: (0,0) -> (10,0) -> (5,10) -> (0,0)
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 5, 10, 0, 0)
+		coords := mustCoordsXY(0, 0, 10, 0, 5, 10, 0, 0)
 
 		// Nodes at two vertices
 		nodes := []SegmentNode{
@@ -182,11 +182,11 @@ func TestSplitClosedAtNodes_WithNodes(t *testing.T) {
 func TestIntersectionFinderAdder_BasicUsage(t *testing.T) {
 	t.Run("crossing lines produce intersection record", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			nil,
 		)
 
@@ -214,11 +214,11 @@ func TestIntersectionFinderAdder_BasicUsage(t *testing.T) {
 
 	t.Run("parallel lines produce no intersections", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			mustCoordsXY(0, 0, 10, 0),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 5, 10, 5),
+			mustCoordsXY(0, 5, 10, 5),
 			nil,
 		)
 
@@ -232,11 +232,11 @@ func TestIntersectionFinderAdder_BasicUsage(t *testing.T) {
 
 	t.Run("also adds nodes like IntersectionAdder", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			nil,
 		)
 
@@ -251,15 +251,15 @@ func TestIntersectionFinderAdder_BasicUsage(t *testing.T) {
 	t.Run("multiple crossing segments", func(t *testing.T) {
 		// Star pattern: three segments crossing through center
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			nil,
 		)
 		ss3 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(5, -5, 5, 15),
+			mustCoordsXY(5, -5, 5, 15),
 			nil,
 		)
 
@@ -281,11 +281,11 @@ func TestValidatingNoder_ValidNoding(t *testing.T) {
 	t.Run("non-touching segments pass validation", func(t *testing.T) {
 		// Two segments that do not touch or cross
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 5, 0),
+			mustCoordsXY(0, 0, 5, 0),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 5, 10),
+			mustCoordsXY(0, 10, 5, 10),
 			nil,
 		)
 
@@ -300,11 +300,11 @@ func TestValidatingNoder_ValidNoding(t *testing.T) {
 
 	t.Run("non-intersecting segments pass validation", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			mustCoordsXY(0, 0, 10, 0),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 5, 10, 5),
+			mustCoordsXY(0, 5, 10, 5),
 			nil,
 		)
 
@@ -321,11 +321,11 @@ func TestValidatingNoder_InvalidNoding(t *testing.T) {
 	t.Run("incomplete noding produces validation error", func(t *testing.T) {
 		// Use IntersectionCounter (not Adder) so intersections are found but NOT resolved
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			nil,
 		)
 
@@ -348,11 +348,11 @@ func TestValidatingNoder_InvalidNoding(t *testing.T) {
 
 		// First: crossing lines (should fail validation)
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			nil,
 		)
 		vn.ComputeNodes([]*NodedSegmentString{ss1, ss2})
@@ -361,11 +361,11 @@ func TestValidatingNoder_InvalidNoding(t *testing.T) {
 
 		// Second: parallel lines (should pass validation)
 		ss3 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			mustCoordsXY(0, 0, 10, 0),
 			nil,
 		)
 		ss4 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 5, 10, 5),
+			mustCoordsXY(0, 5, 10, 5),
 			nil,
 		)
 		vn.ComputeNodes([]*NodedSegmentString{ss3, ss4})
@@ -381,11 +381,11 @@ func TestValidatingNoder_InvalidNoding(t *testing.T) {
 func TestIteratedNoder_BasicUsage(t *testing.T) {
 	t.Run("converges on crossing lines", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			mustCoordsXY(0, 0, 10, 10),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+			mustCoordsXY(0, 10, 10, 0),
 			nil,
 		)
 
@@ -402,7 +402,7 @@ func TestIteratedNoder_BasicUsage(t *testing.T) {
 		iterated := NewIteratedNoder(innerNoder, 0)
 
 		ss := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			mustCoordsXY(0, 0, 10, 0),
 			nil,
 		)
 		// Should not panic with 0 maxIterations (defaults to 5)
@@ -416,7 +416,7 @@ func TestIteratedNoder_BasicUsage(t *testing.T) {
 		iterated := NewIteratedNoder(innerNoder, -1)
 
 		ss := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			mustCoordsXY(0, 0, 10, 0),
 			nil,
 		)
 		iterated.ComputeNodes([]*NodedSegmentString{ss})
@@ -426,11 +426,11 @@ func TestIteratedNoder_BasicUsage(t *testing.T) {
 
 	t.Run("parallel lines converge immediately", func(t *testing.T) {
 		ss1 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			mustCoordsXY(0, 0, 10, 0),
 			nil,
 		)
 		ss2 := NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, 5, 10, 5),
+			mustCoordsXY(0, 5, 10, 5),
 			nil,
 		)
 
@@ -490,7 +490,7 @@ func TestScaledNoder_OffsetCoordinates(t *testing.T) {
 	inner := NewSimpleNoder(NewIntersectionAdder())
 	sn := NewScaledNoder(inner, 10.0)
 	// Offset defaults to 0, but let's verify scale/unscale is a round trip
-	coords := geom.NewCoordinateSequenceXY(1.5, 2.5, 3.5, 4.5)
+	coords := mustCoordsXY(1.5, 2.5, 3.5, 4.5)
 	scaled := sn.scale(coords)
 	unscaled := sn.unscale(scaled)
 
@@ -511,11 +511,11 @@ func TestSimpleNoder_NilSegmentIntersector(t *testing.T) {
 	noder := NewSimpleNoder(nil)
 
 	ss1 := NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+		mustCoordsXY(0, 0, 10, 10),
 		nil,
 	)
 	ss2 := NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+		mustCoordsXY(0, 10, 10, 0),
 		nil,
 	)
 
@@ -532,7 +532,7 @@ func TestSimpleNoder_NilSegmentIntersector(t *testing.T) {
 
 func TestGetNodedSubstrings_CachesResult(t *testing.T) {
 	ss := NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+		mustCoordsXY(0, 0, 10, 10),
 		nil,
 	)
 

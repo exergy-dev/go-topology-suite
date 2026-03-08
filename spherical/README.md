@@ -58,13 +58,14 @@ fmt.Printf("Distance: %.0f km\n", distance/1000) // ~5570 km
 
 ```go
 // Create a polygon (coordinates in lon, lat)
-ring := geom.NewLinearRingXY(
+seq, _ := geom.NewCoordinateSequenceXY(
     -122.5, 37.7,
     -122.3, 37.7,
     -122.3, 37.8,
     -122.5, 37.8,
     -122.5, 37.7,
 )
+ring := geom.NewLinearRing(seq)
 poly := geom.NewPolygon(ring, nil)
 
 // Calculate area in square meters
@@ -76,13 +77,14 @@ fmt.Printf("Area: %.2f km²\n", area/1000000)
 
 ```go
 // Create a region
-ring := geom.NewLinearRingXY(
+seq, _ := geom.NewCoordinateSequenceXY(
     -122.5, 37.7,
     -122.3, 37.7,
     -122.3, 37.8,
     -122.5, 37.8,
     -122.5, 37.7,
 )
+ring := geom.NewLinearRing(seq)
 sanFranciscoArea := geom.NewPolygon(ring, nil)
 
 // Test if a point is inside

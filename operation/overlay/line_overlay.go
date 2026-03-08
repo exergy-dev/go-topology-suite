@@ -1,13 +1,16 @@
 package overlay
 
 import (
+	"sort"
+
 	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
-// lineLineIntersection computes intersection points of two line sets.
+// lineLineIntersection computes intersection points and segments of two line sets.
 func lineLineIntersection(linesA, linesB []*geom.LineString) geom.Geometry {
 	var resultPoints []*geom.Point
+	var resultLines []*geom.LineString
 
 	for _, lineA := range linesA {
 		coordsA := lineA.Coordinates()
@@ -22,12 +25,15 @@ func lineLineIntersection(linesA, linesB []*geom.LineString) geom.Geometry {
 						coordsB[j-1], coordsB[j],
 					)
 					if result.HasIntersection {
-						resultPoints = append(resultPoints,
-							geom.NewPointFromCoordinate(result.Intersection))
-						// For collinear overlap, also include second point
-						if result.IsCollinear && (result.Intersection2.X != 0 || result.Intersection2.Y != 0) {
+						if result.IsCollinear && !result.Intersection2.IsNaN() {
+							// Collinear overlap: emit a LineString
+							resultLines = append(resultLines,
+								geom.NewLineString(geom.CoordinateSequence{
+									result.Intersection, result.Intersection2,
+								}))
+						} else {
 							resultPoints = append(resultPoints,
-								geom.NewPointFromCoordinate(result.Intersection2))
+								geom.NewPointFromCoordinate(result.Intersection))
 						}
 					}
 				}
@@ -35,7 +41,8 @@ func lineLineIntersection(linesA, linesB []*geom.LineString) geom.Geometry {
 		}
 	}
 
-	return createPointResult(resultPoints)
+	resultLines = mergeAdjacentLines(resultLines)
+	return createMixedResult(resultPoints, resultLines)
 }
 
 // lineLineUnion computes the union of two line sets.
@@ -56,21 +63,180 @@ func lineLineUnion(linesA, linesB []*geom.LineString) geom.Geometry {
 
 // lineLineDifference computes parts of linesA not in linesB.
 func lineLineDifference(linesA, linesB []*geom.LineString) geom.Geometry {
-	// For line-line difference, we only remove exact overlapping segments
-	// Simple implementation: return linesA (lines don't "remove" each other except at overlap)
 	if len(linesA) == 0 {
 		return geom.NewLineStringEmpty()
 	}
-	if len(linesA) == 1 {
-		return linesA[0]
+
+	var resultLines []*geom.LineString
+
+	for _, lineA := range linesA {
+		coordsA := lineA.Coordinates()
+
+		// Process each segment of lineA
+		for i := 0; i < len(coordsA)-1; i++ {
+			p0 := coordsA[i]
+			p1 := coordsA[i+1]
+
+			// Collect covered intervals [tMin, tMax] on this segment
+			var covered [][2]float64
+
+			for _, lineB := range linesB {
+				coordsB := lineB.Coordinates()
+				for j := 0; j < len(coordsB)-1; j++ {
+					result := algorithm.LineIntersection(p0, p1, coordsB[j], coordsB[j+1])
+					if !result.HasIntersection {
+						continue
+					}
+					if result.IsCollinear && !result.Intersection2.IsNaN() {
+						// Compute t-parameters for the overlap on segment (p0, p1)
+						t1 := tParam(p0, p1, result.Intersection)
+						t2 := tParam(p0, p1, result.Intersection2)
+						tMin := t1
+						tMax := t2
+						if tMin > tMax {
+							tMin, tMax = tMax, tMin
+						}
+						// Clamp to [0, 1]
+						if tMin < 0 {
+							tMin = 0
+						}
+						if tMax > 1 {
+							tMax = 1
+						}
+						if tMax > tMin+geom.DefaultEpsilon {
+							covered = append(covered, [2]float64{tMin, tMax})
+						}
+					}
+					// Single-point intersections don't remove length, skip them
+				}
+			}
+
+			// Sort and merge covered intervals
+			covered = mergeIntervals(covered)
+
+			// Compute complement intervals on [0, 1]
+			complement := complementIntervals(covered)
+
+			// Create line segments from complement intervals
+			for _, interval := range complement {
+				startCoord := interpolate(p0, p1, interval[0])
+				endCoord := interpolate(p0, p1, interval[1])
+				if startCoord.Distance(endCoord) > geom.DefaultEpsilon {
+					resultLines = append(resultLines, geom.NewLineString(
+						geom.CoordinateSequence{startCoord, endCoord}))
+				}
+			}
+		}
 	}
-	return geom.NewMultiLineString(linesA)
+
+	resultLines = mergeAdjacentLines(resultLines)
+	return createLineResult(resultLines)
 }
 
 // lineLineSymDifference computes parts in either line set but not both.
 func lineLineSymDifference(linesA, linesB []*geom.LineString) geom.Geometry {
-	// Simple implementation: return all lines
-	return lineLineUnion(linesA, linesB)
+	diffAB := lineLineDifference(linesA, linesB)
+	diffBA := lineLineDifference(linesB, linesA)
+	return collectGeometries(diffAB, diffBA)
+}
+
+// tParam computes the parameter t of point p along segment (a, b).
+// Returns 0.0 if p == a, 1.0 if p == b.
+func tParam(a, b, p geom.Coordinate) float64 {
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+	if abs(dx) > abs(dy) {
+		return (p.X - a.X) / dx
+	}
+	if abs(dy) > geom.DefaultEpsilon {
+		return (p.Y - a.Y) / dy
+	}
+	return 0
+}
+
+// interpolate returns the point at parameter t along segment (a, b).
+func interpolate(a, b geom.Coordinate, t float64) geom.Coordinate {
+	return geom.NewCoordinate(
+		a.X+t*(b.X-a.X),
+		a.Y+t*(b.Y-a.Y),
+	)
+}
+
+// mergeIntervals sorts and merges overlapping intervals.
+func mergeIntervals(intervals [][2]float64) [][2]float64 {
+	if len(intervals) == 0 {
+		return nil
+	}
+	sort.Slice(intervals, func(i, j int) bool {
+		return intervals[i][0] < intervals[j][0]
+	})
+	merged := [][2]float64{intervals[0]}
+	for _, iv := range intervals[1:] {
+		last := &merged[len(merged)-1]
+		if iv[0] <= last[1]+geom.DefaultEpsilon {
+			if iv[1] > last[1] {
+				last[1] = iv[1]
+			}
+		} else {
+			merged = append(merged, iv)
+		}
+	}
+	return merged
+}
+
+// complementIntervals returns the complement of the given intervals within [0, 1].
+func complementIntervals(intervals [][2]float64) [][2]float64 {
+	if len(intervals) == 0 {
+		return [][2]float64{{0, 1}}
+	}
+	var result [][2]float64
+	pos := 0.0
+	for _, iv := range intervals {
+		if iv[0] > pos+geom.DefaultEpsilon {
+			result = append(result, [2]float64{pos, iv[0]})
+		}
+		pos = iv[1]
+	}
+	if pos < 1-geom.DefaultEpsilon {
+		result = append(result, [2]float64{pos, 1})
+	}
+	return result
+}
+
+// createLineResult creates a geometry from a list of LineStrings.
+func createLineResult(lines []*geom.LineString) geom.Geometry {
+	if len(lines) == 0 {
+		return geom.NewLineStringEmpty()
+	}
+	if len(lines) == 1 {
+		return lines[0]
+	}
+	return geom.NewMultiLineString(lines)
+}
+
+// createMixedResult creates a geometry from points and lines.
+func createMixedResult(points []*geom.Point, lines []*geom.LineString) geom.Geometry {
+	hasPoints := len(points) > 0
+	hasLines := len(lines) > 0
+
+	if !hasPoints && !hasLines {
+		return geom.NewPointEmpty()
+	}
+	if hasLines && !hasPoints {
+		return createLineResult(lines)
+	}
+	if hasPoints && !hasLines {
+		return createPointResult(points)
+	}
+	// Both points and lines: create GeometryCollection
+	var geoms []geom.Geometry
+	for _, l := range lines {
+		geoms = append(geoms, l)
+	}
+	for _, p := range points {
+		geoms = append(geoms, p)
+	}
+	return geom.NewGeometryCollection(geoms)
 }
 
 // linePolygonIntersection computes parts of lines inside polygons.
@@ -192,13 +358,9 @@ func clipSegmentToPolygon(p0, p1 geom.Coordinate, shell geom.CoordinateSequence,
 	}
 
 	// Sort intersections by t parameter
-	for i := 0; i < len(intersections)-1; i++ {
-		for j := i + 1; j < len(intersections); j++ {
-			if intersections[j].t < intersections[i].t {
-				intersections[i], intersections[j] = intersections[j], intersections[i]
-			}
-		}
-	}
+	sort.Slice(intersections, func(i, j int) bool {
+		return intersections[i].t < intersections[j].t
+	})
 
 	// Remove duplicate intersections
 	if len(intersections) > 1 {
@@ -370,13 +532,9 @@ func clipSegmentOutsidePolygon(p0, p1 geom.Coordinate, shell geom.CoordinateSequ
 	}
 
 	// Sort intersections by t parameter
-	for i := 0; i < len(intersections)-1; i++ {
-		for j := i + 1; j < len(intersections); j++ {
-			if intersections[j].t < intersections[i].t {
-				intersections[i], intersections[j] = intersections[j], intersections[i]
-			}
-		}
-	}
+	sort.Slice(intersections, func(i, j int) bool {
+		return intersections[i].t < intersections[j].t
+	})
 
 	// Remove duplicate intersections
 	if len(intersections) > 1 {

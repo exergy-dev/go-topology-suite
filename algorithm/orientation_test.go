@@ -17,17 +17,17 @@ func TestSignedArea(t *testing.T) {
 	}{
 		{
 			name:     "CounterClockwise",
-			ring:     geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+			ring:     mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
 			positive: true,
 		},
 		{
 			name:     "Clockwise",
-			ring:     geom.NewCoordinateSequenceXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0),
+			ring:     mustCoordsXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0),
 			positive: false,
 		},
 		{
 			name:     "TwoPoints",
-			ring:     geom.NewCoordinateSequenceXY(0, 0, 10, 0),
+			ring:     mustCoordsXY(0, 0, 10, 0),
 			positive: false, // Zero area
 		},
 	}
@@ -45,7 +45,7 @@ func TestSignedArea(t *testing.T) {
 
 	// Test non-closed ring
 	t.Run("NonClosedRing", func(t *testing.T) {
-		ring := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+		ring := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 		area := algorithm.SignedArea(ring)
 		// Should still compute area by closing implicitly
 		assert.Greater(t, math.Abs(area), 1.0, "Expected non-zero area for non-closed ring")

@@ -63,32 +63,32 @@ func TestAngle(t *testing.T) {
 
 func TestArea(t *testing.T) {
 	t.Run("PolygonArea", func(t *testing.T) {
-		shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		poly := geom.NewPolygon(shell, nil)
 		area := algorithm.Area(poly)
 		assert.Equal(t, 100.0, area)
 	})
 
 	t.Run("RingArea", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		area := algorithm.RingArea(coords)
 		assert.Equal(t, 100.0, area)
 	})
 
 	t.Run("SignedArea", func(t *testing.T) {
 		// Counter-clockwise should be positive
-		ccwCoords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		ccwCoords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		ccwArea := algorithm.SignedArea(ccwCoords)
 		assert.Greater(t, ccwArea, 0.0, "Expected positive signed area for CCW")
 
 		// Clockwise should be negative
-		cwCoords := geom.NewCoordinateSequenceXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
+		cwCoords := mustCoordsXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
 		cwArea := algorithm.SignedArea(cwCoords)
 		assert.Less(t, cwArea, 0.0, "Expected negative signed area for CW")
 	})
 
 	t.Run("LineLength", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 3, 4)
+		coords := mustCoordsXY(0, 0, 3, 4)
 		length := algorithm.LineLength(coords)
 		assert.Equal(t, 5.0, length)
 	})
@@ -103,14 +103,14 @@ func TestCentroid(t *testing.T) {
 	})
 
 	t.Run("LineCentroid", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0)
+		coords := mustCoordsXY(0, 0, 10, 0)
 		centroid := algorithm.LineCentroid(coords)
 		assert.Equal(t, 5.0, centroid.X)
 		assert.Equal(t, 0.0, centroid.Y)
 	})
 
 	t.Run("PolygonCentroid", func(t *testing.T) {
-		shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		poly := geom.NewPolygon(shell, nil)
 		centroid := algorithm.Centroid(poly)
 		assert.InDelta(t, 5.0, centroid.X, 0.001)
@@ -137,14 +137,14 @@ func TestDistance(t *testing.T) {
 
 	t.Run("GeometryDistance", func(t *testing.T) {
 		pt := geom.NewPoint(5, 5)
-		ls := geom.NewLineStringXY(0, 0, 10, 0)
+		ls := mustLineStringXY(0, 0, 10, 0)
 		dist := algorithm.Distance(pt, ls)
 		assert.Equal(t, 5.0, dist)
 	})
 }
 
 func TestPointLocation(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	t.Run("Inside", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestPointLocation(t *testing.T) {
 }
 
 func TestIsPointInRing(t *testing.T) {
-	ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	t.Run("Inside", func(t *testing.T) {
 		assert.True(t, geom.PointInRing(geom.NewCoordinate(5, 5), ring), "Expected point to be inside ring")

@@ -23,19 +23,19 @@ func TestConvexHull(t *testing.T) {
 		},
 		{
 			name:         "TwoPoints",
-			geom:         geom.NewLineStringXY(0, 0, 10, 10),
+			geom:         mustLineStringXY(0, 0, 10, 10),
 			expectedType: "LineString",
 			expectedSize: 2,
 		},
 		{
 			name:         "Triangle",
-			geom:         geom.NewLineStringXY(0, 0, 10, 0, 5, 10),
+			geom:         mustLineStringXY(0, 0, 10, 0, 5, 10),
 			expectedType: "Polygon",
 			expectedSize: 4, // 3 + closing point
 		},
 		{
 			name:         "Square",
-			geom:         geom.NewLineStringXY(0, 0, 10, 0, 10, 10, 0, 10),
+			geom:         mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 10),
 			expectedType: "Polygon",
 			expectedSize: 5, // 4 + closing point
 		},
@@ -64,37 +64,37 @@ func TestConvexHullFromCoords(t *testing.T) {
 		},
 		{
 			name:         "SinglePoint",
-			coords:       geom.NewCoordinateSequenceXY(5, 5),
+			coords:       mustCoordsXY(5, 5),
 			expectedType: "Point",
 		},
 		{
 			name:         "TwoPoints",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			coords:       mustCoordsXY(0, 0, 10, 10),
 			expectedType: "LineString",
 		},
 		{
 			name:         "TwoIdenticalPoints",
-			coords:       geom.NewCoordinateSequenceXY(5, 5, 5, 5),
+			coords:       mustCoordsXY(5, 5, 5, 5),
 			expectedType: "LineString", // After uniquing, might return LineString with same points
 		},
 		{
 			name:         "ThreeCollinearPoints",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 5, 5, 10, 10),
+			coords:       mustCoordsXY(0, 0, 5, 5, 10, 10),
 			expectedType: "LineString",
 		},
 		{
 			name:         "Triangle",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 0, 5, 10),
+			coords:       mustCoordsXY(0, 0, 10, 0, 5, 10),
 			expectedType: "Polygon",
 		},
 		{
 			name:         "SquareWithInteriorPoint",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10, 5, 5),
+			coords:       mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 5, 5),
 			expectedType: "Polygon",
 		},
 		{
 			name:         "DuplicatePoints",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 0, 5, 10, 5, 10),
+			coords:       mustCoordsXY(0, 0, 10, 0, 10, 0, 5, 10, 5, 10),
 			expectedType: "Polygon",
 		},
 	}
@@ -120,27 +120,27 @@ func TestMonotoneChain(t *testing.T) {
 		},
 		{
 			name:         "SinglePoint",
-			coords:       geom.NewCoordinateSequenceXY(5, 5),
+			coords:       mustCoordsXY(5, 5),
 			expectedType: "Point",
 		},
 		{
 			name:         "TwoPoints",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+			coords:       mustCoordsXY(0, 0, 10, 10),
 			expectedType: "LineString",
 		},
 		{
 			name:         "Triangle",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 0, 5, 10),
+			coords:       mustCoordsXY(0, 0, 10, 0, 5, 10),
 			expectedType: "Polygon",
 		},
 		{
 			name:         "Square",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10),
+			coords:       mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10),
 			expectedType: "Polygon",
 		},
 		{
 			name:         "DuplicatePoints",
-			coords:       geom.NewCoordinateSequenceXY(0, 0, 5, 5, 5, 5, 10, 10),
+			coords:       mustCoordsXY(0, 0, 5, 5, 5, 5, 10, 10),
 			expectedType: "LineString",
 		},
 	}
@@ -166,30 +166,30 @@ func TestIsConvex(t *testing.T) {
 		},
 		{
 			name:     "Square",
-			poly:     geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
+			poly:     geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil),
 			expected: true,
 		},
 		{
 			name:     "Triangle",
-			poly:     geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0), nil),
+			poly:     geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0), nil),
 			expected: true,
 		},
 		{
 			name:     "Concave",
-			poly:     geom.NewPolygon(geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 5, 5, 0, 10, 0, 0), nil),
+			poly:     geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 5, 5, 0, 10, 0, 0), nil),
 			expected: false,
 		},
 		{
 			name: "WithHole",
 			poly: geom.NewPolygon(
-				geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
-				[]*geom.LinearRing{geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)},
+				mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+				[]*geom.LinearRing{mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)},
 			),
 			expected: false,
 		},
 		{
 			name:     "SmallTriangle",
-			poly:     geom.NewPolygon(geom.NewLinearRingXY(0, 0, 1, 0, 0, 1, 0, 0), nil),
+			poly:     geom.NewPolygon(mustLinearRingXY(0, 0, 1, 0, 0, 1, 0, 0), nil),
 			expected: true,
 		},
 	}
@@ -204,7 +204,7 @@ func TestIsConvex(t *testing.T) {
 
 func TestConvexHull_LargeCoordinates(t *testing.T) {
 	// Test with coordinates having large magnitudes (1e10+)
-	coords := geom.NewCoordinateSequenceXY(
+	coords := mustCoordsXY(
 		1e10, 1e10,
 		1e10+100, 1e10,
 		1e10+100, 1e10+100,
@@ -218,7 +218,7 @@ func TestConvexHull_LargeCoordinates(t *testing.T) {
 
 func TestConvexHull_NegativeCoordinates(t *testing.T) {
 	// Test with all negative coordinates
-	coords := geom.NewCoordinateSequenceXY(
+	coords := mustCoordsXY(
 		-100, -100,
 		-50, -100,
 		-50, -50,
@@ -229,7 +229,7 @@ func TestConvexHull_NegativeCoordinates(t *testing.T) {
 	assert.Equal(t, 5, len(result.Coordinates()), "Expected 5 coordinates for square hull")
 
 	// Test with very negative coordinates (potential integer underflow in old code)
-	coordsLarge := geom.NewCoordinateSequenceXY(
+	coordsLarge := mustCoordsXY(
 		-1e10, -1e10,
 		-1e10+100, -1e10,
 		-1e10+100, -1e10+100,
@@ -242,7 +242,7 @@ func TestConvexHull_NegativeCoordinates(t *testing.T) {
 func TestConvexHull_CloseCoordinates(t *testing.T) {
 	// Test with points differing by less than 1e-9
 	// These should be treated as distinct points
-	coords := geom.NewCoordinateSequenceXY(
+	coords := mustCoordsXY(
 		0, 0,
 		1e-10, 0,
 		1e-10, 1e-10,
@@ -253,7 +253,7 @@ func TestConvexHull_CloseCoordinates(t *testing.T) {
 	assert.False(t, result.IsEmpty(), "Result should not be empty for close coordinates")
 
 	// Test with slightly different coordinates that old code would collide
-	coords2 := geom.NewCoordinateSequenceXY(
+	coords2 := mustCoordsXY(
 		0.0000000001, 0.0000000001,
 		0.0000000002, 0.0000000001,
 		0.0000000002, 0.0000000002,
@@ -265,7 +265,7 @@ func TestConvexHull_CloseCoordinates(t *testing.T) {
 
 func TestConvexHull_MixedMagnitudes(t *testing.T) {
 	// Test with a mix of very large and very small coordinates
-	coords := geom.NewCoordinateSequenceXY(
+	coords := mustCoordsXY(
 		0, 0,
 		1e-15, 0,
 		1e10, 0,
@@ -276,7 +276,7 @@ func TestConvexHull_MixedMagnitudes(t *testing.T) {
 	assert.Equal(t, "Polygon", result.GeometryType(), "Expected Polygon for mixed magnitude coordinates")
 
 	// Ensure all distinct points are preserved in uniquing
-	coordsDistinct := geom.NewCoordinateSequenceXY(
+	coordsDistinct := mustCoordsXY(
 		0, 0,
 		1e-20, 1e-20,
 		1e15, 1e15,
@@ -288,7 +288,7 @@ func TestConvexHull_MixedMagnitudes(t *testing.T) {
 func TestConvexHull_NoPointsDropped(t *testing.T) {
 	// Verify all distinct points contribute to hull computation
 	// Create a set of points where each is on the convex hull
-	coords := geom.NewCoordinateSequenceXY(
+	coords := mustCoordsXY(
 		0, 0,
 		10, 0,
 		10, 10,
@@ -319,14 +319,14 @@ func TestConvexHull_NoPointsDropped(t *testing.T) {
 func TestConvexHullEdgeCases(t *testing.T) {
 	// Test with all collinear points
 	t.Run("AllCollinear", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(0, 0, 1, 1, 2, 2, 3, 3, 4, 4)
+		coords := mustCoordsXY(0, 0, 1, 1, 2, 2, 3, 3, 4, 4)
 		result := algorithm.ConvexHullFromCoords(coords)
 		assert.Equal(t, "LineString", result.GeometryType(), "Expected LineString for collinear points")
 	})
 
 	// Test with points forming a star
 	t.Run("StarPattern", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(
+		coords := mustCoordsXY(
 			0, 10, 5, 5, 10, 10, // Top points
 			5, 0, // Center bottom
 			0, 0, 10, 0, // Bottom corners
@@ -337,7 +337,7 @@ func TestConvexHullEdgeCases(t *testing.T) {
 
 	// Test with nearly collinear points
 	t.Run("NearlyCollinear", func(t *testing.T) {
-		coords := geom.NewCoordinateSequenceXY(
+		coords := mustCoordsXY(
 			0, 0, 5, 0.01, 10, 0,
 		)
 		result := algorithm.ConvexHullFromCoords(coords)

@@ -19,11 +19,6 @@ func NewLineString(coords CoordinateSequence) *LineString {
 	}
 }
 
-// NewLineStringXY creates a new LineString from x,y pairs.
-func NewLineStringXY(values ...float64) *LineString {
-	return NewLineString(NewCoordinateSequenceXY(values...))
-}
-
 // NewLineStringEmpty creates an empty LineString.
 func NewLineStringEmpty() *LineString {
 	return &LineString{
@@ -38,10 +33,12 @@ func (ls *LineString) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (ls *LineString) Envelope() *Envelope {
-	if ls.envelope == nil {
-		ls.envelope = ls.coords.Envelope()
+	if env := ls.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return ls.envelope.Clone()
+	env := ls.coords.Envelope()
+	ls.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if the linestring has no coordinates.
@@ -278,16 +275,18 @@ func (ls *LineString) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes the linestring to canonical form.
-func (ls *LineString) Normalize() {
+// Normalized returns a new linestring in canonical form.
+func (ls *LineString) Normalized() Geometry {
 	if ls.IsEmpty() {
-		return
+		return ls.Clone()
 	}
+	clone := ls.Clone().(*LineString)
 	// For non-closed linestrings, ensure first point < last point
-	if !ls.IsClosed() && Compare(NewPointFromCoordinate(ls.coords.First()),
-		NewPointFromCoordinate(ls.coords.Last())) > 0 {
-		ls.coords = ls.coords.Reverse()
+	if !clone.IsClosed() && Compare(NewPointFromCoordinate(clone.coords.First()),
+		NewPointFromCoordinate(clone.coords.Last())) > 0 {
+		clone.coords = clone.coords.Reverse()
 	}
+	return clone
 }
 
 // EqualsExact returns true if the linestrings are exactly equal.

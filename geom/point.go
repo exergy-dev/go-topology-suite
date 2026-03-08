@@ -69,10 +69,12 @@ func (p *Point) Envelope() *Envelope {
 	if p.isEmpty {
 		return NewEnvelopeEmpty()
 	}
-	if p.envelope == nil {
-		p.envelope = NewEnvelopeFromCoord(p.coord)
+	if env := p.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return p.envelope.Clone()
+	env := NewEnvelopeFromCoord(p.coord)
+	p.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if this is an empty point.
@@ -140,9 +142,9 @@ func (p *Point) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes the point (no-op for points).
-func (p *Point) Normalize() {
-	// Points don't need normalization
+// Normalized returns the point unchanged (points are already in canonical form).
+func (p *Point) Normalized() Geometry {
+	return p.Clone()
 }
 
 // EqualsExact returns true if the points are exactly equal.

@@ -11,7 +11,7 @@ import (
 
 func TestEmptyGeometryHandling(t *testing.T) {
 	// Create a simple polygon
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	polys := []*geom.Polygon{poly}
 
@@ -62,10 +62,10 @@ func TestEmptyGeometryHandling(t *testing.T) {
 
 func TestMultiPolygonOverlay(t *testing.T) {
 	// Create two polygons
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0)
+	shell2 := mustLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	polys := []*geom.Polygon{poly1, poly2}
@@ -79,7 +79,7 @@ func TestMultiPolygonOverlay(t *testing.T) {
 
 func TestExtremCoordinates(t *testing.T) {
 	// Test with very large coordinates
-	shell := geom.NewLinearRingXY(1e100, 1e100, 1e100+10, 1e100, 1e100+10, 1e100+10, 1e100, 1e100+10, 1e100, 1e100)
+	shell := mustLinearRingXY(1e100, 1e100, 1e100+10, 1e100, 1e100+10, 1e100+10, 1e100, 1e100+10, 1e100, 1e100)
 	poly := geom.NewPolygon(shell, nil)
 	polys := []*geom.Polygon{poly}
 
@@ -98,7 +98,7 @@ func TestCollectPolygonsEdgeCases(t *testing.T) {
 	}
 
 	// Test with single polygon
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	result = collectPolygons([]*geom.Polygon{poly})
 	if _, ok := result.(*geom.Polygon); !ok {
@@ -106,7 +106,7 @@ func TestCollectPolygonsEdgeCases(t *testing.T) {
 	}
 
 	// Test with multiple polygons
-	shell2 := geom.NewLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0)
+	shell2 := mustLinearRingXY(20, 0, 30, 0, 30, 10, 20, 10, 20, 0)
 	poly2 := geom.NewPolygon(shell2, nil)
 	result = collectPolygons([]*geom.Polygon{poly, poly2})
 	if _, ok := result.(*geom.MultiPolygon); !ok {
@@ -116,7 +116,7 @@ func TestCollectPolygonsEdgeCases(t *testing.T) {
 
 func TestHandleEmptyPolygons(t *testing.T) {
 	// Test handleEmptyPolyA
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	polysB := []*geom.Polygon{poly}
 
@@ -192,10 +192,10 @@ func TestBoundCoordinate(t *testing.T) {
 
 func TestClipPolygonDifferenceEdgeCases(t *testing.T) {
 	// Test with non-intersecting polygons
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
+	shell2 := mustLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := clipPolygonDifference(poly1, poly2)
@@ -261,10 +261,10 @@ func TestPolygonizeEdgesEmpty(t *testing.T) {
 
 func TestMergePolygonsNonOverlapping(t *testing.T) {
 	// Test merging non-overlapping polygons
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 
-	shell2 := geom.NewLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
+	shell2 := mustLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result := mergePolygons(poly1, poly2)
@@ -288,7 +288,7 @@ func TestMergePolygonsNonOverlapping(t *testing.T) {
 
 func TestClipPolygonToPolygonEdgeCases(t *testing.T) {
 	// Test with empty polygons
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 	empty := geom.NewPolygonEmpty()
 
@@ -303,7 +303,7 @@ func TestClipPolygonToPolygonEdgeCases(t *testing.T) {
 	}
 
 	// Test with non-intersecting polygons
-	shell2 := geom.NewLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
+	shell2 := mustLinearRingXY(100, 100, 110, 100, 110, 110, 100, 110, 100, 100)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	result = clipPolygonToPolygon(poly, poly2)
@@ -510,8 +510,8 @@ func TestSegmentSegmentIntersect(t *testing.T) {
 
 func TestBoundPolygonWithHoles(t *testing.T) {
 	// Test polygon with holes
-	ext := geom.NewLinearRingXY(0, 0, 1e200, 0, 1e200, 1e200, 0, 1e200, 0, 0)
-	hole := geom.NewLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10)
+	ext := mustLinearRingXY(0, 0, 1e200, 0, 1e200, 1e200, 0, 1e200, 0, 0)
+	hole := mustLinearRingXY(10, 10, 20, 10, 20, 20, 10, 20, 10, 10)
 	poly := geom.NewPolygon(ext, []*geom.LinearRing{hole})
 
 	result := boundPolygon(poly)
@@ -567,7 +567,7 @@ func TestTraceUnionBoundary(t *testing.T) {
 
 func TestNodingEdgeCases(t *testing.T) {
 	// Test extracting segment strings from polygons
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
 	segStrings := extractSegmentStringsFromPolygons([]*geom.Polygon{poly}, 0)
@@ -576,7 +576,7 @@ func TestNodingEdgeCases(t *testing.T) {
 	}
 
 	// Test with polygon with hole
-	hole := geom.NewLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
+	hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
 	segStrings = extractSegmentStringsFromPolygons([]*geom.Polygon{polyWithHole}, 0)
@@ -597,9 +597,9 @@ func TestNodingEdgeCases(t *testing.T) {
 	}
 
 	// Test labeling edges
-	shell1 := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
-	shell2 := geom.NewLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
 	labelEdges(edges, []*geom.Polygon{poly1}, []*geom.Polygon{poly2})

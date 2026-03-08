@@ -22,7 +22,7 @@ func TestPointOnSegment_Epsilon(t *testing.T) {
 }
 
 func TestPointInRing_BoundarySeparation(t *testing.T) {
-	ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	onEdge := geom.NewCoordinate(0, 5)
 	if !geom.PointOnRing(onEdge, ring) {

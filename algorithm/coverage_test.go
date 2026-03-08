@@ -65,7 +65,7 @@ func TestDouglasPeucker_SinglePoint(t *testing.T) {
 
 func TestDouglasPeucker_TwoPointLineString(t *testing.T) {
 	// Two-point line is already minimal; should be returned as-is
-	ls := geom.NewLineStringXY(0, 0, 10, 10)
+	ls := mustLineStringXY(0, 0, 10, 10)
 	result := algorithm.DouglasPeucker(ls, 100.0) // huge tolerance
 	coords := result.Coordinates()
 	require.Len(t, coords, 2, "Two-point line must keep both endpoints")
@@ -75,7 +75,7 @@ func TestDouglasPeucker_TwoPointLineString(t *testing.T) {
 
 func TestDouglasPeucker_AlreadySimpleLine(t *testing.T) {
 	// A straight line should reduce to two endpoints with any positive tolerance
-	ls := geom.NewLineStringXY(0, 0, 5, 0, 10, 0, 15, 0, 20, 0)
+	ls := mustLineStringXY(0, 0, 5, 0, 10, 0, 15, 0, 20, 0)
 	result := algorithm.DouglasPeucker(ls, 0.01)
 	coords := result.Coordinates()
 	assert.Equal(t, 2, len(coords), "Collinear points should simplify to endpoints")
@@ -85,7 +85,7 @@ func TestDouglasPeucker_AlreadySimpleLine(t *testing.T) {
 
 func TestDouglasPeucker_RemovesAllInteriorPoints(t *testing.T) {
 	// With a tolerance larger than any deviation, only endpoints remain
-	ls := geom.NewLineStringXY(0, 0, 1, 0.5, 2, -0.3, 3, 0.2, 4, -0.1, 5, 0)
+	ls := mustLineStringXY(0, 0, 1, 0.5, 2, -0.3, 3, 0.2, 4, -0.1, 5, 0)
 	result := algorithm.DouglasPeucker(ls, 100.0)
 	coords := result.Coordinates()
 	assert.Equal(t, 2, len(coords), "All interior points should be removed with huge tolerance")
@@ -95,7 +95,7 @@ func TestDouglasPeucker_RemovesAllInteriorPoints(t *testing.T) {
 
 func TestDouglasPeucker_ClosedRingStaysClosed(t *testing.T) {
 	// A closed ring should remain closed after simplification
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0, 0, 5, 0.1, 10, 0, 10, 5, 10.1, 10, 10, 10, 5, 10, 0, 10, 0, 5, 0, 0,
 	)
 	result := algorithm.DouglasPeucker(ring, 0.5)
@@ -112,7 +112,7 @@ func TestDouglasPeucker_ClosedRingStaysClosed(t *testing.T) {
 func TestDouglasPeucker_MinimumRingPointsPreserved(t *testing.T) {
 	// A ring that would simplify to fewer than 3 unique points
 	// should retain at least 3 unique points + closure = 4 points
-	ring := geom.NewLinearRingXY(
+	ring := mustLinearRingXY(
 		0, 0, 3, 0, 6, 0, 9, 0, 5, 0.01, 0, 0,
 	)
 	result := algorithm.DouglasPeucker(ring, 100.0)
@@ -126,7 +126,7 @@ func TestDouglasPeucker_MinimumRingPointsPreserved(t *testing.T) {
 
 func TestDouglasPeucker_TriangleRingUnchanged(t *testing.T) {
 	// A triangle (4 coords) should be returned unchanged since it is already minimal
-	ring := geom.NewLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0)
+	ring := mustLinearRingXY(0, 0, 10, 0, 5, 10, 0, 0)
 	result := algorithm.DouglasPeucker(ring, 1.0)
 	coords := result.Coordinates()
 	assert.Equal(t, 4, len(coords), "Triangle ring should remain 4 points")
@@ -134,9 +134,9 @@ func TestDouglasPeucker_TriangleRingUnchanged(t *testing.T) {
 
 func TestDouglasPeucker_PolygonWithSmallHole(t *testing.T) {
 	// A polygon whose hole simplifies to <4 points should have the hole removed
-	shell := geom.NewLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
+	shell := mustLinearRingXY(0, 0, 100, 0, 100, 100, 0, 100, 0, 0)
 	// Tiny hole with vertices very close together
-	hole := geom.NewLinearRingXY(
+	hole := mustLinearRingXY(
 		50, 50, 50.01, 50, 50.01, 50.01, 50.005, 50.005, 50, 50.01, 50, 50,
 	)
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
@@ -162,14 +162,14 @@ func TestDouglasPeucker_MultiPointReturnsClone(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestVisvalingamWhyatt_TwoPointLine(t *testing.T) {
-	ls := geom.NewLineStringXY(0, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 10, 0)
 	result := algorithm.VisvalingamWhyatt(ls, 1.0)
 	coords := result.Coordinates()
 	assert.Equal(t, 2, len(coords), "Two-point line should remain unchanged")
 }
 
 func TestVisvalingamWhyatt_HighThreshold(t *testing.T) {
-	ls := geom.NewLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0)
+	ls := mustLineStringXY(0, 0, 1, 1, 2, 0, 3, 1, 4, 0)
 	result := algorithm.VisvalingamWhyatt(ls, 1e6)
 	coords := result.Coordinates()
 	// High threshold should remove everything to endpoints
@@ -184,7 +184,7 @@ func TestVisvalingamWhyatt_EmptyPolygon(t *testing.T) {
 
 func TestVisvalingamWhyatt_FallbackForLinearRing(t *testing.T) {
 	// VisvalingamWhyatt's default branch falls back to DouglasPeucker
-	ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	result := algorithm.VisvalingamWhyatt(ring, 1.0)
 	assert.False(t, result.IsEmpty(), "LinearRing should be simplified via fallback")
 }
@@ -195,7 +195,7 @@ func TestVisvalingamWhyatt_FallbackForLinearRing(t *testing.T) {
 
 func TestRadialDistance_AllPointsClose(t *testing.T) {
 	// All interior points are closer than threshold: only endpoints kept
-	ls := geom.NewLineStringXY(0, 0, 0.1, 0, 0.2, 0, 0.3, 0, 10, 0)
+	ls := mustLineStringXY(0, 0, 0.1, 0, 0.2, 0, 0.3, 0, 10, 0)
 	result := algorithm.RadialDistance(ls, 1.0)
 	coords := result.Coordinates()
 	// First three interior points are within 1.0 of each other,
@@ -206,7 +206,7 @@ func TestRadialDistance_AllPointsClose(t *testing.T) {
 
 func TestRadialDistance_FallbackForPolygon(t *testing.T) {
 	poly := geom.NewPolygon(
-		geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil,
+		mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil,
 	)
 	result := algorithm.RadialDistance(poly, 1.0)
 	assert.Equal(t, "Polygon", result.GeometryType(),

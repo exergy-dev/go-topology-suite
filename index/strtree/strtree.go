@@ -6,13 +6,18 @@ package strtree
 import (
 	"math"
 	"sort"
+	"sync"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // STRtree is a spatial index using the Sort-Tile-Recursive algorithm.
 // It provides efficient spatial queries for large datasets.
+// STRtree is safe for concurrent use: multiple goroutines may call
+// read methods (Query, Size, etc.) concurrently, but write methods
+// (Insert, Remove, Clear, Build) require exclusive access.
 type STRtree struct {
+	mu           sync.RWMutex
 	root         *node
 	nodeCapacity int
 	items        []*item
@@ -52,6 +57,8 @@ func NewWithCapacity(nodeCapacity int) *STRtree {
 // Insert adds an item to the tree with the given envelope.
 // The tree must not have been built yet.
 func (t *STRtree) Insert(envelope *geom.Envelope, data interface{}) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	if t.built {
 		panic("cannot insert into a built STRtree")
 	}
@@ -72,6 +79,12 @@ func (t *STRtree) InsertGeometry(g geom.Geometry) {
 // Build constructs the tree from inserted items.
 // This must be called before querying.
 func (t *STRtree) Build() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.buildLocked()
+}
+
+func (t *STRtree) buildLocked() {
 	if t.built {
 		return
 	}
@@ -227,9 +240,14 @@ func (n *node) computeEnvelopeFromChildren() {
 
 // Query returns all items whose envelopes intersect the given envelope.
 func (t *STRtree) Query(envelope *geom.Envelope) []interface{} {
+	t.mu.Lock()
 	if !t.built {
-		t.Build()
+		t.buildLocked()
 	}
+	t.mu.Unlock()
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	if t.root == nil || envelope == nil || envelope.IsNull() {
 		return nil
@@ -271,9 +289,14 @@ func (t *STRtree) QueryPoint(x, y float64) []interface{} {
 
 // NearestNeighbor returns the nearest item to the given envelope.
 func (t *STRtree) NearestNeighbor(envelope *geom.Envelope) interface{} {
+	t.mu.Lock()
 	if !t.built {
-		t.Build()
+		t.buildLocked()
 	}
+	t.mu.Unlock()
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	if t.root == nil || envelope == nil {
 		return nil
@@ -322,19 +345,28 @@ func (t *STRtree) nearestNeighborNode(n *node, target *geom.Envelope, nearest in
 
 // Size returns the number of items in the tree.
 func (t *STRtree) Size() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return len(t.items)
 }
 
 // IsEmpty returns true if the tree has no items.
 func (t *STRtree) IsEmpty() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return len(t.items) == 0
 }
 
 // Depth returns the depth of the tree.
 func (t *STRtree) Depth() int {
+	t.mu.Lock()
 	if !t.built {
-		t.Build()
+		t.buildLocked()
 	}
+	t.mu.Unlock()
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil {
 		return 0
 	}
@@ -357,9 +389,14 @@ func (t *STRtree) nodeDepth(n *node) int {
 
 // Envelope returns the bounding envelope of all items.
 func (t *STRtree) Envelope() *geom.Envelope {
+	t.mu.Lock()
 	if !t.built {
-		t.Build()
+		t.buildLocked()
 	}
+	t.mu.Unlock()
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	if t.root == nil {
 		return geom.NewEnvelopeEmpty()
 	}
@@ -368,6 +405,8 @@ func (t *STRtree) Envelope() *geom.Envelope {
 
 // Items returns all items in the tree.
 func (t *STRtree) Items() []interface{} {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	result := make([]interface{}, len(t.items))
 	for i, item := range t.items {
 		result[i] = item.data
@@ -378,6 +417,8 @@ func (t *STRtree) Items() []interface{} {
 // Remove removes an item from the tree.
 // Note: This is O(n) and requires rebuilding the tree.
 func (t *STRtree) Remove(envelope *geom.Envelope, data interface{}) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for i, item := range t.items {
 		if item.data == data && item.envelope.Equals(envelope, geom.DefaultEpsilon) {
 			t.items = append(t.items[:i], t.items[i+1:]...)
@@ -391,6 +432,8 @@ func (t *STRtree) Remove(envelope *geom.Envelope, data interface{}) bool {
 
 // Clear removes all items from the tree.
 func (t *STRtree) Clear() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.items = make([]*item, 0)
 	t.root = nil
 	t.built = false

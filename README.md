@@ -263,7 +263,9 @@ func main() {
             X: float64(i % 100),
             Y: float64(i / 100),
         })
-        tree.Insert(point.Envelope(), point)
+        if err := tree.Insert(point.Envelope(), point); err != nil {
+            panic(err)
+        }
     }
     tree.Build()
 

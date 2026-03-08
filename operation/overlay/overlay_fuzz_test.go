@@ -15,7 +15,7 @@ func createTestPolygon(cx, cy, size float64) *geom.Polygon {
 		size = 1000
 	}
 	half := size / 2
-	shell := geom.NewLinearRingXY(
+	shell := mustLinearRingXY(
 		cx-half, cy-half,
 		cx+half, cy-half,
 		cx+half, cy+half,
@@ -120,7 +120,7 @@ func FuzzIntersectionLinePolygon(f *testing.F) {
 	f.Add(0.0, 0.0, 10.0, 10.0, 5.0, 5.0, 10.0)
 
 	f.Fuzz(func(t *testing.T, x1, y1, x2, y2, cx, cy, size float64) {
-		ls := geom.NewLineStringXY(x1, y1, x2, y2)
+		ls := mustLineStringXY(x1, y1, x2, y2)
 		poly := createTestPolygon(cx, cy, size)
 
 		result := Intersection(ls, poly)

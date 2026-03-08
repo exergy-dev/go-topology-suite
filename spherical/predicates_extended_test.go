@@ -22,14 +22,14 @@ func TestCrosses(t *testing.T) {
 		},
 		{
 			name: "Polygon/Polygon cannot cross (same dimension)",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				1.0, 0.0,
 				1.0, 1.0,
 				0.0, 1.0,
 				0.0, 0.0,
 			), nil),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.5, 0.5,
 				1.5, 0.5,
 				1.5, 1.5,
@@ -40,11 +40,11 @@ func TestCrosses(t *testing.T) {
 		},
 		{
 			name: "Line/Line crossing",
-			g1: geom.NewLineStringXY(
+			g1: mustLineStringXY(
 				0.0, -1.0,
 				0.0, 1.0,
 			),
-			g2: geom.NewLineStringXY(
+			g2: mustLineStringXY(
 				-1.0, 0.0,
 				1.0, 0.0,
 			),
@@ -52,11 +52,11 @@ func TestCrosses(t *testing.T) {
 		},
 		{
 			name: "Line/Line parallel (not crossing)",
-			g1: geom.NewLineStringXY(
+			g1: mustLineStringXY(
 				0.0, 0.0,
 				1.0, 0.0,
 			),
-			g2: geom.NewLineStringXY(
+			g2: mustLineStringXY(
 				0.0, 1.0,
 				1.0, 1.0,
 			),
@@ -64,11 +64,11 @@ func TestCrosses(t *testing.T) {
 		},
 		{
 			name: "Line/Polygon crossing",
-			g1: geom.NewLineStringXY(
+			g1: mustLineStringXY(
 				-0.5, 0.0,
 				1.5, 0.0,
 			),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, -1.0,
 				1.0, -1.0,
 				1.0, 1.0,
@@ -79,11 +79,11 @@ func TestCrosses(t *testing.T) {
 		},
 		{
 			name: "Line completely inside polygon (not crossing)",
-			g1: geom.NewLineStringXY(
+			g1: mustLineStringXY(
 				0.2, 0.0,
 				0.8, 0.0,
 			),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, -1.0,
 				1.0, -1.0,
 				1.0, 1.0,
@@ -120,7 +120,7 @@ func TestCovers(t *testing.T) {
 	}{
 		{
 			name: "Polygon covers point inside",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				2.0, 0.0,
 				2.0, 2.0,
@@ -132,7 +132,7 @@ func TestCovers(t *testing.T) {
 		},
 		{
 			name: "Polygon does not cover point outside",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				1.0, 0.0,
 				1.0, 1.0,
@@ -144,14 +144,14 @@ func TestCovers(t *testing.T) {
 		},
 		{
 			name: "Polygon covers smaller polygon inside",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				2.0, 0.0,
 				2.0, 2.0,
 				0.0, 2.0,
 				0.0, 0.0,
 			), nil),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.5, 0.5,
 				1.5, 0.5,
 				1.5, 1.5,
@@ -162,14 +162,14 @@ func TestCovers(t *testing.T) {
 		},
 		{
 			name: "Polygon does not cover overlapping polygon",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				1.0, 0.0,
 				1.0, 1.0,
 				0.0, 1.0,
 				0.0, 0.0,
 			), nil),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.5, 0.5,
 				1.5, 0.5,
 				1.5, 1.5,
@@ -207,7 +207,7 @@ func TestCoveredBy(t *testing.T) {
 		{
 			name: "Point inside is covered by polygon",
 			g1:   geom.NewPoint(1.0, 1.0),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				2.0, 0.0,
 				2.0, 2.0,
@@ -219,7 +219,7 @@ func TestCoveredBy(t *testing.T) {
 		{
 			name: "Point outside is not covered by polygon",
 			g1:   geom.NewPoint(3.0, 3.0),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				2.0, 0.0,
 				2.0, 2.0,
@@ -230,14 +230,14 @@ func TestCoveredBy(t *testing.T) {
 		},
 		{
 			name: "CoveredBy is inverse of Covers",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.5, 0.5,
 				1.5, 0.5,
 				1.5, 1.5,
 				0.5, 1.5,
 				0.5, 0.5,
 			), nil),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				2.0, 0.0,
 				2.0, 2.0,
@@ -286,14 +286,14 @@ func TestEquals(t *testing.T) {
 		},
 		{
 			name: "Same polygon",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				1.0, 0.0,
 				1.0, 1.0,
 				0.0, 1.0,
 				0.0, 0.0,
 			), nil),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				1.0, 0.0,
 				1.0, 1.0,
@@ -304,14 +304,14 @@ func TestEquals(t *testing.T) {
 		},
 		{
 			name: "Different polygons",
-			g1: geom.NewPolygon(geom.NewLinearRingXY(
+			g1: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				1.0, 0.0,
 				1.0, 1.0,
 				0.0, 1.0,
 				0.0, 0.0,
 			), nil),
-			g2: geom.NewPolygon(geom.NewLinearRingXY(
+			g2: geom.NewPolygon(mustLinearRingXY(
 				0.0, 0.0,
 				2.0, 0.0,
 				2.0, 2.0,
@@ -323,7 +323,7 @@ func TestEquals(t *testing.T) {
 		{
 			name:     "Different geometry types",
 			g1:       geom.NewPoint(0.0, 0.0),
-			g2:       geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0),
+			g2:       mustLineStringXY(0.0, 0.0, 1.0, 1.0),
 			expected: false,
 		},
 		{
@@ -373,7 +373,7 @@ func TestEquals(t *testing.T) {
 // TestHelperFunctions tests the helper functions.
 func TestHelperFunctions(t *testing.T) {
 	t.Run("ExtractLineStrings", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0)
+		ls := mustLineStringXY(0.0, 0.0, 1.0, 1.0)
 		result := geom.ExtractLineStrings(ls)
 		if len(result) != 1 {
 			t.Errorf("Expected 1 linestring, got %d", len(result))
@@ -381,8 +381,8 @@ func TestHelperFunctions(t *testing.T) {
 
 		// Test with MultiLineString
 		mls := geom.NewMultiLineString([]*geom.LineString{
-			geom.NewLineStringXY(0.0, 0.0, 1.0, 1.0),
-			geom.NewLineStringXY(2.0, 2.0, 3.0, 3.0),
+			mustLineStringXY(0.0, 0.0, 1.0, 1.0),
+			mustLineStringXY(2.0, 2.0, 3.0, 3.0),
 		})
 		result = geom.ExtractLineStrings(mls)
 		if len(result) != 2 {
@@ -391,7 +391,7 @@ func TestHelperFunctions(t *testing.T) {
 	})
 
 	t.Run("ExtractPolygons", func(t *testing.T) {
-		poly := geom.NewPolygon(geom.NewLinearRingXY(
+		poly := geom.NewPolygon(mustLinearRingXY(
 			0.0, 0.0,
 			1.0, 0.0,
 			1.0, 1.0,

@@ -32,11 +32,6 @@ func NewLinearRing(coords CoordinateSequence) *LinearRing {
 	}
 }
 
-// NewLinearRingXY creates a LinearRing from x,y pairs.
-func NewLinearRingXY(values ...float64) *LinearRing {
-	return NewLinearRing(NewCoordinateSequenceXY(values...))
-}
-
 // NewLinearRingEmpty creates an empty LinearRing.
 func NewLinearRingEmpty() *LinearRing {
 	return &LinearRing{
@@ -116,31 +111,34 @@ func (lr *LinearRing) Reverse() *LinearRing {
 	}
 }
 
-// Normalize normalizes the ring to canonical form.
-func (lr *LinearRing) Normalize() {
+// Normalized returns a new ring normalized to canonical form.
+func (lr *LinearRing) Normalized() Geometry {
 	if lr.IsEmpty() || len(lr.coords) < 4 {
-		return
+		return lr.Clone()
 	}
+
+	clone := lr.Clone().(*LinearRing)
 
 	// Find the minimum coordinate
 	minIdx := 0
-	for i := 1; i < len(lr.coords)-1; i++ { // Exclude the closing point
-		if lr.coords[i].X < lr.coords[minIdx].X ||
-			(lr.coords[i].X == lr.coords[minIdx].X && lr.coords[i].Y < lr.coords[minIdx].Y) {
+	for i := 1; i < len(clone.coords)-1; i++ { // Exclude the closing point
+		if clone.coords[i].X < clone.coords[minIdx].X ||
+			(clone.coords[i].X == clone.coords[minIdx].X && clone.coords[i].Y < clone.coords[minIdx].Y) {
 			minIdx = i
 		}
 	}
 
 	// Rotate the ring so the minimum point is first
 	if minIdx > 0 {
-		n := len(lr.coords) - 1 // Exclude closing point
+		n := len(clone.coords) - 1 // Exclude closing point
 		newCoords := make(CoordinateSequence, n+1)
 		for i := 0; i < n; i++ {
-			newCoords[i] = lr.coords[(i+minIdx)%n].Clone()
+			newCoords[i] = clone.coords[(i+minIdx)%n].Clone()
 		}
 		newCoords[n] = newCoords[0].Clone()
-		lr.coords = newCoords
+		clone.coords = newCoords
 	}
+	return clone
 }
 
 // String returns the WKT representation.
@@ -202,14 +200,17 @@ func (p *Polygon) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (p *Polygon) Envelope() *Envelope {
-	if p.envelope == nil {
-		if p.shell == nil || p.shell.IsEmpty() {
-			p.envelope = NewEnvelopeEmpty()
-		} else {
-			p.envelope = p.shell.Envelope()
-		}
+	if env := p.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return p.envelope.Clone()
+	var env *Envelope
+	if p.shell == nil || p.shell.IsEmpty() {
+		env = NewEnvelopeEmpty()
+	} else {
+		env = p.shell.Envelope()
+	}
+	p.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if the polygon has no shell.
@@ -224,8 +225,8 @@ func (p *Polygon) IsSimple() bool {
 
 // IsValid returns true if the polygon is valid.
 // A valid polygon has:
-// - A valid shell with counter-clockwise orientation
-// - Valid holes with clockwise orientation
+// - A valid shell
+// - Valid holes
 // - Holes inside the shell
 // - No shell/hole crossings
 // - No nested holes
@@ -240,17 +241,9 @@ func (p *Polygon) IsValid() bool {
 		return false
 	}
 
-	// Check shell has correct orientation (counter-clockwise)
-	if !p.shell.IsCCW() {
-		return false
-	}
-
-	// Check holes are valid and have correct orientation (clockwise)
+	// Check holes are valid
 	for _, hole := range p.holes {
 		if !hole.IsValid() {
-			return false
-		}
-		if !hole.IsCW() {
 			return false
 		}
 
@@ -354,26 +347,29 @@ func (p *Polygon) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes the polygon to canonical form.
-func (p *Polygon) Normalize() {
+// Normalized returns a new polygon in canonical form.
+func (p *Polygon) Normalized() Geometry {
 	if p.IsEmpty() {
-		return
+		return p.Clone()
 	}
 
-	p.shell.Normalize()
+	clone := p.Clone().(*Polygon)
+
+	clone.shell = clone.shell.Normalized().(*LinearRing)
 
 	// Ensure counter-clockwise orientation for shell
-	if p.shell.IsCW() {
-		p.shell = p.shell.Reverse()
+	if clone.shell.IsCW() {
+		clone.shell = clone.shell.Reverse()
 	}
 
-	for i, hole := range p.holes {
-		hole.Normalize()
+	for i, hole := range clone.holes {
+		clone.holes[i] = hole.Normalized().(*LinearRing)
 		// Ensure clockwise orientation for holes
-		if hole.IsCCW() {
-			p.holes[i] = hole.Reverse()
+		if clone.holes[i].IsCCW() {
+			clone.holes[i] = clone.holes[i].Reverse()
 		}
 	}
+	return clone
 }
 
 // EqualsExact returns true if the polygons are exactly equal.

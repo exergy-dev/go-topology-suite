@@ -17,7 +17,7 @@ Segment noding is a critical component for overlay operations (union, intersecti
 A `SegmentString` represents a sequence of line segments defined by a coordinate sequence. It can carry arbitrary context data.
 
 ```go
-coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
+coords, _ := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
 ss := noding.NewSegmentString(coords, "my-segment")
 ```
 
@@ -138,14 +138,10 @@ import (
 
 func main() {
     // Create two crossing lines
-    line1 := noding.NewNodedSegmentString(
-        geom.NewCoordinateSequenceXY(0, 0, 10, 10),
-        "line1",
-    )
-    line2 := noding.NewNodedSegmentString(
-        geom.NewCoordinateSequenceXY(0, 10, 10, 0),
-        "line2",
-    )
+    coords1, _ := geom.NewCoordinateSequenceXY(0, 0, 10, 10)
+    line1 := noding.NewNodedSegmentString(coords1, "line1")
+    coords2, _ := geom.NewCoordinateSequenceXY(0, 10, 10, 0)
+    line2 := noding.NewNodedSegmentString(coords2, "line2")
 
     // Compute nodes
     noder := noding.NewSimpleNoder(noding.NewIntersectionAdder())
@@ -170,19 +166,15 @@ var segments []*noding.NodedSegmentString
 
 // Add horizontal lines
 for y := 0; y < 5; y++ {
-    seg := noding.NewNodedSegmentString(
-        geom.NewCoordinateSequenceXY(0, float64(y), 4, float64(y)),
-        nil,
-    )
+    coords, _ := geom.NewCoordinateSequenceXY(0, float64(y), 4, float64(y))
+    seg := noding.NewNodedSegmentString(coords, nil)
     segments = append(segments, seg)
 }
 
 // Add vertical lines
 for x := 0; x < 5; x++ {
-    seg := noding.NewNodedSegmentString(
-        geom.NewCoordinateSequenceXY(float64(x), 0, float64(x), 4),
-        nil,
-    )
+    coords, _ := geom.NewCoordinateSequenceXY(float64(x), 0, float64(x), 4)
+    seg := noding.NewNodedSegmentString(coords, nil)
     segments = append(segments, seg)
 }
 
@@ -198,16 +190,12 @@ fmt.Printf("Grid has %d intersections\n", counter.Count())
 
 ```go
 // Create a closed ring (triangle)
-ring := noding.NewNodedSegmentString(
-    geom.NewCoordinateSequenceXY(0, 0, 10, 0, 5, 8, 0, 0),
-    "triangle",
-)
+ringCoords, _ := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 5, 8, 0, 0)
+ring := noding.NewNodedSegmentString(ringCoords, "triangle")
 
 // Create a line crossing the ring
-line := noding.NewNodedSegmentString(
-    geom.NewCoordinateSequenceXY(0, 4, 10, 4),
-    "line",
-)
+lineCoords, _ := geom.NewCoordinateSequenceXY(0, 4, 10, 4)
+line := noding.NewNodedSegmentString(lineCoords, "line")
 
 // Node them
 adder := noding.NewIntersectionAdder()

@@ -281,7 +281,7 @@ func TestJTS_GeometryValid_SelfIntersecting(t *testing.T) {
 func TestJTS_GeometryValid_UnclosedRing(t *testing.T) {
 	// This test depends on whether the parser auto-closes rings
 	// Most implementations auto-close, so we test the manual construction
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+	coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 	ring := geom.NewLinearRing(coords)
 
 	// After auto-close, should be valid
@@ -293,7 +293,7 @@ func TestJTS_GeometryValid_UnclosedRing(t *testing.T) {
 // TestJTS_GeometryValid_TooFewPoints tests validity of polygon with too few points.
 func TestJTS_GeometryValid_TooFewPoints(t *testing.T) {
 	// A valid polygon needs at least 4 points (including closure)
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 0, 0)
+	coords := mustCoordsXY(0, 0, 10, 0, 0, 0)
 	ring := geom.NewLinearRing(coords)
 	poly := geom.NewPolygon(ring, nil)
 
@@ -502,7 +502,7 @@ func TestJTS_EmptyGeometry_Polygon(t *testing.T) {
 
 // TestJTS_CoordinateSequence_Access tests coordinate sequence access.
 func TestJTS_CoordinateSequence_Access(t *testing.T) {
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 10, 20, 0)
+	coords := mustCoordsXY(0, 0, 10, 10, 20, 0)
 
 	if len(coords) != 3 {
 		t.Errorf("Expected 3 coordinates, got %d", len(coords))

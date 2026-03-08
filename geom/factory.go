@@ -76,11 +76,6 @@ func (gf *GeometryFactory) CreateLineString(coords CoordinateSequence) *LineStri
 	return ls
 }
 
-// CreateLineStringXY creates a LineString from x,y pairs.
-func (gf *GeometryFactory) CreateLineStringXY(values ...float64) *LineString {
-	return gf.CreateLineString(NewCoordinateSequenceXY(values...))
-}
-
 // CreateLineStringEmpty creates an empty LineString.
 func (gf *GeometryFactory) CreateLineStringEmpty() *LineString {
 	ls := NewLineStringEmpty()
@@ -95,11 +90,6 @@ func (gf *GeometryFactory) CreateLinearRing(coords CoordinateSequence) *LinearRi
 	lr := NewLinearRing(c)
 	lr.srid = gf.srid
 	return lr
-}
-
-// CreateLinearRingXY creates a LinearRing from x,y pairs.
-func (gf *GeometryFactory) CreateLinearRingXY(values ...float64) *LinearRing {
-	return gf.CreateLinearRing(NewCoordinateSequenceXY(values...))
 }
 
 // CreateLinearRingEmpty creates an empty LinearRing.

@@ -245,8 +245,8 @@ func TestWriteReadMultiLineString(t *testing.T) {
 	// Create multilinestring
 	factory := geom.DefaultFactory
 	lines := []*geom.LineString{
-		factory.CreateLineStringXY(0, 0, 10, 10),
-		factory.CreateLineStringXY(20, 20, 30, 30),
+		mustCreateLineStringXY(factory, 0, 0, 10, 10),
+		mustCreateLineStringXY(factory, 20, 20, 30, 30),
 	}
 	mls := factory.CreateMultiLineString(lines)
 
@@ -281,10 +281,10 @@ func TestWriteReadMultiPolygon(t *testing.T) {
 	// Create multipolygon with two separate polygons
 	factory := geom.DefaultFactory
 
-	shell1 := factory.CreateLinearRingXY(0, 0, 5, 0, 5, 5, 0, 5, 0, 0)
+	shell1 := mustCreateLinearRingXY(factory, 0, 0, 5, 0, 5, 5, 0, 5, 0, 0)
 	poly1 := factory.CreatePolygon(shell1, nil)
 
-	shell2 := factory.CreateLinearRingXY(10, 10, 15, 10, 15, 15, 10, 15, 10, 10)
+	shell2 := mustCreateLinearRingXY(factory, 10, 10, 15, 10, 15, 15, 10, 15, 10, 10)
 	poly2 := factory.CreatePolygon(shell2, nil)
 
 	mp := factory.CreateMultiPolygon([]*geom.Polygon{poly1, poly2})
@@ -477,8 +477,8 @@ func TestGeometryToShapeType(t *testing.T) {
 		{"Nil", nil, ShapeTypeNull},
 		{"EmptyPoint", factory.CreatePointEmpty(), ShapeTypeNull},
 		{"Point", factory.CreatePoint(1, 2), ShapeTypePoint},
-		{"LineString", factory.CreateLineStringXY(0, 0, 10, 10), ShapeTypePolyLine},
-		{"Polygon", factory.CreatePolygon(factory.CreateLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil), ShapeTypePolygon},
+		{"LineString", mustCreateLineStringXY(factory, 0, 0, 10, 10), ShapeTypePolyLine},
+		{"Polygon", factory.CreatePolygon(mustCreateLinearRingXY(factory, 0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil), ShapeTypePolygon},
 		{"MultiPoint", factory.CreateMultiPoint([]*geom.Point{factory.CreatePoint(1, 2)}), ShapeTypeMultiPoint},
 	}
 
@@ -508,7 +508,7 @@ func TestInferShapeType(t *testing.T) {
 	})
 
 	t.Run("HomogeneousPolygons", func(t *testing.T) {
-		shell := factory.CreateLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		shell := mustCreateLinearRingXY(factory, 0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		geoms := []geom.Geometry{
 			factory.CreatePolygon(shell, nil),
 			factory.CreatePolygon(shell, nil),
@@ -520,7 +520,7 @@ func TestInferShapeType(t *testing.T) {
 	t.Run("HeterogeneousTypes", func(t *testing.T) {
 		geoms := []geom.Geometry{
 			factory.CreatePoint(1, 2),
-			factory.CreateLineStringXY(0, 0, 10, 10),
+			mustCreateLineStringXY(factory, 0, 0, 10, 10),
 		}
 		result := InferShapeType(geoms)
 		assert.Equal(t, ShapeTypeNull, result)
@@ -542,7 +542,7 @@ func TestWriteAllHeterogeneous(t *testing.T) {
 	factory := geom.DefaultFactory
 	geoms := []geom.Geometry{
 		factory.CreatePoint(1, 2),
-		factory.CreateLineStringXY(0, 0, 10, 10),
+		mustCreateLineStringXY(factory, 0, 0, 10, 10),
 	}
 
 	err := WriteAll(filename, geoms)

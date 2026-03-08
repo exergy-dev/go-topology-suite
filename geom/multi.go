@@ -45,13 +45,15 @@ func (mp *MultiPoint) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (mp *MultiPoint) Envelope() *Envelope {
-	if mp.envelope == nil {
-		mp.envelope = NewEnvelopeEmpty()
-		for _, p := range mp.points {
-			mp.envelope.ExpandToInclude(p.Envelope())
-		}
+	if env := mp.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return mp.envelope.Clone()
+	env := NewEnvelopeEmpty()
+	for _, p := range mp.points {
+		env.ExpandToInclude(p.Envelope())
+	}
+	mp.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if there are no points.
@@ -126,11 +128,13 @@ func (mp *MultiPoint) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes by sorting points.
-func (mp *MultiPoint) Normalize() {
-	sort.Slice(mp.points, func(i, j int) bool {
-		return Compare(mp.points[i], mp.points[j]) < 0
+// Normalized returns a new MultiPoint with points sorted in canonical order.
+func (mp *MultiPoint) Normalized() Geometry {
+	clone := mp.Clone().(*MultiPoint)
+	sort.Slice(clone.points, func(i, j int) bool {
+		return Compare(clone.points[i], clone.points[j]) < 0
 	})
+	return clone
 }
 
 // EqualsExact returns true if the MultiPoints are exactly equal.
@@ -159,13 +163,43 @@ func (mp *MultiPoint) String() string {
 		return "MULTIPOINT EMPTY"
 	}
 
+	// Detect dimensions from points
+	hasZ, hasM := false, false
+	for _, p := range mp.points {
+		if p.coord.HasZ() {
+			hasZ = true
+		}
+		if p.coord.HasM() {
+			hasM = true
+		}
+		if hasZ && hasM {
+			break
+		}
+	}
+
 	var sb strings.Builder
-	sb.WriteString("MULTIPOINT (")
+	sb.WriteString("MULTIPOINT ")
+	if hasZ && hasM {
+		sb.WriteString("ZM ")
+	} else if hasZ {
+		sb.WriteString("Z ")
+	} else if hasM {
+		sb.WriteString("M ")
+	}
+	sb.WriteString("(")
 	for i, p := range mp.points {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString(fmt.Sprintf("(%g %g)", p.coord.X, p.coord.Y))
+		if hasZ && hasM {
+			sb.WriteString(fmt.Sprintf("(%g %g %g %g)", p.coord.X, p.coord.Y, p.coord.GetZ(), p.coord.GetM()))
+		} else if hasZ {
+			sb.WriteString(fmt.Sprintf("(%g %g %g)", p.coord.X, p.coord.Y, p.coord.GetZ()))
+		} else if hasM {
+			sb.WriteString(fmt.Sprintf("(%g %g %g)", p.coord.X, p.coord.Y, p.coord.GetM()))
+		} else {
+			sb.WriteString(fmt.Sprintf("(%g %g)", p.coord.X, p.coord.Y))
+		}
 	}
 	sb.WriteString(")")
 	return sb.String()
@@ -208,13 +242,15 @@ func (mls *MultiLineString) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (mls *MultiLineString) Envelope() *Envelope {
-	if mls.envelope == nil {
-		mls.envelope = NewEnvelopeEmpty()
-		for _, l := range mls.lines {
-			mls.envelope.ExpandToInclude(l.Envelope())
-		}
+	if env := mls.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return mls.envelope.Clone()
+	env := NewEnvelopeEmpty()
+	for _, l := range mls.lines {
+		env.ExpandToInclude(l.Envelope())
+	}
+	mls.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if there are no linestrings.
@@ -367,14 +403,16 @@ func (mls *MultiLineString) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes all component linestrings.
-func (mls *MultiLineString) Normalize() {
-	for _, l := range mls.lines {
-		l.Normalize()
+// Normalized returns a new MultiLineString with all components normalized.
+func (mls *MultiLineString) Normalized() Geometry {
+	clone := mls.Clone().(*MultiLineString)
+	for i, l := range clone.lines {
+		clone.lines[i] = l.Normalized().(*LineString)
 	}
-	sort.Slice(mls.lines, func(i, j int) bool {
-		return Compare(mls.lines[i], mls.lines[j]) < 0
+	sort.Slice(clone.lines, func(i, j int) bool {
+		return Compare(clone.lines[i], clone.lines[j]) < 0
 	})
+	return clone
 }
 
 // EqualsExact returns true if the MultiLineStrings are exactly equal.
@@ -403,20 +441,24 @@ func (mls *MultiLineString) String() string {
 		return "MULTILINESTRING EMPTY"
 	}
 
+	hasZ := mls.Coordinates().HasZ()
+	hasM := mls.Coordinates().HasM()
+
 	var sb strings.Builder
-	sb.WriteString("MULTILINESTRING (")
+	sb.WriteString("MULTILINESTRING ")
+	if hasZ && hasM {
+		sb.WriteString("ZM ")
+	} else if hasZ {
+		sb.WriteString("Z ")
+	} else if hasM {
+		sb.WriteString("M ")
+	}
+	sb.WriteString("(")
 	for i, l := range mls.lines {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString("(")
-		for j, c := range l.coords {
-			if j > 0 {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(fmt.Sprintf("%g %g", c.X, c.Y))
-		}
-		sb.WriteString(")")
+		sb.WriteString(ringCoordsToString(l.coords, hasZ, hasM))
 	}
 	sb.WriteString(")")
 	return sb.String()
@@ -478,13 +520,15 @@ func (mp *MultiPolygon) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (mp *MultiPolygon) Envelope() *Envelope {
-	if mp.envelope == nil {
-		mp.envelope = NewEnvelopeEmpty()
-		for _, p := range mp.polygons {
-			mp.envelope.ExpandToInclude(p.Envelope())
-		}
+	if env := mp.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return mp.envelope.Clone()
+	env := NewEnvelopeEmpty()
+	for _, p := range mp.polygons {
+		env.ExpandToInclude(p.Envelope())
+	}
+	mp.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if there are no polygons.
@@ -637,14 +681,16 @@ func (mp *MultiPolygon) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes all component polygons.
-func (mp *MultiPolygon) Normalize() {
-	for _, p := range mp.polygons {
-		p.Normalize()
+// Normalized returns a new MultiPolygon with all components normalized.
+func (mp *MultiPolygon) Normalized() Geometry {
+	clone := mp.Clone().(*MultiPolygon)
+	for i, p := range clone.polygons {
+		clone.polygons[i] = p.Normalized().(*Polygon)
 	}
-	sort.Slice(mp.polygons, func(i, j int) bool {
-		return Compare(mp.polygons[i], mp.polygons[j]) < 0
+	sort.Slice(clone.polygons, func(i, j int) bool {
+		return Compare(clone.polygons[i], clone.polygons[j]) < 0
 	})
+	return clone
 }
 
 // EqualsExact returns true if the MultiPolygons are exactly equal.
@@ -673,17 +719,28 @@ func (mp *MultiPolygon) String() string {
 		return "MULTIPOLYGON EMPTY"
 	}
 
+	hasZ := mp.Coordinates().HasZ()
+	hasM := mp.Coordinates().HasM()
+
 	var sb strings.Builder
-	sb.WriteString("MULTIPOLYGON (")
+	sb.WriteString("MULTIPOLYGON ")
+	if hasZ && hasM {
+		sb.WriteString("ZM ")
+	} else if hasZ {
+		sb.WriteString("Z ")
+	} else if hasM {
+		sb.WriteString("M ")
+	}
+	sb.WriteString("(")
 	for i, p := range mp.polygons {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
 		sb.WriteString("(")
-		sb.WriteString(ringCoordsToString(p.shell.coords, false, false))
+		sb.WriteString(ringCoordsToString(p.shell.coords, hasZ, hasM))
 		for _, hole := range p.holes {
 			sb.WriteString(", ")
-			sb.WriteString(ringCoordsToString(hole.coords, false, false))
+			sb.WriteString(ringCoordsToString(hole.coords, hasZ, hasM))
 		}
 		sb.WriteString(")")
 	}

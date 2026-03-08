@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"math"
+	"sort"
 
 	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
@@ -213,13 +214,9 @@ func traceUnionBoundary(shellA, shellB geom.CoordinateSequence) geom.CoordinateS
 			}
 		}
 		// Sort by tA
-		for m := 0; m < len(edgeIntersections)-1; m++ {
-			for n := m + 1; n < len(edgeIntersections); n++ {
-				if edgeIntersections[m].tA > edgeIntersections[n].tA {
-					edgeIntersections[m], edgeIntersections[n] = edgeIntersections[n], edgeIntersections[m]
-				}
-			}
-		}
+		sort.Slice(edgeIntersections, func(i, j int) bool {
+			return edgeIntersections[i].tA < edgeIntersections[j].tA
+		})
 		for _, inter := range edgeIntersections {
 			result = append(result, inter.coord)
 		}
@@ -289,13 +286,9 @@ func sortPointsByAngle(coords geom.CoordinateSequence) geom.CoordinateSequence {
 	}
 
 	// Sort by angle
-	for i := 0; i < len(angles)-1; i++ {
-		for j := i + 1; j < len(angles); j++ {
-			if angles[i].angle > angles[j].angle {
-				angles[i], angles[j] = angles[j], angles[i]
-			}
-		}
-	}
+	sort.Slice(angles, func(i, j int) bool {
+		return angles[i].angle < angles[j].angle
+	})
 
 	// Build result
 	result := make(geom.CoordinateSequence, len(angles))

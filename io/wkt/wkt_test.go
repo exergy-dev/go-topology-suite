@@ -277,7 +277,7 @@ func TestMarshalPoint(t *testing.T) {
 
 func TestMarshalLineString(t *testing.T) {
 	t.Run("Simple linestring", func(t *testing.T) {
-		ls := geom.NewLineStringXY(0, 0, 10, 10)
+		ls := mustLineStringXY(0, 0, 10, 10)
 		result := wkt.MarshalString(ls)
 		assert.Equal(t, "LINESTRING (0 0, 10 10)", result)
 	})
@@ -285,7 +285,7 @@ func TestMarshalLineString(t *testing.T) {
 
 func TestMarshalPolygon(t *testing.T) {
 	t.Run("Simple polygon", func(t *testing.T) {
-		shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+		shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		p := geom.NewPolygon(shell, nil)
 		result := wkt.MarshalString(p)
 		expected := "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"
@@ -311,7 +311,7 @@ func TestUnmarshalBytes(t *testing.T) {
 }
 
 func TestMarshalIndent(t *testing.T) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	p := geom.NewPolygon(shell, nil)
 	data, err := wkt.MarshalIndent(p)
 	require.NoError(t, err, "Failed to marshal")
@@ -500,7 +500,7 @@ func BenchmarkUnmarshalPoint(b *testing.B) {
 }
 
 func BenchmarkMarshalPolygon(b *testing.B) {
-	shell := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	p := geom.NewPolygon(shell, nil)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

@@ -34,13 +34,15 @@ func (gc *GeometryCollection) GeometryType() string {
 
 // Envelope returns the bounding box.
 func (gc *GeometryCollection) Envelope() *Envelope {
-	if gc.envelope == nil {
-		gc.envelope = NewEnvelopeEmpty()
-		for _, g := range gc.geometries {
-			gc.envelope.ExpandToInclude(g.Envelope())
-		}
+	if env := gc.cachedEnvelope(); env != nil {
+		return env.Clone()
 	}
-	return gc.envelope.Clone()
+	env := NewEnvelopeEmpty()
+	for _, g := range gc.geometries {
+		env.ExpandToInclude(g.Envelope())
+	}
+	gc.setCachedEnvelope(env)
+	return env.Clone()
 }
 
 // IsEmpty returns true if there are no geometries.
@@ -134,14 +136,16 @@ func (gc *GeometryCollection) Clone() Geometry {
 	return clone
 }
 
-// Normalize normalizes all component geometries.
-func (gc *GeometryCollection) Normalize() {
-	for _, g := range gc.geometries {
-		g.Normalize()
+// Normalized returns a new GeometryCollection with all components normalized.
+func (gc *GeometryCollection) Normalized() Geometry {
+	clone := gc.Clone().(*GeometryCollection)
+	for i, g := range clone.geometries {
+		clone.geometries[i] = g.Normalized()
 	}
-	sort.Slice(gc.geometries, func(i, j int) bool {
-		return Compare(gc.geometries[i], gc.geometries[j]) < 0
+	sort.Slice(clone.geometries, func(i, j int) bool {
+		return Compare(clone.geometries[i], clone.geometries[j]) < 0
 	})
+	return clone
 }
 
 // EqualsExact returns true if the GeometryCollections are exactly equal.
@@ -180,23 +184,6 @@ func (gc *GeometryCollection) String() string {
 	}
 	sb.WriteString(")")
 	return sb.String()
-}
-
-// Deprecated: Add mutates the collection, breaking immutability guarantees.
-// Prefer constructing a new GeometryCollection with the desired geometries instead.
-func (gc *GeometryCollection) Add(g Geometry) {
-	gc.geometries = append(gc.geometries, g.Clone())
-	gc.invalidateEnvelope()
-}
-
-// Deprecated: Remove mutates the collection, breaking immutability guarantees.
-// Prefer constructing a new GeometryCollection with the desired geometries instead.
-func (gc *GeometryCollection) Remove(index int) {
-	if index < 0 || index >= len(gc.geometries) {
-		return
-	}
-	gc.geometries = append(gc.geometries[:index], gc.geometries[index+1:]...)
-	gc.invalidateEnvelope()
 }
 
 // Filter applies a filter to each geometry in the collection.

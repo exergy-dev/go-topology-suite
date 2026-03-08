@@ -305,7 +305,7 @@ func TestCoordinateSequence_Len(t *testing.T) {
 	})
 
 	t.Run("non-empty", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(1, 2, 3, 4, 5, 6)
+		seq := mustCoordsXY(1, 2, 3, 4, 5, 6)
 		assert.Equal(t, 3, seq.Len())
 	})
 }
@@ -317,7 +317,7 @@ func TestCoordinateSequence_IsEmpty(t *testing.T) {
 	})
 
 	t.Run("non-empty sequence", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0)
+		seq := mustCoordsXY(0, 0)
 		assert.False(t, seq.IsEmpty())
 	})
 
@@ -328,7 +328,7 @@ func TestCoordinateSequence_IsEmpty(t *testing.T) {
 }
 
 func TestCoordinateSequence_Get(t *testing.T) {
-	seq := geom.NewCoordinateSequenceXY(10, 20, 30, 40, 50, 60)
+	seq := mustCoordsXY(10, 20, 30, 40, 50, 60)
 
 	t.Run("first element", func(t *testing.T) {
 		c := seq.Get(0)
@@ -353,13 +353,13 @@ func TestCoordinateSequence_RemoveRepeatedPoints(t *testing.T) {
 	eps := 1e-10
 
 	t.Run("no duplicates", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1, 2, 2)
+		seq := mustCoordsXY(0, 0, 1, 1, 2, 2)
 		result := seq.RemoveRepeatedPoints(eps)
 		assert.Equal(t, 3, result.Len())
 	})
 
 	t.Run("consecutive duplicates", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 0, 0, 1, 1, 1, 1, 2, 2)
+		seq := mustCoordsXY(0, 0, 0, 0, 1, 1, 1, 1, 2, 2)
 		result := seq.RemoveRepeatedPoints(eps)
 		assert.Equal(t, 3, result.Len())
 		assert.Equal(t, 0.0, result.Get(0).X)
@@ -368,13 +368,13 @@ func TestCoordinateSequence_RemoveRepeatedPoints(t *testing.T) {
 	})
 
 	t.Run("all same point", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(5, 5, 5, 5, 5, 5)
+		seq := mustCoordsXY(5, 5, 5, 5, 5, 5)
 		result := seq.RemoveRepeatedPoints(eps)
 		assert.Equal(t, 1, result.Len())
 	})
 
 	t.Run("single point", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(1, 2)
+		seq := mustCoordsXY(1, 2)
 		result := seq.RemoveRepeatedPoints(eps)
 		assert.Equal(t, 1, result.Len())
 	})
@@ -395,13 +395,13 @@ func TestCoordinateSequence_RemoveRepeatedPoints(t *testing.T) {
 	})
 
 	t.Run("non-consecutive duplicates are kept", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1, 0, 0)
+		seq := mustCoordsXY(0, 0, 1, 1, 0, 0)
 		result := seq.RemoveRepeatedPoints(eps)
 		assert.Equal(t, 3, result.Len(), "non-consecutive duplicates should remain")
 	})
 
 	t.Run("result is a deep copy", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1)
+		seq := mustCoordsXY(0, 0, 1, 1)
 		result := seq.RemoveRepeatedPoints(eps)
 		result[0].X = 999
 		assert.Equal(t, 0.0, seq.Get(0).X, "original should not be mutated")
@@ -409,7 +409,7 @@ func TestCoordinateSequence_RemoveRepeatedPoints(t *testing.T) {
 }
 
 func TestCoordinateSequence_SubSequence(t *testing.T) {
-	seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1, 2, 2, 3, 3, 4, 4)
+	seq := mustCoordsXY(0, 0, 1, 1, 2, 2, 3, 3, 4, 4)
 
 	t.Run("normal range", func(t *testing.T) {
 		sub := seq.SubSequence(1, 3)
@@ -1002,7 +1002,7 @@ func TestGeometryCollection_ApplyCoordinateFilter(t *testing.T) {
 
 	t.Run("translate linestring in collection", func(t *testing.T) {
 		gc := geom.NewGeometryCollection([]geom.Geometry{
-			geom.NewLineStringXY(0, 0, 10, 10),
+			mustLineStringXY(0, 0, 10, 10),
 		})
 
 		filter := &testTranslateFilter{dx: 5, dy: 5}
@@ -1035,7 +1035,7 @@ func TestGeometryCollection_ApplyCoordinateFilter(t *testing.T) {
 	t.Run("filter visits all coordinates in mixed collection", func(t *testing.T) {
 		gc := geom.NewGeometryCollection([]geom.Geometry{
 			geom.NewPoint(0, 0),                       // 1 coordinate
-			geom.NewLineStringXY(1, 1, 2, 2, 3, 3),   // 3 coordinates
+			mustLineStringXY(1, 1, 2, 2, 3, 3),   // 3 coordinates
 		})
 		counter := &testCountFilter{}
 		gc.ApplyCoordinateFilter(counter)
@@ -1087,7 +1087,7 @@ func TestCoordinate_IsNaN(t *testing.T) {
 
 func TestCoordinateSequence_HasZ(t *testing.T) {
 	t.Run("no Z in any coord", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1)
+		seq := mustCoordsXY(0, 0, 1, 1)
 		assert.False(t, seq.HasZ())
 	})
 
@@ -1107,7 +1107,7 @@ func TestCoordinateSequence_HasZ(t *testing.T) {
 
 func TestCoordinateSequence_HasM(t *testing.T) {
 	t.Run("no M in any coord", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1)
+		seq := mustCoordsXY(0, 0, 1, 1)
 		assert.False(t, seq.HasM())
 	})
 
@@ -1127,7 +1127,7 @@ func TestCoordinateSequence_HasM(t *testing.T) {
 
 func TestCoordinateSequence_Reverse(t *testing.T) {
 	t.Run("normal reverse", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0, 1, 1, 2, 2)
+		seq := mustCoordsXY(0, 0, 1, 1, 2, 2)
 		rev := seq.Reverse()
 		require.Equal(t, 3, rev.Len())
 		assert.Equal(t, 2.0, rev.Get(0).X)
@@ -1141,7 +1141,7 @@ func TestCoordinateSequence_Reverse(t *testing.T) {
 	})
 
 	t.Run("single element", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(5, 5)
+		seq := mustCoordsXY(5, 5)
 		rev := seq.Reverse()
 		require.Equal(t, 1, rev.Len())
 		assert.Equal(t, 5.0, rev.Get(0).X)
@@ -1156,7 +1156,7 @@ func TestCoordinateSequence_Clone_Nil(t *testing.T) {
 
 func TestCoordinateSequence_Envelope(t *testing.T) {
 	t.Run("non-empty", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(-5, -10, 20, 30, 0, 0)
+		seq := mustCoordsXY(-5, -10, 20, 30, 0, 0)
 		env := seq.Envelope()
 		assert.Equal(t, -5.0, env.MinX)
 		assert.Equal(t, -10.0, env.MinY)
@@ -1171,7 +1171,7 @@ func TestCoordinateSequence_Envelope(t *testing.T) {
 	})
 
 	t.Run("single point", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(5, 10)
+		seq := mustCoordsXY(5, 10)
 		env := seq.Envelope()
 		assert.False(t, env.IsNull())
 		assert.Equal(t, 5.0, env.MinX)
@@ -1183,7 +1183,7 @@ func TestCoordinateSequence_Envelope(t *testing.T) {
 
 func TestCoordinateSequence_IsClosed(t *testing.T) {
 	t.Run("fewer than 2 points is not closed", func(t *testing.T) {
-		seq := geom.NewCoordinateSequenceXY(0, 0)
+		seq := mustCoordsXY(0, 0)
 		assert.False(t, seq.IsClosed(1e-10))
 	})
 
@@ -1193,10 +1193,9 @@ func TestCoordinateSequence_IsClosed(t *testing.T) {
 	})
 }
 
-func TestNewCoordinateSequenceXY_OddPanics(t *testing.T) {
-	assert.Panics(t, func() {
-		geom.NewCoordinateSequenceXY(1, 2, 3) //nolint:staticcheck
-	}, "odd number of values should panic")
+func TestNewCoordinateSequenceXY_OddReturnsError(t *testing.T) {
+	_, err := geom.NewCoordinateSequenceXY(1, 2, 3)
+	assert.Error(t, err, "Expected error for odd number of values")
 }
 
 func TestEnvelope_ExpandToInclude_NilOther(t *testing.T) {

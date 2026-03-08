@@ -13,13 +13,13 @@ import (
 
 func square(x, y, size float64) *geom.Polygon {
 	return geom.NewPolygon(
-		geom.NewLinearRingXY(x, y, x+size, y, x+size, y+size, x, y+size, x, y),
+		mustLinearRingXY(x, y, x+size, y, x+size, y+size, x, y+size, x, y),
 		nil,
 	)
 }
 
 func line(x1, y1, x2, y2 float64) *geom.LineString {
-	return geom.NewLineStringXY(x1, y1, x2, y2)
+	return mustLineStringXY(x1, y1, x2, y2)
 }
 
 func point(x, y float64) *geom.Point {
@@ -36,7 +36,7 @@ func TestIntersects_LinearRingAsArgument(t *testing.T) {
 	// LinearRing arguments fall through and return false. These tests document
 	// this current behavior rather than the ideal behavior.
 
-	ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	ring := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	t.Run("PointOnRing_unmatched", func(t *testing.T) {
 		p := point(5, 0)
@@ -53,7 +53,7 @@ func TestIntersects_LinearRingAsArgument(t *testing.T) {
 	})
 
 	t.Run("RingVsDisjointRing_both_unmatched", func(t *testing.T) {
-		ring2 := geom.NewLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20)
+		ring2 := mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20)
 		// Both are LinearRing, neither dispatched - correctly returns false
 		assert.False(t, geom.Intersects(ring, ring2),
 			"Two disjoint rings correctly return false")
@@ -77,16 +77,16 @@ func TestContains_PolygonContainsMultiLineString(t *testing.T) {
 
 	// MultiLineString fully inside
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(2, 2, 8, 8),
-		geom.NewLineStringXY(12, 12, 18, 18),
+		mustLineStringXY(2, 2, 8, 8),
+		mustLineStringXY(12, 12, 18, 18),
 	})
 	assert.True(t, geom.Contains(poly, mls),
 		"Polygon should contain MultiLineString fully inside")
 
 	// One component sticks out
 	mlsPartOut := geom.NewMultiLineString([]*geom.LineString{
-		geom.NewLineStringXY(2, 2, 8, 8),
-		geom.NewLineStringXY(12, 12, 25, 25), // extends outside
+		mustLineStringXY(2, 2, 8, 8),
+		mustLineStringXY(12, 12, 25, 25), // extends outside
 	})
 	assert.False(t, geom.Contains(poly, mlsPartOut),
 		"Polygon should NOT contain MultiLineString with a component outside")

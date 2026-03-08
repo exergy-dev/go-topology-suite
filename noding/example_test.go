@@ -14,11 +14,11 @@ func ExampleSimpleNoder() {
 	// Line 1: diagonal from bottom-left to top-right
 	// Line 2: diagonal from top-left to bottom-right
 	line1 := noding.NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 10),
+		mustCoordsXY(0, 0, 10, 10),
 		"line1",
 	)
 	line2 := noding.NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 10, 10, 0),
+		mustCoordsXY(0, 10, 10, 0),
 		"line2",
 	)
 
@@ -57,7 +57,7 @@ func ExampleIntersectionCounter() {
 	// Add 3 horizontal lines
 	for y := 0; y < 3; y++ {
 		seg := noding.NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(0, float64(y), 2, float64(y)),
+			mustCoordsXY(0, float64(y), 2, float64(y)),
 			nil,
 		)
 		segments = append(segments, seg)
@@ -66,7 +66,7 @@ func ExampleIntersectionCounter() {
 	// Add 3 vertical lines
 	for x := 0; x < 3; x++ {
 		seg := noding.NewNodedSegmentString(
-			geom.NewCoordinateSequenceXY(float64(x), 0, float64(x), 2),
+			mustCoordsXY(float64(x), 0, float64(x), 2),
 			nil,
 		)
 		segments = append(segments, seg)
@@ -88,7 +88,7 @@ func ExampleIntersectionCounter() {
 // ExampleNodedSegmentString demonstrates how nodes are added to segments.
 func ExampleNodedSegmentString() {
 	// Create a segment from (0,0) to (10,0)
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0)
+	coords := mustCoordsXY(0, 0, 10, 0)
 	nss := noding.NewNodedSegmentString(coords, nil)
 
 	fmt.Printf("Original coordinates: %d\n", len(nss.Coordinates()))
@@ -122,14 +122,14 @@ func ExampleNodedSegmentString() {
 func ExampleSegmentString_IsClosed() {
 	// Open segment string
 	open := noding.NewSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10),
+		mustCoordsXY(0, 0, 10, 0, 10, 10),
 		nil,
 	)
 	fmt.Printf("Open segment is closed: %v\n", open.IsClosed())
 
 	// Closed segment string (ring)
 	closed := noding.NewSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 0),
+		mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 0),
 		nil,
 	)
 	fmt.Printf("Closed segment is closed: %v\n", closed.IsClosed())
@@ -142,7 +142,7 @@ func ExampleSegmentString_IsClosed() {
 // ExampleFindSegmentForCoordinate demonstrates finding which segment contains a point.
 func ExampleFindSegmentForCoordinate() {
 	// Create a path with 3 segments
-	coords := geom.NewCoordinateSequenceXY(0, 0, 10, 0, 10, 10, 0, 10)
+	coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
 	ss := noding.NewSegmentString(coords, nil)
 
 	// Find which segment contains the midpoint of the second segment
@@ -163,13 +163,13 @@ func ExampleFindSegmentForCoordinate() {
 func ExampleIntersectionAdder() {
 	// Create a triangle
 	triangle := noding.NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 0, 10, 0, 5, 8, 0, 0),
+		mustCoordsXY(0, 0, 10, 0, 5, 8, 0, 0),
 		"triangle",
 	)
 
 	// Create a line that crosses the triangle
 	line := noding.NewNodedSegmentString(
-		geom.NewCoordinateSequenceXY(0, 4, 10, 4),
+		mustCoordsXY(0, 4, 10, 4),
 		"line",
 	)
 
