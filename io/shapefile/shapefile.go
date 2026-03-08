@@ -275,7 +275,7 @@ func WriteAll(filename string, geometries []geom.Geometry) error {
 	if err != nil {
 		return err
 	}
-	defer writer.Close()
+	defer writer.Close() //nolint:errcheck
 
 	for i, g := range geometries {
 		if err := writer.Write(g); err != nil {

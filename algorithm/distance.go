@@ -8,14 +8,6 @@ import (
 
 // Distance computes the minimum distance between two geometries.
 func Distance(g1, g2 geom.Geometry) float64 {
-	// Quick rejection using envelopes
-	env1 := g1.Envelope()
-	env2 := g2.Envelope()
-	if env1.Distance(env2) > 0 {
-		// Envelopes don't touch - can use envelope distance as lower bound
-		// but need to compute actual distance
-	}
-
 	return computeDistance(g1, g2)
 }
 
@@ -367,7 +359,6 @@ func closestPointsOnSegments(a1, a2, b1, b2 geom.Coordinate) (geom.Coordinate, g
 	}
 	c = geom.ClosestPointOnSegment(b2, a1, a2)
 	if d := b2.Distance(c); d < minDist {
-		minDist = d
 		best1, best2 = c, b2
 	}
 

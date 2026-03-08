@@ -186,7 +186,7 @@ func TestRegisterCustomCRS(t *testing.T) {
 	}
 
 	// Clean up
-	Unregister(customCode)
+	_ = Unregister(customCode)
 }
 
 // TestRegisterInvalidCode tests that registering a CRS with invalid code returns an error.
@@ -223,7 +223,7 @@ func TestUnregister(t *testing.T) {
 	}
 
 	// Register and then unregister
-	Register(customCRS)
+	_ = Register(customCRS)
 	err = Unregister(customCode)
 	if err != nil {
 		t.Fatalf("Unregister(%d) error: %v", customCode, err)
@@ -295,14 +295,14 @@ func TestCount(t *testing.T) {
 		t.Fatalf("Failed to create custom CRS: %v", err)
 	}
 
-	Register(customCRS)
+	_ = Register(customCRS)
 	newCount := Count()
 	if newCount != count+1 {
 		t.Errorf("Count() after Register() = %d, want %d", newCount, count+1)
 	}
 
 	// Clean up
-	Unregister(customCode)
+	_ = Unregister(customCode)
 }
 
 // TestIsRegistered tests the IsRegistered function.

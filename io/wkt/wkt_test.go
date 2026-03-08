@@ -362,6 +362,127 @@ func TestUnmarshalWithFactory(t *testing.T) {
 	assert.NotNil(t, g, "Expected non-nil geometry")
 }
 
+func TestUnmarshalTrailingTokensRejected(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		fail  bool
+	}{
+		{"trailing garbage after point", "POINT (1 2) garbage", true},
+		{"trailing whitespace OK", "POINT (1 2)  ", false},
+		{"trailing garbage after linestring", "LINESTRING (0 0, 1 1) extra", true},
+		{"trailing garbage after polygon", "POLYGON ((0 0, 1 0, 1 1, 0 0)) junk", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := wkt.UnmarshalString(tt.input)
+			if tt.fail {
+				assert.Error(t, err, "expected error for input: %s", tt.input)
+				assert.Contains(t, err.Error(), "unexpected content after geometry")
+			} else {
+				assert.NoError(t, err, "unexpected error for input: %s", tt.input)
+			}
+		})
+	}
+}
+
+func TestUnmarshalStrictDimensionArity(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		fail  bool
+	}{
+		// Z modifier: requires 3rd coordinate
+		{"POINT Z missing Z value", "POINT Z (1 2)", true},
+		{"POINT Z with Z value", "POINT Z (1 2 3)", false},
+
+		// M modifier: requires 3rd coordinate (as M)
+		{"POINT M missing M value", "POINT M (1 2)", true},
+		{"POINT M with M value", "POINT M (1 2 3)", false},
+
+		// ZM modifier: requires 3rd and 4th coordinate
+		{"POINT ZM missing both Z and M", "POINT ZM (1 2)", true},
+		{"POINT ZM missing M value", "POINT ZM (1 2 3)", true},
+		{"POINT ZM with Z and M", "POINT ZM (1 2 3 4)", false},
+
+		// Linestring variants
+		{"LINESTRING Z missing Z", "LINESTRING Z ((0 0, 1 1))", true},
+		{"LINESTRING Z with Z", "LINESTRING Z (0 0 1, 1 1 2)", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := wkt.UnmarshalString(tt.input)
+			if tt.fail {
+				assert.Error(t, err, "expected error for input: %s", tt.input)
+			} else {
+				assert.NoError(t, err, "unexpected error for input: %s", tt.input)
+			}
+		})
+	}
+}
+
+func TestUnmarshalAutoDetectDimensions(t *testing.T) {
+	t.Run("2D point", func(t *testing.T) {
+		g, err := wkt.UnmarshalString("POINT (1 2)")
+		require.NoError(t, err)
+		p := g.(*geom.Point)
+		assert.Equal(t, 1.0, p.X())
+		assert.Equal(t, 2.0, p.Y())
+		assert.False(t, p.Coordinate().HasZ())
+		assert.False(t, p.Coordinate().HasM())
+	})
+
+	t.Run("3D point auto-detect Z", func(t *testing.T) {
+		g, err := wkt.UnmarshalString("POINT (1 2 3)")
+		require.NoError(t, err)
+		p := g.(*geom.Point)
+		assert.Equal(t, 1.0, p.X())
+		assert.Equal(t, 2.0, p.Y())
+		assert.True(t, p.Coordinate().HasZ())
+		assert.Equal(t, 3.0, p.Coordinate().Z)
+	})
+
+	t.Run("4D point auto-detect ZM", func(t *testing.T) {
+		g, err := wkt.UnmarshalString("POINT (1 2 3 4)")
+		require.NoError(t, err)
+		p := g.(*geom.Point)
+		assert.Equal(t, 1.0, p.X())
+		assert.Equal(t, 2.0, p.Y())
+		assert.True(t, p.Coordinate().HasZ())
+		assert.Equal(t, 3.0, p.Coordinate().Z)
+		assert.True(t, p.Coordinate().HasM())
+		assert.Equal(t, 4.0, p.Coordinate().M)
+	})
+}
+
+func TestUnmarshalDimensionModifierValues(t *testing.T) {
+	t.Run("POINT Z stores Z correctly", func(t *testing.T) {
+		g, err := wkt.UnmarshalString("POINT Z (1 2 3)")
+		require.NoError(t, err)
+		p := g.(*geom.Point)
+		assert.Equal(t, 3.0, p.Coordinate().Z)
+		assert.True(t, p.Coordinate().HasZ())
+	})
+
+	t.Run("POINT M stores M correctly", func(t *testing.T) {
+		g, err := wkt.UnmarshalString("POINT M (1 2 3)")
+		require.NoError(t, err)
+		p := g.(*geom.Point)
+		assert.Equal(t, 3.0, p.Coordinate().M)
+		assert.True(t, p.Coordinate().HasM())
+	})
+
+	t.Run("POINT ZM stores both correctly", func(t *testing.T) {
+		g, err := wkt.UnmarshalString("POINT ZM (1 2 3 4)")
+		require.NoError(t, err)
+		p := g.(*geom.Point)
+		assert.Equal(t, 3.0, p.Coordinate().Z)
+		assert.Equal(t, 4.0, p.Coordinate().M)
+	})
+}
+
 func BenchmarkMarshalPoint(b *testing.B) {
 	p := geom.NewPoint(1.5, 2.5)
 	b.ResetTimer()
@@ -374,7 +495,7 @@ func BenchmarkUnmarshalPoint(b *testing.B) {
 	input := "POINT (1.5 2.5)"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		wkt.UnmarshalString(input)
+		_, _ = wkt.UnmarshalString(input)
 	}
 }
 
@@ -391,6 +512,6 @@ func BenchmarkUnmarshalPolygon(b *testing.B) {
 	input := "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		wkt.UnmarshalString(input)
+		_, _ = wkt.UnmarshalString(input)
 	}
 }

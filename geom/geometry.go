@@ -176,10 +176,3 @@ func Compare(a, b Geometry) int {
 	return 0
 }
 
-// checkSRIDCompatible checks if two geometries have compatible SRIDs.
-// Returns true if they are compatible (same SRID or one is 0).
-func checkSRIDCompatible(g1, g2 Geometry) bool {
-	srid1 := g1.SRID()
-	srid2 := g2.SRID()
-	return srid1 == srid2 || srid1 == 0 || srid2 == 0
-}

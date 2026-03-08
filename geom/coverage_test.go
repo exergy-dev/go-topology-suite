@@ -1195,7 +1195,7 @@ func TestCoordinateSequence_IsClosed(t *testing.T) {
 
 func TestNewCoordinateSequenceXY_OddPanics(t *testing.T) {
 	assert.Panics(t, func() {
-		geom.NewCoordinateSequenceXY(1, 2, 3)
+		geom.NewCoordinateSequenceXY(1, 2, 3) //nolint:staticcheck
 	}, "odd number of values should panic")
 }
 

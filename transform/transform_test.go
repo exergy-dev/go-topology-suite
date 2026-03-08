@@ -177,7 +177,7 @@ func BenchmarkIdentityTransform(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		identity.Forward(x, y)
+		_, _, _ = identity.Forward(x, y)
 	}
 }
 
@@ -187,7 +187,7 @@ func BenchmarkAffineTransform(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		affine.Forward(x, y)
+		_, _, _ = affine.Forward(x, y)
 	}
 }
 
@@ -201,7 +201,7 @@ func BenchmarkCompositeTransform(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		composite.Forward(x, y)
+		_, _, _ = composite.Forward(x, y)
 	}
 }
 

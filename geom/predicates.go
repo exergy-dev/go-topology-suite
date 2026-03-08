@@ -814,6 +814,17 @@ func PointInRing(p Coordinate, ring *LinearRing) bool {
 	return inside
 }
 
+// locateInMulti dispatches location queries across multi-geometry children using the given locator function.
+func locateInMulti(p Coordinate, g Geometry, locator func(Coordinate, Geometry) Location) Location {
+	for i := 0; i < g.NumGeometries(); i++ {
+		loc := locator(p, g.GeometryN(i))
+		if loc != LocationExterior {
+			return loc
+		}
+	}
+	return LocationExterior
+}
+
 func locatePointIn(p Coordinate, g Geometry) Location {
 	switch v := g.(type) {
 	case *Point:
@@ -855,30 +866,8 @@ func locatePointIn(p Coordinate, g Geometry) Location {
 			}
 		}
 		return LocationExterior
-	case *MultiLineString:
-		for i := 0; i < v.NumGeometries(); i++ {
-			loc := locatePointIn(p, v.GeometryN(i))
-			if loc != LocationExterior {
-				return loc
-			}
-		}
-		return LocationExterior
-	case *MultiPolygon:
-		for i := 0; i < v.NumGeometries(); i++ {
-			loc := locatePointIn(p, v.GeometryN(i))
-			if loc != LocationExterior {
-				return loc
-			}
-		}
-		return LocationExterior
-	case *GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			loc := locatePointIn(p, v.GeometryN(i))
-			if loc != LocationExterior {
-				return loc
-			}
-		}
-		return LocationExterior
+	case *MultiLineString, *MultiPolygon, *GeometryCollection:
+		return locateInMulti(p, g, locatePointIn)
 	}
 	return LocationExterior
 }
@@ -1013,9 +1002,10 @@ func lineCrossesArea(lineGeom, areaGeom Geometry) bool {
 			// Check endpoints
 			for _, c := range coords {
 				loc := pointInPolygon(c, poly)
-				if loc == LocationInterior {
+				switch loc {
+				case LocationInterior:
 					hasInterior = true
-				} else if loc == LocationExterior {
+				case LocationExterior:
 					hasExterior = true
 				}
 				if hasInterior && hasExterior {
@@ -1031,8 +1021,6 @@ func lineCrossesArea(lineGeom, areaGeom Geometry) bool {
 					for j := 1; j < len(shellCoords); j++ {
 						if segmentsCross(coords[i-1], coords[i], shellCoords[j-1], shellCoords[j]) {
 							// Line properly crosses polygon boundary = crosses interior
-							hasInterior = true
-							hasExterior = true
 							return true
 						}
 					}
@@ -1134,30 +1122,8 @@ func locatePointInSelf(p Coordinate, g Geometry) Location {
 			}
 		}
 		return LocationExterior
-	case *MultiLineString:
-		for i := 0; i < v.NumGeometries(); i++ {
-			loc := locatePointInSelf(p, v.GeometryN(i))
-			if loc != LocationExterior {
-				return loc
-			}
-		}
-		return LocationExterior
-	case *MultiPolygon:
-		for i := 0; i < v.NumGeometries(); i++ {
-			loc := locatePointInSelf(p, v.GeometryN(i))
-			if loc != LocationExterior {
-				return loc
-			}
-		}
-		return LocationExterior
-	case *GeometryCollection:
-		for i := 0; i < v.NumGeometries(); i++ {
-			loc := locatePointInSelf(p, v.GeometryN(i))
-			if loc != LocationExterior {
-				return loc
-			}
-		}
-		return LocationExterior
+	case *MultiLineString, *MultiPolygon, *GeometryCollection:
+		return locateInMulti(p, g, locatePointInSelf)
 	}
 	return LocationExterior
 }

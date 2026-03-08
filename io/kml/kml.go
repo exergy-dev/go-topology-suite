@@ -262,7 +262,7 @@ func parseKML(kml *KML, factory *geom.GeometryFactory) (geom.Geometry, error) {
 		if err != nil {
 			return nil, err
 		}
-		if g != nil && !g.IsEmpty() {
+		if !g.IsEmpty() {
 			geoms = append(geoms, g)
 		}
 	}

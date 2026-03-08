@@ -23,10 +23,8 @@ func FuzzBufferPoint(f *testing.F) {
 			t.Error("Buffer returned nil")
 		}
 
-		// If distance > 0, result should not be empty
-		if distance > geom.DefaultEpsilon && result.IsEmpty() {
-			// This is OK for very small or NaN distances
-		}
+		// If distance > 0, result should not be empty (but small/NaN distances may be)
+		_ = distance > geom.DefaultEpsilon && result.IsEmpty()
 	})
 }
 

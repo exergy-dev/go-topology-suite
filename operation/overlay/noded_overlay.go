@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"math"
+	"sort"
 
 	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
@@ -278,13 +279,9 @@ func mergeEdges(edges []*DirectedEdge) []*DirectedEdge {
 
 // sortEdges sorts edges by their start and end coordinates for deterministic ordering
 func sortEdges(edges []*DirectedEdge) {
-	for i := 0; i < len(edges)-1; i++ {
-		for j := i + 1; j < len(edges); j++ {
-			if compareEdges(edges[i], edges[j]) > 0 {
-				edges[i], edges[j] = edges[j], edges[i]
-			}
-		}
-	}
+	sort.Slice(edges, func(i, j int) bool {
+		return compareEdges(edges[i], edges[j]) < 0
+	})
 }
 
 // compareEdges compares two edges for sorting
@@ -388,9 +385,6 @@ func locateInPolygonSet(pt geom.Coordinate, polys []*geom.Polygon) geom.Location
 	}
 	return geom.LocationExterior
 }
-
-// debugEdgeSelection controls whether to print debug info for edge selection
-var debugEdgeSelection = false
 
 // selectEdges selects edges based on the overlay operation type.
 // This implements the core logic of overlay operations using proper DE-9IM topology.

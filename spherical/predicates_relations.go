@@ -54,18 +54,20 @@ func Touches(g1, g2 geom.Geometry) bool {
 
 	for _, c := range coords1 {
 		loc := locatePointSpherical(c, g2)
-		if loc == geom.LocationBoundary {
+		switch loc {
+		case geom.LocationBoundary:
 			hasCommonPoint = true
-		} else if loc == geom.LocationInterior {
+		case geom.LocationInterior:
 			return false
 		}
 	}
 
 	for _, c := range coords2 {
 		loc := locatePointSpherical(c, g1)
-		if loc == geom.LocationBoundary {
+		switch loc {
+		case geom.LocationBoundary:
 			hasCommonPoint = true
-		} else if loc == geom.LocationInterior {
+		case geom.LocationInterior:
 			return false
 		}
 	}

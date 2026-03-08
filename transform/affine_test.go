@@ -301,7 +301,7 @@ func BenchmarkAffineTranslation(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		affine.Forward(x, y)
+		_, _, _ = affine.Forward(x, y)
 	}
 }
 
@@ -311,7 +311,7 @@ func BenchmarkAffineScale(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		affine.Forward(x, y)
+		_, _, _ = affine.Forward(x, y)
 	}
 }
 
@@ -321,7 +321,7 @@ func BenchmarkAffineRotation(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		affine.Forward(x, y)
+		_, _, _ = affine.Forward(x, y)
 	}
 }
 

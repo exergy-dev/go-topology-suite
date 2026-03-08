@@ -357,11 +357,6 @@ func (n *node) addEdge(e *edge) {
 	n.edges = append(n.edges, e)
 }
 
-// degree returns the number of edges connected to this node.
-func (n *node) degree() int {
-	return len(n.edges)
-}
-
 // edge represents a LineString in the graph.
 type edge struct {
 	line       *geom.LineString

@@ -446,8 +446,8 @@ func TestGeometry_UnmarshalJSON_SRID(t *testing.T) {
 			require.NoError(t, err, "Failed to unmarshal %s", tc.name)
 			require.NotNil(t, g.Geometry, "Geometry should not be nil")
 
-			assert.Equal(t, tc.gtype, g.Geometry.GeometryType(), "Expected geometry type %s", tc.gtype)
-			assert.Equal(t, SRID4326, g.Geometry.SRID(), "Expected SRID 4326 for %s", tc.name)
+			assert.Equal(t, tc.gtype, g.GeometryType(), "Expected geometry type %s", tc.gtype)
+			assert.Equal(t, SRID4326, g.SRID(), "Expected SRID 4326 for %s", tc.name)
 		})
 	}
 }

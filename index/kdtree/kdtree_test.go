@@ -427,7 +427,7 @@ func TestEmptyTree(t *testing.T) {
 
 	// Query empty tree
 	results := tree.Query(geom.NewEnvelope(0, 0, 10, 10))
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Error("Expected nil or empty results from empty tree")
 	}
 
@@ -439,13 +439,13 @@ func TestEmptyTree(t *testing.T) {
 
 	// NearestK on empty tree
 	results = tree.NearestK(0, 0, 5)
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Error("Expected nil or empty results from NearestK on empty tree")
 	}
 
 	// Items on empty tree
 	items := tree.Items()
-	if items != nil && len(items) != 0 {
+	if len(items) != 0 {
 		t.Error("Expected nil or empty items from empty tree")
 	}
 }

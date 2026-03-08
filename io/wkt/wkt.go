@@ -84,7 +84,15 @@ func UnmarshalStringWithFactory(wkt string, factory *geom.GeometryFactory) (geom
 		pos:     0,
 		factory: factory,
 	}
-	return p.parse()
+	g, err := p.parse()
+	if err != nil {
+		return nil, err
+	}
+	p.skipWhitespace()
+	if !p.atEnd() {
+		return nil, fmt.Errorf("unexpected content after geometry at position %d", p.pos)
+	}
+	return g, nil
 }
 
 // UnmarshalWithFactory unmarshals WKT bytes using a custom geometry factory.
@@ -787,18 +795,57 @@ func (p *parser) parseCoordinate() (geom.Coordinate, error) {
 
 	coord := geom.NewCoordinate(x, y)
 
-	p.skipWhitespace()
-	if p.hasZ || p.hasM || p.isDigitOrSign() {
+	// When modifier is set, enforce strict arity
+	if p.hasZ && p.hasM {
+		// ZM: require exactly 2 more numbers
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate for ZM geometry at position %d", p.pos)
+		}
+		z, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate: %w", err)
+		}
+		coord.Z = z
+
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate for ZM geometry at position %d", p.pos)
+		}
+		m, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate: %w", err)
+		}
+		coord.M = m
+	} else if p.hasZ {
+		// Z: require exactly 1 more number
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate for Z geometry at position %d", p.pos)
+		}
+		z, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected Z coordinate: %w", err)
+		}
+		coord.Z = z
+	} else if p.hasM {
+		// M: require exactly 1 more number (stored as M)
+		p.skipWhitespace()
+		if !p.isDigitOrSign() {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate for M geometry at position %d", p.pos)
+		}
+		m, err := p.parseNumber()
+		if err != nil {
+			return geom.Coordinate{}, fmt.Errorf("expected M coordinate: %w", err)
+		}
+		coord.M = m
+	} else {
+		// No modifier: auto-detect extra coords (backward compat)
+		p.skipWhitespace()
 		if p.isDigitOrSign() {
 			z, err := p.parseNumber()
 			if err == nil {
-				if p.hasZ {
-					coord.Z = z
-				} else if p.hasM {
-					coord.M = z
-				} else {
-					coord.Z = z
-				}
+				coord.Z = z
 
 				p.skipWhitespace()
 				if p.isDigitOrSign() {
@@ -892,7 +939,7 @@ func (p *parser) matchWord(word string) bool {
 	if p.pos+len(word) > len(p.input) {
 		return false
 	}
-	if strings.ToUpper(p.input[p.pos:p.pos+len(word)]) == strings.ToUpper(word) {
+	if strings.EqualFold(p.input[p.pos:p.pos+len(word)], word) {
 		if p.pos+len(word) < len(p.input) && unicode.IsLetter(rune(p.input[p.pos+len(word)])) {
 			return false
 		}

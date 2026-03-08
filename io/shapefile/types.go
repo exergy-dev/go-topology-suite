@@ -151,7 +151,7 @@ func InferShapeType(geometries []geom.Geometry) ShapeType {
 	}
 
 	// Find first non-nil, non-empty geometry
-	var firstType ShapeType = ShapeTypeNull
+	firstType := ShapeTypeNull
 	for _, g := range geometries {
 		if g != nil && !g.IsEmpty() {
 			firstType = GeometryToShapeType(g)

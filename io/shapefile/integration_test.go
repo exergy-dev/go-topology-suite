@@ -16,7 +16,7 @@ func TestIntegration_RealShapefile(t *testing.T) {
 
 	reader, err := NewReader(filename)
 	require.NoError(t, err, "Failed to open shapefile")
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	// Verify shapefile properties
 	assert.Equal(t, ShapeTypePolygon, reader.ShapeType(), "Expected polygon shapefile")
@@ -90,7 +90,7 @@ func TestIntegration_ReadAllFields(t *testing.T) {
 
 	reader, err := NewReader(filename)
 	require.NoError(t, err)
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	// Get and verify fields
 	fields := reader.Fields()
@@ -119,7 +119,7 @@ func TestIntegration_BoundingBox(t *testing.T) {
 
 	reader, err := NewReader(filename)
 	require.NoError(t, err)
-	defer reader.Close()
+	defer reader.Close() //nolint:errcheck
 
 	bbox := reader.BoundingBox()
 	require.NotNil(t, bbox, "BoundingBox should not be nil")

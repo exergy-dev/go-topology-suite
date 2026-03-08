@@ -10,8 +10,8 @@ import (
 // A negative precision uses Go's default %g formatting.
 func WriteNumber(sb *strings.Builder, n float64, precision int) {
 	if precision < 0 {
-		sb.WriteString(fmt.Sprintf("%g", n))
+		fmt.Fprintf(sb, "%g", n)
 	} else {
-		sb.WriteString(fmt.Sprintf("%.*f", precision, n))
+		fmt.Fprintf(sb, "%.*f", precision, n)
 	}
 }

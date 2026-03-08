@@ -9,7 +9,7 @@ import (
 
 // MarshalJSON implements json.Marshaler for Geometry.
 func (g Geometry) MarshalJSON() ([]byte, error) {
-	if g.Geometry == nil || g.Geometry.IsEmpty() {
+	if g.Geometry == nil || g.IsEmpty() {
 		return json.Marshal(nil)
 	}
 	return json.Marshal(geometryToMap(g.Geometry))
@@ -383,7 +383,7 @@ func parsePoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Poin
 	}
 
 	if len(coords) < 2 {
-		return nil, fmt.Errorf("Point requires at least 2 coordinates")
+		return nil, fmt.Errorf("point requires at least 2 coordinates")
 	}
 
 	coord := geom.NewCoordinate(coords[0], coords[1])

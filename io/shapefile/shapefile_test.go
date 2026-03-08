@@ -596,7 +596,7 @@ func TestFeatureIterator(t *testing.T) {
 		err = writer.WriteFeature(f)
 		require.NoError(t, err)
 	}
-	writer.Close()
+	_ = writer.Close()
 
 	// Read back using iterator
 	count := 0
@@ -634,7 +634,7 @@ func TestFields(t *testing.T) {
 	}
 	err = writer.WriteFeature(f)
 	require.NoError(t, err)
-	writer.Close()
+	_ = writer.Close()
 
 	// Read back and verify fields
 	reader, err := NewReader(filename)
@@ -704,9 +704,9 @@ func BenchmarkWritePoints(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		filename := filepath.Join(tmpDir, "bench.shp")
 		WriteAll(filename, points)
-		os.Remove(filename)
-		os.Remove(filename[:len(filename)-4] + ".shx")
-		os.Remove(filename[:len(filename)-4] + ".dbf")
+		_ = os.Remove(filename)
+		_ = os.Remove(filename[:len(filename)-4] + ".shx")
+		_ = os.Remove(filename[:len(filename)-4] + ".dbf")
 	}
 }
 

@@ -32,10 +32,7 @@ func PolygonArea(lats, lons []float64, e *Ellipsoid) float64 {
 	}
 
 	// Check if polygon is closed; if not, we'll close it for calculation
-	closed := false
-	if lats[0] == lats[n-1] && lons[0] == lons[n-1] {
-		closed = true
-	}
+	closed := lats[0] == lats[n-1] && lons[0] == lons[n-1]
 
 	// For better accuracy on ellipsoid, we use the authalic sphere radius
 	// and apply the eccentricity correction
@@ -109,10 +106,7 @@ func SphericalPolygonArea(lats, lons []float64, radius float64) float64 {
 	}
 
 	// Check if polygon is closed
-	closed := false
-	if lats[0] == lats[n-1] && lons[0] == lons[n-1] {
-		closed = true
-	}
+	closed := lats[0] == lats[n-1] && lons[0] == lons[n-1]
 
 	// Convert to radians and store in 3D Cartesian coordinates for robustness
 	type vec3 struct{ x, y, z float64 }
@@ -215,10 +209,7 @@ func SignedPolygonArea(lats, lons []float64, e *Ellipsoid) float64 {
 	}
 
 	// Check if polygon is closed
-	closed := false
-	if lats[0] == lats[n-1] && lons[0] == lons[n-1] {
-		closed = true
-	}
+	closed := lats[0] == lats[n-1] && lons[0] == lons[n-1]
 
 	eSq := e.EccentricitySquared()
 	R := e.a * math.Sqrt((1-eSq)/2 * (1 + 1/(1-eSq) *

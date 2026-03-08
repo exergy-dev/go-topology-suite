@@ -118,32 +118,6 @@ type MultiGeometry struct {
 	MultiGeometries []*MultiGeometry `xml:"MultiGeometry,omitempty"`
 }
 
-// hasGeometry returns true if the Placemark contains any geometry.
-func (p *Placemark) hasGeometry() bool {
-	return p.Point != nil || p.LineString != nil || p.LinearRing != nil ||
-		p.Polygon != nil || p.MultiGeometry != nil
-}
-
-// getGeometry returns the first non-nil geometry element.
-func (p *Placemark) getGeometry() interface{} {
-	if p.Point != nil {
-		return p.Point
-	}
-	if p.LineString != nil {
-		return p.LineString
-	}
-	if p.LinearRing != nil {
-		return p.LinearRing
-	}
-	if p.Polygon != nil {
-		return p.Polygon
-	}
-	if p.MultiGeometry != nil {
-		return p.MultiGeometry
-	}
-	return nil
-}
-
 // Feature represents a KML feature with geometry and properties.
 type Feature struct {
 	ID          string
