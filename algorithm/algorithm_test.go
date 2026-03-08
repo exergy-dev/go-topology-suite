@@ -167,11 +167,11 @@ func TestIsPointInRing(t *testing.T) {
 	ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 
 	t.Run("Inside", func(t *testing.T) {
-		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(5, 5), ring), "Expected point to be inside ring")
+		assert.True(t, geom.PointInRing(geom.NewCoordinate(5, 5), ring), "Expected point to be inside ring")
 	})
 
 	t.Run("Outside", func(t *testing.T) {
-		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(15, 5), ring), "Expected point to be outside ring")
+		assert.False(t, geom.PointInRing(geom.NewCoordinate(15, 5), ring), "Expected point to be outside ring")
 	})
 }
 
@@ -182,7 +182,7 @@ func TestSegmentsIntersect(t *testing.T) {
 		b1 := geom.NewCoordinate(0, 10)
 		b2 := geom.NewCoordinate(10, 0)
 
-		assert.True(t, algorithm.SegmentsIntersect(a1, a2, b1, b2), "Expected segments to intersect")
+		assert.True(t, geom.SegmentsIntersect(a1, a2, b1, b2), "Expected segments to intersect")
 	})
 
 	t.Run("NotIntersecting", func(t *testing.T) {
@@ -191,6 +191,6 @@ func TestSegmentsIntersect(t *testing.T) {
 		b1 := geom.NewCoordinate(10, 0)
 		b2 := geom.NewCoordinate(15, 0)
 
-		assert.False(t, algorithm.SegmentsIntersect(a1, a2, b1, b2), "Expected segments to not intersect")
+		assert.False(t, geom.SegmentsIntersect(a1, a2, b1, b2), "Expected segments to not intersect")
 	})
 }

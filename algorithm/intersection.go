@@ -206,7 +206,7 @@ func ProjectPointOntoLine(p, lineStart, lineEnd geom.Coordinate) geom.Coordinate
 
 // ProjectPointOntoSegment projects a point onto a line segment.
 func ProjectPointOntoSegment(p, segStart, segEnd geom.Coordinate) geom.Coordinate {
-	return closestPointOnSegmentCoord(p, segStart, segEnd)
+	return geom.ClosestPointOnSegment(p, segStart, segEnd)
 }
 
 // ReflectPointOverLine reflects a point over a line.

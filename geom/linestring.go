@@ -502,7 +502,7 @@ func (ls *LineString) ClosestPoint(c Coordinate) *Point {
 	var closest Coordinate
 
 	for i := 1; i < len(ls.coords); i++ {
-		p := closestPointOnSegment(c, ls.coords[i-1], ls.coords[i])
+		p := ClosestPointOnSegment(c, ls.coords[i-1], ls.coords[i])
 		dist := c.Distance(p)
 		if dist < minDist {
 			minDist = dist
@@ -513,16 +513,21 @@ func (ls *LineString) ClosestPoint(c Coordinate) *Point {
 	return NewPointFromCoordinate(closest)
 }
 
-func closestPointOnSegment(p, a, b Coordinate) Coordinate {
+// ClosestPointOnSegment returns the closest point on segment (a,b) to point p.
+func ClosestPointOnSegment(p, a, b Coordinate) Coordinate {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
 
-	if dx == 0 && dy == 0 {
+	if a.Equals2D(b, DefaultEpsilon) {
 		return a
 	}
 
 	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / (dx*dx + dy*dy)
-	t = math.Max(0, math.Min(1, t))
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
 
 	return NewCoordinate(a.X+t*dx, a.Y+t*dy)
 }

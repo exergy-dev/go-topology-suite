@@ -308,20 +308,20 @@ func TestIsPointInRingEdgeCases(t *testing.T) {
 	// Test with very small ring
 	t.Run("SmallRing", func(t *testing.T) {
 		ring := geom.NewLinearRingXY(0, 0, 1, 0, 0, 1, 0, 0)
-		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(0.25, 0.25), ring), "Expected point to be inside small ring")
+		assert.True(t, geom.PointInRing(geom.NewCoordinate(0.25, 0.25), ring), "Expected point to be inside small ring")
 	})
 
 	// Test with degenerate ring (less than 4 points)
 	t.Run("DegenerateRing", func(t *testing.T) {
 		ring := geom.NewLinearRing(geom.NewCoordinateSequenceXY(0, 0, 1, 0, 0, 0))
-		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(0.5, 0.5), ring), "Expected point to be outside degenerate ring")
+		assert.False(t, geom.PointInRing(geom.NewCoordinate(0.5, 0.5), ring), "Expected point to be outside degenerate ring")
 	})
 
 	// Test point on vertex
 	t.Run("PointOnVertex", func(t *testing.T) {
 		ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 		// Point on vertex - behavior depends on ray casting implementation
-		result := algorithm.IsPointInRing(geom.NewCoordinate(0, 0), ring)
+		result := geom.PointInRing(geom.NewCoordinate(0, 0), ring)
 		// Result can be either true or false depending on implementation
 		_ = result
 	})
@@ -331,8 +331,8 @@ func TestIsPointInRingEdgeCases(t *testing.T) {
 		// L-shaped polygon
 		ring := geom.NewLinearRingXY(0, 0, 10, 0, 10, 5, 5, 5, 5, 10, 0, 10, 0, 0)
 		// Point in the concave part
-		assert.False(t, algorithm.IsPointInRing(geom.NewCoordinate(7, 7), ring), "Expected point to be outside concave part")
+		assert.False(t, geom.PointInRing(geom.NewCoordinate(7, 7), ring), "Expected point to be outside concave part")
 		// Point definitely inside
-		assert.True(t, algorithm.IsPointInRing(geom.NewCoordinate(2, 2), ring), "Expected point to be inside")
+		assert.True(t, geom.PointInRing(geom.NewCoordinate(2, 2), ring), "Expected point to be inside")
 	})
 }

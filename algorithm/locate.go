@@ -71,7 +71,7 @@ func pointLocationInRing(p geom.Coordinate, ring *geom.LinearRing) geom.Location
 	}
 
 	// Check if inside
-	if IsPointInRing(p, ring) {
+	if geom.PointInRing(p, ring) {
 		return geom.LocationInterior
 	}
 
@@ -97,13 +97,13 @@ func PointLocationInPolygon(p geom.Coordinate, poly *geom.Polygon) geom.Location
 	}
 
 	// Check if inside shell
-	if !IsPointInRing(p, poly.ExteriorRing()) {
+	if !geom.PointInRing(p, poly.ExteriorRing()) {
 		return geom.LocationExterior
 	}
 
 	// Check if inside any hole
 	for i := 0; i < poly.NumInteriorRings(); i++ {
-		if IsPointInRing(p, poly.InteriorRingN(i)) {
+		if geom.PointInRing(p, poly.InteriorRingN(i)) {
 			return geom.LocationExterior
 		}
 	}
@@ -164,11 +164,6 @@ func pointLocationInCollection(p geom.Coordinate, gc *geom.GeometryCollection) g
 		}
 	}
 	return geom.LocationExterior
-}
-
-// IsPointInRing determines if a point is inside a ring using the ray casting algorithm.
-func IsPointInRing(p geom.Coordinate, ring *geom.LinearRing) bool {
-	return geom.PointInRing(p, ring)
 }
 
 // LocatePointInTriangle determines the location of a point relative to a triangle.
