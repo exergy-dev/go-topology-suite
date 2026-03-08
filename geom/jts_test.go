@@ -449,7 +449,7 @@ func TestJTS_PrecisionModel_Floating(t *testing.T) {
 // TestJTS_GeometryFactory_WithPrecision tests geometry factory with precision model.
 func TestJTS_GeometryFactory_WithPrecision(t *testing.T) {
 	pm := geom.NewFixedPrecision(10) // 1 decimal place
-	factory := geom.NewGeometryFactoryWithPrecision(pm)
+	factory := geom.NewGeometryFactory(pm, 0)
 
 	point := factory.CreatePoint(1.23456, 2.34567)
 

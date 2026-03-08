@@ -107,18 +107,6 @@ func (c Coordinate) Distance(other Coordinate) float64 {
 	return math.Sqrt(dx*dx + dy*dy)
 }
 
-// Distance3D returns the 3D Euclidean distance to another coordinate.
-// Returns 2D distance if either coordinate lacks a Z value.
-func (c Coordinate) Distance3D(other Coordinate) float64 {
-	if !c.HasZ() || !other.HasZ() {
-		return c.Distance(other)
-	}
-	dx := c.X - other.X
-	dy := c.Y - other.Y
-	dz := c.Z - other.Z
-	return math.Sqrt(dx*dx + dy*dy + dz*dz)
-}
-
 // IsNaN returns true if any of the X or Y values are NaN.
 func (c Coordinate) IsNaN() bool {
 	return math.IsNaN(c.X) || math.IsNaN(c.Y)
@@ -286,34 +274,3 @@ func (cs CoordinateSequence) Envelope() *Envelope {
 	return env
 }
 
-// RemoveRepeatedPoints returns a new sequence with consecutive duplicate points removed.
-func (cs CoordinateSequence) RemoveRepeatedPoints(epsilon float64) CoordinateSequence {
-	if len(cs) <= 1 {
-		return cs.Clone()
-	}
-
-	result := make(CoordinateSequence, 0, len(cs))
-	result = append(result, cs[0].Clone())
-
-	for i := 1; i < len(cs); i++ {
-		if !cs[i].Equals2D(cs[i-1], epsilon) {
-			result = append(result, cs[i].Clone())
-		}
-	}
-
-	return result
-}
-
-// SubSequence returns a new sequence containing coordinates from start to end (exclusive).
-func (cs CoordinateSequence) SubSequence(start, end int) CoordinateSequence {
-	if start < 0 {
-		start = 0
-	}
-	if end > len(cs) {
-		end = len(cs)
-	}
-	if start >= end {
-		return CoordinateSequence{}
-	}
-	return cs[start:end].Clone()
-}

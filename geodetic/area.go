@@ -69,18 +69,6 @@ func PolygonArea(lats, lons []float64, e *Ellipsoid) float64 {
 	return area
 }
 
-// PolygonAreaWGS84 calculates the geodetic area of a polygon using the WGS84
-// ellipsoid.
-//
-// Parameters:
-//   - lats: array of latitude values in degrees
-//   - lons: array of longitude values in degrees
-//
-// Returns the area in square meters.
-func PolygonAreaWGS84(lats, lons []float64) float64 {
-	return PolygonArea(lats, lons, WGS84)
-}
-
 // SphericalPolygonArea calculates the area of a polygon on a sphere using
 // the spherical excess formula. This is faster but less accurate than the
 // ellipsoidal calculation.
@@ -149,18 +137,6 @@ func SphericalPolygonArea(lats, lons []float64, radius float64) float64 {
 	area = math.Abs(area) * radius * radius / 2
 
 	return area
-}
-
-// SphericalPolygonAreaMeanRadius calculates the area of a polygon using
-// the mean Earth radius.
-//
-// Parameters:
-//   - lats: array of latitude values in degrees
-//   - lons: array of longitude values in degrees
-//
-// Returns the area in square meters.
-func SphericalPolygonAreaMeanRadius(lats, lons []float64) float64 {
-	return SphericalPolygonArea(lats, lons, EarthMeanRadius)
 }
 
 // geographicToAuthalic converts a geographic latitude to an authalic latitude.

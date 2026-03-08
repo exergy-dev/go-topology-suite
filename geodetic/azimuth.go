@@ -31,22 +31,6 @@ func InitialBearing(lat1, lon1, lat2, lon2 float64) float64 {
 	return normalizeAzimuth(rad2deg(θ))
 }
 
-// FinalBearing calculates the final bearing (reverse azimuth) when arriving at
-// the second point from the first point along the great circle path.
-//
-// Parameters:
-//   - lat1, lon1: latitude and longitude of first point in degrees
-//   - lat2, lon2: latitude and longitude of second point in degrees
-//
-// Returns the final bearing in degrees (0-360).
-//
-// The final bearing is the initial bearing from point 2 to point 1, reversed.
-func FinalBearing(lat1, lon1, lat2, lon2 float64) float64 {
-	// The final bearing is the reverse of the initial bearing from point 2 to point 1
-	bearing := InitialBearing(lat2, lon2, lat1, lon1)
-	return normalizeAzimuth(bearing + 180)
-}
-
 // Inverse solves the inverse geodesic problem: given two points, calculate
 // the distance between them and the forward and reverse azimuths.
 //
@@ -159,17 +143,3 @@ func Inverse(lat1, lon1, lat2, lon2 float64, e *Ellipsoid) (distance, azimuth1, 
 	return s, azimuth1, azimuth2, nil
 }
 
-// InverseWGS84 solves the inverse geodesic problem using the WGS84 ellipsoid.
-//
-// Parameters:
-//   - lat1, lon1: latitude and longitude of first point in degrees
-//   - lat2, lon2: latitude and longitude of second point in degrees
-//
-// Returns:
-//   - distance: geodesic distance in meters
-//   - azimuth1: forward azimuth at first point in degrees (0-360)
-//   - azimuth2: forward azimuth at second point in degrees (0-360)
-//   - err: error if calculation fails
-func InverseWGS84(lat1, lon1, lat2, lon2 float64) (distance, azimuth1, azimuth2 float64, err error) {
-	return Inverse(lat1, lon1, lat2, lon2, WGS84)
-}

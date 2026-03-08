@@ -41,26 +41,10 @@ func (t UnitType) String() string {
 	}
 }
 
-// ToMetres returns the conversion factor from this unit to metres.
-// For angular units, returns 1.0 (no meaningful conversion).
-func (u Unit) ToMetres() float64 {
-	return u.toMetres
-}
-
 // ToDegrees returns the conversion factor from this unit to degrees.
 // For linear units, returns 1.0 (no meaningful conversion).
 func (u Unit) ToDegrees() float64 {
 	return u.toDegrees
-}
-
-// IsLinear returns true if this is a linear (distance) unit.
-func (u Unit) IsLinear() bool {
-	return u.Type == Linear
-}
-
-// IsAngular returns true if this is an angular unit.
-func (u Unit) IsAngular() bool {
-	return u.Type == Angular
 }
 
 // Common angular units.

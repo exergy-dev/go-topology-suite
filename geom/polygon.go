@@ -175,16 +175,6 @@ func NewPolygon(shell *LinearRing, holes []*LinearRing) *Polygon {
 	}
 }
 
-// NewPolygonFromCoords creates a Polygon from coordinate sequences.
-func NewPolygonFromCoords(shell CoordinateSequence, holes ...CoordinateSequence) *Polygon {
-	shellRing := NewLinearRing(shell)
-	holeRings := make([]*LinearRing, len(holes))
-	for i, h := range holes {
-		holeRings[i] = NewLinearRing(h)
-	}
-	return NewPolygon(shellRing, holeRings)
-}
-
 // NewPolygonEmpty creates an empty Polygon.
 func NewPolygonEmpty() *Polygon {
 	return &Polygon{

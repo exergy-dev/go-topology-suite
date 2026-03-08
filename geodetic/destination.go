@@ -27,21 +27,6 @@ func DestinationPoint(lat, lon, bearing, distance float64, e *Ellipsoid) (lat2, 
 	return lat2, lon2
 }
 
-// DestinationPointWGS84 calculates the destination point using the WGS84 ellipsoid.
-//
-// Parameters:
-//   - lat: latitude of starting point in degrees
-//   - lon: longitude of starting point in degrees
-//   - bearing: initial bearing in degrees (0-360)
-//   - distance: distance to travel in meters
-//
-// Returns:
-//   - lat2: latitude of destination point in degrees
-//   - lon2: longitude of destination point in degrees
-func DestinationPointWGS84(lat, lon, bearing, distance float64) (lat2, lon2 float64) {
-	return DestinationPoint(lat, lon, bearing, distance, WGS84)
-}
-
 // Direct solves the direct geodesic problem: given a starting point, initial
 // azimuth, and distance, calculate the destination point and final azimuth.
 //
@@ -136,23 +121,6 @@ func Direct(lat1, lon1, azimuth1, distance float64, e *Ellipsoid) (lat2, lon2, a
 	azimuth2 = normalizeAzimuth(rad2deg(α2))
 
 	return lat2, lon2, azimuth2, nil
-}
-
-// DirectWGS84 solves the direct geodesic problem using the WGS84 ellipsoid.
-//
-// Parameters:
-//   - lat1: latitude of starting point in degrees
-//   - lon1: longitude of starting point in degrees
-//   - azimuth1: initial azimuth in degrees (0-360)
-//   - distance: distance to travel in meters
-//
-// Returns:
-//   - lat2: latitude of destination point in degrees
-//   - lon2: longitude of destination point in degrees
-//   - azimuth2: final azimuth at destination point in degrees (0-360)
-//   - err: error if calculation fails
-func DirectWGS84(lat1, lon1, azimuth1, distance float64) (lat2, lon2, azimuth2 float64, err error) {
-	return Direct(lat1, lon1, azimuth1, distance, WGS84)
 }
 
 // destinationPointSpherical calculates the destination point using spherical

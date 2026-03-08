@@ -2,7 +2,6 @@ package geom
 
 import (
 	"fmt"
-	"math"
 	"strings"
 )
 
@@ -385,11 +384,6 @@ func (ls *LineString) IsClosed() bool {
 	return ls.coords.IsClosed(DefaultEpsilon)
 }
 
-// IsRing returns true if the linestring is closed and simple.
-func (ls *LineString) IsRing() bool {
-	return ls.IsClosed() && ls.IsSimple()
-}
-
 // Length returns the length of the linestring.
 func (ls *LineString) Length() float64 {
 	if len(ls.coords) < 2 {
@@ -407,57 +401,6 @@ func (ls *LineString) Reverse() *LineString {
 	reversed := NewLineString(ls.coords.Reverse())
 	reversed.srid = ls.srid
 	return reversed
-}
-
-// CoordinateN returns the nth coordinate (0-indexed).
-func (ls *LineString) CoordinateN(n int) Coordinate {
-	return ls.coords[n]
-}
-
-// SegmentLength returns the length of the nth segment (0-indexed).
-func (ls *LineString) SegmentLength(n int) float64 {
-	if n < 0 || n >= len(ls.coords)-1 {
-		return 0
-	}
-	return ls.coords[n].Distance(ls.coords[n+1])
-}
-
-// PointAlong returns the point at the given fraction along the linestring.
-// Fraction should be between 0 and 1.
-func (ls *LineString) PointAlong(fraction float64) *Point {
-	if ls.IsEmpty() {
-		return NewPointEmpty()
-	}
-	if fraction <= 0 {
-		return ls.StartPoint()
-	}
-	if fraction >= 1 {
-		return ls.EndPoint()
-	}
-
-	totalLength := ls.Length()
-	if totalLength == 0 {
-		return NewPointFromCoordinate(ls.coords.First())
-	}
-	targetLength := totalLength * fraction
-
-	currentLength := 0.0
-	for i := 1; i < len(ls.coords); i++ {
-		segmentLength := ls.coords[i-1].Distance(ls.coords[i])
-		if segmentLength == 0 {
-			continue
-		}
-		if currentLength+segmentLength >= targetLength {
-			// Interpolate within this segment
-			segmentFraction := (targetLength - currentLength) / segmentLength
-			x := ls.coords[i-1].X + segmentFraction*(ls.coords[i].X-ls.coords[i-1].X)
-			y := ls.coords[i-1].Y + segmentFraction*(ls.coords[i].Y-ls.coords[i-1].Y)
-			return NewPoint(x, y)
-		}
-		currentLength += segmentLength
-	}
-
-	return ls.EndPoint()
 }
 
 // Centroid returns the centroid of the linestring.
@@ -486,27 +429,6 @@ func (ls *LineString) Centroid() *Point {
 	}
 
 	return NewPoint(sumX/totalLength, sumY/totalLength)
-}
-
-// ClosestPoint returns the point on this linestring closest to the given coordinate.
-func (ls *LineString) ClosestPoint(c Coordinate) *Point {
-	if ls.IsEmpty() {
-		return NewPointEmpty()
-	}
-
-	minDist := math.MaxFloat64
-	var closest Coordinate
-
-	for i := 1; i < len(ls.coords); i++ {
-		p := ClosestPointOnSegment(c, ls.coords[i-1], ls.coords[i])
-		dist := c.Distance(p)
-		if dist < minDist {
-			minDist = dist
-			closest = p
-		}
-	}
-
-	return NewPointFromCoordinate(closest)
 }
 
 // ClosestPointOnSegment returns the closest point on segment (a,b) to point p.

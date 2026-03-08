@@ -161,11 +161,6 @@ func (ia *IntersectionAdder) HasProperIntersection() bool {
 	return ia.hasProperIntersection
 }
 
-// HasProperInteriorIntersection returns true if any proper interior intersection was found.
-func (ia *IntersectionAdder) HasProperInteriorIntersection() bool {
-	return ia.hasProperInteriorIntersection
-}
-
 // ProperIntersectionCount returns the number of proper intersections found.
 func (ia *IntersectionAdder) ProperIntersectionCount() int {
 	return ia.properIntersectionCount

@@ -182,15 +182,3 @@ func (p *Point) String() string {
 	return fmt.Sprintf("POINT (%g %g)", p.coord.X, p.coord.Y)
 }
 
-// Distance returns the distance to another point.
-func (p *Point) Distance(other *Point) float64 {
-	if p.isEmpty || other.isEmpty {
-		return 0
-	}
-	return p.coord.Distance(other.coord)
-}
-
-// Equals returns true if the points are equal within the default epsilon.
-func (p *Point) Equals(other *Point) bool {
-	return p.EqualsExact(other, DefaultEpsilon)
-}

@@ -122,7 +122,7 @@ func TestPoint_EdgeCases(t *testing.T) {
 	t.Run("Distance", func(t *testing.T) {
 		p1 := geom.NewPoint(0, 0)
 		p2 := geom.NewPoint(3, 4)
-		dist := p1.Distance(p2)
+		dist := p1.Coordinate().Distance(p2.Coordinate())
 		if dist != 5.0 {
 			t.Errorf("Expected distance 5, got %f", dist)
 		}

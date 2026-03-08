@@ -43,18 +43,6 @@ func Distance(lat1, lon1, lat2, lon2 float64, e *Ellipsoid) float64 {
 	return dist
 }
 
-// DistanceWGS84 calculates the geodesic distance between two points using
-// the WGS84 ellipsoid.
-//
-// Parameters:
-//   - lat1, lon1: latitude and longitude of first point in degrees
-//   - lat2, lon2: latitude and longitude of second point in degrees
-//
-// Returns the distance in meters.
-func DistanceWGS84(lat1, lon1, lat2, lon2 float64) float64 {
-	return Distance(lat1, lon1, lat2, lon2, WGS84)
-}
-
 // Vincenty calculates the geodesic distance between two points using
 // Vincenty's inverse formula. This is accurate to within 0.5mm on the
 // Earth ellipsoid.
