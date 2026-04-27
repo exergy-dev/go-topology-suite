@@ -316,6 +316,9 @@ func parsePoint(pt *Point, factory *geom.GeometryFactory) (*geom.Point, error) {
 	if len(coords) == 0 {
 		return factory.CreatePointEmpty(), nil
 	}
+	if len(coords) != 1 {
+		return nil, fmt.Errorf("point requires exactly one coordinate tuple")
+	}
 	return factory.CreatePointFromCoordinate(coords[0]), nil
 }
 
@@ -328,6 +331,9 @@ func parseLineString(ls *LineString, factory *geom.GeometryFactory) (*geom.LineS
 	if len(coords) == 0 {
 		return factory.CreateLineStringEmpty(), nil
 	}
+	if len(coords) < 2 {
+		return nil, fmt.Errorf("linestring requires 0 or at least 2 coordinate tuples")
+	}
 	return factory.CreateLineString(coords), nil
 }
 
@@ -339,6 +345,12 @@ func parseLinearRing(lr *LinearRing, factory *geom.GeometryFactory) (*geom.Linea
 	}
 	if len(coords) == 0 {
 		return factory.CreateLinearRingEmpty(), nil
+	}
+	if len(coords) < 4 {
+		return nil, fmt.Errorf("linearring requires 0 or at least 4 coordinate tuples")
+	}
+	if !coords.IsClosed(geom.DefaultEpsilon) {
+		return nil, fmt.Errorf("linearring must be closed")
 	}
 	return factory.CreateLinearRing(coords), nil
 }
@@ -447,6 +459,12 @@ func parseCoordinates(s string) (geom.CoordinateSequence, error) {
 		if len(parts) < 2 {
 			return nil, fmt.Errorf("invalid coordinate tuple: %q", tuple)
 		}
+		if len(parts) > 3 {
+			return nil, fmt.Errorf("coordinate tuple has unsupported arity %d: %q", len(parts), tuple)
+		}
+		if strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			return nil, fmt.Errorf("coordinate tuple has empty longitude or latitude: %q", tuple)
+		}
 
 		lon, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
 		if err != nil {
@@ -462,7 +480,10 @@ func parseCoordinates(s string) (geom.CoordinateSequence, error) {
 		coord := geom.NewCoordinate(lon, lat)
 
 		// Parse optional altitude
-		if len(parts) >= 3 && strings.TrimSpace(parts[2]) != "" {
+		if len(parts) == 3 {
+			if strings.TrimSpace(parts[2]) == "" {
+				return nil, fmt.Errorf("coordinate tuple has empty altitude: %q", tuple)
+			}
 			alt, err := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid altitude: %w", err)

@@ -5,8 +5,8 @@ import (
 	"iter"
 	"strings"
 
-	"github.com/robert-malhotra/go-topology-suite/geom"
 	"github.com/jonas-p/go-shp"
+	"github.com/robert-malhotra/go-topology-suite/geom"
 )
 
 // Reader reads geometries from a shapefile.
@@ -25,6 +25,10 @@ func NewReader(filename string) (*Reader, error) {
 
 // NewReaderWithFactory creates a new shapefile reader with a custom geometry factory.
 func NewReaderWithFactory(filename string, factory *geom.GeometryFactory) (*Reader, error) {
+	if factory == nil {
+		factory = geom.DefaultFactory
+	}
+
 	reader, err := shp.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open shapefile: %w", err)
@@ -337,12 +341,21 @@ func shapeToGeometry(shape shp.Shape, factory *geom.GeometryFactory) (geom.Geome
 
 // polyLineToGeometry converts polyline points and parts to a LineString or MultiLineString.
 func polyLineToGeometry(points []shp.Point, parts []int32, hasZ bool, zValues []float64, factory *geom.GeometryFactory) (geom.Geometry, error) {
+	if factory == nil {
+		factory = geom.DefaultFactory
+	}
 	if len(points) == 0 {
 		return factory.CreateLineStringEmpty(), nil
+	}
+	if hasZ && len(zValues) != len(points) {
+		return nil, fmt.Errorf("polyline Z array length %d does not match point count %d", len(zValues), len(points))
 	}
 
 	if len(parts) == 0 {
 		parts = []int32{0}
+	}
+	if err := validatePartOffsets(points, parts); err != nil {
+		return nil, fmt.Errorf("invalid polyline parts: %w", err)
 	}
 
 	lines := make([]*geom.LineString, len(parts))
@@ -353,6 +366,9 @@ func polyLineToGeometry(points []shp.Point, parts []int32, hasZ bool, zValues []
 			partEnd = int(parts[i+1])
 		} else {
 			partEnd = len(points)
+		}
+		if partEnd-int(partStart) < 2 {
+			return nil, fmt.Errorf("polyline part %d has fewer than 2 points", i)
 		}
 
 		coords := make(geom.CoordinateSequence, partEnd-int(partStart))
@@ -377,12 +393,21 @@ func polyLineToGeometry(points []shp.Point, parts []int32, hasZ bool, zValues []
 
 // polygonToGeometry converts polygon points and parts to a Polygon or MultiPolygon.
 func polygonToGeometry(points []shp.Point, parts []int32, hasZ bool, zValues []float64, factory *geom.GeometryFactory) (geom.Geometry, error) {
+	if factory == nil {
+		factory = geom.DefaultFactory
+	}
 	if len(points) == 0 {
 		return factory.CreatePolygonEmpty(), nil
+	}
+	if hasZ && len(zValues) != len(points) {
+		return nil, fmt.Errorf("polygon Z array length %d does not match point count %d", len(zValues), len(points))
 	}
 
 	if len(parts) == 0 {
 		parts = []int32{0}
+	}
+	if err := validatePartOffsets(points, parts); err != nil {
+		return nil, fmt.Errorf("invalid polygon parts: %w", err)
 	}
 
 	// Build rings from parts
@@ -394,6 +419,12 @@ func polygonToGeometry(points []shp.Point, parts []int32, hasZ bool, zValues []f
 			partEnd = int(parts[i+1])
 		} else {
 			partEnd = len(points)
+		}
+		if partEnd-int(partStart) < 4 {
+			return nil, fmt.Errorf("polygon ring %d has fewer than 4 points", i)
+		}
+		if !samePoint(points[partStart], points[partEnd-1]) {
+			return nil, fmt.Errorf("polygon ring %d is not closed", i)
 		}
 
 		coords := make(geom.CoordinateSequence, partEnd-int(partStart))
@@ -490,8 +521,14 @@ func buildPolygonsFromRings(rings []*geom.LinearRing, factory *geom.GeometryFact
 
 // multiPointToGeometry converts multipoint data to a MultiPoint geometry.
 func multiPointToGeometry(points []shp.Point, hasZ bool, zValues []float64, factory *geom.GeometryFactory) (geom.Geometry, error) {
+	if factory == nil {
+		factory = geom.DefaultFactory
+	}
 	if len(points) == 0 {
 		return factory.CreateMultiPointEmpty(), nil
+	}
+	if hasZ && len(zValues) != len(points) {
+		return nil, fmt.Errorf("multipoint Z array length %d does not match point count %d", len(zValues), len(points))
 	}
 
 	pts := make([]*geom.Point, len(points))
@@ -505,6 +542,28 @@ func multiPointToGeometry(points []shp.Point, hasZ bool, zValues []float64, fact
 	}
 
 	return factory.CreateMultiPoint(pts), nil
+}
+
+func validatePartOffsets(points []shp.Point, parts []int32) error {
+	if len(parts) == 0 {
+		return fmt.Errorf("no parts")
+	}
+	for i, partStart := range parts {
+		if partStart < 0 {
+			return fmt.Errorf("part %d has negative start offset %d", i, partStart)
+		}
+		if int(partStart) >= len(points) {
+			return fmt.Errorf("part %d start offset %d exceeds point count %d", i, partStart, len(points))
+		}
+		if i > 0 && partStart <= parts[i-1] {
+			return fmt.Errorf("part %d start offset %d is not greater than previous offset %d", i, partStart, parts[i-1])
+		}
+	}
+	return nil
+}
+
+func samePoint(a, b shp.Point) bool {
+	return a.X == b.X && a.Y == b.Y
 }
 
 // geometryToShape converts a GTS geometry to a go-shp shape.

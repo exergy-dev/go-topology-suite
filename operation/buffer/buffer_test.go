@@ -141,6 +141,30 @@ func TestBufferPolygonNegative(t *testing.T) {
 	assert.LessOrEqual(t, erodedArea, 40.0, "Eroded area should be at most 40")
 }
 
+func TestBufferPolygonNegativeCollapseToEmpty(t *testing.T) {
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	poly := geom.NewPolygon(shell, nil)
+
+	testCases := []struct {
+		name     string
+		distance float64
+	}{
+		{"AtInradius", -5},
+		{"PastInradius", -6},
+		{"LargerThanWidth", -10},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := Buffer(poly, tc.distance)
+			bufferedPoly, ok := result.(*geom.Polygon)
+			require.True(t, ok, "Expected Polygon, got %T", result)
+			assert.True(t, bufferedPoly.IsEmpty(), "Polygon should collapse to empty at distance %g", tc.distance)
+			assert.True(t, bufferedPoly.IsValid(), "Collapsed polygon should remain valid")
+		})
+	}
+}
+
 // TestBufferPolygonWithHole_Expansion tests that buffering outward shrinks holes.
 func TestBufferPolygonWithHole_Expansion(t *testing.T) {
 	// Create a 20x20 square with a 10x10 hole in the center
@@ -150,8 +174,8 @@ func TestBufferPolygonWithHole_Expansion(t *testing.T) {
 	hole := mustLinearRingXY(5, 5, 5, 15, 15, 15, 15, 5, 5, 5)
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
-	originalArea := poly.Area()           // 400 - 100 = 300
-	originalHoleArea := hole.Area()       // 100
+	originalArea := poly.Area()     // 400 - 100 = 300
+	originalHoleArea := hole.Area() // 100
 	distance := 2.0
 
 	result := Buffer(poly, distance)
@@ -189,9 +213,9 @@ func TestBufferPolygonWithHole_Erosion(t *testing.T) {
 	hole := mustLinearRingXY(7, 7, 7, 13, 13, 13, 13, 7, 7, 7)
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
-	originalArea := poly.Area()           // 400 - 36 = 364
-	originalHoleArea := hole.Area()       // 36
-	distance := -2.0  // Negative = erode
+	originalArea := poly.Area()     // 400 - 36 = 364
+	originalHoleArea := hole.Area() // 36
+	distance := -2.0                // Negative = erode
 
 	result := Buffer(poly, distance)
 
@@ -242,6 +266,24 @@ func TestBufferZeroDistance(t *testing.T) {
 	assert.Equal(t, 5.0, clonedPoint.Y(), "Y coordinate")
 }
 
+func TestBufferZeroDistanceClonesAndDoesNotMutateOriginal(t *testing.T) {
+	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
+	poly := geom.NewPolygon(shell, nil)
+	original := poly.Clone()
+
+	result := Buffer(poly, 0)
+
+	clonedPoly, ok := result.(*geom.Polygon)
+	require.True(t, ok, "Expected Polygon, got %T", result)
+	require.NotSame(t, poly, clonedPoly, "Zero-distance buffer must return a clone")
+	require.True(t, coordinatesEqual2D(poly.Coordinates(), clonedPoly.Coordinates()), "Zero-distance clone should match the input")
+
+	clonedPoly.ApplyCoordinateFilter(translateCoordinateFilter{dx: 100})
+
+	assert.True(t, coordinatesEqual2D(original.Coordinates(), poly.Coordinates()), "Mutating the zero-distance result must not mutate the input")
+	assert.False(t, coordinatesEqual2D(poly.Coordinates(), clonedPoly.Coordinates()), "Mutation should affect only the clone")
+}
+
 func TestBufferMultiPoint(t *testing.T) {
 	mp := geom.NewMultiPoint([]*geom.Point{
 		geom.NewPoint(0, 0),
@@ -262,6 +304,27 @@ func TestBufferMultiPoint(t *testing.T) {
 	}
 }
 
+func TestBufferMultiPointOverlappingBuffersDissolve(t *testing.T) {
+	mp := geom.NewMultiPoint([]*geom.Point{
+		geom.NewPoint(0, 0),
+		geom.NewPoint(5, 0),
+	})
+	distance := 5.0
+
+	result := Buffer(mp, distance)
+
+	require.False(t, result.IsEmpty(), "Expected non-empty result")
+	require.True(t, result.IsValid(), "Overlapping point buffers should dissolve to a valid polygonal result")
+
+	_, isMultiPolygon := result.(*geom.MultiPolygon)
+	assert.False(t, isMultiPolygon, "Overlapping point buffers should not remain separate MultiPolygon components")
+
+	singleArea := getArea(Buffer(geom.NewPoint(0, 0), distance))
+	actualArea := getArea(result)
+	assert.Less(t, actualArea, 2*singleArea, "Dissolved buffers should not double-count overlap area")
+	assert.Greater(t, actualArea, singleArea, "Dissolved buffers should still cover both point buffers")
+}
+
 func TestBufferMultiLineString(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
 		mustLineStringXY(0, 0, 10, 0),
@@ -278,6 +341,24 @@ func TestBufferMultiLineString(t *testing.T) {
 		assert.False(t, v.IsEmpty(), "Expected non-empty result")
 	default:
 		require.Fail(t, "Unexpected result type: %T", result)
+	}
+}
+
+func TestBufferGeometryCollectionReturnsDissolvedPolygonal(t *testing.T) {
+	gc := geom.NewGeometryCollection([]geom.Geometry{
+		geom.NewPoint(0, 0),
+		geom.NewPoint(5, 0),
+	})
+
+	result := Buffer(gc, 5)
+
+	require.False(t, result.IsEmpty(), "Expected non-empty result")
+	require.True(t, result.IsValid(), "Buffered collection should be valid")
+
+	switch result.(type) {
+	case *geom.Polygon, *geom.MultiPolygon:
+	default:
+		require.Failf(t, "unexpected result type", "Expected polygonal result for nonzero collection buffer, got %T", result)
 	}
 }
 
@@ -473,4 +554,26 @@ func BenchmarkBufferPolygon(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Buffer(poly, 5.0)
 	}
+}
+
+type translateCoordinateFilter struct {
+	dx float64
+	dy float64
+}
+
+func (f translateCoordinateFilter) Filter(coord *geom.Coordinate) {
+	coord.X += f.dx
+	coord.Y += f.dy
+}
+
+func coordinatesEqual2D(a, b geom.CoordinateSequence) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !a[i].Equals2D(b[i], geom.DefaultEpsilon) {
+			return false
+		}
+	}
+	return true
 }

@@ -221,10 +221,15 @@ func containsImpl(g1, g2 Geometry) bool {
 		// Check if any point from g2's interior is in g1's interior
 		switch container := g1.(type) {
 		case *Polygon:
-			// Use an envelope sample point as a fallback for polygonal containers
-			centroid := g2.Envelope().Centre()
-			if locatePointIn(centroid, container) == LocationInterior {
-				hasInterior = true
+			switch g2.(type) {
+			case *LineString, *LinearRing, *MultiLineString:
+				hasInterior = linealHasInteriorPointIn(container, g2)
+			default:
+				// Use an envelope sample point as a fallback for polygonal containers
+				centroid := g2.Envelope().Centre()
+				if locatePointIn(centroid, container) == LocationInterior {
+					hasInterior = true
+				}
 			}
 		case *LineString:
 			hasInterior = linealHasInteriorPointIn(container, g2)
@@ -274,6 +279,8 @@ func edgesContainedInPolygon(g2 Geometry, poly *Polygon) bool {
 	switch inner := g2.(type) {
 	case *LineString:
 		return lineStringEdgesContainedInPolygon(inner, poly)
+	case *LinearRing:
+		return lineStringEdgesContainedInPolygon(inner.LineString, poly)
 	case *Polygon:
 		return polygonEdgesContainedInPolygon(inner, poly)
 	case *MultiLineString:
@@ -404,6 +411,8 @@ func edgesContainedInMultiPolygon(g2 Geometry, mp *MultiPolygon) bool {
 	switch inner := g2.(type) {
 	case *LineString:
 		return lineStringEdgesContainedInMultiPolygon(inner, mp)
+	case *LinearRing:
+		return lineStringEdgesContainedInMultiPolygon(inner.LineString, mp)
 	case *Polygon:
 		return polygonEdgesContainedInMultiPolygon(inner, mp)
 	case *MultiLineString:
@@ -1149,6 +1158,9 @@ func boundariesIntersect(g1, g2 Geometry) bool {
 // linealHasInteriorPointIn checks if any interior point of a lineal geometry is inside the container.
 func linealHasInteriorPointIn(container Geometry, lineal Geometry) bool {
 	lines := getLineStrings(lineal)
+	if ring, ok := lineal.(*LinearRing); ok {
+		lines = append(lines, ring.LineString)
+	}
 	for _, ls := range lines {
 		coords := ls.Coordinates()
 		for i := 1; i < len(coords); i++ {

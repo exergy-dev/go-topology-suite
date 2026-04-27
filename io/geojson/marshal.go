@@ -350,21 +350,19 @@ func parseGeometry(raw map[string]json.RawMessage, factory *geom.GeometryFactory
 		return nil, fmt.Errorf("invalid 'type' field: %w", err)
 	}
 
-	coordsData := raw["coordinates"]
-
 	switch geomType {
 	case "Point":
-		return parsePoint(coordsData, factory)
+		return parsePoint(coordinatesData(raw), factory)
 	case "LineString":
-		return parseLineString(coordsData, factory)
+		return parseLineString(coordinatesData(raw), factory)
 	case "Polygon":
-		return parsePolygon(coordsData, factory)
+		return parsePolygon(coordinatesData(raw), factory)
 	case "MultiPoint":
-		return parseMultiPoint(coordsData, factory)
+		return parseMultiPoint(coordinatesData(raw), factory)
 	case "MultiLineString":
-		return parseMultiLineString(coordsData, factory)
+		return parseMultiLineString(coordinatesData(raw), factory)
 	case "MultiPolygon":
-		return parseMultiPolygon(coordsData, factory)
+		return parseMultiPolygon(coordinatesData(raw), factory)
 	case "GeometryCollection":
 		return parseGeometryCollection(raw, factory)
 	default:
@@ -372,7 +370,14 @@ func parseGeometry(raw map[string]json.RawMessage, factory *geom.GeometryFactory
 	}
 }
 
+func coordinatesData(raw map[string]json.RawMessage) json.RawMessage {
+	return raw["coordinates"]
+}
+
 func parsePoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Point, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("missing Point coordinates")
+	}
 	var coords []float64
 	if err := json.Unmarshal(data, &coords); err != nil {
 		return nil, fmt.Errorf("invalid Point coordinates: %w", err)
@@ -385,6 +390,9 @@ func parsePoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Poin
 	if len(coords) < 2 {
 		return nil, fmt.Errorf("point requires at least 2 coordinates")
 	}
+	if len(coords) > 3 {
+		return nil, fmt.Errorf("point position has unsupported arity %d", len(coords))
+	}
 
 	coord := geom.NewCoordinate(coords[0], coords[1])
 	if len(coords) >= 3 {
@@ -395,6 +403,9 @@ func parsePoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Poin
 }
 
 func parseLineString(data json.RawMessage, factory *geom.GeometryFactory) (*geom.LineString, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("missing LineString coordinates")
+	}
 	coords, err := parseCoordinateArray(data)
 	if err != nil {
 		return nil, fmt.Errorf("invalid LineString coordinates: %w", err)
@@ -403,11 +414,17 @@ func parseLineString(data json.RawMessage, factory *geom.GeometryFactory) (*geom
 	if len(coords) == 0 {
 		return factory.CreateLineStringEmpty(), nil
 	}
+	if len(coords) < 2 {
+		return nil, fmt.Errorf("LineString requires 0 or at least 2 positions")
+	}
 
 	return factory.CreateLineString(coords), nil
 }
 
 func parsePolygon(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Polygon, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("missing Polygon coordinates")
+	}
 	var rings []json.RawMessage
 	if err := json.Unmarshal(data, &rings); err != nil {
 		return nil, fmt.Errorf("invalid Polygon coordinates: %w", err)
@@ -421,12 +438,18 @@ func parsePolygon(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Po
 	if err != nil {
 		return nil, fmt.Errorf("invalid Polygon shell: %w", err)
 	}
+	if err := validateLinearRingCoordinates(shellCoords); err != nil {
+		return nil, fmt.Errorf("invalid Polygon shell: %w", err)
+	}
 	shell := factory.CreateLinearRing(shellCoords)
 
 	holes := make([]*geom.LinearRing, len(rings)-1)
 	for i := 1; i < len(rings); i++ {
 		holeCoords, err := parseCoordinateArray(rings[i])
 		if err != nil {
+			return nil, fmt.Errorf("invalid Polygon hole %d: %w", i, err)
+		}
+		if err := validateLinearRingCoordinates(holeCoords); err != nil {
 			return nil, fmt.Errorf("invalid Polygon hole %d: %w", i, err)
 		}
 		holes[i-1] = factory.CreateLinearRing(holeCoords)
@@ -436,6 +459,9 @@ func parsePolygon(data json.RawMessage, factory *geom.GeometryFactory) (*geom.Po
 }
 
 func parseMultiPoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom.MultiPoint, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("missing MultiPoint coordinates")
+	}
 	var coordArrays [][]float64
 	if err := json.Unmarshal(data, &coordArrays); err != nil {
 		return nil, fmt.Errorf("invalid MultiPoint coordinates: %w", err)
@@ -447,8 +473,8 @@ func parseMultiPoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom
 
 	points := make([]*geom.Point, len(coordArrays))
 	for i, coords := range coordArrays {
-		if len(coords) < 2 {
-			return nil, fmt.Errorf("MultiPoint coordinate %d requires at least 2 values", i)
+		if err := validatePosition(coords); err != nil {
+			return nil, fmt.Errorf("invalid MultiPoint coordinate %d: %w", i, err)
 		}
 		coord := geom.NewCoordinate(coords[0], coords[1])
 		if len(coords) >= 3 {
@@ -461,6 +487,9 @@ func parseMultiPoint(data json.RawMessage, factory *geom.GeometryFactory) (*geom
 }
 
 func parseMultiLineString(data json.RawMessage, factory *geom.GeometryFactory) (*geom.MultiLineString, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("missing MultiLineString coordinates")
+	}
 	var lineArrays []json.RawMessage
 	if err := json.Unmarshal(data, &lineArrays); err != nil {
 		return nil, fmt.Errorf("invalid MultiLineString coordinates: %w", err)
@@ -476,6 +505,9 @@ func parseMultiLineString(data json.RawMessage, factory *geom.GeometryFactory) (
 		if err != nil {
 			return nil, fmt.Errorf("invalid MultiLineString line %d: %w", i, err)
 		}
+		if len(coords) < 2 {
+			return nil, fmt.Errorf("invalid MultiLineString line %d: LineString requires at least 2 positions", i)
+		}
 		lines[i] = factory.CreateLineString(coords)
 	}
 
@@ -483,6 +515,9 @@ func parseMultiLineString(data json.RawMessage, factory *geom.GeometryFactory) (
 }
 
 func parseMultiPolygon(data json.RawMessage, factory *geom.GeometryFactory) (*geom.MultiPolygon, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("missing MultiPolygon coordinates")
+	}
 	var polyArrays []json.RawMessage
 	if err := json.Unmarshal(data, &polyArrays); err != nil {
 		return nil, fmt.Errorf("invalid MultiPolygon coordinates: %w", err)
@@ -539,8 +574,8 @@ func parseCoordinateArray(data json.RawMessage) (geom.CoordinateSequence, error)
 
 	coords := make(geom.CoordinateSequence, len(coordArrays))
 	for i, arr := range coordArrays {
-		if len(arr) < 2 {
-			return nil, fmt.Errorf("coordinate %d requires at least 2 values", i)
+		if err := validatePosition(arr); err != nil {
+			return nil, fmt.Errorf("coordinate %d: %w", i, err)
 		}
 		coords[i] = geom.NewCoordinate(arr[0], arr[1])
 		if len(arr) >= 3 {
@@ -549,4 +584,24 @@ func parseCoordinateArray(data json.RawMessage) (geom.CoordinateSequence, error)
 	}
 
 	return coords, nil
+}
+
+func validatePosition(coords []float64) error {
+	if len(coords) < 2 {
+		return fmt.Errorf("position requires at least 2 values")
+	}
+	if len(coords) > 3 {
+		return fmt.Errorf("position has unsupported arity %d", len(coords))
+	}
+	return nil
+}
+
+func validateLinearRingCoordinates(coords geom.CoordinateSequence) error {
+	if len(coords) < 4 {
+		return fmt.Errorf("linear ring requires at least 4 positions")
+	}
+	if !coords.IsClosed(geom.DefaultEpsilon) {
+		return fmt.Errorf("linear ring must be closed")
+	}
+	return nil
 }

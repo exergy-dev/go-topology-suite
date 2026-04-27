@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/jonas-p/go-shp"
 	"github.com/robert-malhotra/go-topology-suite/geom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -569,6 +570,107 @@ func TestReaderWithFactory(t *testing.T) {
 	require.NoError(t, err, "Failed to read geometry")
 
 	assert.Equal(t, 4326, g.SRID(), "Expected SRID from factory")
+}
+
+func TestReaderWithNilFactoryUsesDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	filename := filepath.Join(tmpDir, "nil_factory.shp")
+
+	err := WriteAll(filename, []geom.Geometry{geom.DefaultFactory.CreatePoint(1, 2)})
+	require.NoError(t, err)
+
+	reader, err := NewReaderWithFactory(filename, nil)
+	require.NoError(t, err)
+	defer reader.Close() //nolint:errcheck
+
+	require.True(t, reader.Next())
+	g, err := reader.Geometry()
+	require.NoError(t, err)
+	require.IsType(t, &geom.Point{}, g)
+}
+
+func TestPolylineToGeometryRejectsMalformedParts(t *testing.T) {
+	points := []shp.Point{{X: 0, Y: 0}, {X: 1, Y: 1}, {X: 2, Y: 2}}
+
+	tests := []struct {
+		name  string
+		parts []int32
+		err   string
+	}{
+		{name: "negative offset", parts: []int32{-1}, err: "negative"},
+		{name: "offset past points", parts: []int32{3}, err: "exceeds"},
+		{name: "non increasing offsets", parts: []int32{0, 0}, err: "not greater"},
+		{name: "short part", parts: []int32{0, 2}, err: "fewer than 2"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := polyLineToGeometry(points, tc.parts, false, nil, nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.err)
+		})
+	}
+}
+
+func TestPolylineToGeometryRejectsMismatchedZArray(t *testing.T) {
+	points := []shp.Point{{X: 0, Y: 0}, {X: 1, Y: 1}}
+
+	_, err := polyLineToGeometry(points, []int32{0}, true, []float64{10}, geom.DefaultFactory)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Z array length")
+}
+
+func TestPolygonToGeometryRejectsMalformedRings(t *testing.T) {
+	tests := []struct {
+		name   string
+		points []shp.Point
+		err    string
+	}{
+		{
+			name:   "short ring",
+			points: []shp.Point{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}},
+			err:    "fewer than 4",
+		},
+		{
+			name: "unclosed ring",
+			points: []shp.Point{
+				{X: 0, Y: 0},
+				{X: 1, Y: 0},
+				{X: 1, Y: 1},
+				{X: 0, Y: 1},
+			},
+			err: "not closed",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := polygonToGeometry(tc.points, []int32{0}, false, nil, nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.err)
+		})
+	}
+}
+
+func TestPolygonToGeometryRejectsMismatchedZArray(t *testing.T) {
+	points := []shp.Point{
+		{X: 0, Y: 0},
+		{X: 1, Y: 0},
+		{X: 1, Y: 1},
+		{X: 0, Y: 0},
+	}
+
+	_, err := polygonToGeometry(points, []int32{0}, true, []float64{1, 2}, geom.DefaultFactory)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Z array length")
+}
+
+func TestMultiPointToGeometryRejectsMismatchedZArray(t *testing.T) {
+	points := []shp.Point{{X: 0, Y: 0}, {X: 1, Y: 1}}
+
+	_, err := multiPointToGeometry(points, true, []float64{1}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Z array length")
 }
 
 func TestFeatureIterator(t *testing.T) {

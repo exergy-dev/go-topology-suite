@@ -10,10 +10,10 @@ import (
 // TestPolygonizeSimpleRectangle tests polygonizing a simple rectangle from 4 edges.
 func TestPolygonizeSimpleRectangle(t *testing.T) {
 	// Create 4 edges forming a rectangle: (0,0)-(10,0)-(10,10)-(0,10)-(0,0)
-	edge1 := mustLineStringXY(0, 0, 10, 0)    // Bottom
-	edge2 := mustLineStringXY(10, 0, 10, 10)  // Right
-	edge3 := mustLineStringXY(10, 10, 0, 10)  // Top
-	edge4 := mustLineStringXY(0, 10, 0, 0)    // Left
+	edge1 := mustLineStringXY(0, 0, 10, 0)   // Bottom
+	edge2 := mustLineStringXY(10, 0, 10, 10) // Right
+	edge3 := mustLineStringXY(10, 10, 0, 10) // Top
+	edge4 := mustLineStringXY(0, 10, 0, 0)   // Left
 
 	lines := []*geom.LineString{edge1, edge2, edge3, edge4}
 
@@ -114,22 +114,15 @@ func TestPolygonizePolygonWithHole(t *testing.T) {
 
 	t.Logf("Produced %d polygons with total area %.2f", len(polys), totalArea)
 
-	// We should get either:
-	// - 1 polygon with hole: area = outer (400) - hole (100) = 300
-	// - 2 separate polygons: total area = outer (400) + hole (100) = 500
-	// - 1 polygon without hole properly assigned: area = 400 or 100
-	if len(polys) == 1 && polys[0].NumInteriorRings() == 1 {
-		// Ideal case: one polygon with one hole
-		expectedArea := 300.0
-		if !floatEquals(polys[0].Area(), expectedArea, 0.001) {
-			t.Errorf("Expected area %.2f for polygon with hole, got %.2f", expectedArea, polys[0].Area())
-		}
-	} else if len(polys) == 2 {
-		// Two separate polygons (acceptable)
-		expectedTotal := 500.0
-		if !floatEquals(totalArea, expectedTotal, 0.001) {
-			t.Errorf("Expected total area %.2f for 2 polygons, got %.2f", expectedTotal, totalArea)
-		}
+	if len(polys) != 1 {
+		t.Fatalf("Expected 1 polygon with a hole, got %d", len(polys))
+	}
+	if polys[0].NumInteriorRings() != 1 {
+		t.Fatalf("Expected 1 hole, got %d", polys[0].NumInteriorRings())
+	}
+	expectedArea := 300.0
+	if !floatEquals(totalArea, expectedArea, 0.001) {
+		t.Errorf("Expected area %.2f for polygon with hole, got %.2f", expectedArea, totalArea)
 	}
 }
 
@@ -271,6 +264,8 @@ func TestPolygonizerAPI(t *testing.T) {
 }
 
 // TestPolygonizeIntersectingEdges tests polygonizing edges that intersect.
+// The noding step splits the diagonals at their intersection point (5,5),
+// producing 4 triangles from the X-in-square pattern.
 func TestPolygonizeIntersectingEdges(t *testing.T) {
 	// Create an X pattern with a square around it
 	edges := []*geom.LineString{
@@ -288,23 +283,16 @@ func TestPolygonizeIntersectingEdges(t *testing.T) {
 	polys := Polygonize(edges)
 
 	// The X divides the square into 4 triangles
-	// The noding should split the edges at the intersection point
-	if len(polys) == 0 {
-		t.Skip("Intersecting edges create complex topology - skipping detailed validation")
-	}
+	assert.Equal(t, 4, len(polys), "Expected 4 triangles")
 
-	// Check that we got valid polygons
 	totalArea := 0.0
 	for _, poly := range polys {
-		if poly.IsEmpty() {
-			t.Error("Found empty polygon in results")
-		}
+		assert.False(t, poly.IsEmpty(), "Polygon should not be empty")
+		assert.InDelta(t, 25.0, poly.Area(), 0.001, "Each triangle should have area 25")
 		totalArea += poly.Area()
 	}
 
-	// Total area should be approximately 100 (area of the square)
-	expectedArea := 100.0
-	assert.InDelta(t, expectedArea, totalArea, 5.0, "Total area")
+	assert.InDelta(t, 100.0, totalArea, 0.001, "Total area should be 100")
 }
 
 // TestPolygonizeClosedLineString tests polygonizing a single closed LineString.

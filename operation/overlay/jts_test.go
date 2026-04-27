@@ -67,9 +67,9 @@ func TestJTS_PolygonIntersection_TouchingPolygons(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 10, 20 10, 20 20, 10 20, 10 10))")
 
 	result := Intersection(poly1, poly2)
-	// Should return a point or empty (depending on implementation)
-	// JTS returns a point - this test validates the operation completes
-	_ = result.IsEmpty()
+	point, ok := result.(*geom.Point)
+	require.True(t, ok, "JTS-compatible point-touch intersection should be Point, got %T", result)
+	assert.True(t, point.Coordinate().Equals2D(geom.NewCoordinate(10, 10), geom.DefaultEpsilon))
 }
 
 // TestJTS_PolygonIntersection_SharedEdge tests polygons sharing an edge.
@@ -79,9 +79,9 @@ func TestJTS_PolygonIntersection_SharedEdge(t *testing.T) {
 	poly2, _ := wkt.UnmarshalString("POLYGON ((10 0, 20 0, 20 10, 10 10, 10 0))")
 
 	result := Intersection(poly1, poly2)
-	// Should return a LineString or empty depending on interpretation
-	// This test validates the operation completes
-	_ = result.IsEmpty()
+	line, ok := result.(*geom.LineString)
+	require.True(t, ok, "JTS-compatible shared-edge intersection should be LineString, got %T", result)
+	assert.InDelta(t, 10.0, line.Length(), geom.DefaultEpsilon)
 }
 
 // TestJTS_PolygonIntersection_PolygonContained tests one polygon completely inside another.
@@ -328,10 +328,7 @@ func TestJTS_ComplexGeometry_ManyVertices(t *testing.T) {
 	wktStr += "))"
 
 	poly1, err := wkt.UnmarshalString(wktStr)
-	if err != nil {
-		t.Skipf("Failed to create complex polygon: %v", err)
-		return
-	}
+	require.NoError(t, err)
 
 	// Simple square
 	poly2, _ := wkt.UnmarshalString("POLYGON ((8 8, 12 8, 12 12, 8 12, 8 8))")

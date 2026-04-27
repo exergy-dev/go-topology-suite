@@ -376,6 +376,18 @@ func TestInvalidGeoJSON(t *testing.T) {
 		"{invalid}",
 		`{"coordinates": [1, 2]}`,
 		`{"type": "Unknown", "coordinates": [1, 2]}`,
+		`{"type": "Point"}`,
+		`{"type": "Point", "coordinates": [1]}`,
+		`{"type": "Point", "coordinates": [1, 2, 3, 4]}`,
+		`{"type": "LineString", "coordinates": [[0, 0]]}`,
+		`{"type": "LineString", "coordinates": [[0, 0, 0, 0], [1, 1]]}`,
+		`{"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [0, 0]]]}`,
+		`{"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1]]]}`,
+		`{"type": "MultiPoint", "coordinates": [[0, 0], [1]]}`,
+		`{"type": "MultiLineString", "coordinates": [[[0, 0]]]}`,
+		`{"type": "MultiPolygon", "coordinates": [[[[0, 0], [1, 0], [0, 0]]]]}`,
+		`{"type": "GeometryCollection"}`,
+		`{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [1]}]}`,
 	}
 
 	for _, tc := range testCases {

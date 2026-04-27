@@ -717,3 +717,53 @@ func TestContains_PolygonInPolygonWithHole(t *testing.T) {
 	})
 	assert.True(t, Contains(outerWithHole, lineAroundHole), "Polygon with hole should contain line that avoids the hole")
 }
+
+func TestContains_ConcavePolygonDoesNotContainBoundaryRingByEnvelopeCenter(t *testing.T) {
+	factory := DefaultFactory
+
+	// Concave shell with a small notch away from the envelope center.
+	// The shell's envelope center (5,5) is inside the polygon, but the ring itself
+	// is boundary-only and has no interior point in the polygon interior.
+	shell := factory.CreateLinearRing(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(10, 0),
+		NewCoordinate(10, 10),
+		NewCoordinate(8, 10),
+		NewCoordinate(8, 8),
+		NewCoordinate(6, 8),
+		NewCoordinate(6, 10),
+		NewCoordinate(0, 10),
+		NewCoordinate(0, 0),
+	})
+	poly := factory.CreatePolygon(shell, nil)
+
+	assert.False(t, Contains(poly, shell), "Concave polygon should not contain its boundary ring")
+	assert.True(t, Covers(poly, shell), "Concave polygon should still cover its boundary ring")
+}
+
+func TestContains_PolygonWithHoleDoesNotContainBoundaryRingByEnvelopeCenter(t *testing.T) {
+	factory := DefaultFactory
+
+	// The hole is off center, so the outer shell's envelope center is in the
+	// polygon interior. Contains must not use that sample for a boundary-only ring.
+	outerShell := factory.CreateLinearRing(CoordinateSequence{
+		NewCoordinate(0, 0),
+		NewCoordinate(20, 0),
+		NewCoordinate(20, 20),
+		NewCoordinate(0, 20),
+		NewCoordinate(0, 0),
+	})
+	hole := factory.CreateLinearRing(CoordinateSequence{
+		NewCoordinate(2, 2),
+		NewCoordinate(4, 2),
+		NewCoordinate(4, 4),
+		NewCoordinate(2, 4),
+		NewCoordinate(2, 2),
+	})
+	poly := factory.CreatePolygon(outerShell, []*LinearRing{hole})
+
+	assert.False(t, Contains(poly, outerShell), "Polygon with hole should not contain its exterior boundary ring")
+	assert.True(t, Covers(poly, outerShell), "Polygon with hole should still cover its exterior boundary ring")
+	assert.False(t, Contains(poly, hole), "Polygon with hole should not contain its hole boundary ring")
+	assert.True(t, Covers(poly, hole), "Polygon with hole should still cover its hole boundary ring")
+}

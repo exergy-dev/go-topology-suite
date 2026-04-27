@@ -364,12 +364,63 @@ func TestParseCoordinatesErrors(t *testing.T) {
 			name:  "invalid number",
 			input: "abc,def",
 		},
+		{
+			name:  "empty longitude",
+			input: ",2",
+		},
+		{
+			name:  "empty latitude",
+			input: "1,",
+		},
+		{
+			name:  "empty altitude",
+			input: "1,2,",
+		},
+		{
+			name:  "too many ordinates",
+			input: "1,2,3,4",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := parseCoordinates(tc.input)
 			assert.Error(t, err, "Expected error for input: %s", tc.input)
+		})
+	}
+}
+
+func TestUnmarshalMalformedKMLGeometries(t *testing.T) {
+	testCases := []struct {
+		name string
+		kml  string
+	}{
+		{
+			name: "point with multiple coordinate tuples",
+			kml:  `<kml><Placemark><Point><coordinates>1,2 3,4</coordinates></Point></Placemark></kml>`,
+		},
+		{
+			name: "linestring with one coordinate tuple",
+			kml:  `<kml><Placemark><LineString><coordinates>1,2</coordinates></LineString></Placemark></kml>`,
+		},
+		{
+			name: "linearring with too few coordinate tuples",
+			kml:  `<kml><Placemark><LinearRing><coordinates>0,0 1,0 0,0</coordinates></LinearRing></Placemark></kml>`,
+		},
+		{
+			name: "linearring not closed",
+			kml:  `<kml><Placemark><LinearRing><coordinates>0,0 1,0 1,1 0,1</coordinates></LinearRing></Placemark></kml>`,
+		},
+		{
+			name: "polygon outer ring not closed",
+			kml:  `<kml><Placemark><Polygon><outerBoundaryIs><LinearRing><coordinates>0,0 1,0 1,1 0,1</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></kml>`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Unmarshal([]byte(tc.kml))
+			assert.Error(t, err)
 		})
 	}
 }

@@ -35,12 +35,18 @@ func ExampleMustLookup() {
 // ExampleUTMZone demonstrates generating UTM zone CRS.
 func ExampleUTMZone() {
 	// Generate UTM zone 10 North (US West Coast)
-	utm10n := epsg.UTMZone(10, true)
+	utm10n, err := epsg.UTMZone(10, true)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(utm10n.Code())
 	fmt.Println(utm10n.Name())
 
 	// Generate UTM zone 50 South (Australia)
-	utm50s := epsg.UTMZone(50, false)
+	utm50s, err := epsg.UTMZone(50, false)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(utm50s.Code())
 
 	// Output:
@@ -88,7 +94,7 @@ func Example() {
 	fmt.Printf("\nNAD83: %s\n", nad83.Name())
 
 	// Generate UTM zone
-	utm32n := epsg.UTMZone(32, true)
+	utm32n, _ := epsg.UTMZone(32, true)
 	fmt.Printf("\nUTM 32N: %s\n", utm32n.Code())
 
 	// List registered codes

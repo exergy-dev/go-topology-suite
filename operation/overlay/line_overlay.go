@@ -5,19 +5,26 @@ import (
 
 	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/internal/topology"
 )
 
 // lineLineIntersection computes intersection points and segments of two line sets.
 func lineLineIntersection(linesA, linesB []*geom.LineString) geom.Geometry {
-	var resultPoints []*geom.Point
-	var resultLines []*geom.LineString
+	resultLines := selectNodedLineSegments(linesA, linesB, func(segment topology.NodedLineSegment) bool {
+		return segment.InA() && segment.InB()
+	})
+	resultPoints := lineIntersectionPoints(linesA, linesB, resultLines)
 
+	return createMixedResult(resultPoints, resultLines)
+}
+
+func lineIntersectionPoints(linesA, linesB, overlapLines []*geom.LineString) []*geom.Point {
+	seen := make(map[pointKey]struct{})
+	var points []*geom.Point
 	for _, lineA := range linesA {
 		coordsA := lineA.Coordinates()
 		for _, lineB := range linesB {
 			coordsB := lineB.Coordinates()
-
-			// Check each segment pair
 			for i := 1; i < len(coordsA); i++ {
 				for j := 1; j < len(coordsB); j++ {
 					result := algorithm.LineIntersection(
@@ -26,28 +33,27 @@ func lineLineIntersection(linesA, linesB []*geom.LineString) geom.Geometry {
 					)
 					if result.HasIntersection {
 						if result.IsCollinear && !result.Intersection2.IsNaN() {
-							// Collinear overlap: emit a LineString
-							resultLines = append(resultLines,
-								geom.NewLineString(geom.CoordinateSequence{
-									result.Intersection, result.Intersection2,
-								}))
-						} else {
-							resultPoints = append(resultPoints,
-								geom.NewPointFromCoordinate(result.Intersection))
+							continue
 						}
+						if pointOnAnyLine(result.Intersection, overlapLines) {
+							continue
+						}
+						key := makePointKey(result.Intersection)
+						if _, ok := seen[key]; ok {
+							continue
+						}
+						seen[key] = struct{}{}
+						points = append(points, geom.NewPointFromCoordinate(result.Intersection))
 					}
 				}
 			}
 		}
 	}
-
-	resultLines = mergeAdjacentLines(resultLines)
-	return createMixedResult(resultPoints, resultLines)
+	return points
 }
 
 // lineLineUnion computes the union of two line sets.
 func lineLineUnion(linesA, linesB []*geom.LineString) geom.Geometry {
-	// Simple union - just combine all lines
 	var allLines []*geom.LineString
 	allLines = append(allLines, linesA...)
 	allLines = append(allLines, linesB...)
@@ -55,152 +61,65 @@ func lineLineUnion(linesA, linesB []*geom.LineString) geom.Geometry {
 	if len(allLines) == 0 {
 		return geom.NewLineStringEmpty()
 	}
-	if len(allLines) == 1 {
-		return allLines[0]
-	}
-	return geom.NewMultiLineString(allLines)
+
+	segments := selectNodedLineSegments(linesA, linesB, func(segment topology.NodedLineSegment) bool {
+		return segment.InA() || segment.InB()
+	})
+	return createLineResult(segments)
 }
 
 // lineLineDifference computes parts of linesA not in linesB.
 func lineLineDifference(linesA, linesB []*geom.LineString) geom.Geometry {
-	if len(linesA) == 0 {
-		return geom.NewLineStringEmpty()
-	}
-
-	var resultLines []*geom.LineString
-
-	for _, lineA := range linesA {
-		coordsA := lineA.Coordinates()
-
-		// Process each segment of lineA
-		for i := 0; i < len(coordsA)-1; i++ {
-			p0 := coordsA[i]
-			p1 := coordsA[i+1]
-
-			// Collect covered intervals [tMin, tMax] on this segment
-			var covered [][2]float64
-
-			for _, lineB := range linesB {
-				coordsB := lineB.Coordinates()
-				for j := 0; j < len(coordsB)-1; j++ {
-					result := algorithm.LineIntersection(p0, p1, coordsB[j], coordsB[j+1])
-					if !result.HasIntersection {
-						continue
-					}
-					if result.IsCollinear && !result.Intersection2.IsNaN() {
-						// Compute t-parameters for the overlap on segment (p0, p1)
-						t1 := tParam(p0, p1, result.Intersection)
-						t2 := tParam(p0, p1, result.Intersection2)
-						tMin := t1
-						tMax := t2
-						if tMin > tMax {
-							tMin, tMax = tMax, tMin
-						}
-						// Clamp to [0, 1]
-						if tMin < 0 {
-							tMin = 0
-						}
-						if tMax > 1 {
-							tMax = 1
-						}
-						if tMax > tMin+geom.DefaultEpsilon {
-							covered = append(covered, [2]float64{tMin, tMax})
-						}
-					}
-					// Single-point intersections don't remove length, skip them
-				}
-			}
-
-			// Sort and merge covered intervals
-			covered = mergeIntervals(covered)
-
-			// Compute complement intervals on [0, 1]
-			complement := complementIntervals(covered)
-
-			// Create line segments from complement intervals
-			for _, interval := range complement {
-				startCoord := interpolate(p0, p1, interval[0])
-				endCoord := interpolate(p0, p1, interval[1])
-				if startCoord.Distance(endCoord) > geom.DefaultEpsilon {
-					resultLines = append(resultLines, geom.NewLineString(
-						geom.CoordinateSequence{startCoord, endCoord}))
-				}
-			}
-		}
-	}
-
-	resultLines = mergeAdjacentLines(resultLines)
+	resultLines := selectNodedLineSegments(linesA, linesB, func(segment topology.NodedLineSegment) bool {
+		return segment.InA() && !segment.InB()
+	})
 	return createLineResult(resultLines)
 }
 
 // lineLineSymDifference computes parts in either line set but not both.
 func lineLineSymDifference(linesA, linesB []*geom.LineString) geom.Geometry {
-	diffAB := lineLineDifference(linesA, linesB)
-	diffBA := lineLineDifference(linesB, linesA)
-	return collectGeometries(diffAB, diffBA)
-}
-
-// tParam computes the parameter t of point p along segment (a, b).
-// Returns 0.0 if p == a, 1.0 if p == b.
-func tParam(a, b, p geom.Coordinate) float64 {
-	dx := b.X - a.X
-	dy := b.Y - a.Y
-	if abs(dx) > abs(dy) {
-		return (p.X - a.X) / dx
-	}
-	if abs(dy) > geom.DefaultEpsilon {
-		return (p.Y - a.Y) / dy
-	}
-	return 0
-}
-
-// interpolate returns the point at parameter t along segment (a, b).
-func interpolate(a, b geom.Coordinate, t float64) geom.Coordinate {
-	return geom.NewCoordinate(
-		a.X+t*(b.X-a.X),
-		a.Y+t*(b.Y-a.Y),
-	)
-}
-
-// mergeIntervals sorts and merges overlapping intervals.
-func mergeIntervals(intervals [][2]float64) [][2]float64 {
-	if len(intervals) == 0 {
-		return nil
-	}
-	sort.Slice(intervals, func(i, j int) bool {
-		return intervals[i][0] < intervals[j][0]
+	resultLines := selectNodedLineSegments(linesA, linesB, func(segment topology.NodedLineSegment) bool {
+		return segment.InA() != segment.InB()
 	})
-	merged := [][2]float64{intervals[0]}
-	for _, iv := range intervals[1:] {
-		last := &merged[len(merged)-1]
-		if iv[0] <= last[1]+geom.DefaultEpsilon {
-			if iv[1] > last[1] {
-				last[1] = iv[1]
-			}
-		} else {
-			merged = append(merged, iv)
-		}
-	}
-	return merged
+	return createLineResult(resultLines)
 }
 
-// complementIntervals returns the complement of the given intervals within [0, 1].
-func complementIntervals(intervals [][2]float64) [][2]float64 {
-	if len(intervals) == 0 {
-		return [][2]float64{{0, 1}}
-	}
-	var result [][2]float64
-	pos := 0.0
-	for _, iv := range intervals {
-		if iv[0] > pos+geom.DefaultEpsilon {
-			result = append(result, [2]float64{pos, iv[0]})
+func selectNodedLineSegments(linesA, linesB []*geom.LineString, include func(topology.NodedLineSegment) bool) []*geom.LineString {
+	segments := topology.NodeLineSets(linesA, linesB)
+	result := make([]*geom.LineString, 0, len(segments))
+	for _, segment := range segments {
+		if include(segment) {
+			result = append(result, segment.LineString())
 		}
-		pos = iv[1]
 	}
-	if pos < 1-geom.DefaultEpsilon {
-		result = append(result, [2]float64{pos, 1})
-	}
+	sortLineStrings(result)
 	return result
+}
+
+func sortLineStrings(lines []*geom.LineString) {
+	sort.Slice(lines, func(i, j int) bool {
+		return geom.Compare(lines[i], lines[j]) < 0
+	})
+}
+
+func pointOnAnyLine(point geom.Coordinate, lines []*geom.LineString) bool {
+	for _, line := range lines {
+		coords := line.Coordinates()
+		for i := 0; i < len(coords)-1; i++ {
+			if geom.PointOnSegment(point, coords[i], coords[i+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+type pointKey struct {
+	x, y float64
+}
+
+func makePointKey(point geom.Coordinate) pointKey {
+	return pointKey{point.X, point.Y}
 }
 
 // createLineResult creates a geometry from a list of LineStrings.
@@ -332,8 +251,8 @@ func clipSegmentToPolygon(p0, p1 geom.Coordinate, shell geom.CoordinateSequence,
 	var intersections []intersection
 
 	// Add endpoints if inside
-	loc0 := algorithm.PointLocationInPolygon(p0, poly)
-	loc1 := algorithm.PointLocationInPolygon(p1, poly)
+	loc0 := topology.PointLocationInPolygon(p0, poly)
+	loc1 := topology.PointLocationInPolygon(p1, poly)
 
 	// Check intersections with each edge of the polygon shell
 	for i := 0; i < len(shell)-1; i++ {
@@ -394,7 +313,7 @@ func clipSegmentToPolygon(p0, p1 geom.Coordinate, shell geom.CoordinateSequence,
 		midY := (points[i].coord.Y + points[i+1].coord.Y) / 2
 		midpoint := geom.NewCoordinate(midX, midY)
 
-		midLoc := algorithm.PointLocationInPolygon(midpoint, poly)
+		midLoc := topology.PointLocationInPolygon(midpoint, poly)
 		if midLoc == geom.LocationInterior || midLoc == geom.LocationBoundary {
 			result = append(result, geom.CoordinateSequence{points[i].coord, points[i+1].coord})
 		}
@@ -568,7 +487,7 @@ func clipSegmentOutsidePolygon(p0, p1 geom.Coordinate, shell geom.CoordinateSequ
 		midY := (points[i].coord.Y + points[i+1].coord.Y) / 2
 		midpoint := geom.NewCoordinate(midX, midY)
 
-		midLoc := algorithm.PointLocationInPolygon(midpoint, poly)
+		midLoc := topology.PointLocationInPolygon(midpoint, poly)
 		if midLoc == geom.LocationExterior {
 			result = append(result, geom.CoordinateSequence{points[i].coord, points[i+1].coord})
 		}
@@ -576,8 +495,8 @@ func clipSegmentOutsidePolygon(p0, p1 geom.Coordinate, shell geom.CoordinateSequ
 
 	// Handle case where entire segment is outside (no intersections)
 	if len(intersections) == 0 {
-		loc0 := algorithm.PointLocationInPolygon(p0, poly)
-		loc1 := algorithm.PointLocationInPolygon(p1, poly)
+		loc0 := topology.PointLocationInPolygon(p0, poly)
+		loc1 := topology.PointLocationInPolygon(p1, poly)
 		if loc0 == geom.LocationExterior && loc1 == geom.LocationExterior {
 			return []geom.CoordinateSequence{{p0, p1}}
 		}

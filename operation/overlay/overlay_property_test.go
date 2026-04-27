@@ -29,6 +29,26 @@ func getArea(g geom.Geometry) float64 {
 	}
 }
 
+func getLength(g geom.Geometry) float64 {
+	if g == nil || g.IsEmpty() {
+		return 0
+	}
+	switch v := g.(type) {
+	case *geom.LineString:
+		return v.Length()
+	case *geom.MultiLineString:
+		return v.Length()
+	case *geom.GeometryCollection:
+		var total float64
+		for i := 0; i < v.NumGeometries(); i++ {
+			total += getLength(v.GeometryN(i))
+		}
+		return total
+	default:
+		return 0
+	}
+}
+
 // normalizeCoord bounds a coordinate to a reasonable range.
 func normalizeCoord(v float64) float64 {
 	if math.IsNaN(v) || math.IsInf(v, 0) {
@@ -269,6 +289,66 @@ func TestSelfUnionIsIdentity(t *testing.T) {
 		resultArea := getArea(result)
 
 		return math.Abs(originalArea-resultArea) < geom.DefaultEpsilon
+	}
+
+	if err := quick.Check(f, &quick.Config{MaxCount: 100}); err != nil {
+		t.Error(err)
+	}
+}
+
+// TestLineOverlaySelfIdentities verifies line set identities on equivalent
+// cloned inputs, exercising the noded path rather than the same-reference fast path.
+func TestLineOverlaySelfIdentities(t *testing.T) {
+	f := func(x1, y1, x2, y2 float64) bool {
+		x1 = normalizeCoord(x1)
+		y1 = normalizeCoord(y1)
+		x2 = normalizeCoord(x2)
+		y2 = normalizeCoord(y2)
+		if math.Hypot(x2-x1, y2-y1) < geom.DefaultEpsilon {
+			x2 = x1 + 1
+		}
+
+		line := mustLineStringXY(x1, y1, x2, y2)
+		clone := line.Clone().(*geom.LineString)
+		originalLength := line.Length()
+
+		return math.Abs(getLength(Intersection(line, clone))-originalLength) < geom.DefaultEpsilon &&
+			math.Abs(getLength(Union(line, clone))-originalLength) < geom.DefaultEpsilon &&
+			Difference(line, clone).IsEmpty() &&
+			SymDifference(line, clone).IsEmpty()
+	}
+
+	if err := quick.Check(f, &quick.Config{MaxCount: 100}); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestLineOverlayLengthInclusionExclusion(t *testing.T) {
+	f := func(a0, a1, b0, b1 float64) bool {
+		a0 = normalizeCoord(a0)
+		a1 = normalizeCoord(a1)
+		b0 = normalizeCoord(b0)
+		b1 = normalizeCoord(b1)
+		if a1 < a0 {
+			a0, a1 = a1, a0
+		}
+		if b1 < b0 {
+			b0, b1 = b1, b0
+		}
+		if a1-a0 < 1 {
+			a1 = a0 + 1
+		}
+		if b1-b0 < 1 {
+			b1 = b0 + 1
+		}
+
+		lineA := mustLineStringXY(a0, 0, a1, 0)
+		lineB := mustLineStringXY(b0, 0, b1, 0)
+		intersectionLength := getLength(Intersection(lineA, lineB))
+		unionLength := getLength(Union(lineA, lineB))
+		expectedUnion := lineA.Length() + lineB.Length() - intersectionLength
+
+		return math.Abs(unionLength-expectedUnion) < geom.DefaultEpsilon
 	}
 
 	if err := quick.Check(f, &quick.Config{MaxCount: 100}); err != nil {

@@ -8,6 +8,8 @@
 // and coordinate system (axes and units).
 package crs
 
+import "fmt"
+
 // CRSType represents the type of coordinate reference system.
 type CRSType int
 
@@ -125,7 +127,8 @@ type CoordinateSystem interface {
 	Dimension() int
 
 	// Axis returns the i-th axis (0-indexed).
-	Axis(i int) Axis
+	// Returns an error if i is out of range.
+	Axis(i int) (Axis, error)
 }
 
 // Axis represents a coordinate system axis with its properties.
@@ -184,11 +187,21 @@ type coordinateSystem struct {
 }
 
 // NewCoordinateSystem creates a new coordinate system with the given axes.
-func NewCoordinateSystem(axes []Axis) CoordinateSystem {
+// Returns an error if axes is empty.
+func NewCoordinateSystem(axes []Axis) (CoordinateSystem, error) {
 	if len(axes) == 0 {
-		panic("coordinate system must have at least one axis")
+		return nil, fmt.Errorf("coordinate system must have at least one axis")
 	}
-	return &coordinateSystem{axes: axes}
+	return &coordinateSystem{axes: axes}, nil
+}
+
+// mustCS is a helper that panics if NewCoordinateSystem returns an error.
+// It is used only for package-level variable initialization.
+func mustCS(cs CoordinateSystem, err error) CoordinateSystem {
+	if err != nil {
+		panic(err)
+	}
+	return cs
 }
 
 // Dimension returns the number of dimensions.
@@ -197,26 +210,27 @@ func (cs *coordinateSystem) Dimension() int {
 }
 
 // Axis returns the i-th axis.
-func (cs *coordinateSystem) Axis(i int) Axis {
+// Returns an error if i is out of range.
+func (cs *coordinateSystem) Axis(i int) (Axis, error) {
 	if i < 0 || i >= len(cs.axes) {
-		panic("axis index out of range")
+		return Axis{}, fmt.Errorf("axis index %d out of range [0, %d)", i, len(cs.axes))
 	}
-	return cs.axes[i]
+	return cs.axes[i], nil
 }
 
 // Standard coordinate systems used by common CRS types.
 var (
 	// EllipsoidalCS2D is the standard 2D geographic coordinate system
 	// with longitude and latitude in degrees.
-	EllipsoidalCS2D = NewCoordinateSystem([]Axis{
+	EllipsoidalCS2D = mustCS(NewCoordinateSystem([]Axis{
 		{Name: "Longitude", Direction: East, Unit: Degree},
 		{Name: "Latitude", Direction: North, Unit: Degree},
-	})
+	}))
 
 	// CartesianCS2D is the standard 2D Cartesian coordinate system
 	// with easting and northing in meters.
-	CartesianCS2D = NewCoordinateSystem([]Axis{
+	CartesianCS2D = mustCS(NewCoordinateSystem([]Axis{
 		{Name: "Easting", Direction: East, Unit: Metre},
 		{Name: "Northing", Direction: North, Unit: Metre},
-	})
+	}))
 )

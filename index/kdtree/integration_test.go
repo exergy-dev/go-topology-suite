@@ -34,7 +34,9 @@ func TestCompareWithOtherIndexes(t *testing.T) {
 	str := strtree.New()
 	for _, p := range points {
 		env := geom.NewEnvelope(p.x, p.y, p.x, p.y)
-		str.Insert(env, p.name)
+		if err := str.Insert(env, p.name); err != nil {
+			t.Fatalf("str.Insert failed: %v", err)
+		}
 	}
 
 	// Build Quadtree
@@ -136,7 +138,9 @@ func TestIndexPerformanceCharacteristics(t *testing.T) {
 
 		kd.InsertXY(x, y, i)
 		env := geom.NewEnvelope(x, y, x, y)
-		str.Insert(env, i)
+		if err := str.Insert(env, i); err != nil {
+			t.Fatalf("str.Insert failed: %v", err)
+		}
 		quad.Insert(env, i)
 	}
 
@@ -257,7 +261,7 @@ func BenchmarkIndexComparison(b *testing.B) {
 			str := strtree.New()
 			for _, p := range points {
 				env := geom.NewEnvelope(p.x, p.y, p.x, p.y)
-				str.Insert(env, nil)
+				_ = str.Insert(env, nil)
 			}
 		}
 	})
@@ -280,7 +284,7 @@ func BenchmarkIndexComparison(b *testing.B) {
 	for _, p := range points {
 		kd.InsertXY(p.x, p.y, nil)
 		env := geom.NewEnvelope(p.x, p.y, p.x, p.y)
-		str.Insert(env, nil)
+		_ = str.Insert(env, nil)
 		quad.Insert(env, nil)
 	}
 	str.Build()

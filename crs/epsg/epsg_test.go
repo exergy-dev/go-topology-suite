@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/robert-malhotra/go-topology-suite/crs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestLookupCommonCRS tests that common EPSG codes can be looked up.
@@ -26,19 +28,11 @@ func TestLookupCommonCRS(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			crs, err := Lookup(tt.code)
-			if err != nil {
-				t.Fatalf("Lookup(%d) error: %v", tt.code, err)
-			}
-			if crs == nil {
-				t.Fatalf("Lookup(%d) returned nil", tt.code)
-			}
+			require.NoError(t, err)
+			require.NotNil(t, crs)
 			expectedCode := fmt.Sprintf("EPSG:%d", tt.code)
-			if crs.Code() != expectedCode {
-				t.Errorf("Code() = %q, want %q", crs.Code(), expectedCode)
-			}
-			if crs.Name() != tt.name {
-				t.Errorf("Name() = %q, want %q", crs.Name(), tt.name)
-			}
+			assert.Equal(t, expectedCode, crs.Code())
+			assert.Equal(t, tt.name, crs.Name())
 		})
 	}
 }
@@ -46,51 +40,32 @@ func TestLookupCommonCRS(t *testing.T) {
 // TestLookupNotFound tests that looking up an unregistered code returns an error.
 func TestLookupNotFound(t *testing.T) {
 	_, err := Lookup(99999)
-	if err == nil {
-		t.Error("Lookup(99999) expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 // TestMustLookup tests the MustLookup function.
 func TestMustLookup(t *testing.T) {
 	// Should not panic for valid code
 	crs := MustLookup(4326)
-	if crs == nil {
-		t.Fatal("MustLookup(4326) returned nil")
-	}
-	if crs.Code() != "EPSG:4326" {
-		t.Errorf("Code() = %q, want %q", crs.Code(), "EPSG:4326")
-	}
+	require.NotNil(t, crs)
+	assert.Equal(t, "EPSG:4326", crs.Code())
 }
 
 // TestMustLookupPanics tests that MustLookup panics for invalid codes.
 func TestMustLookupPanics(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("MustLookup(99999) did not panic")
-		}
-	}()
-	MustLookup(99999)
+	assert.Panics(t, func() { MustLookup(99999) })
 }
 
 // TestWGS84IsGeographic tests that WGS84 is identified as geographic.
 func TestWGS84IsGeographic(t *testing.T) {
-	if !WGS84.IsGeographic() {
-		t.Error("WGS84.IsGeographic() = false, want true")
-	}
-	if WGS84.Type() != crs.Geographic {
-		t.Errorf("WGS84.Type() = %v, want Geographic", WGS84.Type())
-	}
+	assert.True(t, WGS84.IsGeographic())
+	assert.Equal(t, crs.Geographic, WGS84.Type())
 }
 
 // TestWebMercatorIsProjected tests that Web Mercator is identified as projected.
 func TestWebMercatorIsProjected(t *testing.T) {
-	if WebMercator.IsGeographic() {
-		t.Error("WebMercator.IsGeographic() = true, want false")
-	}
-	if WebMercator.Type() != crs.Projected {
-		t.Errorf("WebMercator.Type() = %v, want Projected", WebMercator.Type())
-	}
+	assert.False(t, WebMercator.IsGeographic())
+	assert.Equal(t, crs.Projected, WebMercator.Type())
 }
 
 // TestUTMZoneGeneration tests the UTMZone function.
@@ -111,25 +86,17 @@ func TestUTMZoneGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.wantName, func(t *testing.T) {
-			crs := UTMZone(tt.zone, tt.north)
-			if crs.Code() != tt.wantCode {
-				t.Errorf("UTMZone(%d, %v).Code() = %q, want %q",
-					tt.zone, tt.north, crs.Code(), tt.wantCode)
-			}
-			if crs.Name() != tt.wantName {
-				t.Errorf("UTMZone(%d, %v).Name() = %q, want %q",
-					tt.zone, tt.north, crs.Name(), tt.wantName)
-			}
-			if crs.IsGeographic() {
-				t.Errorf("UTMZone(%d, %v).IsGeographic() = true, want false",
-					tt.zone, tt.north)
-			}
+			crs, err := UTMZone(tt.zone, tt.north)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCode, crs.Code())
+			assert.Equal(t, tt.wantName, crs.Name())
+			assert.False(t, crs.IsGeographic())
 		})
 	}
 }
 
-// TestUTMZonePanics tests that UTMZone panics for invalid zones.
-func TestUTMZonePanics(t *testing.T) {
+// TestUTMZoneErrors tests that UTMZone returns errors for invalid zones.
+func TestUTMZoneErrors(t *testing.T) {
 	tests := []struct {
 		zone  int
 		north bool
@@ -142,12 +109,8 @@ func TestUTMZonePanics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			defer func() {
-				if r := recover(); r == nil {
-					t.Errorf("UTMZone(%d, %v) did not panic", tt.zone, tt.north)
-				}
-			}()
-			UTMZone(tt.zone, tt.north)
+			_, err := UTMZone(tt.zone, tt.north)
+			require.Error(t, err)
 		})
 	}
 }
@@ -163,27 +126,17 @@ func TestRegisterCustomCRS(t *testing.T) {
 		"Lambert Conformal Conic",
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("Failed to create custom CRS: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Register the custom CRS
 	err = Register(customCRS)
-	if err != nil {
-		t.Fatalf("Register() error: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify it can be looked up
 	retrieved, err := Lookup(customCode)
-	if err != nil {
-		t.Fatalf("Lookup(%d) error: %v", customCode, err)
-	}
-	if retrieved.Code() != "EPSG:2154" {
-		t.Errorf("Code() = %q, want %q", retrieved.Code(), "EPSG:2154")
-	}
-	if retrieved.Name() != customCRS.Name() {
-		t.Errorf("Name() = %q, want %q", retrieved.Name(), customCRS.Name())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "EPSG:2154", retrieved.Code())
+	assert.Equal(t, customCRS.Name(), retrieved.Name())
 
 	// Clean up
 	_ = Unregister(customCode)
@@ -198,14 +151,10 @@ func TestRegisterInvalidCode(t *testing.T) {
 		crs.EllipsoidalCS2D,
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("Failed to create custom CRS: %v", err)
-	}
+	require.NoError(t, err)
 
 	err = Register(customCRS)
-	if err == nil {
-		t.Error("Register(CRS with invalid code) expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 // TestUnregister tests unregistering a CRS.
@@ -218,69 +167,44 @@ func TestUnregister(t *testing.T) {
 		crs.EllipsoidalCS2D,
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("Failed to create custom CRS: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Register and then unregister
 	_ = Register(customCRS)
 	err = Unregister(customCode)
-	if err != nil {
-		t.Fatalf("Unregister(%d) error: %v", customCode, err)
-	}
+	require.NoError(t, err)
 
 	// Verify it's no longer in the registry
 	_, err = Lookup(customCode)
-	if err == nil {
-		t.Error("Lookup() after Unregister() should return error")
-	}
+	require.Error(t, err)
 }
 
 // TestUnregisterNotFound tests unregistering a non-existent code.
 func TestUnregisterNotFound(t *testing.T) {
 	err := Unregister(99999)
-	if err == nil {
-		t.Error("Unregister(99999) expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 // TestCodes tests the Codes function.
 func TestCodes(t *testing.T) {
 	codes := Codes()
-	if len(codes) == 0 {
-		t.Error("Codes() returned empty slice")
-	}
+	assert.NotEmpty(t, codes)
 
 	// Verify that codes are sorted
 	for i := 1; i < len(codes); i++ {
-		if codes[i] <= codes[i-1] {
-			t.Errorf("Codes() not sorted: %d <= %d at index %d",
-				codes[i], codes[i-1], i)
-		}
+		assert.Less(t, codes[i-1], codes[i], "Codes() not sorted at index %d", i)
 	}
 
 	// Verify some expected codes are present
-	expectedCodes := []int{4326, 4269, 3857}
-	for _, expected := range expectedCodes {
-		found := false
-		for _, code := range codes {
-			if code == expected {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Codes() missing expected code %d", expected)
-		}
-	}
+	assert.Contains(t, codes, 4326)
+	assert.Contains(t, codes, 4269)
+	assert.Contains(t, codes, 3857)
 }
 
 // TestCount tests the Count function.
 func TestCount(t *testing.T) {
 	count := Count()
-	if count < 8 {
-		t.Errorf("Count() = %d, want at least 8", count)
-	}
+	assert.GreaterOrEqual(t, count, 8)
 
 	// Add a custom CRS and verify count increases
 	customCode := 9998
@@ -291,15 +215,11 @@ func TestCount(t *testing.T) {
 		crs.EllipsoidalCS2D,
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("Failed to create custom CRS: %v", err)
-	}
+	require.NoError(t, err)
 
 	_ = Register(customCRS)
 	newCount := Count()
-	if newCount != count+1 {
-		t.Errorf("Count() after Register() = %d, want %d", newCount, count+1)
-	}
+	assert.Equal(t, count+1, newCount)
 
 	// Clean up
 	_ = Unregister(customCode)
@@ -307,21 +227,17 @@ func TestCount(t *testing.T) {
 
 // TestIsRegistered tests the IsRegistered function.
 func TestIsRegistered(t *testing.T) {
-	if !IsRegistered(4326) {
-		t.Error("IsRegistered(4326) = false, want true")
-	}
-	if IsRegistered(99999) {
-		t.Error("IsRegistered(99999) = true, want false")
-	}
+	assert.True(t, IsRegistered(4326))
+	assert.False(t, IsRegistered(99999))
 }
 
 // TestDatumProperties tests that datum properties are correct for geographic CRS.
 func TestDatumProperties(t *testing.T) {
 	tests := []struct {
-		name           string
-		crs            crs.CRS
-		wantDatumName  string
-		wantEllipsoid  crs.Ellipsoid
+		name          string
+		crs           crs.CRS
+		wantDatumName string
+		wantEllipsoid crs.Ellipsoid
 	}{
 		{
 			name:          "WGS84",
@@ -346,12 +262,8 @@ func TestDatumProperties(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			datum := tt.crs.Datum()
-			if datum.Name() != tt.wantDatumName {
-				t.Errorf("Datum().Name() = %q, want %q", datum.Name(), tt.wantDatumName)
-			}
-			if datum.Ellipsoid() != tt.wantEllipsoid {
-				t.Errorf("Datum().Ellipsoid() != expected ellipsoid")
-			}
+			assert.Equal(t, tt.wantDatumName, datum.Name())
+			assert.Equal(t, tt.wantEllipsoid, datum.Ellipsoid())
 		})
 	}
 }
@@ -373,15 +285,10 @@ func TestCoordinateSystem(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cs := tt.crs.CoordinateSystem()
-			if cs.Dimension() != tt.wantDimension {
-				t.Errorf("CoordinateSystem().Dimension() = %d, want %d",
-					cs.Dimension(), tt.wantDimension)
-			}
-			axis0 := cs.Axis(0)
-			if axis0.Unit != tt.wantUnit {
-				t.Errorf("CoordinateSystem().Axis(0).Unit = %v, want %v",
-					axis0.Unit, tt.wantUnit)
-			}
+			assert.Equal(t, tt.wantDimension, cs.Dimension())
+			axis0, err := cs.Axis(0)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantUnit, axis0.Unit)
 		})
 	}
 }
@@ -389,8 +296,8 @@ func TestCoordinateSystem(t *testing.T) {
 // TestAreaOfUse tests that area of use is defined for CRS.
 func TestAreaOfUse(t *testing.T) {
 	tests := []struct {
-		name      string
-		crs       crs.CRS
+		name       string
+		crs        crs.CRS
 		wantGlobal bool
 	}{
 		{"WGS84", WGS84, true},
@@ -403,24 +310,20 @@ func TestAreaOfUse(t *testing.T) {
 			minLon, minLat, maxLon, maxLat := tt.crs.AreaOfUse()
 
 			// Check that values are reasonable
-			if minLon < -180 || minLon > 180 {
-				t.Errorf("AreaOfUse() minLon = %f, out of range [-180, 180]", minLon)
-			}
-			if maxLon < -180 || maxLon > 180 {
-				t.Errorf("AreaOfUse() maxLon = %f, out of range [-180, 180]", maxLon)
-			}
-			if minLat < -90 || minLat > 90 {
-				t.Errorf("AreaOfUse() minLat = %f, out of range [-90, 90]", minLat)
-			}
-			if maxLat < -90 || maxLat > 90 {
-				t.Errorf("AreaOfUse() maxLat = %f, out of range [-90, 90]", maxLat)
-			}
+			assert.GreaterOrEqual(t, minLon, -180.0)
+			assert.LessOrEqual(t, minLon, 180.0)
+			assert.GreaterOrEqual(t, maxLon, -180.0)
+			assert.LessOrEqual(t, maxLon, 180.0)
+			assert.GreaterOrEqual(t, minLat, -90.0)
+			assert.LessOrEqual(t, minLat, 90.0)
+			assert.GreaterOrEqual(t, maxLat, -90.0)
+			assert.LessOrEqual(t, maxLat, 90.0)
 
 			if tt.wantGlobal {
-				if minLon != -180 || maxLon != 180 || minLat != -90 || maxLat != 90 {
-					t.Errorf("AreaOfUse() = (%f, %f, %f, %f), want global coverage (-180, -90, 180, 90)",
-						minLon, minLat, maxLon, maxLat)
-				}
+				assert.Equal(t, -180.0, minLon)
+				assert.Equal(t, 180.0, maxLon)
+				assert.Equal(t, -90.0, minLat)
+				assert.Equal(t, 90.0, maxLat)
 			}
 		})
 	}
@@ -429,8 +332,8 @@ func TestAreaOfUse(t *testing.T) {
 // TestWKT tests that WKT output is generated for CRS.
 func TestWKT(t *testing.T) {
 	tests := []struct {
-		name        string
-		crs         crs.CRS
+		name         string
+		crs          crs.CRS
 		wantContains string
 	}{
 		{"WGS84", WGS84, "GEOGCS"},
@@ -441,35 +344,11 @@ func TestWKT(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wkt := tt.crs.WKT()
-			if wkt == "" {
-				t.Error("WKT() returned empty string")
-			}
-			if len(wkt) < 50 {
-				t.Errorf("WKT() = %q, seems too short", wkt)
-			}
-			// Just check that it contains expected keyword
-			if !contains(wkt, tt.wantContains) {
-				t.Errorf("WKT() = %q, want to contain %q", wkt, tt.wantContains)
-			}
+			assert.NotEmpty(t, wkt)
+			assert.GreaterOrEqual(t, len(wkt), 50)
+			assert.Contains(t, wkt, tt.wantContains)
 		})
 	}
-}
-
-// contains is a simple substring check helper.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr)
-}
-
-func findSubstring(s, substr string) bool {
-	if len(substr) == 0 {
-		return true
-	}
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // BenchmarkLookup benchmarks the Lookup function.
@@ -482,6 +361,6 @@ func BenchmarkLookup(b *testing.B) {
 // BenchmarkUTMZone benchmarks the UTMZone function.
 func BenchmarkUTMZone(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = UTMZone(10, true)
+		_, _ = UTMZone(10, true)
 	}
 }

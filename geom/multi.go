@@ -290,14 +290,34 @@ func (mls *MultiLineString) linesIntersectImproperly(l1, l2 *LineString) bool {
 	// Check all segment pairs between the two linestrings
 	for i := 0; i < len(l1.coords)-1; i++ {
 		for j := 0; j < len(l2.coords)-1; j++ {
-			if segmentsCrossProper(
+			info := segmentIntersectionInfo(
 				l1.coords[i], l1.coords[i+1],
-				l2.coords[j], l2.coords[j+1]) {
+				l2.coords[j], l2.coords[j+1])
+			if !info.intersects {
+				continue
+			}
+			if info.proper || info.collinearOverlap {
+				return true
+			}
+			for _, pt := range info.points {
+				if !isLineBoundaryPoint(l1, pt) || !isLineBoundaryPoint(l2, pt) {
+					return true
+				}
+			}
+			if len(info.points) == 0 {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+func isLineBoundaryPoint(line *LineString, p Coordinate) bool {
+	if line.IsEmpty() || line.IsClosed() {
+		return false
+	}
+	return p.Equals2D(line.coords.First(), DefaultEpsilon) ||
+		p.Equals2D(line.coords.Last(), DefaultEpsilon)
 }
 
 // IsValid returns true if all linestrings are valid.
@@ -571,6 +591,9 @@ func (mp *MultiPolygon) polygonsOverlap(p1, p2 *Polygon) bool {
 	if ringsCrossProperly(p1.shell, p2.shell) {
 		return true
 	}
+	if polygonsOverlapAtBoundarySegment(p1, p2) {
+		return true
+	}
 
 	// If any shell segment midpoint is strictly inside the other polygon,
 	// the interiors overlap (covers containment and corner overlaps).
@@ -582,6 +605,24 @@ func (mp *MultiPolygon) polygonsOverlap(p1, p2 *Polygon) bool {
 	}
 
 	return false
+}
+
+func polygonsOverlapAtBoundarySegment(p1, p2 *Polygon) bool {
+	for _, r1 := range polygonBoundaryRings(p1) {
+		for _, r2 := range polygonBoundaryRings(p2) {
+			if ringsOverlapAtSegment(r1, r2) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func polygonBoundaryRings(p *Polygon) []*LinearRing {
+	rings := make([]*LinearRing, 0, 1+len(p.holes))
+	rings = append(rings, p.shell)
+	rings = append(rings, p.holes...)
+	return rings
 }
 
 // ringsCrossProperly checks if two rings have a proper crossing (not just touching).

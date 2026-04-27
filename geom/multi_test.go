@@ -220,8 +220,8 @@ func TestMultiLineString_Empty(t *testing.T) {
 // TestMultiLineString_Length tests length calculation
 func TestMultiLineString_Length(t *testing.T) {
 	mls := geom.NewMultiLineString([]*geom.LineString{
-		mustLineStringXY(0, 0, 10, 0),       // Length 10
-		mustLineStringXY(0, 0, 3, 4),        // Length 5
+		mustLineStringXY(0, 0, 10, 0),         // Length 10
+		mustLineStringXY(0, 0, 3, 4),          // Length 5
 		mustLineStringXY(0, 0, 10, 10, 20, 0), // Length 10√2 + 10√2 ≈ 28.28
 	})
 
@@ -636,6 +636,22 @@ func TestMultiLineString_IsSimple_InterLinestring(t *testing.T) {
 		assert.True(t, mls.IsSimple(), "Lines touching at endpoints should be simple")
 	})
 
+	t.Run("EndpointTouchingInterior_NotSimple", func(t *testing.T) {
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			mustLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(5, 0, 5, 5),
+		})
+		assert.False(t, mls.IsSimple(), "Endpoint touching another line interior should not be simple")
+	})
+
+	t.Run("CollinearOverlap_NotSimple", func(t *testing.T) {
+		mls := geom.NewMultiLineString([]*geom.LineString{
+			mustLineStringXY(0, 0, 10, 0),
+			mustLineStringXY(5, 0, 15, 0),
+		})
+		assert.False(t, mls.IsSimple(), "Collinear overlapping lines should not be simple")
+	})
+
 	t.Run("NonIntersecting_IsSimple", func(t *testing.T) {
 		// Two completely separate lines
 		mls := geom.NewMultiLineString([]*geom.LineString{
@@ -680,12 +696,29 @@ func TestMultiPolygon_IsValid_Overlap(t *testing.T) {
 		assert.False(t, mp.IsValid(), "Corner-overlapping polygons should not be valid")
 	})
 
-	t.Run("TouchingAtEdge_IsValid", func(t *testing.T) {
-		// Two squares that share an edge (adjacent) - should be valid
+	t.Run("TouchingAtEdge_NotValid", func(t *testing.T) {
+		// Two squares that share an edge (adjacent) - boundary overlap is invalid.
 		poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
 		poly2 := geom.NewPolygon(mustLinearRingXY(10, 0, 20, 0, 20, 10, 10, 10, 10, 0), nil)
 		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
-		assert.True(t, mp.IsValid(), "Edge-adjacent polygons should be valid")
+		assert.False(t, mp.IsValid(), "Edge-adjacent polygons should not be valid")
+	})
+
+	t.Run("PartialBoundaryOverlap_NotValid", func(t *testing.T) {
+		poly1 := geom.NewPolygon(mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0), nil)
+		poly2 := geom.NewPolygon(mustLinearRingXY(10, 2, 20, 2, 20, 8, 10, 8, 10, 2), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{poly1, poly2})
+		assert.False(t, mp.IsValid(), "MultiPolygon polygons sharing a boundary segment should be invalid")
+	})
+
+	t.Run("HoleBoundaryOverlap_NotValid", func(t *testing.T) {
+		outer := geom.NewPolygon(
+			mustLinearRingXY(0, 0, 12, 0, 12, 12, 0, 12, 0, 0),
+			[]*geom.LinearRing{mustLinearRingXY(4, 4, 8, 4, 8, 8, 4, 8, 4, 4)},
+		)
+		island := geom.NewPolygon(mustLinearRingXY(6, 5, 8, 5, 8, 7, 6, 7, 6, 5), nil)
+		mp := geom.NewMultiPolygon([]*geom.Polygon{outer, island})
+		assert.False(t, mp.IsValid(), "MultiPolygon polygon sharing a hole boundary segment should be invalid")
 	})
 
 	t.Run("ContainedPolygon_NotValid", func(t *testing.T) {

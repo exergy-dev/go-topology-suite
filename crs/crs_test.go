@@ -3,11 +3,10 @@ package crs
 import (
 	"math"
 	"testing"
-)
 
-func almostEqual(a, b, epsilon float64) bool {
-	return math.Abs(a-b) < epsilon
-}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 // TestEllipsoid tests ellipsoid creation and calculations.
 func TestEllipsoid(t *testing.T) {
@@ -54,41 +53,21 @@ func TestEllipsoid(t *testing.T) {
 			ellipsoid, err := NewEllipsoid(tt.name, tt.semiMajorAxis, tt.inverseFlattening)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if ellipsoid.Name() != tt.name {
-				t.Errorf("Name() = %v, want %v", ellipsoid.Name(), tt.name)
-			}
-
-			if ellipsoid.SemiMajorAxis() != tt.semiMajorAxis {
-				t.Errorf("SemiMajorAxis() = %v, want %v", ellipsoid.SemiMajorAxis(), tt.semiMajorAxis)
-			}
-
-			if ellipsoid.InverseFlattening() != tt.inverseFlattening {
-				t.Errorf("InverseFlattening() = %v, want %v", ellipsoid.InverseFlattening(), tt.inverseFlattening)
-			}
-
-			if !almostEqual(ellipsoid.SemiMinorAxis(), tt.wantSemiMinor, 1e-6) {
-				t.Errorf("SemiMinorAxis() = %v, want %v", ellipsoid.SemiMinorAxis(), tt.wantSemiMinor)
-			}
-
-			if !almostEqual(ellipsoid.Eccentricity(), tt.wantEccentricity, 1e-12) {
-				t.Errorf("Eccentricity() = %v, want %v", ellipsoid.Eccentricity(), tt.wantEccentricity)
-			}
+			assert.Equal(t, tt.name, ellipsoid.Name())
+			assert.Equal(t, tt.semiMajorAxis, ellipsoid.SemiMajorAxis())
+			assert.Equal(t, tt.inverseFlattening, ellipsoid.InverseFlattening())
+			assert.InDelta(t, tt.wantSemiMinor, ellipsoid.SemiMinorAxis(), 1e-6)
+			assert.InDelta(t, tt.wantEccentricity, ellipsoid.Eccentricity(), 1e-12)
 
 			// Verify eccentricity squared
 			wantEccentricitySq := tt.wantEccentricity * tt.wantEccentricity
-			if !almostEqual(ellipsoid.EccentricitySquared(), wantEccentricitySq, 1e-12) {
-				t.Errorf("EccentricitySquared() = %v, want %v", ellipsoid.EccentricitySquared(), wantEccentricitySq)
-			}
+			assert.InDelta(t, wantEccentricitySq, ellipsoid.EccentricitySquared(), 1e-12)
 		})
 	}
 }
@@ -98,24 +77,16 @@ func TestEllipsoidFromAF(t *testing.T) {
 	// WGS84: f = 1/298.257223563 ≈ 0.003352810664747
 	flattening := 1.0 / 298.257223563
 	ellipsoid, err := NewEllipsoidFromAF("WGS84", 6378137.0, flattening)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if !almostEqual(ellipsoid.InverseFlattening(), 298.257223563, 1e-6) {
-		t.Errorf("InverseFlattening() = %v, want 298.257223563", ellipsoid.InverseFlattening())
-	}
+	assert.InDelta(t, 298.257223563, ellipsoid.InverseFlattening(), 1e-6)
 
 	// Test invalid flattening
 	_, err = NewEllipsoidFromAF("Invalid", 6378137.0, 1.5)
-	if err == nil {
-		t.Error("expected error for flattening >= 1, got nil")
-	}
+	require.Error(t, err)
 
 	_, err = NewEllipsoidFromAF("Invalid", 6378137.0, -0.1)
-	if err == nil {
-		t.Error("expected error for negative flattening, got nil")
-	}
+	require.Error(t, err)
 }
 
 // TestCommonEllipsoids tests the predefined common ellipsoids.
@@ -136,28 +107,16 @@ func TestCommonEllipsoids(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.ellipsoid.Name() != tt.name {
-				t.Errorf("Name() = %v, want %v", tt.ellipsoid.Name(), tt.name)
-			}
-
-			if tt.ellipsoid.SemiMajorAxis() != tt.semiMajorAxis {
-				t.Errorf("SemiMajorAxis() = %v, want %v", tt.ellipsoid.SemiMajorAxis(), tt.semiMajorAxis)
-			}
-
-			if !almostEqual(tt.ellipsoid.InverseFlattening(), tt.inverseFlattening, 1e-6) {
-				t.Errorf("InverseFlattening() = %v, want %v", tt.ellipsoid.InverseFlattening(), tt.inverseFlattening)
-			}
+			assert.Equal(t, tt.name, tt.ellipsoid.Name())
+			assert.Equal(t, tt.semiMajorAxis, tt.ellipsoid.SemiMajorAxis())
+			assert.InDelta(t, tt.inverseFlattening, tt.ellipsoid.InverseFlattening(), 1e-6)
 
 			// Verify semi-minor axis is less than semi-major axis
-			if tt.ellipsoid.SemiMinorAxis() >= tt.ellipsoid.SemiMajorAxis() {
-				t.Errorf("SemiMinorAxis() >= SemiMajorAxis()")
-			}
+			assert.True(t, tt.ellipsoid.SemiMinorAxis() < tt.ellipsoid.SemiMajorAxis())
 
 			// Verify eccentricity is in valid range [0, 1)
 			e := tt.ellipsoid.Eccentricity()
-			if e < 0 || e >= 1 {
-				t.Errorf("Eccentricity() = %v, want [0, 1)", e)
-			}
+			assert.True(t, e >= 0 && e < 1, "Eccentricity() = %v, want [0, 1)", e)
 		})
 	}
 }
@@ -167,32 +126,32 @@ func TestDatum(t *testing.T) {
 	ellipsoid := WGS84Ellipsoid
 
 	tests := []struct {
-		name              string
-		datumName         string
-		primeMeridian     float64
-		toWGS84Params     []float64
-		wantError         bool
+		name          string
+		datumName     string
+		primeMeridian float64
+		toWGS84Params []float64
+		wantError     bool
 	}{
 		{
-			name:              "WGS84",
-			datumName:         "WGS 84",
-			primeMeridian:     0.0,
-			toWGS84Params:     nil,
-			wantError:         false,
+			name:          "WGS84",
+			datumName:     "WGS 84",
+			primeMeridian: 0.0,
+			toWGS84Params: nil,
+			wantError:     false,
 		},
 		{
-			name:              "With transformation",
-			datumName:         "Custom",
-			primeMeridian:     0.0,
-			toWGS84Params:     []float64{1.0, 2.0, 3.0, 0.1, 0.2, 0.3, 0.5},
-			wantError:         false,
+			name:          "With transformation",
+			datumName:     "Custom",
+			primeMeridian: 0.0,
+			toWGS84Params: []float64{1.0, 2.0, 3.0, 0.1, 0.2, 0.3, 0.5},
+			wantError:     false,
 		},
 		{
-			name:              "Invalid transformation params",
-			datumName:         "Invalid",
-			primeMeridian:     0.0,
-			toWGS84Params:     []float64{1.0, 2.0}, // Wrong number
-			wantError:         true,
+			name:          "Invalid transformation params",
+			datumName:     "Invalid",
+			primeMeridian: 0.0,
+			toWGS84Params: []float64{1.0, 2.0}, // Wrong number
+			wantError:     true,
 		},
 	}
 
@@ -201,40 +160,26 @@ func TestDatum(t *testing.T) {
 			datum, err := NewDatum(tt.datumName, ellipsoid, tt.primeMeridian, tt.toWGS84Params)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if datum.Name() != tt.datumName {
-				t.Errorf("Name() = %v, want %v", datum.Name(), tt.datumName)
-			}
-
-			if datum.Ellipsoid() != ellipsoid {
-				t.Errorf("Ellipsoid() != expected ellipsoid")
-			}
-
-			if datum.PrimeMeridian() != tt.primeMeridian {
-				t.Errorf("PrimeMeridian() = %v, want %v", datum.PrimeMeridian(), tt.primeMeridian)
-			}
+			assert.Equal(t, tt.datumName, datum.Name())
+			assert.Equal(t, ellipsoid, datum.Ellipsoid())
+			assert.Equal(t, tt.primeMeridian, datum.PrimeMeridian())
 
 			// Check transformation parameters
 			dx, dy, dz, rx, ry, rz, ds := datum.ToWGS84Params()
 			if tt.toWGS84Params != nil {
-				if dx != tt.toWGS84Params[0] || dy != tt.toWGS84Params[1] || dz != tt.toWGS84Params[2] {
-					t.Errorf("Translation params incorrect")
-				}
-				if rx != tt.toWGS84Params[3] || ry != tt.toWGS84Params[4] || rz != tt.toWGS84Params[5] {
-					t.Errorf("Rotation params incorrect")
-				}
-				if ds != tt.toWGS84Params[6] {
-					t.Errorf("Scale param incorrect")
-				}
+				assert.Equal(t, tt.toWGS84Params[0], dx)
+				assert.Equal(t, tt.toWGS84Params[1], dy)
+				assert.Equal(t, tt.toWGS84Params[2], dz)
+				assert.Equal(t, tt.toWGS84Params[3], rx)
+				assert.Equal(t, tt.toWGS84Params[4], ry)
+				assert.Equal(t, tt.toWGS84Params[5], rz)
+				assert.Equal(t, tt.toWGS84Params[6], ds)
 			}
 		})
 	}
@@ -257,18 +202,11 @@ func TestCommonDatums(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.datum.Name() != tt.name {
-				t.Errorf("Name() = %v, want %v", tt.datum.Name(), tt.name)
-			}
-
-			if tt.datum.Ellipsoid().Name() != tt.ellipsoidName {
-				t.Errorf("Ellipsoid().Name() = %v, want %v", tt.datum.Ellipsoid().Name(), tt.ellipsoidName)
-			}
+			assert.Equal(t, tt.name, tt.datum.Name())
+			assert.Equal(t, tt.ellipsoidName, tt.datum.Ellipsoid().Name())
 
 			// All common datums use Greenwich prime meridian
-			if tt.datum.PrimeMeridian() != 0.0 {
-				t.Errorf("PrimeMeridian() = %v, want 0.0", tt.datum.PrimeMeridian())
-			}
+			assert.Equal(t, 0.0, tt.datum.PrimeMeridian())
 		})
 	}
 }
@@ -276,13 +214,13 @@ func TestCommonDatums(t *testing.T) {
 // TestGeographicCRS tests geographic CRS creation and properties.
 func TestGeographicCRS(t *testing.T) {
 	tests := []struct {
-		name       string
-		code       string
-		crsName    string
-		datum      Datum
-		cs         CoordinateSystem
-		areaOfUse  []float64
-		wantError  bool
+		name      string
+		code      string
+		crsName   string
+		datum     Datum
+		cs        CoordinateSystem
+		areaOfUse []float64
+		wantError bool
 	}{
 		{
 			name:      "WGS84",
@@ -318,61 +256,36 @@ func TestGeographicCRS(t *testing.T) {
 			crs, err := NewGeographicCRS(tt.code, tt.crsName, tt.datum, tt.cs, tt.areaOfUse)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if crs.Code() != tt.code {
-				t.Errorf("Code() = %v, want %v", crs.Code(), tt.code)
-			}
-
-			if crs.Name() != tt.crsName {
-				t.Errorf("Name() = %v, want %v", crs.Name(), tt.crsName)
-			}
-
-			if crs.Type() != Geographic {
-				t.Errorf("Type() = %v, want Geographic", crs.Type())
-			}
-
-			if !crs.IsGeographic() {
-				t.Error("IsGeographic() = false, want true")
-			}
-
-			if crs.Datum() != tt.datum {
-				t.Errorf("Datum() != expected datum")
-			}
-
-			if crs.CoordinateSystem() != tt.cs {
-				t.Errorf("CoordinateSystem() != expected coordinate system")
-			}
+			assert.Equal(t, tt.code, crs.Code())
+			assert.Equal(t, tt.crsName, crs.Name())
+			assert.Equal(t, Geographic, crs.Type())
+			assert.True(t, crs.IsGeographic())
+			assert.Equal(t, tt.datum, crs.Datum())
+			assert.Equal(t, tt.cs, crs.CoordinateSystem())
 
 			// Check area of use
 			minLon, minLat, maxLon, maxLat := crs.AreaOfUse()
 			if tt.areaOfUse != nil {
-				if minLon != tt.areaOfUse[0] || minLat != tt.areaOfUse[1] ||
-					maxLon != tt.areaOfUse[2] || maxLat != tt.areaOfUse[3] {
-					t.Errorf("AreaOfUse() = [%v, %v, %v, %v], want %v",
-						minLon, minLat, maxLon, maxLat, tt.areaOfUse)
-				}
+				assert.Equal(t, tt.areaOfUse[0], minLon)
+				assert.Equal(t, tt.areaOfUse[1], minLat)
+				assert.Equal(t, tt.areaOfUse[2], maxLon)
+				assert.Equal(t, tt.areaOfUse[3], maxLat)
 			} else {
 				// Should default to global
-				if minLon != -180 || minLat != -90 || maxLon != 180 || maxLat != 90 {
-					t.Errorf("AreaOfUse() = [%v, %v, %v, %v], want global [-180, -90, 180, 90]",
-						minLon, minLat, maxLon, maxLat)
-				}
+				assert.Equal(t, -180.0, minLon)
+				assert.Equal(t, -90.0, minLat)
+				assert.Equal(t, 180.0, maxLon)
+				assert.Equal(t, 90.0, maxLat)
 			}
 
 			// Check WKT is not empty
-			wkt := crs.WKT()
-			if len(wkt) == 0 {
-				t.Error("WKT() returned empty string")
-			}
+			assert.True(t, len(crs.WKT()) > 0, "WKT() returned empty string")
 		})
 	}
 }
@@ -393,17 +306,9 @@ func TestCommonGeographicCRS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.crs.Code() != tt.code {
-				t.Errorf("Code() = %v, want %v", tt.crs.Code(), tt.code)
-			}
-
-			if tt.crs.Name() != tt.name {
-				t.Errorf("Name() = %v, want %v", tt.crs.Name(), tt.name)
-			}
-
-			if !tt.crs.IsGeographic() {
-				t.Error("IsGeographic() = false, want true")
-			}
+			assert.Equal(t, tt.code, tt.crs.Code())
+			assert.Equal(t, tt.name, tt.crs.Name())
+			assert.True(t, tt.crs.IsGeographic())
 		})
 	}
 }
@@ -447,50 +352,24 @@ func TestProjectedCRS(t *testing.T) {
 			crs, err := NewProjectedCRS(tt.code, tt.crsName, tt.baseCRS, tt.cs, tt.projection, tt.areaOfUse)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if crs.Code() != tt.code {
-				t.Errorf("Code() = %v, want %v", crs.Code(), tt.code)
-			}
-
-			if crs.Name() != tt.crsName {
-				t.Errorf("Name() = %v, want %v", crs.Name(), tt.crsName)
-			}
-
-			if crs.Type() != Projected {
-				t.Errorf("Type() = %v, want Projected", crs.Type())
-			}
-
-			if crs.IsGeographic() {
-				t.Error("IsGeographic() = true, want false")
-			}
-
-			if crs.BaseCRS() != tt.baseCRS {
-				t.Errorf("BaseCRS() != expected base CRS")
-			}
-
-			if crs.Projection() != tt.projection {
-				t.Errorf("Projection() = %v, want %v", crs.Projection(), tt.projection)
-			}
+			assert.Equal(t, tt.code, crs.Code())
+			assert.Equal(t, tt.crsName, crs.Name())
+			assert.Equal(t, Projected, crs.Type())
+			assert.False(t, crs.IsGeographic())
+			assert.Equal(t, tt.baseCRS, crs.BaseCRS())
+			assert.Equal(t, tt.projection, crs.Projection())
 
 			// Datum should come from base CRS
-			if crs.Datum() != tt.baseCRS.Datum() {
-				t.Errorf("Datum() != base CRS datum")
-			}
+			assert.Equal(t, tt.baseCRS.Datum(), crs.Datum())
 
 			// Check WKT is not empty
-			wkt := crs.WKT()
-			if len(wkt) == 0 {
-				t.Error("WKT() returned empty string")
-			}
+			assert.True(t, len(crs.WKT()) > 0, "WKT() returned empty string")
 		})
 	}
 }
@@ -508,17 +387,9 @@ func TestCommonProjectedCRS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.crs.Code() != tt.code {
-				t.Errorf("Code() = %v, want %v", tt.crs.Code(), tt.code)
-			}
-
-			if tt.crs.Name() != tt.name {
-				t.Errorf("Name() = %v, want %v", tt.crs.Name(), tt.name)
-			}
-
-			if tt.crs.IsGeographic() {
-				t.Error("IsGeographic() = true, want false")
-			}
+			assert.Equal(t, tt.code, tt.crs.Code())
+			assert.Equal(t, tt.name, tt.crs.Name())
+			assert.False(t, tt.crs.IsGeographic())
 		})
 	}
 }
@@ -530,41 +401,42 @@ func TestCoordinateSystem(t *testing.T) {
 		{Name: "Latitude", Direction: North, Unit: Degree},
 	}
 
-	cs := NewCoordinateSystem(axes)
+	cs, err := NewCoordinateSystem(axes)
+	require.NoError(t, err)
 
-	if cs.Dimension() != 2 {
-		t.Errorf("Dimension() = %v, want 2", cs.Dimension())
-	}
+	assert.Equal(t, 2, cs.Dimension())
 
-	axis0 := cs.Axis(0)
-	if axis0.Name != "Longitude" {
-		t.Errorf("Axis(0).Name = %v, want Longitude", axis0.Name)
-	}
-	if axis0.Direction != East {
-		t.Errorf("Axis(0).Direction = %v, want East", axis0.Direction)
-	}
-	if axis0.Unit.Name != "degree" {
-		t.Errorf("Axis(0).Unit.Name = %v, want degree", axis0.Unit.Name)
-	}
+	axis0, err := cs.Axis(0)
+	require.NoError(t, err)
+	assert.Equal(t, "Longitude", axis0.Name)
+	assert.Equal(t, East, axis0.Direction)
+	assert.Equal(t, "degree", axis0.Unit.Name)
 
-	axis1 := cs.Axis(1)
-	if axis1.Name != "Latitude" {
-		t.Errorf("Axis(1).Name = %v, want Latitude", axis1.Name)
-	}
-	if axis1.Direction != North {
-		t.Errorf("Axis(1).Direction = %v, want North", axis1.Direction)
-	}
+	axis1, err := cs.Axis(1)
+	require.NoError(t, err)
+	assert.Equal(t, "Latitude", axis1.Name)
+	assert.Equal(t, North, axis1.Direction)
+
+	// Test error cases
+	_, err = NewCoordinateSystem([]Axis{})
+	require.Error(t, err)
+
+	_, err = cs.Axis(-1)
+	require.Error(t, err)
+
+	_, err = cs.Axis(2)
+	require.Error(t, err)
 }
 
 // TestUnits tests unit conversion.
 func TestUnits(t *testing.T) {
 	tests := []struct {
-		name     string
-		value    float64
-		from     Unit
-		to       Unit
-		want     float64
-		wantErr  bool
+		name    string
+		value   float64
+		from    Unit
+		to      Unit
+		want    float64
+		wantErr bool
 	}{
 		{
 			name:    "Metres to feet",
@@ -612,19 +484,13 @@ func TestUnits(t *testing.T) {
 			result, err := ConvertValue(tt.value, tt.from, tt.to)
 
 			if tt.wantErr {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
+				require.Error(t, err)
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoError(t, err)
 
-			if !almostEqual(result, tt.want, 1e-9) {
-				t.Errorf("ConvertValue() = %v, want %v", result, tt.want)
-			}
+			assert.InDelta(t, tt.want, result, 1e-9)
 		})
 	}
 }
@@ -645,9 +511,7 @@ func TestDirectionString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			if got := tt.direction.String(); got != tt.want {
-				t.Errorf("Direction.String() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, tt.direction.String())
 		})
 	}
 }
@@ -667,9 +531,7 @@ func TestCRSTypeString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			if got := tt.crsType.String(); got != tt.want {
-				t.Errorf("CRSType.String() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, tt.crsType.String())
 		})
 	}
 }

@@ -66,16 +66,29 @@ func Marshal(g geom.Geometry) ([]byte, error) {
 // MarshalWithOptions marshals with custom options.
 func MarshalWithOptions(g geom.Geometry, opts Options) ([]byte, error) {
 	if g == nil {
-		return nil, nil
+		return nil, fmt.Errorf("wkb: cannot marshal nil geometry")
 	}
+	opts = normalizeOptions(opts)
 
 	buf := &buffer{
 		data:  make([]byte, 0, 256),
 		order: opts.ByteOrder,
 	}
 
-	writeGeometry(buf, g, opts)
+	if err := writeGeometry(buf, g, opts); err != nil {
+		return nil, err
+	}
 	return buf.data, nil
+}
+
+func normalizeOptions(opts Options) Options {
+	if opts.ByteOrder == nil {
+		opts.ByteOrder = binary.LittleEndian
+	}
+	if opts.OutputDimension == 0 {
+		opts.OutputDimension = 2
+	}
+	return opts
 }
 
 // MarshalEWKB marshals a geometry to Extended WKB with SRID.
@@ -95,6 +108,9 @@ func UnmarshalWithFactory(data []byte, factory *geom.GeometryFactory) (geom.Geom
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty WKB data")
 	}
+	if factory == nil {
+		factory = geom.DefaultFactory
+	}
 
 	p := &parser{
 		data:    data,
@@ -102,12 +118,28 @@ func UnmarshalWithFactory(data []byte, factory *geom.GeometryFactory) (geom.Geom
 		factory: factory,
 	}
 
-	return p.readGeometry()
+	g, err := p.readGeometry()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.pos != len(p.data) {
+		return nil, fmt.Errorf("unexpected %d trailing bytes after WKB geometry", len(p.data)-p.pos)
+	}
+
+	return g, nil
 }
 
 // --- Marshaling implementation ---
 
-func writeGeometry(buf *buffer, g geom.Geometry, opts Options) {
+func writeGeometry(buf *buffer, g geom.Geometry, opts Options) error {
+	if opts.ByteOrder != binary.LittleEndian && opts.ByteOrder != binary.BigEndian {
+		return fmt.Errorf("wkb: unsupported byte order %T", opts.ByteOrder)
+	}
+	if opts.OutputDimension < 2 || opts.OutputDimension > 4 {
+		return fmt.Errorf("wkb: unsupported output dimension %d", opts.OutputDimension)
+	}
+
 	// Write byte order
 	if opts.ByteOrder == binary.LittleEndian {
 		buf.writeByte(wkbNDR)
@@ -116,24 +148,9 @@ func writeGeometry(buf *buffer, g geom.Geometry, opts Options) {
 	}
 
 	// Determine geometry type
-	var baseType uint32
-	switch g.(type) {
-	case *geom.Point:
-		baseType = wkbPoint
-	case *geom.LineString:
-		baseType = wkbLineString
-	case *geom.LinearRing:
-		baseType = wkbLineString // LinearRing is encoded as LineString
-	case *geom.Polygon:
-		baseType = wkbPolygon
-	case *geom.MultiPoint:
-		baseType = wkbMultiPoint
-	case *geom.MultiLineString:
-		baseType = wkbMultiLineString
-	case *geom.MultiPolygon:
-		baseType = wkbMultiPolygon
-	case *geom.GeometryCollection:
-		baseType = wkbGeometryCollection
+	baseType, ok := geometryType(g)
+	if !ok {
+		return fmt.Errorf("wkb: unsupported geometry type %T", g)
 	}
 
 	// Add dimension flags
@@ -173,13 +190,38 @@ func writeGeometry(buf *buffer, g geom.Geometry, opts Options) {
 	case *geom.Polygon:
 		writePolygon(buf, v, hasZ, hasM)
 	case *geom.MultiPoint:
-		writeMultiPoint(buf, v, opts)
+		return writeMultiPoint(buf, v, opts)
 	case *geom.MultiLineString:
-		writeMultiLineString(buf, v, opts)
+		return writeMultiLineString(buf, v, opts)
 	case *geom.MultiPolygon:
-		writeMultiPolygon(buf, v, opts)
+		return writeMultiPolygon(buf, v, opts)
 	case *geom.GeometryCollection:
-		writeGeometryCollection(buf, v, opts)
+		return writeGeometryCollection(buf, v, opts)
+	}
+
+	return nil
+}
+
+func geometryType(g geom.Geometry) (uint32, bool) {
+	switch g.(type) {
+	case *geom.Point:
+		return wkbPoint, true
+	case *geom.LineString:
+		return wkbLineString, true
+	case *geom.LinearRing:
+		return wkbLineString, true // LinearRing is encoded as LineString.
+	case *geom.Polygon:
+		return wkbPolygon, true
+	case *geom.MultiPoint:
+		return wkbMultiPoint, true
+	case *geom.MultiLineString:
+		return wkbMultiLineString, true
+	case *geom.MultiPolygon:
+		return wkbMultiPolygon, true
+	case *geom.GeometryCollection:
+		return wkbGeometryCollection, true
+	default:
+		return 0, false
 	}
 }
 
@@ -262,32 +304,44 @@ func writePolygon(buf *buffer, p *geom.Polygon, hasZ, hasM bool) {
 	}
 }
 
-func writeMultiPoint(buf *buffer, mp *geom.MultiPoint, opts Options) {
+func writeMultiPoint(buf *buffer, mp *geom.MultiPoint, opts Options) error {
 	buf.writeUint32(uint32(mp.NumGeometries()))
 	for i := 0; i < mp.NumGeometries(); i++ {
-		writeGeometry(buf, mp.GeometryN(i), opts)
+		if err := writeGeometry(buf, mp.GeometryN(i), opts); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func writeMultiLineString(buf *buffer, mls *geom.MultiLineString, opts Options) {
+func writeMultiLineString(buf *buffer, mls *geom.MultiLineString, opts Options) error {
 	buf.writeUint32(uint32(mls.NumGeometries()))
 	for i := 0; i < mls.NumGeometries(); i++ {
-		writeGeometry(buf, mls.GeometryN(i), opts)
+		if err := writeGeometry(buf, mls.GeometryN(i), opts); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func writeMultiPolygon(buf *buffer, mp *geom.MultiPolygon, opts Options) {
+func writeMultiPolygon(buf *buffer, mp *geom.MultiPolygon, opts Options) error {
 	buf.writeUint32(uint32(mp.NumGeometries()))
 	for i := 0; i < mp.NumGeometries(); i++ {
-		writeGeometry(buf, mp.GeometryN(i), opts)
+		if err := writeGeometry(buf, mp.GeometryN(i), opts); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func writeGeometryCollection(buf *buffer, gc *geom.GeometryCollection, opts Options) {
+func writeGeometryCollection(buf *buffer, gc *geom.GeometryCollection, opts Options) error {
 	buf.writeUint32(uint32(gc.NumGeometries()))
 	for i := 0; i < gc.NumGeometries(); i++ {
-		writeGeometry(buf, gc.GeometryN(i), opts)
+		if err := writeGeometry(buf, gc.GeometryN(i), opts); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // buffer is a simple byte buffer for WKB writing.
@@ -393,6 +447,9 @@ func (p *parser) readGeometry() (geom.Geometry, error) {
 	// Determine coordinate dimensions
 	baseType := geomType % 1000
 	dimFlag := geomType / 1000
+	if dimFlag > 3 {
+		return nil, fmt.Errorf("unsupported coordinate dimension flag: %d", dimFlag)
+	}
 
 	p.hasZ = dimFlag == 1 || dimFlag == 3
 	p.hasM = dimFlag == 2 || dimFlag == 3
@@ -464,6 +521,12 @@ func (p *parser) readLineString() (*geom.LineString, error) {
 	if numPoints == 0 {
 		return p.factory.CreateLineStringEmpty(), nil
 	}
+	if numPoints == 1 {
+		return nil, fmt.Errorf("wkb: LineString must have 0 or at least 2 points, got %d", numPoints)
+	}
+	if err := p.ensureCoordinatePayload(numPoints, "LineString"); err != nil {
+		return nil, err
+	}
 
 	coords, err := p.readCoordinates(int(numPoints))
 	if err != nil {
@@ -482,14 +545,23 @@ func (p *parser) readPolygon() (*geom.Polygon, error) {
 	if numRings == 0 {
 		return p.factory.CreatePolygonEmpty(), nil
 	}
+	if err := p.ensureCountFitsRemaining(numRings, 4, "polygon ring"); err != nil {
+		return nil, err
+	}
 
 	// Read shell
 	shellPoints, err := p.readUint32()
 	if err != nil {
 		return nil, err
 	}
+	if err := p.ensureCoordinatePayload(shellPoints, "polygon shell"); err != nil {
+		return nil, err
+	}
 	shellCoords, err := p.readCoordinates(int(shellPoints))
 	if err != nil {
+		return nil, err
+	}
+	if err := validateWKBRing("polygon shell", shellCoords); err != nil {
 		return nil, err
 	}
 	shell := p.factory.CreateLinearRing(shellCoords)
@@ -501,14 +573,30 @@ func (p *parser) readPolygon() (*geom.Polygon, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := p.ensureCoordinatePayload(holePoints, fmt.Sprintf("polygon hole %d", i-1)); err != nil {
+			return nil, err
+		}
 		holeCoords, err := p.readCoordinates(int(holePoints))
 		if err != nil {
+			return nil, err
+		}
+		if err := validateWKBRing(fmt.Sprintf("polygon hole %d", i-1), holeCoords); err != nil {
 			return nil, err
 		}
 		holes[i-1] = p.factory.CreateLinearRing(holeCoords)
 	}
 
 	return p.factory.CreatePolygon(shell, holes), nil
+}
+
+func validateWKBRing(label string, coords geom.CoordinateSequence) error {
+	if len(coords) < 4 {
+		return fmt.Errorf("wkb: %s must have at least 4 points, got %d", label, len(coords))
+	}
+	if !coords.IsClosed(geom.DefaultEpsilon) {
+		return fmt.Errorf("wkb: %s is not closed", label)
+	}
+	return nil
 }
 
 func (p *parser) readMultiPoint() (*geom.MultiPoint, error) {
@@ -520,8 +608,12 @@ func (p *parser) readMultiPoint() (*geom.MultiPoint, error) {
 	if numGeoms == 0 {
 		return p.factory.CreateMultiPointEmpty(), nil
 	}
+	if err := p.ensureCountFitsRemaining(numGeoms, 5, "MultiPoint child geometry"); err != nil {
+		return nil, err
+	}
 
 	points := make([]*geom.Point, numGeoms)
+	childSRIDs := make([]int, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
 		state := p.saveState()
 		g, err := p.readGeometry()
@@ -534,9 +626,16 @@ func (p *parser) readMultiPoint() (*geom.MultiPoint, error) {
 			return nil, fmt.Errorf("expected Point in MultiPoint, got %T", g)
 		}
 		points[i] = pt
+		childSRIDs[i] = pt.SRID()
 	}
 
-	return p.factory.CreateMultiPoint(points), nil
+	mp := p.factory.CreateMultiPoint(points)
+	for i, srid := range childSRIDs {
+		if child, ok := mp.GeometryN(i).(interface{ SetSRID(int) }); ok {
+			child.SetSRID(srid)
+		}
+	}
+	return mp, nil
 }
 
 func (p *parser) readMultiLineString() (*geom.MultiLineString, error) {
@@ -548,8 +647,12 @@ func (p *parser) readMultiLineString() (*geom.MultiLineString, error) {
 	if numGeoms == 0 {
 		return p.factory.CreateMultiLineStringEmpty(), nil
 	}
+	if err := p.ensureCountFitsRemaining(numGeoms, 5, "MultiLineString child geometry"); err != nil {
+		return nil, err
+	}
 
 	lines := make([]*geom.LineString, numGeoms)
+	childSRIDs := make([]int, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
 		state := p.saveState()
 		g, err := p.readGeometry()
@@ -562,9 +665,16 @@ func (p *parser) readMultiLineString() (*geom.MultiLineString, error) {
 			return nil, fmt.Errorf("expected LineString in MultiLineString, got %T", g)
 		}
 		lines[i] = ls
+		childSRIDs[i] = ls.SRID()
 	}
 
-	return p.factory.CreateMultiLineString(lines), nil
+	mls := p.factory.CreateMultiLineString(lines)
+	for i, srid := range childSRIDs {
+		if child, ok := mls.GeometryN(i).(interface{ SetSRID(int) }); ok {
+			child.SetSRID(srid)
+		}
+	}
+	return mls, nil
 }
 
 func (p *parser) readMultiPolygon() (*geom.MultiPolygon, error) {
@@ -576,8 +686,12 @@ func (p *parser) readMultiPolygon() (*geom.MultiPolygon, error) {
 	if numGeoms == 0 {
 		return p.factory.CreateMultiPolygonEmpty(), nil
 	}
+	if err := p.ensureCountFitsRemaining(numGeoms, 5, "MultiPolygon child geometry"); err != nil {
+		return nil, err
+	}
 
 	polys := make([]*geom.Polygon, numGeoms)
+	childSRIDs := make([]int, numGeoms)
 	for i := uint32(0); i < numGeoms; i++ {
 		state := p.saveState()
 		g, err := p.readGeometry()
@@ -590,9 +704,16 @@ func (p *parser) readMultiPolygon() (*geom.MultiPolygon, error) {
 			return nil, fmt.Errorf("expected Polygon in MultiPolygon, got %T", g)
 		}
 		polys[i] = poly
+		childSRIDs[i] = poly.SRID()
 	}
 
-	return p.factory.CreateMultiPolygon(polys), nil
+	mp := p.factory.CreateMultiPolygon(polys)
+	for i, srid := range childSRIDs {
+		if child, ok := mp.GeometryN(i).(interface{ SetSRID(int) }); ok {
+			child.SetSRID(srid)
+		}
+	}
+	return mp, nil
 }
 
 func (p *parser) readGeometryCollection() (*geom.GeometryCollection, error) {
@@ -603,6 +724,9 @@ func (p *parser) readGeometryCollection() (*geom.GeometryCollection, error) {
 
 	if numGeoms == 0 {
 		return p.factory.CreateGeometryCollectionEmpty(), nil
+	}
+	if err := p.ensureCountFitsRemaining(numGeoms, 5, "GeometryCollection child geometry"); err != nil {
+		return nil, err
 	}
 
 	geoms := make([]geom.Geometry, numGeoms)
@@ -660,6 +784,33 @@ func (p *parser) readCoordinates(n int) (geom.CoordinateSequence, error) {
 		coords[i] = coord
 	}
 	return coords, nil
+}
+
+func (p *parser) ensureCoordinatePayload(count uint32, label string) error {
+	bytesPerCoordinate := uint64(p.coordSize) * 8
+	return p.ensureCountFitsRemaining(count, bytesPerCoordinate, label+" coordinate")
+}
+
+func (p *parser) ensureCountFitsRemaining(count uint32, bytesPerItem uint64, label string) error {
+	if count == 0 {
+		return nil
+	}
+	if bytesPerItem == 0 {
+		return fmt.Errorf("wkb: invalid byte width for %s payload", label)
+	}
+	remaining := uint64(len(p.data) - p.pos)
+	needed := uint64(count) * bytesPerItem
+	if needed/bytesPerItem != uint64(count) || needed > remaining {
+		return fmt.Errorf("wkb: %s count %d exceeds remaining payload", label, count)
+	}
+	if uint64(count) > uint64(maxInt()) {
+		return fmt.Errorf("wkb: %s count %d exceeds platform allocation limit", label, count)
+	}
+	return nil
+}
+
+func maxInt() int {
+	return int(^uint(0) >> 1)
 }
 
 func (p *parser) readUint32() (uint32, error) {

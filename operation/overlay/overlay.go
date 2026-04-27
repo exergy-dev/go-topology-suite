@@ -5,8 +5,8 @@
 package overlay
 
 import (
-	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/internal/topology"
 )
 
 // Op represents the type of overlay operation.
@@ -45,11 +45,25 @@ func SymDifference(a, b geom.Geometry) geom.Geometry {
 
 // Overlay performs the specified overlay operation on two geometries.
 func Overlay(a, b geom.Geometry, op Op) geom.Geometry {
+	return overlayWithPrecision(a, b, op, nil)
+}
+
+// OverlayWithPrecision performs the specified overlay operation after applying
+// the precision model through graph construction. Inputs are not mutated.
+func OverlayWithPrecision(a, b geom.Geometry, op Op, pm geom.PrecisionModel) geom.Geometry {
+	return overlayWithPrecision(a, b, op, pm)
+}
+
+func overlayWithPrecision(a, b geom.Geometry, op Op, pm geom.PrecisionModel) geom.Geometry {
 	if a == nil || a.IsEmpty() {
 		return handleEmptyA(b, op)
 	}
 	if b == nil || b.IsEmpty() {
 		return handleEmptyB(a, op)
+	}
+	if pm != nil {
+		a = makeOverlayPreciseGeometry(a, pm)
+		b = makeOverlayPreciseGeometry(b, pm)
 	}
 
 	// Special case: if both geometries are the same reference
@@ -72,7 +86,7 @@ func Overlay(a, b geom.Geometry, op Op) geom.Geometry {
 	}
 
 	// Dispatch based on geometry types
-	return computeOverlay(a, b, op)
+	return computeOverlay(a, b, op, pm)
 }
 
 // handleEmptyA handles the case where A is empty.
@@ -130,7 +144,7 @@ func handleDisjoint(a, b geom.Geometry, op Op) geom.Geometry {
 }
 
 // computeOverlay dispatches to the appropriate overlay computation.
-func computeOverlay(a, b geom.Geometry, op Op) geom.Geometry {
+func computeOverlay(a, b geom.Geometry, op Op, pm geom.PrecisionModel) geom.Geometry {
 	// Handle by dimension combination
 	dimA := a.Dimension()
 	dimB := b.Dimension()
@@ -157,10 +171,29 @@ func computeOverlay(a, b geom.Geometry, op Op) geom.Geometry {
 
 	// Polygon/Polygon case
 	if dimA == geom.DimensionArea && dimB == geom.DimensionArea {
-		return overlayPolygonPolygon(a, b, op)
+		return overlayPolygonPolygon(a, b, op, pm)
 	}
 
 	return geom.NewGeometryCollectionEmpty()
+}
+
+type overlayPrecisionFilter struct {
+	pm geom.PrecisionModel
+}
+
+func (f overlayPrecisionFilter) Filter(coord *geom.Coordinate) {
+	f.pm.MakePrecise(coord)
+}
+
+func makeOverlayPreciseGeometry(g geom.Geometry, pm geom.PrecisionModel) geom.Geometry {
+	if g == nil || pm == nil {
+		return g
+	}
+	clone := g.Clone()
+	if filterable, ok := clone.(geom.CoordinateFilterer); ok {
+		filterable.ApplyCoordinateFilter(overlayPrecisionFilter{pm: pm})
+	}
+	return clone
 }
 
 // overlayPointWith overlays a point geometry with another geometry.
@@ -170,7 +203,7 @@ func overlayPointWith(a, b geom.Geometry, op Op) geom.Geometry {
 
 	for _, p := range points {
 		coord := p.Coordinate()
-		loc := algorithm.PointLocation(coord, b)
+		loc := topology.PointLocation(coord, b)
 
 		switch op {
 		case OpIntersection:
@@ -205,7 +238,7 @@ func overlayWithPoint(a, b geom.Geometry, op Op) geom.Geometry {
 
 	for _, p := range points {
 		coord := p.Coordinate()
-		loc := algorithm.PointLocation(coord, a)
+		loc := topology.PointLocation(coord, a)
 
 		switch op {
 		case OpIntersection:
@@ -302,24 +335,23 @@ func overlayPolygonLine(a, b geom.Geometry, op Op) geom.Geometry {
 }
 
 // overlayPolygonPolygon overlays two polygon geometries.
-func overlayPolygonPolygon(a, b geom.Geometry, op Op) geom.Geometry {
+func overlayPolygonPolygon(a, b geom.Geometry, op Op, pm geom.PrecisionModel) geom.Geometry {
 	polysA := geom.ExtractPolygons(a)
 	polysB := geom.ExtractPolygons(b)
 
 	switch op {
 	case OpIntersection:
-		return polygonPolygonIntersection(polysA, polysB)
+		return polygonPolygonIntersection(polysA, polysB, pm)
 	case OpUnion:
-		return polygonPolygonUnion(polysA, polysB)
+		return polygonPolygonUnion(polysA, polysB, pm)
 	case OpDifference:
-		return polygonPolygonDifference(polysA, polysB)
+		return polygonPolygonDifference(polysA, polysB, pm)
 	case OpSymDifference:
-		return polygonPolygonSymDifference(polysA, polysB)
+		return polygonPolygonSymDifference(polysA, polysB, pm)
 	default:
 		return geom.NewGeometryCollectionEmpty()
 	}
 }
-
 
 // createPointResult creates a geometry from a list of points.
 func createPointResult(points []*geom.Point) geom.Geometry {
@@ -346,5 +378,25 @@ func collectGeometries(geoms ...geom.Geometry) geom.Geometry {
 	if len(nonEmpty) == 1 {
 		return nonEmpty[0]
 	}
+	if polygons, ok := collectPolygonalGeometries(nonEmpty); ok {
+		return collectPolygons(polygons)
+	}
 	return geom.NewGeometryCollection(nonEmpty)
+}
+
+func collectPolygonalGeometries(geoms []geom.Geometry) ([]*geom.Polygon, bool) {
+	var polygons []*geom.Polygon
+	for _, g := range geoms {
+		switch v := g.(type) {
+		case *geom.Polygon:
+			polygons = append(polygons, v)
+		case *geom.MultiPolygon:
+			for i := 0; i < v.NumGeometries(); i++ {
+				polygons = append(polygons, v.GeometryN(i).(*geom.Polygon))
+			}
+		default:
+			return nil, false
+		}
+	}
+	return polygons, len(polygons) > 0
 }

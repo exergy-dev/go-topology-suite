@@ -23,9 +23,9 @@ func TestInsertAndQuery(t *testing.T) {
 	env2 := geom.NewEnvelope(5, 5, 15, 15)
 	env3 := geom.NewEnvelope(20, 20, 30, 30)
 
-	tree.Insert(env1, "item1")
-	tree.Insert(env2, "item2")
-	tree.Insert(env3, "item3")
+	require.NoError(t, tree.Insert(env1, "item1"))
+	require.NoError(t, tree.Insert(env2, "item2"))
+	require.NoError(t, tree.Insert(env3, "item3"))
 
 	assert.Equal(t, 3, tree.Size(), "Expected size 3")
 
@@ -47,9 +47,9 @@ func TestQueryPoint(t *testing.T) {
 	env2 := geom.NewEnvelope(5, 5, 15, 15)
 	env3 := geom.NewEnvelope(20, 20, 30, 30)
 
-	tree.Insert(env1, "item1")
-	tree.Insert(env2, "item2")
-	tree.Insert(env3, "item3")
+	require.NoError(t, tree.Insert(env1, "item1"))
+	require.NoError(t, tree.Insert(env2, "item2"))
+	require.NoError(t, tree.Insert(env3, "item3"))
 
 	// Point inside env1 only
 	results := tree.QueryPoint(2, 2)
@@ -73,7 +73,7 @@ func TestLargeDataset(t *testing.T) {
 		x := float64(i * 10)
 		y := float64(i * 10)
 		env := geom.NewEnvelope(x, y, x+5, y+5)
-		tree.Insert(env, i)
+		require.NoError(t, tree.Insert(env, i))
 	}
 
 	assert.Equal(t, n, tree.Size(), "Expected size %d", n)
@@ -90,9 +90,9 @@ func TestNearestNeighbor(t *testing.T) {
 	tree := New()
 
 	// Insert points at known locations
-	tree.Insert(geom.NewEnvelope(0, 0, 0, 0), "origin")
-	tree.Insert(geom.NewEnvelope(10, 10, 10, 10), "ten")
-	tree.Insert(geom.NewEnvelope(100, 100, 100, 100), "far")
+	require.NoError(t, tree.Insert(geom.NewEnvelope(0, 0, 0, 0), "origin"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(10, 10, 10, 10), "ten"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(100, 100, 100, 100), "far"))
 
 	// Find nearest to (1, 1)
 	nearest := tree.NearestNeighbor(geom.NewEnvelope(1, 1, 1, 1))
@@ -113,8 +113,8 @@ func TestRemove(t *testing.T) {
 	env1 := geom.NewEnvelope(0, 0, 10, 10)
 	env2 := geom.NewEnvelope(20, 20, 30, 30)
 
-	tree.Insert(env1, "item1")
-	tree.Insert(env2, "item2")
+	require.NoError(t, tree.Insert(env1, "item1"))
+	require.NoError(t, tree.Insert(env2, "item2"))
 
 	assert.Equal(t, 2, tree.Size(), "Expected size 2")
 
@@ -131,8 +131,8 @@ func TestRemove(t *testing.T) {
 func TestClear(t *testing.T) {
 	tree := New()
 
-	tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1")
-	tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2")
+	require.NoError(t, tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2"))
 
 	tree.Clear()
 
@@ -143,9 +143,9 @@ func TestClear(t *testing.T) {
 func TestItems(t *testing.T) {
 	tree := New()
 
-	tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1")
-	tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2")
-	tree.Insert(geom.NewEnvelope(40, 40, 50, 50), "item3")
+	require.NoError(t, tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(40, 40, 50, 50), "item3"))
 
 	items := tree.Items()
 	assert.Equal(t, 3, len(items), "Expected 3 items")
@@ -158,7 +158,7 @@ func TestDepth(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		x := float64(i * 10)
 		env := geom.NewEnvelope(x, 0, x+5, 5)
-		tree.Insert(env, i)
+		require.NoError(t, tree.Insert(env, i))
 	}
 
 	depth := tree.Depth()
@@ -168,8 +168,8 @@ func TestDepth(t *testing.T) {
 func TestEnvelope(t *testing.T) {
 	tree := New()
 
-	tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1")
-	tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2")
+	require.NoError(t, tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2"))
 
 	env := tree.Envelope()
 
@@ -195,11 +195,11 @@ func TestNullEnvelopeInsert(t *testing.T) {
 	tree := New()
 
 	// Insert with nil envelope should be ignored
-	tree.Insert(nil, "data")
+	require.NoError(t, tree.Insert(nil, "data"))
 	assert.Equal(t, 0, tree.Size(), "Expected nil envelope insert to be ignored")
 
 	// Insert with empty envelope should be ignored
-	tree.Insert(geom.NewEnvelopeEmpty(), "data")
+	require.NoError(t, tree.Insert(geom.NewEnvelopeEmpty(), "data"))
 	assert.Equal(t, 0, tree.Size(), "Expected empty envelope insert to be ignored")
 }
 
@@ -209,8 +209,8 @@ func TestQueryGeometry(t *testing.T) {
 	env1 := geom.NewEnvelope(0, 0, 10, 10)
 	env2 := geom.NewEnvelope(20, 20, 30, 30)
 
-	tree.Insert(env1, "item1")
-	tree.Insert(env2, "item2")
+	require.NoError(t, tree.Insert(env1, "item1"))
+	require.NoError(t, tree.Insert(env2, "item2"))
 
 	// Query using a point geometry
 	factory := geom.DefaultFactory
@@ -223,8 +223,8 @@ func TestQueryGeometry(t *testing.T) {
 func TestAutoBuilding(t *testing.T) {
 	tree := New()
 
-	tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1")
-	tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2")
+	require.NoError(t, tree.Insert(geom.NewEnvelope(0, 0, 10, 10), "item1"))
+	require.NoError(t, tree.Insert(geom.NewEnvelope(20, 20, 30, 30), "item2"))
 
 	// Query should auto-build the tree
 	results := tree.Query(geom.NewEnvelope(5, 5, 15, 15))
@@ -238,7 +238,7 @@ func BenchmarkInsert(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tree.Insert(env, i)
+		_ = tree.Insert(env, i)
 	}
 }
 
@@ -250,7 +250,7 @@ func BenchmarkQuery(b *testing.B) {
 		x := float64(i % 100)
 		y := float64(i / 100)
 		env := geom.NewEnvelope(x, y, x+1, y+1)
-		tree.Insert(env, i)
+		_ = tree.Insert(env, i)
 	}
 	tree.Build()
 

@@ -120,6 +120,30 @@ func TestIntersectionLineLine(t *testing.T) {
 	assert.False(t, result.IsEmpty(), "Crossing lines should have intersection")
 }
 
+func TestIntersectionLineLineOverlapReturnsNodedLine(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, 0, 15, 0)
+
+	result := Intersection(ls1, ls2)
+	line, ok := result.(*geom.LineString)
+	require.True(t, ok, "Expected overlap intersection to return LineString, got %T", result)
+
+	coords := line.Coordinates()
+	require.Len(t, coords, 2)
+	assert.True(t, coords[0].Equals2D(geom.NewCoordinate(5, 0), geom.DefaultEpsilon), "overlap start")
+	assert.True(t, coords[1].Equals2D(geom.NewCoordinate(10, 0), geom.DefaultEpsilon), "overlap end")
+}
+
+func TestIntersectionLineLineCollinearTouchReturnsPoint(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(10, 0, 20, 0)
+
+	result := Intersection(ls1, ls2)
+	point, ok := result.(*geom.Point)
+	require.True(t, ok, "Expected endpoint touch intersection to return Point, got %T", result)
+	assert.True(t, point.Coordinate().Equals2D(geom.NewCoordinate(10, 0), geom.DefaultEpsilon))
+}
+
 func TestIntersectionLinePolygon(t *testing.T) {
 	ls := mustLineStringXY(5, -5, 5, 15) // Vertical line through polygon
 	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
@@ -174,6 +198,26 @@ func TestUnionPointPoint(t *testing.T) {
 	assert.False(t, result.IsEmpty(), "Union of points should not be empty")
 }
 
+func TestUnionLineLineNodedAtCrossing(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, -5, 5, 5)
+
+	result := Union(ls1, ls2)
+	mls, ok := result.(*geom.MultiLineString)
+	require.True(t, ok, "Expected noded line union to return MultiLineString, got %T", result)
+	assert.Equal(t, 4, mls.NumGeometries(), "Crossing line union should be split at the crossing node")
+}
+
+func TestUnionLineLineDissolvesDuplicateOverlap(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, 0, 15, 0)
+
+	result := Union(ls1, ls2)
+	mls, ok := result.(*geom.MultiLineString)
+	require.True(t, ok, "Expected overlapping line union to return MultiLineString, got %T", result)
+	assert.Equal(t, 3, mls.NumGeometries(), "Overlapping line union should node overlap endpoints and remove duplicate overlap")
+}
+
 func TestUnionEmptyGeometries(t *testing.T) {
 	p := geom.NewPoint(5, 5)
 	empty := geom.NewPointEmpty()
@@ -223,6 +267,30 @@ func TestDifferencePolygonPoint(t *testing.T) {
 	assert.False(t, result.IsEmpty(), "Polygon minus point should be polygon")
 }
 
+func TestDifferenceLineLineOverlapReturnsUncoveredNodedLine(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, 0, 15, 0)
+
+	result := Difference(ls1, ls2)
+	line, ok := result.(*geom.LineString)
+	require.True(t, ok, "Expected overlap difference to return LineString, got %T", result)
+
+	coords := line.Coordinates()
+	require.Len(t, coords, 2)
+	assert.True(t, coords[0].Equals2D(geom.NewCoordinate(0, 0), geom.DefaultEpsilon), "difference start")
+	assert.True(t, coords[1].Equals2D(geom.NewCoordinate(5, 0), geom.DefaultEpsilon), "difference end")
+}
+
+func TestDifferenceLineLineCrossingIsNoded(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, -5, 5, 5)
+
+	result := Difference(ls1, ls2)
+	mls, ok := result.(*geom.MultiLineString)
+	require.True(t, ok, "Expected crossing difference to return noded MultiLineString, got %T", result)
+	assert.Equal(t, 2, mls.NumGeometries())
+}
+
 func TestDifferencePolygonPolygon(t *testing.T) {
 	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
@@ -251,6 +319,16 @@ func TestSymDifferencePointPoint(t *testing.T) {
 
 	result := SymDifference(p1, p2)
 	assert.False(t, result.IsEmpty(), "SymDifference of different points should not be empty")
+}
+
+func TestSymDifferenceLineLineOverlapExcludesSharedSegment(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, 0, 15, 0)
+
+	result := SymDifference(ls1, ls2)
+	mls, ok := result.(*geom.MultiLineString)
+	require.True(t, ok, "Expected overlapping line symmetric difference to return MultiLineString, got %T", result)
+	assert.Equal(t, 2, mls.NumGeometries())
 }
 
 func TestSymDifferencePolygonPolygon(t *testing.T) {

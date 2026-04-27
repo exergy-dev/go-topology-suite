@@ -19,10 +19,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 
-	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/internal/topology"
 	"github.com/robert-malhotra/go-topology-suite/noding"
 )
 
@@ -32,9 +31,9 @@ type Polygonizer struct {
 	lines []*geom.LineString
 
 	// Results
-	polygons        []*geom.Polygon
-	danglingLines   []*geom.LineString
-	cutLines        []*geom.LineString
+	polygons         []*geom.Polygon
+	danglingLines    []*geom.LineString
+	cutLines         []*geom.LineString
 	invalidRingLines []*geom.LineString
 
 	// Internal state
@@ -235,175 +234,12 @@ func (p *Polygonizer) buildPolygons(rings []geom.CoordinateSequence) {
 	if len(rings) == 0 {
 		return
 	}
-
-	// Deduplicate rings - remove duplicate rings that are the same geometry
-	// (the ring-finding algorithm may find the same ring in both directions)
-	uniqueRings := deduplicateRings(rings)
-
-	// Separate shells from holes based on orientation
-	var shells []geom.CoordinateSequence
-	var holes []geom.CoordinateSequence
-
-	for _, ring := range uniqueRings {
-		// Ensure ring is closed
-		if !ring.IsClosed(geom.DefaultEpsilon) {
-			ring = append(ring, ring[0].Clone())
-		}
-
-		// Need at least 4 points for a valid ring
-		if len(ring) < 4 {
-			continue
-		}
-
-		// Classify by signed area (CCW = shell, CW = hole)
-		area := geom.SignedArea(ring)
-		if math.Abs(area) < geom.DefaultEpsilon {
-			// Degenerate ring - skip
-			continue
-		}
-
-		if area > 0 {
-			// Counter-clockwise = exterior ring (shell)
-			shells = append(shells, ring)
-		} else {
-			// Clockwise = interior ring (hole)
-			holes = append(holes, ring)
-		}
-	}
-
-	// If no shells but we have holes, treat the largest hole as a shell
-	if len(shells) == 0 && len(holes) > 0 {
-		largestIdx := 0
-		largestArea := -geom.SignedArea(holes[0])
-		for i := 1; i < len(holes); i++ {
-			area := -geom.SignedArea(holes[i])
-			if area > largestArea {
-				largestArea = area
-				largestIdx = i
-			}
-		}
-		// Reverse to make it CCW
-		shells = append(shells, holes[largestIdx].Reverse())
-		holes = append(holes[:largestIdx], holes[largestIdx+1:]...)
-	}
-
-	// Assign holes to shells
-	for _, shellCoords := range shells {
-		shellRing := geom.NewLinearRing(shellCoords)
-		shellPoly := geom.NewPolygon(shellRing, nil)
-
-		var assignedHoles []*geom.LinearRing
-
-		for _, holeCoords := range holes {
-			// Use an interior point for robust containment test
-			holePoint := computeInteriorPoint(holeCoords)
-			loc := algorithm.PointLocationInPolygon(holePoint, shellPoly)
-			if loc == geom.LocationInterior {
-				assignedHoles = append(assignedHoles, geom.NewLinearRing(holeCoords))
-			}
-		}
-
-		poly := geom.NewPolygon(shellRing, assignedHoles)
-		if !poly.IsEmpty() && poly.Area() > geom.DefaultEpsilon {
-			p.polygons = append(p.polygons, poly)
-		}
-	}
+	p.polygons = append(p.polygons, topology.PolygonsFromRings(rings, true)...)
 }
 
 // coordToKey returns a string key for a coordinate.
 func coordToKey(c geom.Coordinate) string {
 	return fmt.Sprintf("%.10f,%.10f", c.X, c.Y)
-}
-
-// deduplicateRings removes duplicate rings.
-// Two rings are duplicates if they have the same coordinates (in same or reverse order).
-func deduplicateRings(rings []geom.CoordinateSequence) []geom.CoordinateSequence {
-	if len(rings) <= 1 {
-		return rings
-	}
-
-	var unique []geom.CoordinateSequence
-	seen := make(map[string]bool)
-
-	for _, ring := range rings {
-		// Create a canonical representation of the ring
-		key := ringKey(ring)
-		if !seen[key] {
-			seen[key] = true
-			unique = append(unique, ring)
-		}
-	}
-
-	return unique
-}
-
-// ringKey creates a unique key for a ring that's the same for the ring
-// traversed in either direction and starting from any point.
-func ringKey(ring geom.CoordinateSequence) string {
-	if len(ring) == 0 {
-		return ""
-	}
-
-	// Normalize the ring: find min coordinate and ensure we traverse in CCW direction
-	minIdx := 0
-	for i := 1; i < len(ring); i++ {
-		if ring[i].X < ring[minIdx].X ||
-			(ring[i].X == ring[minIdx].X && ring[i].Y < ring[minIdx].Y) {
-			minIdx = i
-		}
-	}
-
-	// Check if ring is CCW or CW
-	area := geom.SignedArea(ring)
-
-	// Build key starting from min coordinate
-	var coords []string
-	n := len(ring)
-	if ring.IsClosed(geom.DefaultEpsilon) {
-		n-- // Don't include closing point in key
-	}
-
-	if area >= 0 {
-		// CCW - traverse forward from min
-		for i := 0; i < n; i++ {
-			idx := (minIdx + i) % n
-			coords = append(coords, fmt.Sprintf("%.10f,%.10f", ring[idx].X, ring[idx].Y))
-		}
-	} else {
-		// CW - traverse backward from min to make it CCW
-		for i := 0; i < n; i++ {
-			idx := (minIdx - i + n) % n
-			coords = append(coords, fmt.Sprintf("%.10f,%.10f", ring[idx].X, ring[idx].Y))
-		}
-	}
-
-	return strings.Join(coords, ";")
-}
-
-// computeInteriorPoint computes a point guaranteed to be inside the ring.
-func computeInteriorPoint(ring geom.CoordinateSequence) geom.Coordinate {
-	if len(ring) < 3 {
-		return ring[0]
-	}
-
-	// Use centroid
-	var cx, cy float64
-	n := len(ring)
-	if ring.IsClosed(geom.DefaultEpsilon) {
-		n-- // Exclude closing point
-	}
-
-	for i := 0; i < n; i++ {
-		cx += ring[i].X
-		cy += ring[i].Y
-	}
-
-	if n > 0 {
-		cx /= float64(n)
-		cy /= float64(n)
-	}
-
-	return geom.NewCoordinate(cx, cy)
 }
 
 // EdgeGraph represents a planar graph of edges for polygonization.

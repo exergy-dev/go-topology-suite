@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
-	"github.com/robert-malhotra/go-topology-suite/noding"
+	"github.com/robert-malhotra/go-topology-suite/internal/topology"
 )
 
 // Additional tests to improve coverage for noded overlay functions
@@ -73,48 +73,35 @@ func TestPolygonizeEdgesEmpty(t *testing.T) {
 }
 
 func TestNodingEdgeCases(t *testing.T) {
-	// Test extracting segment strings from polygons
 	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
 
-	segStrings := extractSegmentStringsFromPolygons([]*geom.Polygon{poly}, 0)
-	if len(segStrings) != 4 {
-		t.Errorf("Should extract 4 edges from square, got %d", len(segStrings))
+	graphEdges := topology.BuildPolygonBoundaryGraph([]*geom.Polygon{poly}, nil)
+	if len(graphEdges) != 4 {
+		t.Errorf("Should build 4 boundary graph edges from square, got %d", len(graphEdges))
 	}
 
-	// Test with polygon with hole
 	hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
 	polyWithHole := geom.NewPolygon(shell, []*geom.LinearRing{hole})
 
-	segStrings = extractSegmentStringsFromPolygons([]*geom.Polygon{polyWithHole}, 0)
-	if len(segStrings) != 8 {
-		t.Errorf("Should extract 8 edges from polygon with hole, got %d", len(segStrings))
+	graphEdges = topology.BuildPolygonBoundaryGraph([]*geom.Polygon{polyWithHole}, nil)
+	if len(graphEdges) != 8 {
+		t.Errorf("Should build 8 boundary graph edges from polygon with hole, got %d", len(graphEdges))
 	}
 
-	// Test building directed edges
-	coords1 := geom.CoordinateSequence{
-		geom.NewCoordinate(0, 0),
-		geom.NewCoordinate(10, 0),
-	}
-	ss1 := noding.NewNodedSegmentString(coords1, &EdgeContext{Source: 0, IsHole: false})
-
-	edges := buildDirectedEdges([]*noding.NodedSegmentString{ss1})
-	if len(edges) != 1 {
-		t.Errorf("Should build 1 edge, got %d", len(edges))
-	}
-
-	// Test labeling edges
 	shell1 := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly1 := geom.NewPolygon(shell1, nil)
 	shell2 := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
 	poly2 := geom.NewPolygon(shell2, nil)
 
-	labelEdges(edges, []*geom.Polygon{poly1}, []*geom.Polygon{poly2})
-	if len(edges) != 1 {
-		t.Error("Label edges should not modify edge count")
+	edges := directedEdgesFromBoundaryGraph(topology.BuildPolygonBoundaryGraph(
+		[]*geom.Polygon{poly1},
+		[]*geom.Polygon{poly2},
+	))
+	if len(edges) == 0 {
+		t.Fatal("Should build directed edges from polygon boundary graph")
 	}
 
-	// Test select edges
 	selectedIntersection := selectEdges(edges, OpIntersection)
 	selectedUnion := selectEdges(edges, OpUnion)
 	selectedDifference := selectEdges(edges, OpDifference)
@@ -125,4 +112,27 @@ func TestNodingEdgeCases(t *testing.T) {
 	_ = selectedUnion
 	_ = selectedDifference
 	_ = selectedSymDiff
+}
+
+func TestPolygonizeLabeledFacesIntersection(t *testing.T) {
+	left := geom.NewPolygon(
+		mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0),
+		nil,
+	)
+	right := geom.NewPolygon(
+		mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5),
+		nil,
+	)
+
+	result := polygonizeLabeledFaces(
+		topology.BuildPolygonBoundaryGraph([]*geom.Polygon{left}, []*geom.Polygon{right}),
+		OpIntersection,
+	)
+	poly, ok := result.(*geom.Polygon)
+	if !ok {
+		t.Fatalf("expected polygon intersection from labeled face helper, got %T", result)
+	}
+	if area := poly.Area(); area != 25 {
+		t.Fatalf("expected labeled face intersection area 25, got %v", area)
+	}
 }

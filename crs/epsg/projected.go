@@ -53,10 +53,10 @@ var WebMercator = crs.WebMercator
 //	utm32n := UTMZone(32, true)  // EPSG:32632 (Central Europe)
 //	utm50s := UTMZone(50, false) // EPSG:32750 (Australia)
 //
-// The function panics if zone is not in the range [1, 60].
-func UTMZone(zone int, north bool) crs.CRS {
+// Returns an error if zone is not in the range [1, 60].
+func UTMZone(zone int, north bool) (crs.CRS, error) {
 	if zone < 1 || zone > 60 {
-		panic(fmt.Sprintf("invalid UTM zone: %d (must be 1-60)", zone))
+		return nil, fmt.Errorf("invalid UTM zone: %d (must be 1-60)", zone)
 	}
 
 	var code string
@@ -92,10 +92,19 @@ func UTMZone(zone int, north bool) crs.CRS {
 		[]float64{minLon, minLat, maxLon, maxLat},
 	)
 	if err != nil {
-		panic(fmt.Sprintf("failed to create UTM zone %d%s: %v", zone, hemisphere, err))
+		return nil, fmt.Errorf("failed to create UTM zone %d%s: %w", zone, hemisphere, err)
 	}
 
-	return utm
+	return utm, nil
+}
+
+// must is a helper that panics on error, used for package-level
+// variable initialization where failure indicates a programming error.
+func must(c crs.CRS, err error) crs.CRS {
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 // Common UTM zone CRS for convenience.
@@ -137,9 +146,9 @@ var UTM17N crs.CRS
 var UTM32N crs.CRS
 
 func init() {
-	UTM10N = UTMZone(10, true)
-	UTM17N = UTMZone(17, true)
-	UTM32N = UTMZone(32, true)
+	UTM10N = must(UTMZone(10, true))
+	UTM17N = must(UTMZone(17, true))
+	UTM32N = must(UTMZone(32, true))
 
 	// Register all projected CRS
 	registerCRS(WebMercator)

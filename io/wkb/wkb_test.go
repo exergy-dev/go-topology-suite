@@ -32,6 +32,15 @@ func TestMarshalUnmarshalPoint(t *testing.T) {
 	assert.Equal(t, 2.5, coord.Y)
 }
 
+func TestUnmarshalWithNilFactoryUsesDefault(t *testing.T) {
+	data, err := Marshal(geom.NewPoint(1, 2))
+	require.NoError(t, err)
+
+	g, err := UnmarshalWithFactory(data, nil)
+	require.NoError(t, err)
+	require.IsType(t, &geom.Point{}, g)
+}
+
 func TestMarshalUnmarshalLineString(t *testing.T) {
 	factory := geom.DefaultFactory
 	coords := geom.CoordinateSequence{
@@ -325,6 +334,140 @@ func TestMarshalWithOptions(t *testing.T) {
 	assert.Equal(t, byte(wkbNDR), data[0], "Expected NDR byte order marker")
 }
 
+func TestMarshalWithOptionsZeroValueUsesDefaults(t *testing.T) {
+	data, err := MarshalWithOptions(geom.NewPoint(1, 2), Options{})
+	require.NoError(t, err)
+	require.NotEmpty(t, data)
+	assert.Equal(t, byte(wkbNDR), data[0], "zero-value options should default to little endian")
+}
+
+func TestMarshalWithOptionsRejectsInvalidDimension(t *testing.T) {
+	data, err := MarshalWithOptions(geom.NewPoint(1, 2), Options{
+		ByteOrder:       binary.LittleEndian,
+		OutputDimension: 5,
+	})
+	require.Error(t, err)
+	assert.Nil(t, data)
+	assert.Contains(t, err.Error(), "unsupported output dimension")
+}
+
+func TestUnmarshalRejectsUnsupportedDimensionFlag(t *testing.T) {
+	order := binary.LittleEndian
+	data := []byte{wkbNDR}
+	buf4 := make([]byte, 4)
+	order.PutUint32(buf4, 4001) // POINT with unsupported dimension flag 4.
+	data = append(data, buf4...)
+
+	_, err := Unmarshal(data)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported coordinate dimension flag")
+}
+
+func TestUnmarshalRejectsInvalidLineStringArity(t *testing.T) {
+	data := newWKBBuilder(wkbLineString)
+	data.uint32(1)
+	data.float64(1)
+	data.float64(2)
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "LineString")
+}
+
+func TestUnmarshalRejectsInvalidPolygonRingArity(t *testing.T) {
+	data := newWKBBuilder(wkbPolygon)
+	data.uint32(1) // rings
+	data.uint32(3) // shell points
+	for _, coord := range []geom.Coordinate{
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(1, 0),
+		geom.NewCoordinate(0, 0),
+	} {
+		data.coordinate(coord)
+	}
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "at least 4")
+}
+
+func TestUnmarshalRejectsUnclosedPolygonRing(t *testing.T) {
+	data := newWKBBuilder(wkbPolygon)
+	data.uint32(1) // rings
+	data.uint32(4) // shell points
+	for _, coord := range []geom.Coordinate{
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(1, 0),
+		geom.NewCoordinate(1, 1),
+		geom.NewCoordinate(0, 1),
+	} {
+		data.coordinate(coord)
+	}
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not closed")
+}
+
+func TestUnmarshalRejectsImpossibleLineStringCountBeforeAllocation(t *testing.T) {
+	data := newWKBBuilder(wkbLineString)
+	data.uint32(math.MaxUint32)
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds remaining payload")
+}
+
+func TestUnmarshalRejectsImpossiblePolygonRingCountBeforeAllocation(t *testing.T) {
+	data := newWKBBuilder(wkbPolygon)
+	data.uint32(math.MaxUint32)
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds remaining payload")
+}
+
+func TestUnmarshalRejectsImpossibleCollectionCountBeforeAllocation(t *testing.T) {
+	data := newWKBBuilder(wkbMultiPoint)
+	data.uint32(math.MaxUint32)
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds remaining payload")
+}
+
+type wkbBuilder struct {
+	data []byte
+}
+
+func newWKBBuilder(geometryType uint32) *wkbBuilder {
+	b := &wkbBuilder{}
+	b.data = append(b.data, wkbNDR)
+	b.uint32(geometryType)
+	return b
+}
+
+func (b *wkbBuilder) uint32(value uint32) {
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, value)
+	b.data = append(b.data, buf...)
+}
+
+func (b *wkbBuilder) float64(value float64) {
+	buf := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, math.Float64bits(value))
+	b.data = append(b.data, buf...)
+}
+
+func (b *wkbBuilder) coordinate(coord geom.Coordinate) {
+	b.float64(coord.X)
+	b.float64(coord.Y)
+}
+
+func (b *wkbBuilder) bytes() []byte {
+	return b.data
+}
+
 func TestGeometryCollectionMixedDimensions(t *testing.T) {
 	// Manually construct WKB bytes for a GeometryCollection containing:
 	// - An XY Point (type 1, 2 coords)
@@ -490,6 +633,133 @@ func TestNestedCollectionWithSRID(t *testing.T) {
 
 	// Verify parent SRID was not corrupted by child 2's different SRID
 	assert.Equal(t, 4326, gc.SRID(), "parent SRID after reading children")
+}
+
+func TestEWKBNestedGeometryCollectionPreservesSRIDAndDimensions(t *testing.T) {
+	factory := geom.NewGeometryFactoryWithSRID(4326)
+
+	point := factory.CreatePointFromCoordinate(geom.NewCoordinateZM(1, 2, 3, 4))
+	line := factory.CreateLineString(geom.CoordinateSequence{
+		geom.NewCoordinateZM(10, 20, 30, 40),
+		geom.NewCoordinateZM(11, 21, 31, 41),
+	})
+	polygon := factory.CreatePolygonFromCoords(geom.CoordinateSequence{
+		geom.NewCoordinateZM(0, 0, 5, 50),
+		geom.NewCoordinateZM(4, 0, 6, 60),
+		geom.NewCoordinateZM(4, 4, 7, 70),
+		geom.NewCoordinateZM(0, 0, 5, 50),
+	})
+	multiPoint := geom.NewMultiPoint([]*geom.Point{
+		factory.CreatePointFromCoordinate(geom.NewCoordinateZM(100, 200, 300, 400)),
+		factory.CreatePointFromCoordinate(geom.NewCoordinateZM(101, 201, 301, 401)),
+	})
+	multiPoint.SetSRID(4326)
+	inner := geom.NewGeometryCollection([]geom.Geometry{line, polygon, multiPoint})
+	inner.SetSRID(4326)
+	outer := geom.NewGeometryCollection([]geom.Geometry{point, inner})
+	outer.SetSRID(4326)
+
+	for _, tc := range []struct {
+		name       string
+		dimension  int
+		expectZ    bool
+		expectM    bool
+		typeOffset uint32
+	}{
+		{name: "XYZ", dimension: 3, expectZ: true, expectM: false, typeOffset: 1000},
+		{name: "XYZM", dimension: 4, expectZ: true, expectM: true, typeOffset: 3000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data, err := MarshalWithOptions(outer, Options{
+				ByteOrder:       binary.LittleEndian,
+				IncludeSRID:     true,
+				OutputDimension: tc.dimension,
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(data), 13)
+			assert.Equal(t, wkbGeometryCollection|tc.typeOffset|wkbSRIDFlag, binary.LittleEndian.Uint32(data[1:5]))
+			assert.Equal(t, uint32(4326), binary.LittleEndian.Uint32(data[5:9]))
+
+			g, err := Unmarshal(data)
+			require.NoError(t, err)
+
+			gc, ok := g.(*geom.GeometryCollection)
+			require.True(t, ok)
+			require.Equal(t, 2, gc.NumGeometries())
+			assert.Equal(t, 4326, gc.SRID())
+
+			pt := gc.GeometryN(0).(*geom.Point)
+			assert.Equal(t, 4326, pt.SRID())
+			assertCoordinateDimensions(t, pt.Coordinate(), 3, 4, tc.expectZ, tc.expectM)
+
+			nested := gc.GeometryN(1).(*geom.GeometryCollection)
+			require.Equal(t, 3, nested.NumGeometries())
+			assert.Equal(t, 4326, nested.SRID())
+
+			ls := nested.GeometryN(0).(*geom.LineString)
+			assert.Equal(t, 4326, ls.SRID())
+			assertCoordinateDimensions(t, ls.Coordinates()[0], 30, 40, tc.expectZ, tc.expectM)
+
+			poly := nested.GeometryN(1).(*geom.Polygon)
+			assert.Equal(t, 4326, poly.SRID())
+			assertCoordinateDimensions(t, poly.ExteriorRing().Coordinates()[0], 5, 50, tc.expectZ, tc.expectM)
+
+			mp := nested.GeometryN(2).(*geom.MultiPoint)
+			assert.Equal(t, 4326, mp.SRID())
+			require.Equal(t, 2, mp.NumGeometries())
+			child := mp.GeometryN(0).(*geom.Point)
+			assert.Equal(t, 4326, child.SRID())
+			assertCoordinateDimensions(t, child.Coordinate(), 300, 400, tc.expectZ, tc.expectM)
+		})
+	}
+}
+
+func TestUnmarshalRejectsMalformedNestedCollectionPayload(t *testing.T) {
+	data := newWKBBuilder(wkbGeometryCollection)
+	data.uint32(1)
+
+	child := newWKBBuilder(wkbLineString)
+	child.uint32(2)
+	child.coordinate(geom.NewCoordinate(1, 2))
+	data.data = append(data.data, child.bytes()...)
+
+	_, err := Unmarshal(data.bytes())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "LineString coordinate")
+}
+
+func assertCoordinateDimensions(t *testing.T, coord geom.Coordinate, z, m float64, expectZ, expectM bool) {
+	t.Helper()
+
+	assert.Equal(t, expectZ, coord.HasZ(), "Z presence")
+	if expectZ {
+		assert.Equal(t, z, coord.GetZ(), "Z value")
+	}
+	assert.Equal(t, expectM, coord.HasM(), "M presence")
+	if expectM {
+		assert.Equal(t, m, coord.GetM(), "M value")
+	}
+}
+
+func TestMarshalNilGeometry(t *testing.T) {
+	data, err := Marshal(nil)
+	require.Error(t, err, "Expected error for nil geometry")
+	assert.Nil(t, data, "Expected nil data for nil geometry")
+	assert.Contains(t, err.Error(), "nil geometry")
+}
+
+func TestUnmarshalTrailingBytes(t *testing.T) {
+	// Marshal a valid point
+	p := geom.NewPoint(1.5, 2.5)
+	data, err := Marshal(p)
+	require.NoError(t, err)
+
+	// Append trailing garbage bytes
+	data = append(data, 0xDE, 0xAD, 0xBE, 0xEF)
+
+	_, err = Unmarshal(data)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "trailing bytes")
 }
 
 func BenchmarkMarshalPoint(b *testing.B) {

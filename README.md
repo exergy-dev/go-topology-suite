@@ -16,7 +16,7 @@ A computational geometry library for Go, providing a native implementation of th
 
 ### Spatial Analysis
 - **Spatial Predicates** - Intersects, Contains, Within, Overlaps, Touches, Crosses, Covers, CoveredBy, Equals, Disjoint
-- **DE-9IM Relations** - Full relate operation with intersection matrix support
+- **DE-9IM Relations** - Relate operation with intersection matrix support and active golden fixtures
 - **Spatial Operations** - Buffer, Union, Intersection, Difference, Symmetric Difference
 - **Geometry Validation** - OGC-compliant validity checking
 
@@ -43,7 +43,29 @@ A computational geometry library for Go, providing a native implementation of th
 go get github.com/robert-malhotra/go-topology-suite
 ```
 
-Requires Go 1.21 or later.
+For the planned production API surface with validated constructors and error-returning operations, use the v2 module path:
+
+```bash
+go get github.com/robert-malhotra/go-topology-suite/v2
+```
+
+See [docs/v2-migration.md](docs/v2-migration.md) for migration notes, strict I/O behavior, and planar-vs-geographic boundaries.
+
+Requires Go 1.25 or later.
+
+## Production Status
+
+The v2 module is the production-oriented API surface. It adds validated constructors, explicit errors for operations that can fail, strict parser entry points, and release gates for both the root and v2 modules. The root module remains available for compatibility with the original API.
+
+Before using GTS for production topology workflows, read [docs/production-readiness.md](docs/production-readiness.md). Important boundaries:
+
+- Planar topology assumes coordinates are already in a suitable projected CRS. Longitude/latitude coordinates are not safe inputs for planar overlay, buffer, area, or distance unless the expected distortion is acceptable for your domain.
+- `spherical` and `geodetic` APIs cover WGS84-style geographic predicates and measurements, but they are separate from planar overlay and buffering.
+- CRS metadata is carried through factories/SRID where supported; operations do not automatically reproject, infer units, or validate that two inputs share a compatible CRS.
+- v2 rejects nil and invalid inputs by default, but it is not a formal certification of full JTS/GEOS parity for every degenerate or numerically difficult case.
+- Current hardening includes polygon overlay from selected labeled faces, active relate golden fixtures for polygonal-set and mixed-collection cases, WKB/EWKB nested SRID/Z/M coverage, shared topology primitives, and fixed negative buffer collapse behavior.
+- `OverlayWithPrecision` is an additive root API for deterministic snapping before overlay. Snapping can change topology, so precision models should be chosen and fixture-tested for the target dataset.
+- The remaining core gap is completing full mixed-dimension collection DE-9IM coverage and expanding external JTS/GEOS parity fixtures.
 
 ## Quick Start
 
@@ -60,10 +82,10 @@ import (
 
 func main() {
     // Create a geometry factory
-    factory := geom.NewGeometryFactory()
+    factory := geom.NewGeometryFactoryDefault()
 
     // Create a point
-    point := factory.CreatePoint(geom.Coordinate{X: -122.4194, Y: 37.7749})
+    point := factory.CreatePoint(-122.4194, 37.7749)
 
     // Create a polygon from coordinates
     coords := geom.CoordinateSequence{
@@ -76,9 +98,9 @@ func main() {
     polygon := factory.CreatePolygon(factory.CreateLinearRing(coords), nil)
 
     // Parse WKT
-    reader := wkt.NewReader()
-    geom, _ := reader.Read("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
+    g, _ := wkt.UnmarshalString("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 
+    fmt.Println(point, g)
     fmt.Println(polygon.String()) // WKT output
 }
 ```
@@ -94,7 +116,7 @@ import (
 )
 
 func main() {
-    factory := geom.NewGeometryFactory()
+    factory := geom.NewGeometryFactoryDefault()
 
     // Create two overlapping polygons
     poly1 := factory.CreatePolygon(
@@ -107,7 +129,7 @@ func main() {
             {X: 5, Y: 5}, {X: 15, Y: 5}, {X: 15, Y: 15}, {X: 5, Y: 15}, {X: 5, Y: 5},
         }), nil)
 
-    point := factory.CreatePoint(geom.Coordinate{X: 5, Y: 5})
+    point := factory.CreatePoint(5, 5)
 
     // Check spatial relationships
     fmt.Println("Intersects:", poly1.Intersects(poly2))   // true
@@ -134,7 +156,7 @@ func main() {
     factory := geom.NewGeometryFactoryWithSRID(4326) // WGS84
 
     // San Francisco
-    sf := factory.CreatePoint(geom.Coordinate{X: -122.4194, Y: 37.7749})
+    sf := factory.CreatePoint(-122.4194, 37.7749)
 
     // A polygon around the Bay Area
     bayArea := factory.CreatePolygon(
@@ -150,7 +172,7 @@ func main() {
     fmt.Println("SF in Bay Area:", spherical.Contains(bayArea, sf)) // true
 
     // Geodesic distance (meters)
-    oakland := factory.CreatePoint(geom.Coordinate{X: -122.2711, Y: 37.8044})
+    oakland := factory.CreatePoint(-122.2711, 37.8044)
     dist := geodetic.DistanceWGS84(
         sf.Coordinate().Y, sf.Coordinate().X,
         oakland.Coordinate().Y, oakland.Coordinate().X,
@@ -159,18 +181,21 @@ func main() {
 }
 ```
 
+Use planar operations only after choosing an appropriate projection. For example, do not buffer a WGS84 point by `1000` and expect meters; the planar buffer distance uses the input coordinate units. For lon/lat data, either use `geodetic`/`spherical` operations directly or project to a local CRS first.
+
 ### GeoJSON Support
 
 ```go
 package main
 
 import (
+    "encoding/json"
     "fmt"
     "github.com/robert-malhotra/go-topology-suite/io/geojson"
 )
 
 func main() {
-    // Parse GeoJSON (automatically uses WGS84/SRID 4326)
+    // Parse GeoJSON Feature (automatically uses WGS84/SRID 4326)
     data := []byte(`{
         "type": "Feature",
         "geometry": {
@@ -180,12 +205,17 @@ func main() {
         "properties": {"name": "San Francisco"}
     }`)
 
-    feature, _ := geojson.UnmarshalFeature(data)
+    var feature geojson.Feature[map[string]any]
+    json.Unmarshal(data, &feature)
     fmt.Println("Geometry:", feature.Geometry.String())
 
     // Marshal back to GeoJSON
-    output, _ := geojson.MarshalFeature(feature)
+    output, _ := json.Marshal(feature)
     fmt.Println(string(output))
+
+    // Or work with raw geometries directly
+    g, _ := geojson.UnmarshalGeometry(data)
+    fmt.Println("SRID:", g.SRID()) // Output: 4326
 }
 ```
 
@@ -202,7 +232,7 @@ import (
 
 func main() {
     factory := geom.NewGeometryFactoryWithSRID(4326)
-    point := factory.CreatePoint(geom.Coordinate{X: -122.4194, Y: 37.7749})
+    point := factory.CreatePoint(-122.4194, 37.7749)
 
     // Marshal to KML
     data, _ := kml.Marshal(point)
@@ -252,20 +282,15 @@ import (
 )
 
 func main() {
-    factory := geom.NewGeometryFactory()
+    factory := geom.NewGeometryFactoryDefault()
 
     // Create an STR-tree index
-    tree := strtree.New(10) // node capacity
+    tree := strtree.NewWithCapacity(10) // node capacity
 
     // Insert geometries
     for i := 0; i < 1000; i++ {
-        point := factory.CreatePoint(geom.Coordinate{
-            X: float64(i % 100),
-            Y: float64(i / 100),
-        })
-        if err := tree.Insert(point.Envelope(), point); err != nil {
-            panic(err)
-        }
+        point := factory.CreatePoint(float64(i%100), float64(i/100))
+        tree.Insert(point.Envelope(), point)
     }
     tree.Build()
 
@@ -312,7 +337,7 @@ import (
 )
 
 func main() {
-    factory := geom.NewGeometryFactory()
+    factory := geom.NewGeometryFactoryDefault()
 
     // Create a line with many points
     coords := geom.CoordinateSequence{
@@ -345,7 +370,6 @@ gts/
 │   ├── buffer/        Buffer operations
 │   ├── overlay/       Boolean operations (union, intersection, difference)
 │   ├── relate/        DE-9IM spatial relationships
-│   ├── valid/         Geometry validation
 │   ├── polygonize/    Build polygons from lines
 │   └── linemerge/     Merge line segments
 ├── index/             Spatial indexes
@@ -409,7 +433,7 @@ All predicates are available in both planar (`geom` package) and spherical (`sph
 | Format | Read | Write | Notes |
 |--------|------|-------|-------|
 | WKT | Yes | Yes | Well-Known Text |
-| WKB | Yes | Yes | Well-Known Binary (little/big endian) |
+| WKB | Yes | Yes | Well-Known Binary (little/big endian), including EWKB SRID/Z/M coverage |
 | GeoJSON | Yes | Yes | Feature and FeatureCollection support |
 | KML | Yes | Yes | Google Earth format, WGS84 coordinates |
 | Shapefile | Yes | Yes | ESRI format, geometry only (no DBF attributes) |
@@ -446,6 +470,18 @@ Benchmark results (Apple M1):
 | Point-in-Polygon (spherical) | ~1.5 μs | 2-3 |
 | Polygon Intersection | ~5-50 μs | varies |
 | STR-tree Query (10k items) | ~1 μs | 1 |
+
+Benchmarks are smoke-tested as release gates, but exact numbers depend on Go version, CPU, data shape, precision model, and whether inputs trigger validation or normalization.
+
+## Examples and Documentation
+
+Runnable examples live in package-level `example_test.go` files, including the v2 examples in `v2/example_test.go`. Release validation expects these examples to compile and pass through `go test ./...` for the root module and `cd v2 && go test ./...` for the v2 module. README snippets are illustrative and should follow current APIs, but the compile-checked source of truth is the Go example tests.
+
+See also:
+
+- [docs/v2-migration.md](docs/v2-migration.md) for the v1-to-v2 API migration.
+- [docs/production-readiness.md](docs/production-readiness.md) for correctness limits, CRS boundaries, and production acceptance gates.
+- [docs/release-checklist.md](docs/release-checklist.md) for CI and local preflight expectations.
 
 ## Dependencies
 

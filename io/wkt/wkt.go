@@ -79,6 +79,9 @@ func UnmarshalString(wkt string) (geom.Geometry, error) {
 
 // UnmarshalStringWithFactory unmarshals using a custom geometry factory.
 func UnmarshalStringWithFactory(wkt string, factory *geom.GeometryFactory) (geom.Geometry, error) {
+	if factory == nil {
+		factory = geom.DefaultFactory
+	}
 	p := &parser{
 		input:   strings.TrimSpace(wkt),
 		pos:     0,
@@ -411,11 +414,13 @@ func writeIndent(sb *strings.Builder, level int) {
 // --- Parsing implementation ---
 
 type parser struct {
-	input   string
-	pos     int
-	factory *geom.GeometryFactory
-	hasZ    bool
-	hasM    bool
+	input       string
+	pos         int
+	factory     *geom.GeometryFactory
+	defaultHasZ bool
+	defaultHasM bool
+	hasZ        bool
+	hasM        bool
 }
 
 func (p *parser) parse() (geom.Geometry, error) {
@@ -424,8 +429,8 @@ func (p *parser) parse() (geom.Geometry, error) {
 	typeName := p.readWord()
 	typeUpper := strings.ToUpper(typeName)
 
-	p.hasZ = false
-	p.hasM = false
+	p.hasZ = p.defaultHasZ
+	p.hasM = p.defaultHasM
 
 	p.skipWhitespace()
 	if p.peek() != '(' && !p.atEnd() {
@@ -433,13 +438,19 @@ func (p *parser) parse() (geom.Geometry, error) {
 		switch modifier {
 		case "Z":
 			p.hasZ = true
+			p.hasM = false
 		case "M":
+			p.hasZ = false
 			p.hasM = true
 		case "ZM":
 			p.hasZ = true
 			p.hasM = true
 		case "EMPTY":
 			return p.createEmpty(typeUpper)
+		default:
+			if modifier != "" {
+				return nil, fmt.Errorf("unknown dimension modifier %q for geometry type %s", modifier, typeName)
+			}
 		}
 	}
 
@@ -513,12 +524,18 @@ func (p *parser) parseLineString() (*geom.LineString, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateWKTLineString("LINESTRING", coords); err != nil {
+		return nil, err
+	}
 	return p.factory.CreateLineString(coords), nil
 }
 
 func (p *parser) parseLinearRing() (*geom.LinearRing, error) {
 	coords, err := p.parseCoordinateSequence()
 	if err != nil {
+		return nil, err
+	}
+	if err := validateWKTRing("LINEARRING", coords); err != nil {
 		return nil, err
 	}
 	return p.factory.CreateLinearRing(coords), nil
@@ -531,6 +548,9 @@ func (p *parser) parsePolygon() (*geom.Polygon, error) {
 
 	shellCoords, err := p.parseCoordinateSequence()
 	if err != nil {
+		return nil, err
+	}
+	if err := validateWKTRing("polygon shell", shellCoords); err != nil {
 		return nil, err
 	}
 	shell := p.factory.CreateLinearRing(shellCoords)
@@ -548,6 +568,9 @@ func (p *parser) parsePolygon() (*geom.Polygon, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := validateWKTRing(fmt.Sprintf("polygon hole %d", len(holes)), holeCoords); err != nil {
+			return nil, err
+		}
 		holes = append(holes, p.factory.CreateLinearRing(holeCoords))
 	}
 
@@ -560,6 +583,9 @@ func (p *parser) parsePolygon() (*geom.Polygon, error) {
 
 func (p *parser) parseMultiPoint() (*geom.MultiPoint, error) {
 	if err := p.expect('('); err != nil {
+		return nil, err
+	}
+	if err := p.rejectEmptyCollection("MULTIPOINT"); err != nil {
 		return nil, err
 	}
 
@@ -594,6 +620,9 @@ func (p *parser) parseMultiPoint() (*geom.MultiPoint, error) {
 		if err := p.expect(','); err != nil {
 			return nil, err
 		}
+		if err := p.rejectTrailingComma("MULTIPOINT"); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := p.expect(')'); err != nil {
@@ -605,6 +634,9 @@ func (p *parser) parseMultiPoint() (*geom.MultiPoint, error) {
 
 func (p *parser) parseMultiLineString() (*geom.MultiLineString, error) {
 	if err := p.expect('('); err != nil {
+		return nil, err
+	}
+	if err := p.rejectEmptyCollection("MULTILINESTRING"); err != nil {
 		return nil, err
 	}
 
@@ -619,6 +651,9 @@ func (p *parser) parseMultiLineString() (*geom.MultiLineString, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := validateWKTLineString("MULTILINESTRING element", coords); err != nil {
+			return nil, err
+		}
 		lines = append(lines, p.factory.CreateLineString(coords))
 
 		p.skipWhitespace()
@@ -626,6 +661,9 @@ func (p *parser) parseMultiLineString() (*geom.MultiLineString, error) {
 			break
 		}
 		if err := p.expect(','); err != nil {
+			return nil, err
+		}
+		if err := p.rejectTrailingComma("MULTILINESTRING"); err != nil {
 			return nil, err
 		}
 	}
@@ -639,6 +677,9 @@ func (p *parser) parseMultiLineString() (*geom.MultiLineString, error) {
 
 func (p *parser) parseMultiPolygon() (*geom.MultiPolygon, error) {
 	if err := p.expect('('); err != nil {
+		return nil, err
+	}
+	if err := p.rejectEmptyCollection("MULTIPOLYGON"); err != nil {
 		return nil, err
 	}
 
@@ -662,6 +703,9 @@ func (p *parser) parseMultiPolygon() (*geom.MultiPolygon, error) {
 		if err := p.expect(','); err != nil {
 			return nil, err
 		}
+		if err := p.rejectTrailingComma("MULTIPOLYGON"); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := p.expect(')'); err != nil {
@@ -680,6 +724,9 @@ func (p *parser) parsePolygonInner() (*geom.Polygon, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := validateWKTRing("polygon shell", shellCoords); err != nil {
+		return nil, err
+	}
 	shell := p.factory.CreateLinearRing(shellCoords)
 
 	var holes []*geom.LinearRing
@@ -693,6 +740,9 @@ func (p *parser) parsePolygonInner() (*geom.Polygon, error) {
 		}
 		holeCoords, err := p.parseCoordinateSequence()
 		if err != nil {
+			return nil, err
+		}
+		if err := validateWKTRing(fmt.Sprintf("polygon hole %d", len(holes)), holeCoords); err != nil {
 			return nil, err
 		}
 		holes = append(holes, p.factory.CreateLinearRing(holeCoords))
@@ -709,6 +759,9 @@ func (p *parser) parseGeometryCollection() (*geom.GeometryCollection, error) {
 	if err := p.expect('('); err != nil {
 		return nil, err
 	}
+	if err := p.rejectEmptyCollection("GEOMETRYCOLLECTION"); err != nil {
+		return nil, err
+	}
 
 	var geometries []geom.Geometry
 	for {
@@ -718,9 +771,11 @@ func (p *parser) parseGeometryCollection() (*geom.GeometryCollection, error) {
 		}
 
 		nestedParser := &parser{
-			input:   p.input[p.pos:],
-			pos:     0,
-			factory: p.factory,
+			input:       p.input[p.pos:],
+			pos:         0,
+			factory:     p.factory,
+			defaultHasZ: p.hasZ,
+			defaultHasM: p.hasM,
 		}
 		g, err := nestedParser.parse()
 		if err != nil {
@@ -736,6 +791,9 @@ func (p *parser) parseGeometryCollection() (*geom.GeometryCollection, error) {
 		if err := p.expect(','); err != nil {
 			return nil, err
 		}
+		if err := p.rejectTrailingComma("GEOMETRYCOLLECTION"); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := p.expect(')'); err != nil {
@@ -747,6 +805,9 @@ func (p *parser) parseGeometryCollection() (*geom.GeometryCollection, error) {
 
 func (p *parser) parseCoordinateSequence() (geom.CoordinateSequence, error) {
 	if err := p.expect('('); err != nil {
+		return nil, err
+	}
+	if err := p.rejectEmptyCollection("coordinate sequence"); err != nil {
 		return nil, err
 	}
 
@@ -770,6 +831,9 @@ func (p *parser) parseCoordinateSequence() (geom.CoordinateSequence, error) {
 		if err := p.expect(','); err != nil {
 			return nil, err
 		}
+		if err := p.rejectTrailingComma("coordinate sequence"); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := p.expect(')'); err != nil {
@@ -777,6 +841,39 @@ func (p *parser) parseCoordinateSequence() (geom.CoordinateSequence, error) {
 	}
 
 	return coords, nil
+}
+
+func validateWKTLineString(label string, coords geom.CoordinateSequence) error {
+	if len(coords) < 2 {
+		return fmt.Errorf("%s must have at least 2 points", label)
+	}
+	return nil
+}
+
+func validateWKTRing(label string, coords geom.CoordinateSequence) error {
+	if len(coords) < 4 {
+		return fmt.Errorf("%s must have at least 4 points", label)
+	}
+	if !coords.IsClosed(geom.DefaultEpsilon) {
+		return fmt.Errorf("%s is not closed", label)
+	}
+	return nil
+}
+
+func (p *parser) rejectEmptyCollection(name string) error {
+	p.skipWhitespace()
+	if p.peek() == ')' {
+		return fmt.Errorf("%s cannot be empty; use EMPTY", name)
+	}
+	return nil
+}
+
+func (p *parser) rejectTrailingComma(name string) error {
+	p.skipWhitespace()
+	if p.peek() == ')' {
+		return fmt.Errorf("%s has trailing comma at position %d", name, p.pos)
+	}
+	return nil
 }
 
 func (p *parser) parseCoordinate() (geom.Coordinate, error) {

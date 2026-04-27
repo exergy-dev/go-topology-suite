@@ -362,6 +362,12 @@ func TestUnmarshalWithFactory(t *testing.T) {
 	assert.NotNil(t, g, "Expected non-nil geometry")
 }
 
+func TestUnmarshalWithNilFactoryUsesDefault(t *testing.T) {
+	g, err := wkt.UnmarshalStringWithFactory("POINT (1 2)", nil)
+	require.NoError(t, err)
+	require.IsType(t, &geom.Point{}, g)
+}
+
 func TestUnmarshalTrailingTokensRejected(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -407,8 +413,16 @@ func TestUnmarshalStrictDimensionArity(t *testing.T) {
 		{"POINT ZM with Z and M", "POINT ZM (1 2 3 4)", false},
 
 		// Linestring variants
-		{"LINESTRING Z missing Z", "LINESTRING Z ((0 0, 1 1))", true},
+		{"LINESTRING Z missing Z", "LINESTRING Z (0 0, 1 1)", true},
 		{"LINESTRING Z with Z", "LINESTRING Z (0 0 1, 1 1 2)", false},
+
+		// Collection modifiers apply to all unmarked nested coordinate sequences.
+		{"MULTIPOINT Z missing Z", "MULTIPOINT Z ((0 0), (1 1 2))", true},
+		{"MULTILINESTRING Z missing Z", "MULTILINESTRING Z ((0 0, 1 1 2))", true},
+		{"MULTIPOLYGON Z missing Z", "MULTIPOLYGON Z (((0 0, 1 0 1, 1 1 1, 0 0 1)))", true},
+		{"GEOMETRYCOLLECTION Z nested point missing Z", "GEOMETRYCOLLECTION Z (POINT (1 2))", true},
+		{"GEOMETRYCOLLECTION Z nested point with Z", "GEOMETRYCOLLECTION Z (POINT (1 2 3))", false},
+		{"GEOMETRYCOLLECTION Z nested explicit M with M", "GEOMETRYCOLLECTION Z (POINT M (1 2 3))", false},
 	}
 
 	for _, tt := range tests {
@@ -419,6 +433,42 @@ func TestUnmarshalStrictDimensionArity(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "unexpected error for input: %s", tt.input)
 			}
+		})
+	}
+}
+
+func TestUnmarshalMalformedCollectionsRejected(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"empty linestring parens", "LINESTRING ()"},
+		{"linestring one point", "LINESTRING (0 0)"},
+		{"linearring one point", "LINEARRING (0 0)"},
+		{"linearring unclosed", "LINEARRING (0 0, 1 0, 1 1, 0 1)"},
+		{"linestring trailing comma", "LINESTRING (0 0,)"},
+		{"polygon shell too short", "POLYGON ((0 0, 1 0, 0 0))"},
+		{"polygon shell unclosed", "POLYGON ((0 0, 1 0, 1 1, 0 1))"},
+		{"polygon hole too short", "POLYGON ((0 0, 10 0, 10 10, 0 0), (1 1, 2 1, 1 1))"},
+		{"polygon hole unclosed", "POLYGON ((0 0, 10 0, 10 10, 0 0), (1 1, 2 1, 2 2, 1 2))"},
+		{"polygon shell trailing comma", "POLYGON ((0 0, 1 0, 1 1, 0 0,))"},
+		{"empty multipoint parens", "MULTIPOINT ()"},
+		{"multipoint trailing comma", "MULTIPOINT ((0 0),)"},
+		{"empty multilinestring parens", "MULTILINESTRING ()"},
+		{"multilinestring one point", "MULTILINESTRING ((0 0))"},
+		{"multilinestring trailing comma", "MULTILINESTRING ((0 0, 1 1),)"},
+		{"empty multipolygon parens", "MULTIPOLYGON ()"},
+		{"multipolygon shell unclosed", "MULTIPOLYGON (((0 0, 1 0, 1 1, 0 1)))"},
+		{"multipolygon trailing comma", "MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)),)"},
+		{"empty geometrycollection parens", "GEOMETRYCOLLECTION ()"},
+		{"geometrycollection trailing comma", "GEOMETRYCOLLECTION (POINT (0 0),)"},
+		{"unknown dimension modifier", "POINT BAD (1 2)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := wkt.UnmarshalString(tt.input)
+			assert.Error(t, err, "expected error for input: %s", tt.input)
 		})
 	}
 }

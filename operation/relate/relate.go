@@ -4,6 +4,7 @@ package relate
 import (
 	"github.com/robert-malhotra/go-topology-suite/algorithm"
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/internal/topology"
 )
 
 // Relate computes the DE-9IM intersection matrix for two geometries.
@@ -76,6 +77,14 @@ func computeDisjointMatrix(g1, g2 geom.Geometry) *IntersectionMatrix {
 
 // computeRelate computes the full DE-9IM matrix.
 func computeRelate(g1, g2 geom.Geometry) *IntersectionMatrix {
+	if _, ok := g1.(*geom.GeometryCollection); !ok {
+		if _, ok := g2.(*geom.GeometryCollection); ok {
+			m := computeRelate(g2, g1).Transpose()
+			m[Exterior][Exterior] = DimArea
+			return m
+		}
+	}
+
 	m := NewIntersectionMatrix()
 
 	// Compute based on geometry type combinations
@@ -98,16 +107,65 @@ func computeRelate(g1, g2 geom.Geometry) *IntersectionMatrix {
 		computeCollectionRelate(a, g2, m)
 	}
 
+	if _, ok := g1.(*geom.GeometryCollection); ok {
+		applyCollectionContainmentCorrections(g1, g2, m)
+	} else if _, ok := g2.(*geom.GeometryCollection); ok {
+		applyCollectionContainmentCorrections(g1, g2, m)
+	}
+
 	// Set exterior-exterior to 2D (always true for non-empty geometries)
 	m[Exterior][Exterior] = DimArea
 
 	return m
 }
 
+func applyCollectionContainmentCorrections(g1, g2 geom.Geometry, m *IntersectionMatrix) {
+	g1ContainsG2 := geometryContainsGeometry(g1, g2)
+	g2ContainsG1 := geometryContainsGeometry(g2, g1)
+	if g1ContainsG2 {
+		applyContainsCorrection(g1, g2, m)
+	}
+	if g2ContainsG1 {
+		applyWithinCorrection(g1, g2, m)
+	}
+	if g1ContainsG2 && g2ContainsG1 {
+		m[Interior][Boundary] = DimFalse
+		m[Interior][Exterior] = DimFalse
+		m[Boundary][Exterior] = DimFalse
+		m[Exterior][Interior] = DimFalse
+		m[Exterior][Boundary] = DimFalse
+		restoreInteriorBoundaryForContainedLinework(g1, g2, m)
+	}
+	if gc, ok := g1.(*geom.GeometryCollection); ok && g1ContainsG2 {
+		if ls, ok := lineStringGeometry(g2); ok && collectionHasLineMember(gc, ls) {
+			m[Interior][Boundary] = DimFalse
+		}
+	}
+}
+
+func restoreInteriorBoundaryForContainedLinework(g1, g2 geom.Geometry, m *IntersectionMatrix) {
+	for _, point := range geometryLineBoundaryPoints(g1) {
+		if topology.PointLocation(point, g2) == geom.LocationInterior {
+			m.SetAtLeast(Boundary, Interior, DimPoint)
+			break
+		}
+	}
+	for _, point := range geometryLineBoundaryPoints(g2) {
+		if topology.PointLocation(point, g1) == geom.LocationInterior {
+			m.SetAtLeast(Interior, Boundary, DimPoint)
+			break
+		}
+	}
+}
+
+func geometryLineBoundaryPoints(g geom.Geometry) []geom.Coordinate {
+	return lineSetBoundaryPoints(geom.ExtractLineStrings(g))
+}
+
 // computePointRelate computes the matrix for Point vs any geometry.
 func computePointRelate(p *geom.Point, g geom.Geometry, m *IntersectionMatrix) {
 	coord := p.Coordinate()
-	loc := algorithm.PointLocation(coord, g)
+	loc := topology.PointLocation(coord, g)
 
 	// Point has no boundary, so:
 	// I-I, I-B, I-E based on location
@@ -155,6 +213,10 @@ func computeLineStringRelate(ls *geom.LineString, g geom.Geometry, m *Intersecti
 	case *geom.MultiPolygon:
 		computeLineMultiPolygonRelate(ls, b, m)
 	case *geom.GeometryCollection:
+		if polys, ok := polygonSetGeometry(b); ok {
+			computeLinePolygonSetRelate(ls, polys, m)
+			return
+		}
 		for i := 0; i < b.NumGeometries(); i++ {
 			computeLineStringRelate(ls, b.GeometryN(i), m)
 		}
@@ -185,6 +247,10 @@ func computePolygonRelate(poly *geom.Polygon, g geom.Geometry, m *IntersectionMa
 	case *geom.MultiPolygon:
 		computePolygonMultiPolygonRelate(poly, b, m)
 	case *geom.GeometryCollection:
+		if polys, ok := polygonSetGeometry(b); ok {
+			computePolygonSetPolygonSetRelate([]*geom.Polygon{poly}, polys, m)
+			return
+		}
 		for i := 0; i < b.NumGeometries(); i++ {
 			computePolygonRelate(poly, b.GeometryN(i), m)
 		}
@@ -201,6 +267,18 @@ func computeMultiPointRelate(mp *geom.MultiPoint, g geom.Geometry, m *Intersecti
 
 // computeMultiLineStringRelate computes the matrix for MultiLineString vs any geometry.
 func computeMultiLineStringRelate(mls *geom.MultiLineString, g geom.Geometry, m *IntersectionMatrix) {
+	switch b := g.(type) {
+	case *geom.LineString:
+		computeLineSetLineSetRelate(multiLineStringLines(mls), []*geom.LineString{b}, m)
+		return
+	case *geom.LinearRing:
+		computeLineSetLineSetRelate(multiLineStringLines(mls), []*geom.LineString{b.LineString}, m)
+		return
+	case *geom.MultiLineString:
+		computeLineSetLineSetRelate(multiLineStringLines(mls), multiLineStringLines(b), m)
+		return
+	}
+
 	for i := 0; i < mls.NumGeometries(); i++ {
 		ls := mls.GeometryN(i).(*geom.LineString)
 		computeLineStringRelate(ls, g, m)
@@ -209,14 +287,141 @@ func computeMultiLineStringRelate(mls *geom.MultiLineString, g geom.Geometry, m 
 
 // computeMultiPolygonRelate computes the matrix for MultiPolygon vs any geometry.
 func computeMultiPolygonRelate(mp *geom.MultiPolygon, g geom.Geometry, m *IntersectionMatrix) {
+	switch b := g.(type) {
+	case *geom.Polygon:
+		computePolygonSetPolygonSetRelate(geom.ExtractPolygons(mp), []*geom.Polygon{b}, m)
+		if multiPolygonContainsGeometry(mp, g) {
+			applyContainsCorrection(mp, g, m)
+		}
+		return
+	case *geom.MultiPolygon:
+		computePolygonSetPolygonSetRelate(geom.ExtractPolygons(mp), geom.ExtractPolygons(b), m)
+		if multiPolygonContainsGeometry(mp, g) {
+			applyContainsCorrection(mp, g, m)
+		}
+		return
+	}
+
 	for i := 0; i < mp.NumGeometries(); i++ {
 		poly := mp.GeometryN(i).(*geom.Polygon)
 		computePolygonRelate(poly, g, m)
 	}
+	if multiPolygonContainsGeometry(mp, g) {
+		applyContainsCorrection(mp, g, m)
+	}
+}
+
+func multiPolygonContainsGeometry(mp *geom.MultiPolygon, g geom.Geometry) bool {
+	if mp == nil || g == nil || g.IsEmpty() {
+		return false
+	}
+	switch v := g.(type) {
+	case *geom.Point:
+		return !v.IsEmpty() && topology.PointLocation(v.Coordinate(), mp) == geom.LocationInterior
+	case *geom.LineString:
+		return lineContainedInMultiPolygon(v, mp)
+	case *geom.LinearRing:
+		return lineContainedInMultiPolygon(v.LineString, mp)
+	case *geom.Polygon:
+		return polygonContainedInMultiPolygon(v, mp)
+	case *geom.MultiPoint:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !multiPolygonContainsGeometry(mp, v.GeometryN(i)) {
+				return false
+			}
+		}
+		return true
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !multiPolygonContainsGeometry(mp, v.GeometryN(i)) {
+				return false
+			}
+		}
+		return true
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !multiPolygonContainsGeometry(mp, v.GeometryN(i)) {
+				return false
+			}
+		}
+		return true
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !multiPolygonContainsGeometry(mp, v.GeometryN(i)) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func polygonContainedInMultiPolygon(poly *geom.Polygon, mp *geom.MultiPolygon) bool {
+	interiorPoint, ok := topology.PolygonInteriorPoint(poly)
+	if !ok || topology.PointLocation(interiorPoint, mp) != geom.LocationInterior {
+		return false
+	}
+	for _, boundary := range topology.PolygonBoundaryLines([]*geom.Polygon{poly}) {
+		if !lineCoveredByMultiPolygon(boundary, mp) {
+			return false
+		}
+	}
+	return true
+}
+
+func lineContainedInMultiPolygon(line *geom.LineString, mp *geom.MultiPolygon) bool {
+	coords := line.Coordinates()
+	for _, coord := range coords {
+		if topology.PointLocation(coord, mp) != geom.LocationInterior {
+			return false
+		}
+	}
+	return lineCoveredByMultiPolygon(line, mp)
+}
+
+func lineCoveredByMultiPolygon(line *geom.LineString, mp *geom.MultiPolygon) bool {
+	coords := line.Coordinates()
+	for i := 1; i < len(coords); i++ {
+		midpoint := geom.Coordinate{
+			X: (coords[i-1].X + coords[i].X) / 2,
+			Y: (coords[i-1].Y + coords[i].Y) / 2,
+		}
+		if topology.PointLocation(midpoint, mp) == geom.LocationExterior {
+			return false
+		}
+	}
+	return true
 }
 
 // computeCollectionRelate computes the matrix for GeometryCollection vs any geometry.
 func computeCollectionRelate(gc *geom.GeometryCollection, g geom.Geometry, m *IntersectionMatrix) {
+	if polysA, ok := polygonSetGeometry(gc); ok {
+		if polysB, ok := polygonSetGeometry(g); ok {
+			computePolygonSetPolygonSetRelate(polysA, polysB, m)
+			if geometryContainsGeometry(gc, g) && !geometryContainsGeometry(g, gc) {
+				applyContainsCorrection(gc, g, m)
+			}
+			return
+		}
+		switch b := g.(type) {
+		case *geom.LineString:
+			computePolygonSetLineRelate(polysA, b, m)
+			if geometryContainsGeometry(gc, g) {
+				applyContainsCorrection(gc, g, m)
+			}
+			return
+		case *geom.LinearRing:
+			computePolygonSetLineRelate(polysA, b.LineString, m)
+			return
+		case *geom.MultiLineString:
+			for i := 0; i < b.NumGeometries(); i++ {
+				computePolygonSetLineRelate(polysA, b.GeometryN(i).(*geom.LineString), m)
+			}
+			return
+		}
+	}
+
 	for i := 0; i < gc.NumGeometries(); i++ {
 		subM := computeRelate(gc.GeometryN(i), g)
 		// Merge matrices
@@ -228,6 +433,275 @@ func computeCollectionRelate(gc *geom.GeometryCollection, g geom.Geometry, m *In
 			}
 		}
 	}
+
+	if geometryContainsGeometry(gc, g) {
+		applyContainsCorrection(gc, g, m)
+		if ls, ok := lineStringGeometry(g); ok && collectionInteriorContainsLine(gc, ls) {
+			m[Boundary][Interior] = DimFalse
+			if collectionHasLineMember(gc, ls) {
+				m[Interior][Boundary] = DimFalse
+			}
+		}
+	} else if ls, ok := g.(*geom.LineString); ok && collectionInteriorContainsLine(gc, ls) {
+		applyContainsCorrection(gc, ls, m)
+	}
+	if geometryContainsGeometry(g, gc) {
+		applyWithinCorrection(gc, g, m)
+		if geometryContainsGeometry(gc, g) {
+			m[Interior][Boundary] = DimFalse
+		}
+	}
+
+	applyCollectionBoundaryPromotion(gc, g, m)
+}
+
+func applyCollectionBoundaryPromotion(gc *geom.GeometryCollection, g geom.Geometry, m *IntersectionMatrix) {
+	if m[Boundary][Boundary] != DimPoint {
+		return
+	}
+
+	for _, point := range collectionInteriorPointMembers(gc) {
+		if topology.PointLocation(point, g) == geom.LocationBoundary {
+			m[Boundary][Boundary] = DimFalse
+			return
+		}
+	}
+}
+
+func collectionInteriorPointMembers(gc *geom.GeometryCollection) []geom.Coordinate {
+	var points []geom.Coordinate
+	geom.ForEachPoint(gc, func(point *geom.Point) bool {
+		coord := point.Coordinate()
+		if topology.PointLocation(coord, gc) == geom.LocationInterior {
+			points = append(points, coord)
+		}
+		return false
+	})
+	return points
+}
+
+func polygonSetGeometry(g geom.Geometry) ([]*geom.Polygon, bool) {
+	if g == nil || g.IsEmpty() {
+		return nil, false
+	}
+	switch v := g.(type) {
+	case *geom.Polygon:
+		return []*geom.Polygon{v}, true
+	case *geom.MultiPolygon:
+		return geom.ExtractPolygons(v), true
+	case *geom.GeometryCollection:
+		var polygons []*geom.Polygon
+		for i := 0; i < v.NumGeometries(); i++ {
+			componentPolygons, ok := polygonSetGeometry(v.GeometryN(i))
+			if !ok {
+				return nil, false
+			}
+			polygons = append(polygons, componentPolygons...)
+		}
+		return polygons, len(polygons) > 0
+	default:
+		return nil, false
+	}
+}
+
+func geometryContainsGeometry(container, contained geom.Geometry) bool {
+	if topologyCoversWithInterior(container, contained) {
+		return true
+	}
+	if geom.Contains(container, contained) {
+		return true
+	}
+	if polys, ok := polygonSetGeometry(container); ok {
+		mp := geom.NewMultiPolygon(polys)
+		return multiPolygonContainsGeometry(mp, contained)
+	}
+	return false
+}
+
+func topologyCoversWithInterior(container, contained geom.Geometry) bool {
+	hasInterior := false
+	for _, coord := range contained.Coordinates() {
+		loc := topology.PointLocation(coord, container)
+		if loc == geom.LocationExterior {
+			return false
+		}
+		if loc == geom.LocationInterior {
+			hasInterior = true
+		}
+	}
+
+	lines := geom.ExtractLineStringsWithRings(contained)
+	for _, line := range lines {
+		coords := line.Coordinates()
+		for i := 1; i < len(coords); i++ {
+			midpoint := geom.Coordinate{
+				X: (coords[i-1].X + coords[i].X) / 2,
+				Y: (coords[i-1].Y + coords[i].Y) / 2,
+			}
+			loc := topology.PointLocation(midpoint, container)
+			if loc == geom.LocationExterior {
+				return false
+			}
+			if loc == geom.LocationInterior {
+				hasInterior = true
+			}
+		}
+	}
+
+	for _, poly := range geom.ExtractPolygons(contained) {
+		interiorPoint, ok := topology.PolygonInteriorPoint(poly)
+		if !ok {
+			continue
+		}
+		loc := topology.PointLocation(interiorPoint, container)
+		if loc == geom.LocationExterior {
+			return false
+		}
+		if loc == geom.LocationInterior {
+			hasInterior = true
+		}
+	}
+
+	return hasInterior
+}
+
+func applyContainsCorrection(container, contained geom.Geometry, m *IntersectionMatrix) {
+	if container == nil || contained == nil || contained.IsEmpty() {
+		return
+	}
+	m.SetAtLeast(Interior, Interior, geomDimension(contained))
+	m.SetAtLeast(Interior, Boundary, boundaryDimension(contained))
+	m.SetAtLeast(Interior, Exterior, geomDimension(container))
+	m.SetAtLeast(Boundary, Exterior, boundaryDimension(container))
+	m[Exterior][Interior] = DimFalse
+	m[Exterior][Boundary] = DimFalse
+}
+
+func applyWithinCorrection(contained, container geom.Geometry, m *IntersectionMatrix) {
+	if container == nil || contained == nil || contained.IsEmpty() {
+		return
+	}
+	m.SetAtLeast(Interior, Interior, geomDimension(contained))
+	m.SetAtLeast(Exterior, Interior, geomDimension(container))
+	m.SetAtLeast(Exterior, Boundary, boundaryDimension(container))
+	m[Interior][Exterior] = DimFalse
+	m[Boundary][Exterior] = DimFalse
+}
+
+func lineStringGeometry(g geom.Geometry) (*geom.LineString, bool) {
+	switch v := g.(type) {
+	case *geom.LineString:
+		return v, true
+	case *geom.LinearRing:
+		return v.LineString, true
+	default:
+		return nil, false
+	}
+}
+
+func collectionHasLineMember(gc *geom.GeometryCollection, line *geom.LineString) bool {
+	for i := 0; i < gc.NumGeometries(); i++ {
+		switch v := gc.GeometryN(i).(type) {
+		case *geom.LineString:
+			if v.EqualsExact(line, geom.DefaultEpsilon) {
+				return true
+			}
+		case *geom.LinearRing:
+			if v.LineString.EqualsExact(line, geom.DefaultEpsilon) {
+				return true
+			}
+		case *geom.GeometryCollection:
+			if collectionHasLineMember(v, line) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func collectionInteriorContainsLine(gc *geom.GeometryCollection, ls *geom.LineString) bool {
+	if polys := geom.ExtractPolygons(gc); len(polys) > 0 {
+		return polygonSetInteriorContainsLine(polys, ls)
+	}
+	for i := 0; i < gc.NumGeometries(); i++ {
+		if geometryInteriorContainsLine(gc.GeometryN(i), ls) {
+			return true
+		}
+	}
+	return false
+}
+
+func polygonSetInteriorContainsLine(polys []*geom.Polygon, ls *geom.LineString) bool {
+	coords := ls.Coordinates()
+	if len(coords) == 0 {
+		return false
+	}
+	for _, c := range coords {
+		if topology.PointLocationInPolygonSet(c, polys) != geom.LocationInterior {
+			return false
+		}
+	}
+	for i := 1; i < len(coords); i++ {
+		midpoint := geom.Coordinate{
+			X: (coords[i-1].X + coords[i].X) / 2,
+			Y: (coords[i-1].Y + coords[i].Y) / 2,
+		}
+		if topology.PointLocationInPolygonSet(midpoint, polys) != geom.LocationInterior {
+			return false
+		}
+	}
+	return true
+}
+
+func geometryInteriorContainsLine(g geom.Geometry, ls *geom.LineString) bool {
+	switch g := g.(type) {
+	case *geom.Polygon:
+		return polygonInteriorContainsLine(g, ls)
+	case *geom.MultiPolygon:
+		for i := 0; i < g.NumGeometries(); i++ {
+			if polygonInteriorContainsLine(g.GeometryN(i).(*geom.Polygon), ls) {
+				return true
+			}
+		}
+	case *geom.GeometryCollection:
+		return collectionInteriorContainsLine(g, ls)
+	}
+	return false
+}
+
+func polygonInteriorContainsLine(poly *geom.Polygon, ls *geom.LineString) bool {
+	coords := ls.Coordinates()
+	if len(coords) == 0 {
+		return false
+	}
+
+	for _, c := range coords {
+		if topology.PointLocationInPolygon(c, poly) != geom.LocationInterior {
+			return false
+		}
+	}
+
+	boundaryLines := topology.PolygonBoundaryLines([]*geom.Polygon{poly})
+	for i := 1; i < len(coords); i++ {
+		midpoint := geom.Coordinate{
+			X: (coords[i-1].X + coords[i].X) / 2,
+			Y: (coords[i-1].Y + coords[i].Y) / 2,
+		}
+		if topology.PointLocationInPolygon(midpoint, poly) != geom.LocationInterior {
+			return false
+		}
+
+		for _, boundary := range boundaryLines {
+			boundaryCoords := boundary.Coordinates()
+			for j := 1; j < len(boundaryCoords); j++ {
+				if algorithm.LineIntersection(coords[i-1], coords[i], boundaryCoords[j-1], boundaryCoords[j]).HasIntersection {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 // computeLinePointRelate computes LineString vs Point.
@@ -253,55 +727,199 @@ func computeLinePointRelate(ls *geom.LineString, p *geom.Point, m *IntersectionM
 
 // computeLineLineRelate computes LineString vs LineString.
 func computeLineLineRelate(ls1, ls2 *geom.LineString, m *IntersectionMatrix) {
-	coords1 := ls1.Coordinates()
-	coords2 := ls2.Coordinates()
+	computeLineSetLineSetRelate([]*geom.LineString{ls1}, []*geom.LineString{ls2}, m)
+}
 
-	// Check for intersections between segments
-	hasProperIntersection := false
-	hasEndpointIntersection := false
-	hasCollinearOverlap := false
+func computeLineSetLineSetRelate(linesA, linesB []*geom.LineString, m *IntersectionMatrix) {
+	boundaryA := lineSetBoundaryPoints(linesA)
+	boundaryB := lineSetBoundaryPoints(linesB)
 
-	for i := 1; i < len(coords1); i++ {
-		for j := 1; j < len(coords2); j++ {
-			result := algorithm.LineIntersection(coords1[i-1], coords1[i], coords2[j-1], coords2[j])
-			if result.HasIntersection {
-				if result.IsCollinear {
-					hasCollinearOverlap = true
-				} else if result.IsProper {
-					hasProperIntersection = true
-				} else {
-					hasEndpointIntersection = true
+	nodedSegments := topology.NodeLineSets(linesA, linesB)
+	hasSharedLine := false
+	hasAOnlyLine := false
+	hasBOnlyLine := false
+	for _, segment := range nodedSegments {
+		switch {
+		case segment.InA() && segment.InB():
+			hasSharedLine = true
+		case segment.InA():
+			hasAOnlyLine = true
+		case segment.InB():
+			hasBOnlyLine = true
+		}
+	}
+
+	if hasSharedLine {
+		m[Interior][Interior] = DimLine
+	}
+
+	checkLineSetPointIntersections(linesA, linesB, boundaryA, boundaryB, m)
+	setLineSetBoundaryIntersections(boundaryA, boundaryB, linesA, linesB, m)
+
+	if hasAOnlyLine {
+		m[Interior][Exterior] = DimLine
+	}
+	if hasBOnlyLine {
+		m[Exterior][Interior] = DimLine
+	}
+
+	setLineSetBoundaryExterior(boundaryA, boundaryB, linesA, linesB, m)
+}
+
+func multiLineStringLines(mls *geom.MultiLineString) []*geom.LineString {
+	lines := make([]*geom.LineString, 0, mls.NumGeometries())
+	for i := 0; i < mls.NumGeometries(); i++ {
+		if ls, ok := mls.GeometryN(i).(*geom.LineString); ok && !ls.IsEmpty() {
+			lines = append(lines, ls)
+		}
+	}
+	return lines
+}
+
+func checkLineSetPointIntersections(linesA, linesB []*geom.LineString, boundaryA, boundaryB []geom.Coordinate, m *IntersectionMatrix) {
+	for _, a := range linesA {
+		coordsA := a.Coordinates()
+		for _, b := range linesB {
+			coordsB := b.Coordinates()
+			for i := 1; i < len(coordsA); i++ {
+				for j := 1; j < len(coordsB); j++ {
+					result := algorithm.LineIntersection(coordsA[i-1], coordsA[i], coordsB[j-1], coordsB[j])
+					if !result.HasIntersection {
+						continue
+					}
+					setLineSetPointIntersection(result.Intersection, linesA, linesB, boundaryA, boundaryB, m)
+					if result.IsCollinear && !result.Intersection2.IsNaN() {
+						setLineSetPointIntersection(result.Intersection2, linesA, linesB, boundaryA, boundaryB, m)
+					}
 				}
 			}
 		}
 	}
+}
 
-	// Determine dimensions
-	if hasCollinearOverlap {
-		m[Interior][Interior] = DimLine
-	} else if hasProperIntersection {
-		m[Interior][Interior] = DimPoint
+func setLineSetPointIntersection(p geom.Coordinate, linesA, linesB []*geom.LineString, boundaryA, boundaryB []geom.Coordinate, m *IntersectionMatrix) {
+	locA := pointLocationOnLineSet(p, linesA, boundaryA)
+	locB := pointLocationOnLineSet(p, linesB, boundaryB)
+
+	switch locA {
+	case geom.LocationInterior:
+		switch locB {
+		case geom.LocationInterior:
+			m.SetAtLeast(Interior, Interior, DimPoint)
+		case geom.LocationBoundary:
+			m.SetAtLeast(Interior, Boundary, DimPoint)
+		}
+	case geom.LocationBoundary:
+		switch locB {
+		case geom.LocationInterior:
+			m.SetAtLeast(Boundary, Interior, DimPoint)
+		case geom.LocationBoundary:
+			m.SetAtLeast(Boundary, Boundary, DimPoint)
+		}
+	}
+}
+
+func setLineSetBoundaryIntersections(boundaryA, boundaryB []geom.Coordinate, linesA, linesB []*geom.LineString, m *IntersectionMatrix) {
+	for _, ep := range boundaryA {
+		switch pointLocationOnLineSet(ep, linesB, boundaryB) {
+		case geom.LocationInterior:
+			m.SetAtLeast(Boundary, Interior, DimPoint)
+		case geom.LocationBoundary:
+			m.SetAtLeast(Boundary, Boundary, DimPoint)
+		}
+	}
+	for _, ep := range boundaryB {
+		switch pointLocationOnLineSet(ep, linesA, boundaryA) {
+		case geom.LocationInterior:
+			m.SetAtLeast(Interior, Boundary, DimPoint)
+		case geom.LocationBoundary:
+			m.SetAtLeast(Boundary, Boundary, DimPoint)
+		}
+	}
+}
+
+func setLineSetBoundaryExterior(boundaryA, boundaryB []geom.Coordinate, linesA, linesB []*geom.LineString, m *IntersectionMatrix) {
+	for _, ep := range boundaryA {
+		if pointLocationOnLineSet(ep, linesB, boundaryB) == geom.LocationExterior {
+			m.SetAtLeast(Boundary, Exterior, DimPoint)
+		}
+	}
+	for _, ep := range boundaryB {
+		if pointLocationOnLineSet(ep, linesA, boundaryA) == geom.LocationExterior {
+			m.SetAtLeast(Exterior, Boundary, DimPoint)
+		}
+	}
+}
+
+func pointLocationOnLineSet(p geom.Coordinate, lines []*geom.LineString, boundary []geom.Coordinate) geom.Location {
+	onLine := false
+	for _, line := range lines {
+		if pointLocationOnLine(p, line) != geom.LocationExterior {
+			onLine = true
+			break
+		}
+	}
+	if !onLine {
+		return geom.LocationExterior
+	}
+	if containsCoordinate(boundary, p) {
+		return geom.LocationBoundary
+	}
+	return geom.LocationInterior
+}
+
+func lineSetBoundaryPoints(lines []*geom.LineString) []geom.Coordinate {
+	var endpoints []geom.Coordinate
+	for _, line := range lines {
+		endpoints = append(endpoints, lineBoundaryEndpoints(line)...)
 	}
 
-	// Check boundary intersections (endpoints)
-	checkLineBoundaryIntersection(ls1, ls2, m)
-
-	// Interior-Exterior: lines always have parts in each other's exterior
-	m[Interior][Exterior] = DimLine
-	m[Exterior][Interior] = DimLine
-
-	// Boundary-Exterior
-	if !ls1.IsClosed() {
-		m[Boundary][Exterior] = DimPoint
+	boundary := endpoints[:0]
+	for _, endpoint := range endpoints {
+		count := 0
+		for _, other := range endpoints {
+			if endpoint.Equals2D(other, geom.DefaultEpsilon) {
+				count++
+			}
+		}
+		if count%2 == 1 && !containsCoordinate(boundary, endpoint) {
+			boundary = append(boundary, endpoint)
+		}
 	}
-	if !ls2.IsClosed() {
-		m[Exterior][Boundary] = DimPoint
-	}
+	return boundary
+}
 
-	// Update based on endpoint intersections
-	if hasEndpointIntersection {
-		updateLineEndpointMatrix(ls1, ls2, m)
+func containsCoordinate(coords []geom.Coordinate, p geom.Coordinate) bool {
+	for _, coord := range coords {
+		if coord.Equals2D(p, geom.DefaultEpsilon) {
+			return true
+		}
 	}
+	return false
+}
+
+func setLineBoundaryExterior(ls1, ls2 *geom.LineString, m *IntersectionMatrix) {
+	for _, ep := range lineBoundaryEndpoints(ls1) {
+		if pointLocationOnLine(ep, ls2) == geom.LocationExterior {
+			m.SetAtLeast(Boundary, Exterior, DimPoint)
+		}
+	}
+	for _, ep := range lineBoundaryEndpoints(ls2) {
+		if pointLocationOnLine(ep, ls1) == geom.LocationExterior {
+			m.SetAtLeast(Exterior, Boundary, DimPoint)
+		}
+	}
+}
+
+func lineBoundaryEndpoints(ls *geom.LineString) []geom.Coordinate {
+	if ls.IsClosed() || ls.IsEmpty() {
+		return nil
+	}
+	coords := ls.Coordinates()
+	if len(coords) < 2 {
+		return nil
+	}
+	return []geom.Coordinate{coords[0], coords[len(coords)-1]}
 }
 
 // checkLineBoundaryIntersection checks if line boundaries intersect.
@@ -310,23 +928,8 @@ func checkLineBoundaryIntersection(ls1, ls2 *geom.LineString, m *IntersectionMat
 		return // Closed lines have no boundary
 	}
 
-	coords1 := ls1.Coordinates()
-	coords2 := ls2.Coordinates()
-
-	// Get endpoints of ls1 (its boundary)
-	var endpoints1 []geom.Coordinate
-	if !ls1.IsClosed() && len(coords1) >= 2 {
-		endpoints1 = []geom.Coordinate{coords1[0], coords1[len(coords1)-1]}
-	}
-
-	// Get endpoints of ls2
-	var endpoints2 []geom.Coordinate
-	if !ls2.IsClosed() && len(coords2) >= 2 {
-		endpoints2 = []geom.Coordinate{coords2[0], coords2[len(coords2)-1]}
-	}
-
 	// Check if ls1 endpoints are on ls2
-	for _, ep := range endpoints1 {
+	for _, ep := range lineBoundaryEndpoints(ls1) {
 		loc := pointLocationOnLine(ep, ls2)
 		switch loc {
 		case geom.LocationInterior:
@@ -337,7 +940,7 @@ func checkLineBoundaryIntersection(ls1, ls2 *geom.LineString, m *IntersectionMat
 	}
 
 	// Check if ls2 endpoints are on ls1
-	for _, ep := range endpoints2 {
+	for _, ep := range lineBoundaryEndpoints(ls2) {
 		loc := pointLocationOnLine(ep, ls1)
 		switch loc {
 		case geom.LocationInterior:
@@ -381,73 +984,49 @@ func updateLineEndpointMatrix(ls1, ls2 *geom.LineString, m *IntersectionMatrix) 
 
 // computeLinePolygonRelate computes LineString vs Polygon.
 func computeLinePolygonRelate(ls *geom.LineString, poly *geom.Polygon, m *IntersectionMatrix) {
+	computeLinePolygonSetRelate(ls, []*geom.Polygon{poly}, m)
+}
+
+func computeLinePolygonSetRelate(ls *geom.LineString, polys []*geom.Polygon, m *IntersectionMatrix) {
 	coords := ls.Coordinates()
+	if len(coords) < 2 {
+		return
+	}
 
-	hasInteriorInterior := false
-	hasInteriorBoundary := false
-	hasInteriorExterior := false
-	hasBoundaryInterior := false
-	hasBoundaryBoundary := false
-	hasBoundaryExterior := false
-
-	// Check each point on the line
-	for i, c := range coords {
-		loc := algorithm.PointLocationInPolygon(c, poly)
-		isEndpoint := !ls.IsClosed() && (i == 0 || i == len(coords)-1)
-
-		switch loc {
+	boundaryLines := topology.PolygonBoundaryLines(polys)
+	nodedSegments := topology.NodeLineSets([]*geom.LineString{ls}, boundaryLines)
+	for _, segment := range nodedSegments {
+		if !segment.InA() {
+			continue
+		}
+		midpoint := geom.NewCoordinate(
+			(segment.Start.X+segment.End.X)/2,
+			(segment.Start.Y+segment.End.Y)/2,
+		)
+		switch topology.PointLocationInPolygonSet(midpoint, polys) {
 		case geom.LocationInterior:
-			if isEndpoint {
-				hasBoundaryInterior = true
-			} else {
-				hasInteriorInterior = true
-			}
+			m.SetAtLeast(Interior, Interior, DimLine)
 		case geom.LocationBoundary:
-			if isEndpoint {
-				hasBoundaryBoundary = true
-			} else {
-				hasInteriorBoundary = true
-			}
+			m.SetAtLeast(Interior, Boundary, DimLine)
 		case geom.LocationExterior:
-			if isEndpoint {
-				hasBoundaryExterior = true
-			} else {
-				hasInteriorExterior = true
-			}
+			m.SetAtLeast(Interior, Exterior, DimLine)
 		}
+
+		setLineInteriorPolygonSetBoundaryPoint(segment.Start, ls, polys, m)
+		setLineInteriorPolygonSetBoundaryPoint(segment.End, ls, polys, m)
 	}
 
-	// Check for segment intersections with polygon boundary
-	shellCoords := poly.ExteriorRing().Coordinates()
-	for i := 1; i < len(coords); i++ {
-		for j := 1; j < len(shellCoords); j++ {
-			result := algorithm.LineIntersection(coords[i-1], coords[i], shellCoords[j-1], shellCoords[j])
-			if result.HasIntersection {
-				if result.IsProper {
-					hasInteriorBoundary = true
-				}
+	if !ls.IsClosed() {
+		for _, endpoint := range lineBoundaryEndpoints(ls) {
+			switch topology.PointLocationInPolygonSet(endpoint, polys) {
+			case geom.LocationInterior:
+				m.SetAtLeast(Boundary, Interior, DimPoint)
+			case geom.LocationBoundary:
+				m.SetAtLeast(Boundary, Boundary, DimPoint)
+			case geom.LocationExterior:
+				m.SetAtLeast(Boundary, Exterior, DimPoint)
 			}
 		}
-	}
-
-	// Set matrix values
-	if hasInteriorInterior {
-		m[Interior][Interior] = DimLine
-	}
-	if hasInteriorBoundary {
-		m.SetAtLeast(Interior, Boundary, DimPoint)
-	}
-	if hasInteriorExterior {
-		m[Interior][Exterior] = DimLine
-	}
-	if hasBoundaryInterior {
-		m.SetAtLeast(Boundary, Interior, DimPoint)
-	}
-	if hasBoundaryBoundary {
-		m.SetAtLeast(Boundary, Boundary, DimPoint)
-	}
-	if hasBoundaryExterior {
-		m.SetAtLeast(Boundary, Exterior, DimPoint)
 	}
 
 	// Exterior-Interior: polygon's interior not covered by line
@@ -456,10 +1035,23 @@ func computeLinePolygonRelate(ls *geom.LineString, poly *geom.Polygon, m *Inters
 	m[Exterior][Boundary] = DimLine
 }
 
+func setLineInteriorPolygonBoundaryPoint(point geom.Coordinate, ls *geom.LineString, poly *geom.Polygon, m *IntersectionMatrix) {
+	setLineInteriorPolygonSetBoundaryPoint(point, ls, []*geom.Polygon{poly}, m)
+}
+
+func setLineInteriorPolygonSetBoundaryPoint(point geom.Coordinate, ls *geom.LineString, polys []*geom.Polygon, m *IntersectionMatrix) {
+	if pointLocationOnLine(point, ls) != geom.LocationInterior {
+		return
+	}
+	if topology.PointLocationInPolygonSet(point, polys) == geom.LocationBoundary {
+		m.SetAtLeast(Interior, Boundary, DimPoint)
+	}
+}
+
 // computePolygonPointRelate computes Polygon vs Point.
 func computePolygonPointRelate(poly *geom.Polygon, p *geom.Point, m *IntersectionMatrix) {
 	coord := p.Coordinate()
-	loc := algorithm.PointLocationInPolygon(coord, poly)
+	loc := topology.PointLocationInPolygon(coord, poly)
 
 	switch loc {
 	case geom.LocationInterior:
@@ -477,9 +1069,13 @@ func computePolygonPointRelate(poly *geom.Polygon, p *geom.Point, m *Intersectio
 
 // computePolygonLineRelate computes Polygon vs LineString.
 func computePolygonLineRelate(poly *geom.Polygon, ls *geom.LineString, m *IntersectionMatrix) {
-	// This is the transpose of line vs polygon
+	computePolygonSetLineRelate([]*geom.Polygon{poly}, ls, m)
+}
+
+func computePolygonSetLineRelate(polys []*geom.Polygon, ls *geom.LineString, m *IntersectionMatrix) {
+	// This is the transpose of line vs polygon set.
 	tempM := NewIntersectionMatrix()
-	computeLinePolygonRelate(ls, poly, tempM)
+	computeLinePolygonSetRelate(ls, polys, tempM)
 
 	// Transpose results
 	for i := 0; i < 3; i++ {
@@ -491,9 +1087,13 @@ func computePolygonLineRelate(poly *geom.Polygon, ls *geom.LineString, m *Inters
 
 // computePolygonPolygonRelate computes Polygon vs Polygon.
 func computePolygonPolygonRelate(poly1, poly2 *geom.Polygon, m *IntersectionMatrix) {
-	// Check shell intersections
-	shell1 := poly1.ExteriorRing().Coordinates()
-	shell2 := poly2.ExteriorRing().Coordinates()
+	computePolygonSetPolygonSetRelate([]*geom.Polygon{poly1}, []*geom.Polygon{poly2}, m)
+}
+
+func computePolygonSetPolygonSetRelate(polysA, polysB []*geom.Polygon, m *IntersectionMatrix) {
+	boundaryLines1 := topology.PolygonBoundaryLines(polysA)
+	boundaryLines2 := topology.PolygonBoundaryLines(polysB)
+	graphEdges := topology.BuildPolygonBoundaryGraph(polysA, polysB)
 
 	// Sample points from both polygons
 	hasInteriorInterior := false
@@ -502,68 +1102,73 @@ func computePolygonPolygonRelate(poly1, poly2 *geom.Polygon, m *IntersectionMatr
 	hasBoundaryInterior := false
 	hasBoundaryBoundary := false
 	hasBoundaryExterior := false
+	hasExteriorBoundary := false
 
-	// Check shell1 points against poly2
-	for _, c := range shell1 {
-		loc := algorithm.PointLocationInPolygon(c, poly2)
+	for _, line := range boundaryLines1 {
+		for _, c := range line.Coordinates() {
+			loc := topology.PointLocationInPolygonSet(c, polysB)
 
-		switch loc {
-		case geom.LocationInterior:
-			hasBoundaryInterior = true
-		case geom.LocationBoundary:
-			hasBoundaryBoundary = true
-		case geom.LocationExterior:
-			hasBoundaryExterior = true
-		}
-	}
-
-	// Check shell2 points against poly1
-	for _, c := range shell2 {
-		loc := algorithm.PointLocationInPolygon(c, poly1)
-
-		switch loc {
-		case geom.LocationInterior:
-			hasInteriorBoundary = true
-		case geom.LocationBoundary:
-			hasBoundaryBoundary = true
-		case geom.LocationExterior:
-			hasInteriorExterior = false // Don't set from boundary points
-		}
-	}
-
-	// Check centroid of poly1 vs poly2
-	centroid1 := poly1.Centroid()
-	if !centroid1.IsEmpty() {
-		loc := algorithm.PointLocationInPolygon(centroid1.Coordinate(), poly2)
-		switch loc {
-		case geom.LocationInterior:
-			hasInteriorInterior = true
-		case geom.LocationExterior:
-			hasInteriorExterior = true
-		}
-	}
-
-	// Check centroid of poly2 vs poly1
-	centroid2 := poly2.Centroid()
-	if !centroid2.IsEmpty() {
-		loc := algorithm.PointLocationInPolygon(centroid2.Coordinate(), poly1)
-		if loc == geom.LocationExterior {
-			hasInteriorExterior = true
-		}
-	}
-
-	// Check for boundary-boundary intersections
-	for i := 1; i < len(shell1); i++ {
-		for j := 1; j < len(shell2); j++ {
-			result := algorithm.LineIntersection(shell1[i-1], shell1[i], shell2[j-1], shell2[j])
-			if result.HasIntersection {
-				if result.IsCollinear {
-					hasBoundaryBoundary = true
-					m.SetAtLeast(Boundary, Boundary, DimLine)
-				} else {
-					hasBoundaryBoundary = true
-				}
+			switch loc {
+			case geom.LocationInterior:
+				hasBoundaryInterior = true
+			case geom.LocationBoundary:
+				hasBoundaryBoundary = true
+			case geom.LocationExterior:
+				hasBoundaryExterior = true
 			}
+		}
+	}
+
+	for _, line := range boundaryLines2 {
+		for _, c := range line.Coordinates() {
+			loc := topology.PointLocationInPolygonSet(c, polysA)
+
+			switch loc {
+			case geom.LocationInterior:
+				hasInteriorBoundary = true
+			case geom.LocationBoundary:
+				hasBoundaryBoundary = true
+			case geom.LocationExterior:
+				hasInteriorExterior = false // Don't set from boundary points
+				hasExteriorBoundary = true
+			}
+		}
+	}
+
+	// Check representative interior point of poly1 vs poly2. A centroid can
+	// lie in a hole, so use a topology-selected interior point.
+	for _, poly := range polysA {
+		if interior1, ok := topology.PolygonInteriorPoint(poly); ok {
+			loc := topology.PointLocationInPolygonSet(interior1, polysB)
+			switch loc {
+			case geom.LocationInterior:
+				hasInteriorInterior = true
+			case geom.LocationExterior:
+				hasInteriorExterior = true
+			}
+		}
+	}
+
+	// Check representative interior point of poly2 vs poly1.
+	hasExteriorInterior := false
+	for _, poly := range polysB {
+		if point, ok := topology.PolygonInteriorPoint(poly); ok {
+			loc := topology.PointLocationInPolygonSet(point, polysA)
+			switch loc {
+			case geom.LocationInterior:
+				hasInteriorInterior = true
+			case geom.LocationExterior:
+				hasExteriorInterior = true
+			}
+		}
+	}
+
+	applyPolygonBoundaryGraphRelate(graphEdges, m)
+
+	if dim, ok := topology.PolygonBoundaryIntersectionDimension(polysA, polysB); ok {
+		hasBoundaryBoundary = true
+		if dim == geom.DimensionLine {
+			m.SetAtLeast(Boundary, Boundary, DimLine)
 		}
 	}
 
@@ -588,13 +1193,85 @@ func computePolygonPolygonRelate(poly1, poly2 *geom.Polygon, m *IntersectionMatr
 	}
 
 	// Exterior-Interior: poly2's interior not in poly1
-	loc := algorithm.PointLocationInPolygon(centroid2.Coordinate(), poly1)
-	if loc == geom.LocationExterior {
+	if hasExteriorInterior {
 		m[Exterior][Interior] = DimArea
 	}
 
-	// Exterior-Boundary: poly2's boundary not in poly1's interior
-	m.SetAtLeast(Exterior, Boundary, DimLine)
+	if hasExteriorBoundary {
+		m.SetAtLeast(Exterior, Boundary, DimLine)
+	}
+}
+
+func applyPolygonBoundaryGraphRelate(edges []topology.PolygonBoundaryEdge, m *IntersectionMatrix) {
+	for _, edge := range edges {
+		setPolygonFaceSideRelate(edge.Left, m)
+		setPolygonFaceSideRelate(edge.Right, m)
+
+		if edge.Sources.InA() && polygonBoundaryEdgeIsSetBoundary(edge, true) {
+			setPolygonBoundaryEdgeRelate(Boundary, edge, true, m)
+		}
+		if edge.Sources.InB() && polygonBoundaryEdgeIsSetBoundary(edge, false) {
+			setPolygonBoundaryEdgeRelate(Boundary, edge, false, m)
+		}
+	}
+}
+
+func polygonBoundaryEdgeIsSetBoundary(edge topology.PolygonBoundaryEdge, sourceA bool) bool {
+	left := edge.Left.LocA
+	right := edge.Right.LocA
+	if !sourceA {
+		left = edge.Left.LocB
+		right = edge.Right.LocB
+	}
+	return (left == geom.LocationInterior && right == geom.LocationExterior) ||
+		(left == geom.LocationExterior && right == geom.LocationInterior)
+}
+
+func setPolygonFaceSideRelate(label topology.PolygonEdgeLabel, m *IntersectionMatrix) {
+	switch {
+	case label.LocA == geom.LocationInterior && label.LocB == geom.LocationInterior:
+		m.SetAtLeast(Interior, Interior, DimArea)
+	case label.LocA == geom.LocationInterior && label.LocB == geom.LocationExterior:
+		m.SetAtLeast(Interior, Exterior, DimArea)
+	case label.LocA == geom.LocationExterior && label.LocB == geom.LocationInterior:
+		m.SetAtLeast(Exterior, Interior, DimArea)
+	}
+}
+
+func setPolygonBoundaryEdgeRelate(boundaryLoc int, edge topology.PolygonBoundaryEdge, sourceA bool, m *IntersectionMatrix) {
+	if edge.Sources.InA() && edge.Sources.InB() {
+		m.SetAtLeast(Boundary, Boundary, DimLine)
+		return
+	}
+
+	leftLoc := edge.Left.LocB
+	rightLoc := edge.Right.LocB
+	row := boundaryLoc
+	if !sourceA {
+		leftLoc = edge.Left.LocA
+		rightLoc = edge.Right.LocA
+		row = -1
+	}
+
+	loc := polygonBoundaryEdgeLocation(leftLoc, rightLoc)
+	if loc < 0 {
+		return
+	}
+	if sourceA {
+		m.SetAtLeast(row, loc, DimLine)
+		return
+	}
+	m.SetAtLeast(loc, Boundary, DimLine)
+}
+
+func polygonBoundaryEdgeLocation(left, right geom.Location) int {
+	if left == geom.LocationInterior && right == geom.LocationInterior {
+		return Interior
+	}
+	if left == geom.LocationExterior && right == geom.LocationExterior {
+		return Exterior
+	}
+	return -1
 }
 
 // computeLineMultiPointRelate computes LineString vs MultiPoint.
@@ -607,18 +1284,12 @@ func computeLineMultiPointRelate(ls *geom.LineString, mp *geom.MultiPoint, m *In
 
 // computeLineMultiLineRelate computes LineString vs MultiLineString.
 func computeLineMultiLineRelate(ls *geom.LineString, mls *geom.MultiLineString, m *IntersectionMatrix) {
-	for i := 0; i < mls.NumGeometries(); i++ {
-		ls2 := mls.GeometryN(i).(*geom.LineString)
-		computeLineLineRelate(ls, ls2, m)
-	}
+	computeLineSetLineSetRelate([]*geom.LineString{ls}, multiLineStringLines(mls), m)
 }
 
 // computeLineMultiPolygonRelate computes LineString vs MultiPolygon.
 func computeLineMultiPolygonRelate(ls *geom.LineString, mp *geom.MultiPolygon, m *IntersectionMatrix) {
-	for i := 0; i < mp.NumGeometries(); i++ {
-		poly := mp.GeometryN(i).(*geom.Polygon)
-		computeLinePolygonRelate(ls, poly, m)
-	}
+	computeLinePolygonSetRelate(ls, geom.ExtractPolygons(mp), m)
 }
 
 // computePolygonMultiPointRelate computes Polygon vs MultiPoint.
@@ -639,10 +1310,7 @@ func computePolygonMultiLineRelate(poly *geom.Polygon, mls *geom.MultiLineString
 
 // computePolygonMultiPolygonRelate computes Polygon vs MultiPolygon.
 func computePolygonMultiPolygonRelate(poly *geom.Polygon, mp *geom.MultiPolygon, m *IntersectionMatrix) {
-	for i := 0; i < mp.NumGeometries(); i++ {
-		poly2 := mp.GeometryN(i).(*geom.Polygon)
-		computePolygonPolygonRelate(poly, poly2, m)
-	}
+	computePolygonSetPolygonSetRelate([]*geom.Polygon{poly}, geom.ExtractPolygons(mp), m)
 }
 
 // pointLocationOnLine determines where a point lies relative to a line string.

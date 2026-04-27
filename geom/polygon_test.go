@@ -253,6 +253,16 @@ func TestLinearRing_IsValid_ValidRing(t *testing.T) {
 	assert.True(t, lr.IsValid(), "Valid ring should be valid")
 }
 
+func TestLinearRing_IsValid_CollapsedRing(t *testing.T) {
+	lr := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(5, 0),
+		geom.NewCoordinate(10, 0),
+		geom.NewCoordinate(0, 0),
+	})
+	assert.False(t, lr.IsValid(), "Collapsed zero-area ring should be invalid")
+}
+
 func TestPolygon_IsValid_MultipleValidHoles(t *testing.T) {
 	// Counter-clockwise shell (30x30 square)
 	shell := geom.NewLinearRing(geom.CoordinateSequence{
@@ -279,4 +289,49 @@ func TestPolygon_IsValid_MultipleValidHoles(t *testing.T) {
 	})
 	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole1, hole2})
 	assert.True(t, poly.IsValid(), "Polygon with multiple separate holes should be valid")
+}
+
+func TestPolygon_IsValid_HoleSharesShellEdge(t *testing.T) {
+	shell := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(20, 0),
+		geom.NewCoordinate(20, 20),
+		geom.NewCoordinate(0, 20),
+		geom.NewCoordinate(0, 0),
+	})
+	hole := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(0, 5),
+		geom.NewCoordinate(5, 5),
+		geom.NewCoordinate(5, 15),
+		geom.NewCoordinate(0, 15),
+		geom.NewCoordinate(0, 5),
+	})
+	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+	assert.False(t, poly.IsValid(), "Hole sharing a shell edge should be invalid")
+}
+
+func TestPolygon_IsValid_HolesShareEdge(t *testing.T) {
+	shell := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(0, 0),
+		geom.NewCoordinate(30, 0),
+		geom.NewCoordinate(30, 30),
+		geom.NewCoordinate(0, 30),
+		geom.NewCoordinate(0, 0),
+	})
+	hole1 := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(5, 5),
+		geom.NewCoordinate(15, 5),
+		geom.NewCoordinate(15, 15),
+		geom.NewCoordinate(5, 15),
+		geom.NewCoordinate(5, 5),
+	})
+	hole2 := geom.NewLinearRing(geom.CoordinateSequence{
+		geom.NewCoordinate(15, 5),
+		geom.NewCoordinate(25, 5),
+		geom.NewCoordinate(25, 15),
+		geom.NewCoordinate(15, 15),
+		geom.NewCoordinate(15, 5),
+	})
+	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole1, hole2})
+	assert.False(t, poly.IsValid(), "Holes sharing an edge should be invalid")
 }

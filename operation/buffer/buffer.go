@@ -9,6 +9,7 @@ import (
 	"math"
 
 	"github.com/robert-malhotra/go-topology-suite/geom"
+	"github.com/robert-malhotra/go-topology-suite/operation/overlay"
 )
 
 // CapStyle defines how line endpoints are handled in buffer operations.
@@ -54,6 +55,8 @@ type Params struct {
 	// SingleSided if true creates a single-sided buffer for lines.
 	SingleSided bool
 }
+
+const maxDissolvePolygons = 32
 
 // DefaultParams returns default buffer parameters.
 func DefaultParams() *Params {
@@ -556,6 +559,10 @@ func erodePolygon(poly *geom.Polygon, distance float64, params *Params) geom.Geo
 	if poly.IsEmpty() {
 		return geom.NewPolygonEmpty()
 	}
+	env := poly.Envelope()
+	if env.IsNull() || distance*2 >= math.Min(env.Width(), env.Height())-geom.DefaultEpsilon {
+		return geom.NewPolygonEmpty()
+	}
 
 	// Shrink the exterior ring (offset inward)
 	shellCoords := poly.ExteriorRing().Coordinates()
@@ -738,10 +745,7 @@ func bufferMultiPoint(mp *geom.MultiPoint, distance float64, params *Params) geo
 	if len(polygons) == 0 {
 		return geom.NewPolygonEmpty()
 	}
-	if len(polygons) == 1 {
-		return polygons[0]
-	}
-	return geom.NewMultiPolygon(polygons)
+	return dissolvePolygons(polygons)
 }
 
 // bufferMultiLineString buffers each line string and unions them.
@@ -757,10 +761,7 @@ func bufferMultiLineString(mls *geom.MultiLineString, distance float64, params *
 	if len(polygons) == 0 {
 		return geom.NewPolygonEmpty()
 	}
-	if len(polygons) == 1 {
-		return polygons[0]
-	}
-	return geom.NewMultiPolygon(polygons)
+	return dissolvePolygons(polygons)
 }
 
 // bufferMultiPolygon buffers each polygon and unions them.
@@ -769,45 +770,87 @@ func bufferMultiPolygon(mp *geom.MultiPolygon, distance float64, params *Params)
 	for i := 0; i < mp.NumGeometries(); i++ {
 		poly := mp.GeometryN(i).(*geom.Polygon)
 		buffered := bufferPolygon(poly, distance, params)
-		switch v := buffered.(type) {
-		case *geom.Polygon:
-			if !v.IsEmpty() {
-				polygons = append(polygons, v)
-			}
-		case *geom.MultiPolygon:
-			for j := 0; j < v.NumGeometries(); j++ {
-				p := v.GeometryN(j).(*geom.Polygon)
-				if !p.IsEmpty() {
-					polygons = append(polygons, p)
-				}
-			}
-		}
+		polygons = appendPolygonalComponents(polygons, buffered)
 	}
 	if len(polygons) == 0 {
 		return geom.NewPolygonEmpty()
 	}
-	if len(polygons) == 1 {
-		return polygons[0]
-	}
-	return geom.NewMultiPolygon(polygons)
+	return dissolvePolygons(polygons)
 }
 
 // bufferGeometryCollection buffers each geometry in the collection.
 func bufferGeometryCollection(gc *geom.GeometryCollection, distance float64, params *Params) geom.Geometry {
-	var results []geom.Geometry
+	var polygons []*geom.Polygon
 	for i := 0; i < gc.NumGeometries(); i++ {
 		buffered := BufferWithParams(gc.GeometryN(i), distance, params)
-		if !buffered.IsEmpty() {
-			results = append(results, buffered)
+		polygons = appendPolygonalComponents(polygons, buffered)
+	}
+	if len(polygons) == 0 {
+		return geom.NewPolygonEmpty()
+	}
+	return dissolvePolygons(polygons)
+}
+
+func appendPolygonalComponents(polygons []*geom.Polygon, g geom.Geometry) []*geom.Polygon {
+	if g == nil || g.IsEmpty() {
+		return polygons
+	}
+	switch v := g.(type) {
+	case *geom.Polygon:
+		return append(polygons, v)
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			polygon := v.GeometryN(i).(*geom.Polygon)
+			if !polygon.IsEmpty() {
+				polygons = append(polygons, polygon)
+			}
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			polygons = appendPolygonalComponents(polygons, v.GeometryN(i))
 		}
 	}
-	if len(results) == 0 {
-		return geom.NewGeometryCollectionEmpty()
+	return polygons
+}
+
+func dissolvePolygons(polygons []*geom.Polygon) geom.Geometry {
+	switch len(polygons) {
+	case 0:
+		return geom.NewPolygonEmpty()
+	case 1:
+		return polygons[0]
 	}
-	if len(results) == 1 {
-		return results[0]
+
+	if len(polygons) > maxDissolvePolygons || !hasOverlappingEnvelopes(polygons) {
+		return geom.NewMultiPolygon(polygons)
 	}
-	return geom.NewGeometryCollection(results)
+
+	var dissolved geom.Geometry = polygons[0]
+	for i := 1; i < len(polygons); i++ {
+		dissolved = overlay.Union(dissolved, polygons[i])
+		if dissolved == nil || dissolved.IsEmpty() {
+			return geom.NewMultiPolygon(polygons)
+		}
+	}
+
+	switch dissolved.(type) {
+	case *geom.Polygon, *geom.MultiPolygon:
+		return dissolved
+	default:
+		return geom.NewMultiPolygon(polygons)
+	}
+}
+
+func hasOverlappingEnvelopes(polygons []*geom.Polygon) bool {
+	for i := 0; i < len(polygons); i++ {
+		env := polygons[i].Envelope()
+		for j := i + 1; j < len(polygons); j++ {
+			if env.Intersects(polygons[j].Envelope()) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // reverseCoords reverses a coordinate sequence in place.

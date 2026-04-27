@@ -210,6 +210,18 @@ func TestRelatePointPolygon(t *testing.T) {
 	assert.False(t, m.IsIntersects(), "Point outside polygon should not intersect")
 }
 
+func TestRelatePolygonWithHolePointInHole(t *testing.T) {
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+	p := geom.NewPoint(10, 10)
+
+	m := Relate(poly, p)
+
+	assert.False(t, m.IsIntersects(), "Point in polygon hole should be exterior to polygon")
+	assert.Equal(t, DimPoint, m[Exterior][Interior], "Point in polygon hole should intersect polygon exterior")
+}
+
 func TestRelateLineStringLineString(t *testing.T) {
 	ls1 := mustLineStringXY(0, 0, 10, 10)
 	ls2 := mustLineStringXY(0, 10, 10, 0)
@@ -225,6 +237,74 @@ func TestRelateLineStringLineString(t *testing.T) {
 	assert.False(t, m.IsIntersects(), "Parallel lines should not intersect")
 }
 
+func TestRelateLineStringLineStringEqual(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(0, 0, 10, 0)
+
+	m := Relate(ls1, ls2)
+	assert.Equal(t, "1FFF0FFF2", m.String())
+	assert.True(t, m.IsEquals(1, 1), "Equal lines should have equals relationship")
+}
+
+func TestRelateLineStringLineStringPartialOverlap(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(5, 0, 15, 0)
+
+	m := Relate(ls1, ls2)
+	assert.Equal(t, "1010F0102", m.String())
+	assert.True(t, m.IsOverlaps(1, 1), "Partially overlapping lines should overlap")
+}
+
+func TestRelateLineStringLineStringEndpointTouch(t *testing.T) {
+	ls1 := mustLineStringXY(0, 0, 10, 0)
+	ls2 := mustLineStringXY(10, 0, 20, 0)
+
+	m := Relate(ls1, ls2)
+	assert.Equal(t, "FF1F00102", m.String())
+	assert.True(t, m.IsTouches(1, 1), "Endpoint-touching lines should touch")
+}
+
+func TestRelateMultiLineStringLineStringPartialOverlap(t *testing.T) {
+	mls := geom.NewMultiLineString([]*geom.LineString{
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(20, 0, 30, 0),
+	})
+	ls := mustLineStringXY(5, 0, 15, 0)
+
+	m := Relate(mls, ls)
+	assert.Equal(t, "1010F0102", m.String())
+	assert.True(t, m.IsOverlaps(1, 1), "MultiLineString and LineString should overlap")
+}
+
+func TestRelateMultiLineStringLineStringTouchAtInteriorNode(t *testing.T) {
+	mls := geom.NewMultiLineString([]*geom.LineString{
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(10, 0, 20, 0),
+	})
+	ls := mustLineStringXY(10, 0, 10, 10)
+
+	m := Relate(mls, ls)
+	assert.Equal(t, "F01FF0102", m.String())
+	assert.True(t, m.IsTouches(1, 1), "LineString should touch MultiLineString at the line-set interior node")
+	assert.False(t, m.IsCrosses(1, 1), "Boundary-to-interior touch should not cross")
+}
+
+func TestRelateMultiLineStringMultiLineStringCrosses(t *testing.T) {
+	mls1 := geom.NewMultiLineString([]*geom.LineString{
+		mustLineStringXY(0, 0, 10, 0),
+		mustLineStringXY(0, 10, 10, 10),
+	})
+	mls2 := geom.NewMultiLineString([]*geom.LineString{
+		mustLineStringXY(5, -5, 5, 5),
+		mustLineStringXY(20, 0, 30, 0),
+	})
+
+	m := Relate(mls1, mls2)
+	assert.Equal(t, "0F1FF0102", m.String())
+	assert.True(t, m.IsCrosses(1, 1), "MultiLineStrings should cross at an interior point")
+	assert.False(t, m.IsTouches(1, 1), "Interior crossing should not touch")
+}
+
 func TestRelateLineStringPolygon(t *testing.T) {
 	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
 	poly := geom.NewPolygon(shell, nil)
@@ -233,20 +313,31 @@ func TestRelateLineStringPolygon(t *testing.T) {
 	lsIn := mustLineStringXY(2, 2, 8, 8)
 	m := Relate(lsIn, poly)
 	assert.True(t, m.IsIntersects(), "Line inside polygon should intersect")
+	assert.Equal(t, "1FF0FF212", m.String(), "Line inside polygon should have interior-interior line intersection")
 
 	// Line crossing polygon
 	lsCross := mustLineStringXY(-5, 5, 15, 5)
 	m = Relate(lsCross, poly)
 	assert.True(t, m.IsIntersects(), "Line crossing polygon should intersect")
-	// Crosses means: interior intersects interior AND interior intersects exterior
-	// For line/area, this requires I-I >= 0 AND I-E >= 0
-	t.Logf("Line crosses polygon matrix: %s", m.String())
-	// Note: IsCrosses for line/polygon may need refinement in the implementation
+	assert.Equal(t, "101FF0212", m.String(), "Line crossing polygon should have interior-interior and interior-exterior line intersections")
+	assert.True(t, m.IsCrosses(1, 2), "Line crossing polygon should cross")
 
 	// Line outside polygon
 	lsOut := mustLineStringXY(15, 15, 20, 20)
 	m = Relate(lsOut, poly)
 	assert.False(t, m.IsIntersects(), "Line outside polygon should not intersect")
+}
+
+func TestRelateLineStringPolygonHoleBoundaryOverlap(t *testing.T) {
+	shell := mustLinearRingXY(0, 0, 20, 0, 20, 20, 0, 20, 0, 0)
+	hole := mustLinearRingXY(5, 5, 15, 5, 15, 15, 5, 15, 5, 5)
+	poly := geom.NewPolygon(shell, []*geom.LinearRing{hole})
+	line := mustLineStringXY(5, 6, 5, 8)
+
+	m := Relate(line, poly)
+
+	assert.Equal(t, DimLine, m[Interior][Boundary], "Line interior should overlap hole boundary as a line")
+	assert.True(t, m.IsIntersects(), "Line on hole boundary should intersect polygon boundary")
 }
 
 func TestRelatePolygonPolygon(t *testing.T) {
@@ -259,9 +350,8 @@ func TestRelatePolygonPolygon(t *testing.T) {
 	// Overlapping polygons
 	m := Relate(poly1, poly2)
 	assert.True(t, m.IsIntersects(), "Overlapping polygons should intersect")
-	t.Logf("Overlapping polygons matrix: %s", m.String())
-	// Overlaps for area/area requires I-I >= 0, I-E >= 0, E-I >= 0
-	// Note: Full overlap detection may need refinement in implementation
+	assert.Equal(t, "212101212", m.String(), "Overlapping polygons should compute full area/area matrix")
+	assert.True(t, m.IsOverlaps(2, 2), "Overlapping polygons should overlap")
 
 	// Disjoint polygons
 	shell3 := mustLinearRingXY(20, 20, 30, 20, 30, 30, 20, 30, 20, 20)

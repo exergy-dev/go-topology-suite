@@ -64,6 +64,9 @@ func (lr *LinearRing) IsValid() bool {
 	if !lr.IsClosed() {
 		return false
 	}
+	if lr.Area() <= DefaultEpsilon {
+		return false
+	}
 	// Check for self-intersection
 	if hasRingSelfIntersection(lr.coords) {
 		return false
@@ -242,8 +245,8 @@ func (p *Polygon) IsValid() bool {
 			return false
 		}
 
-		// Check shell and hole don't cross
-		if ringsProperlyIntersect(p.shell, hole) {
+		// Check shell and hole don't cross or overlap along a boundary segment.
+		if ringsProperlyIntersect(p.shell, hole) || ringsOverlapAtSegment(p.shell, hole) {
 			return false
 		}
 	}
@@ -255,8 +258,8 @@ func (p *Polygon) IsValid() bool {
 			if isRingInsideRing(p.holes[i], p.holes[j]) || isRingInsideRing(p.holes[j], p.holes[i]) {
 				return false
 			}
-			// Check for crossing holes
-			if ringsProperlyIntersect(p.holes[i], p.holes[j]) {
+			// Check for crossing holes or shared boundary segments
+			if ringsProperlyIntersect(p.holes[i], p.holes[j]) || ringsOverlapAtSegment(p.holes[i], p.holes[j]) {
 				return false
 			}
 		}
@@ -595,6 +598,19 @@ func ringsProperlyIntersect(r1, r2 *LinearRing) bool {
 	for i := 0; i < len(coords1)-1; i++ {
 		for j := 0; j < len(coords2)-1; j++ {
 			if segmentsCrossProper(coords1[i], coords1[i+1], coords2[j], coords2[j+1]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ringsOverlapAtSegment checks if two rings share a non-zero-length boundary segment.
+func ringsOverlapAtSegment(r1, r2 *LinearRing) bool {
+	coords1, coords2 := r1.Coordinates(), r2.Coordinates()
+	for i := 0; i < len(coords1)-1; i++ {
+		for j := 0; j < len(coords2)-1; j++ {
+			if segmentIntersectionInfo(coords1[i], coords1[i+1], coords2[j], coords2[j+1]).collinearOverlap {
 				return true
 			}
 		}
