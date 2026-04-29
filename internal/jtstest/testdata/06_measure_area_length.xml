@@ -1,0 +1,16 @@
+<run>
+  <desc>Scalar metrics — area of a 3x4 rectangle and length of an L-shaped line.</desc>
+  <case>
+    <desc>3x4 rectangle</desc>
+    <a>POLYGON((0 0, 3 0, 3 4, 0 4, 0 0))</a>
+    <b>LINESTRING(0 0, 3 0, 3 4)</b>
+    <test>
+      <desc>area is 12</desc>
+      <op name="getarea" arg1="A">12.0</op>
+    </test>
+    <test>
+      <desc>length of L-shaped line is 7</desc>
+      <op name="getlength" arg1="B">7.0</op>
+    </test>
+  </case>
+</run>

@@ -1,0 +1,20 @@
+<run>
+  <desc>Relate — a small polygon strictly inside a larger polygon.</desc>
+  <case>
+    <desc>Inner 1x1 square strictly inside outer 4x4 square</desc>
+    <a>POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))</a>
+    <b>POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))</b>
+    <test>
+      <desc>DE-9IM matches the standard "contains" pattern T*****FF*</desc>
+      <op name="relate" arg1="A" arg2="B" arg3="T*****FF*">true</op>
+    </test>
+    <test>
+      <desc>contains returns true</desc>
+      <op name="contains" arg1="A" arg2="B">true</op>
+    </test>
+    <test>
+      <desc>within (B inside A) returns true</desc>
+      <op name="within" arg1="B" arg2="A">true</op>
+    </test>
+  </case>
+</run>

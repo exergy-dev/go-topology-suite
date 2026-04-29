@@ -1,0 +1,20 @@
+<run>
+  <desc>Union of two disjoint polygons — result is a multipolygon containing both.</desc>
+  <case>
+    <desc>Two non-overlapping unit squares</desc>
+    <a>POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))</a>
+    <b>POLYGON((2 2, 3 2, 3 3, 2 3, 2 2))</b>
+    <test>
+      <desc>disjoint is true</desc>
+      <op name="disjoint" arg1="A" arg2="B">true</op>
+    </test>
+    <test>
+      <desc>intersects is false</desc>
+      <op name="intersects" arg1="A" arg2="B">false</op>
+    </test>
+    <test>
+      <desc>union is the multipolygon of the two inputs</desc>
+      <op name="union" arg1="A" arg2="B">MULTIPOLYGON(((0 0, 1 0, 1 1, 0 1, 0 0)),((2 2, 3 2, 3 3, 2 3, 2 2)))</op>
+    </test>
+  </case>
+</run>
