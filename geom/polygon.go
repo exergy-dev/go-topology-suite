@@ -66,9 +66,12 @@ func (p *Polygon) Ring(i int) []XY {
 // returns the result. Pass a nil buffer to allocate a fresh slice.
 //
 // The append-in-place pattern lets hot loops reuse a pooled scratch
-// buffer across calls — typical use:
+// buffer across calls — internal/xybuf is the canonical pool inside
+// terra (see predicate, overlay, etc.). Typical use:
 //
-//	buf = poly.RingInto(buf[:0], 0)
+//	buf := xybuf.Borrow()
+//	defer xybuf.Release(buf)
+//	*buf = poly.RingInto((*buf)[:0], 0)
 //
 // The returned slice is owned by the caller; mutating it does not affect
 // the polygon.
@@ -98,7 +101,9 @@ func (p *Polygon) RingInto(buf []XY, i int) []XY {
 }
 
 // RingLen returns the number of vertices in the i-th ring (including the
-// closing duplicate).
+// closing duplicate). Paired with RingVertex it lets callers iterate a
+// ring without ever materialising the slice — the cheapest access path
+// for tight inner loops that touch only a handful of vertices.
 func (p *Polygon) RingLen(i int) int {
 	if i < 0 || i >= len(p.ringStarts) {
 		return 0
@@ -112,7 +117,8 @@ func (p *Polygon) RingLen(i int) int {
 }
 
 // RingVertex returns the j-th vertex of the i-th ring without
-// allocating. Useful for hot loops that don't need a slice copy.
+// allocating. Use with RingLen for index-based iteration; reach for
+// RingInto when the loop body needs a contiguous slice.
 func (p *Polygon) RingVertex(i, j int) XY {
 	if i < 0 || i >= len(p.ringStarts) {
 		return XY{}
