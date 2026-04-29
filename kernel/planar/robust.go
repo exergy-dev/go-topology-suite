@@ -95,7 +95,6 @@ type orientCacheT struct {
 	// Round-robin: advance `next` and drop entries[order[next]].
 	order [orientCacheCap]orientKey
 	next  int
-	full  bool
 }
 
 var orientCache = &orientCacheT{
@@ -116,8 +115,9 @@ func (c *orientCacheT) store(k orientKey, o kernel.Orientation) {
 	if _, ok := c.entries[k]; ok {
 		return
 	}
-	if c.full {
-		// Evict the slot we're about to overwrite.
+	// Map size == capacity ⇒ we've wrapped at least once and the slot
+	// at order[next] is occupied; evict it before we overwrite.
+	if len(c.entries) == orientCacheCap {
 		delete(c.entries, c.order[c.next])
 	}
 	c.order[c.next] = k
@@ -125,7 +125,6 @@ func (c *orientCacheT) store(k orientKey, o kernel.Orientation) {
 	c.next++
 	if c.next >= orientCacheCap {
 		c.next = 0
-		c.full = true
 	}
 }
 
