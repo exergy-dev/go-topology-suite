@@ -117,6 +117,25 @@ func (e Envelope) Contains(o Envelope) bool {
 		o.MinY >= e.MinY && o.MaxY <= e.MaxY
 }
 
+// SegmentEnvelope returns the axis-aligned bounding box of segment [a,b].
+// Used as the index payload bbox by the overlay-NG and noding spatial
+// indexes; both paths must produce the same envelope on insert and
+// query so that segments meeting at a corner are matched identically.
+func SegmentEnvelope(a, b XY) Envelope {
+	env := Envelope{}
+	if a.X < b.X {
+		env.MinX, env.MaxX = a.X, b.X
+	} else {
+		env.MinX, env.MaxX = b.X, a.X
+	}
+	if a.Y < b.Y {
+		env.MinY, env.MaxY = a.Y, b.Y
+	} else {
+		env.MinY, env.MaxY = b.Y, a.Y
+	}
+	return env
+}
+
 // envelopeOfFlat builds an envelope from a flat coordinate slice with the
 // given stride. It is the routine baseGeom uses to populate its envelope
 // cache; exposed at package scope so format decoders can build envelopes

@@ -47,7 +47,7 @@ func buildSegmentIndex(strings []*noding.SegmentString) *segmentRTree {
 		for j := 0; j < n; j++ {
 			a, b := ss.Segment(j)
 			items = append(items, index.Item[segIdxItem]{
-				Env: segEnv(a, b),
+				Env: geom.SegmentEnvelope(a, b),
 				Value: segIdxItem{
 					stringIdx:  int32(i),
 					segmentIdx: int32(j),
@@ -59,24 +59,6 @@ func buildSegmentIndex(strings []*noding.SegmentString) *segmentRTree {
 	t := index.New[segIdxItem]()
 	t.Bulk(items)
 	return t
-}
-
-// segEnv is the per-segment envelope used for both index loading and
-// candidate queries — must produce the same envelope on both paths so
-// boundary cases (segments meeting at a corner) are handled identically.
-func segEnv(a, b geom.XY) geom.Envelope {
-	env := geom.Envelope{}
-	if a.X < b.X {
-		env.MinX, env.MaxX = a.X, b.X
-	} else {
-		env.MinX, env.MaxX = b.X, a.X
-	}
-	if a.Y < b.Y {
-		env.MinY, env.MaxY = a.Y, b.Y
-	} else {
-		env.MinY, env.MaxY = b.Y, a.Y
-	}
-	return env
 }
 
 // totalSegments returns the sum of NumSegments across the input slice —

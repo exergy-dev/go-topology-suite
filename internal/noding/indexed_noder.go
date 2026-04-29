@@ -73,7 +73,7 @@ func (IndexedNoder) Node(input []*SegmentString) []*SegmentString {
 		for j := 0; j < n; j++ {
 			a, b := ss.Segment(j)
 			items = append(items, index.Item[segmentRef]{
-				Env:   segmentEnvelope(a, b),
+				Env:   geom.SegmentEnvelope(a, b),
 				Value: segmentRef{stringIdx: int32(i), segmentIdx: int32(j)},
 			})
 		}
@@ -90,7 +90,7 @@ func (IndexedNoder) Node(input []*SegmentString) []*SegmentString {
 		n1 := ss1.NumSegments()
 		for j1 := 0; j1 < n1; j1++ {
 			a1, a2 := ss1.Segment(j1)
-			query := segmentEnvelope(a1, a2)
+			query := geom.SegmentEnvelope(a1, a2)
 			tree.Search(query, func(it index.Item[segmentRef]) bool {
 				i2 := int(it.Value.stringIdx)
 				j2 := int(it.Value.segmentIdx)
@@ -179,22 +179,3 @@ func passThrough(input []*SegmentString) []*SegmentString {
 	return out
 }
 
-// segmentEnvelope returns the axis-aligned bounding box of segment [a,b].
-func segmentEnvelope(a, b geom.XY) geom.Envelope {
-	env := geom.Envelope{}
-	if a.X < b.X {
-		env.MinX = a.X
-		env.MaxX = b.X
-	} else {
-		env.MinX = b.X
-		env.MaxX = a.X
-	}
-	if a.Y < b.Y {
-		env.MinY = a.Y
-		env.MaxY = b.Y
-	} else {
-		env.MinY = b.Y
-		env.MaxY = a.Y
-	}
-	return env
-}
