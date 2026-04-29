@@ -1,0 +1,12 @@
+{"type":"FeatureCollection","features":[
+{"type":"Feature","properties":{"name":"Adams","fips":"001"},"geometry":{"type":"Polygon","coordinates":[[[0,0],[5,0],[5,5],[0,5],[0,0]]]}},
+{"type":"Feature","properties":{"name":"Baker","fips":"002"},"geometry":{"type":"Polygon","coordinates":[[[5,0],[10,0],[10,5],[5,5],[5,0]]]}},
+{"type":"Feature","properties":{"name":"Carver","fips":"003"},"geometry":{"type":"Polygon","coordinates":[[[10,0],[15,0],[15,5],[10,5],[10,0]],[[11.5,1.5],[13.5,1.5],[13.5,3.5],[11.5,3.5],[11.5,1.5]]]}},
+{"type":"Feature","properties":{"name":"Dixon","fips":"004"},"geometry":{"type":"Polygon","coordinates":[[[15,0],[20,0],[20,5],[15,5],[15,0]]]}},
+{"type":"Feature","properties":{"name":"Eldon","fips":"005"},"geometry":{"type":"Polygon","coordinates":[[[0,5],[5,5],[5,10],[0,10],[0,5]]]}},
+{"type":"Feature","properties":{"name":"Foster","fips":"006"},"geometry":{"type":"Polygon","coordinates":[[[5,5],[10,5],[10,10],[5,10],[5,5]]]}},
+{"type":"Feature","properties":{"name":"Garfield","fips":"007"},"geometry":{"type":"Polygon","coordinates":[[[10,5],[15,5],[15,10],[10,10],[10,5]]]}},
+{"type":"Feature","properties":{"name":"Hayes","fips":"008"},"geometry":{"type":"Polygon","coordinates":[[[15,5],[20,5],[20,10],[15,10],[15,5]]]}},
+{"type":"Feature","properties":{"name":"Irving","fips":"009"},"geometry":{"type":"Polygon","coordinates":[[[0,10],[5,10],[5,15],[0,15],[0,10]]]}},
+{"type":"Feature","properties":{"name":"Jones","fips":"010"},"geometry":{"type":"Polygon","coordinates":[[[5,10],[10,10],[10,15],[5,15],[5,10]]]}}
+]}
