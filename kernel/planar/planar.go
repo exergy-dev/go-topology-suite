@@ -1,0 +1,183 @@
+package planar
+
+import (
+	"math"
+
+	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel"
+)
+
+// Kernel is the planar implementation of kernel.Kernel.
+// It is a stateless value type; callers may use the package-level Default
+// rather than instantiating their own.
+type Kernel struct{}
+
+// Default is the canonical planar kernel instance.
+var Default kernel.Kernel = Kernel{}
+
+func (Kernel) Name() string { return "planar" }
+
+func (Kernel) Distance(a, b geom.XY) float64 {
+	return math.Hypot(a.X-b.X, a.Y-b.Y)
+}
+
+func (Kernel) DistanceSquared(a, b geom.XY) float64 {
+	dx := a.X - b.X
+	dy := a.Y - b.Y
+	return dx*dx + dy*dy
+}
+
+// SegmentIntersection returns the intersection of segment [a1,a2] with
+// [b1,b2]. Collinear-overlap segments return ok=false; consumers needing
+// the full DE-9IM relationship should go through the relate package.
+func (Kernel) SegmentIntersection(a1, a2, b1, b2 geom.XY) (geom.XY, bool) {
+	rx := a2.X - a1.X
+	ry := a2.Y - a1.Y
+	sx := b2.X - b1.X
+	sy := b2.Y - b1.Y
+
+	denom := rx*sy - ry*sx
+	if denom == 0 {
+		// Parallel or collinear; no unique intersection point.
+		return geom.XY{}, false
+	}
+	tNum := (b1.X-a1.X)*sy - (b1.Y-a1.Y)*sx
+	uNum := (b1.X-a1.X)*ry - (b1.Y-a1.Y)*rx
+	t := tNum / denom
+	u := uNum / denom
+	if t < 0 || t > 1 || u < 0 || u > 1 {
+		return geom.XY{}, false
+	}
+	return geom.XY{X: a1.X + t*rx, Y: a1.Y + t*ry}, true
+}
+
+// SegmentDistance returns the shortest distance from p to segment [a,b].
+// For a degenerate segment (a == b) it falls back to the point-distance.
+func (k Kernel) SegmentDistance(p, a, b geom.XY) float64 {
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+	lenSq := dx*dx + dy*dy
+	if lenSq == 0 {
+		return k.Distance(p, a)
+	}
+	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / lenSq
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+	closest := geom.XY{X: a.X + t*dx, Y: a.Y + t*dy}
+	return k.Distance(p, closest)
+}
+
+// Orient classifies the turn (a, b, c) using a Shewchuk-style adaptive
+// 2D orientation predicate (see robust.go).
+//
+// Common case: native float64 cost. Near-collinear inputs (where the
+// sign of the determinant cannot be safely decided in double precision)
+// are recomputed at 113-bit precision via math/big and the exact sign is
+// returned. The result is therefore correct for ALL float64 inputs that
+// don't overflow.
+func (Kernel) Orient(a, b, c geom.XY) kernel.Orientation {
+	return adaptiveOrient(a, b, c)
+}
+
+// PointInRing implements the standard ray-cast (crossing-number) test.
+// The ring is assumed closed (first vertex == last). Boundary points are
+// detected by an explicit segment-distance check with epsilon zero — they
+// must lie exactly on the segment to be reported OnBoundary.
+func (k Kernel) PointInRing(p geom.XY, ring []geom.XY) kernel.Containment {
+	if len(ring) < 4 {
+		return kernel.Outside
+	}
+	inside := false
+	for i := 0; i < len(ring)-1; i++ {
+		a := ring[i]
+		b := ring[i+1]
+		// Boundary check first.
+		if onSegment(p, a, b) {
+			return kernel.OnBoundary
+		}
+		if (a.Y > p.Y) != (b.Y > p.Y) {
+			xCross := a.X + (p.Y-a.Y)*(b.X-a.X)/(b.Y-a.Y)
+			if p.X < xCross {
+				inside = !inside
+			}
+		}
+	}
+	if inside {
+		return kernel.Inside
+	}
+	return kernel.Outside
+}
+
+func onSegment(p, a, b geom.XY) bool {
+	if (b.X-a.X)*(p.Y-a.Y)-(b.Y-a.Y)*(p.X-a.X) != 0 {
+		return false
+	}
+	if p.X < math.Min(a.X, b.X) || p.X > math.Max(a.X, b.X) {
+		return false
+	}
+	if p.Y < math.Min(a.Y, b.Y) || p.Y > math.Max(a.Y, b.Y) {
+		return false
+	}
+	return true
+}
+
+// InitialBearing returns the bearing from a to b in degrees clockwise from
+// +Y (planar "north"). Result is in [0, 360).
+func (Kernel) InitialBearing(a, b geom.XY) float64 {
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+	deg := math.Atan2(dx, dy) * 180 / math.Pi
+	if deg < 0 {
+		deg += 360
+	}
+	return deg
+}
+
+// Destination returns the point at distance and bearing from from.
+// Bearing is measured clockwise from +Y.
+func (Kernel) Destination(from geom.XY, bearingDeg, distance float64) geom.XY {
+	rad := bearingDeg * math.Pi / 180
+	return geom.XY{
+		X: from.X + distance*math.Sin(rad),
+		Y: from.Y + distance*math.Cos(rad),
+	}
+}
+
+// RingArea returns the signed shoelace area. Positive for CCW rings;
+// negative for CW rings.
+func (Kernel) RingArea(ring []geom.XY) float64 {
+	if len(ring) < 3 {
+		return 0
+	}
+	var sum float64
+	for i := 0; i < len(ring)-1; i++ {
+		sum += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
+	}
+	return sum / 2
+}
+
+func (Kernel) Midpoint(a, b geom.XY) geom.XY {
+	return geom.XY{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+}
+
+// AngleBetween returns the interior angle at b formed by a-b-c, in radians,
+// in [0, pi].
+func (Kernel) AngleBetween(a, b, c geom.XY) float64 {
+	v1x, v1y := a.X-b.X, a.Y-b.Y
+	v2x, v2y := c.X-b.X, c.Y-b.Y
+	dot := v1x*v2x + v1y*v2y
+	mag := math.Hypot(v1x, v1y) * math.Hypot(v2x, v2y)
+	if mag == 0 {
+		return 0
+	}
+	cos := dot / mag
+	if cos > 1 {
+		cos = 1
+	} else if cos < -1 {
+		cos = -1
+	}
+	return math.Acos(cos)
+}

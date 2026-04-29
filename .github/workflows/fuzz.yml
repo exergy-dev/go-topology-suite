@@ -1,0 +1,45 @@
+name: Nightly fuzz
+
+# Runs every parser's fuzz target for 10 minutes nightly. Failing inputs
+# are uploaded as build artifacts so they can be lifted into the
+# permanent corpus under testdata/fuzz/.
+
+on:
+  schedule:
+    # 04:17 UTC every day — off-peak, slightly off the hour to dodge
+    # GitHub's hourly cron stampede.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz ${{ matrix.target.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: wkt, pkg: ./wkt/, fn: FuzzUnmarshal }
+          - { name: wkb, pkg: ./wkb/, fn: FuzzUnmarshal }
+          - { name: geojson, pkg: ./geojson/, fn: FuzzUnmarshal }
+          - { name: wkt2, pkg: ./crs/wkt2/, fn: FuzzParse }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: "go.sum"
+
+      - name: Fuzz ${{ matrix.target.fn }} for 10 minutes
+        run: go test -run='^$' -fuzz=${{ matrix.target.fn }} -fuzztime=10m ${{ matrix.target.pkg }}
+
+      - name: Upload failing corpus on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-failures-${{ matrix.target.name }}
+          path: ${{ matrix.target.pkg }}testdata/fuzz/
+          if-no-files-found: ignore

@@ -1,0 +1,67 @@
+# 2026/04/28 22:07:28.735511 [TestUnionIntersectionAreaConservation] [rapid] draw a_x0: 1
+# 2026/04/28 22:07:28.735526 [TestUnionIntersectionAreaConservation] [rapid] draw a_y0: 1
+# 2026/04/28 22:07:28.735534 [TestUnionIntersectionAreaConservation] [rapid] draw a_r: 1
+# 2026/04/28 22:07:28.735541 [TestUnionIntersectionAreaConservation] [rapid] draw a_rot: 1
+# 2026/04/28 22:07:28.735552 [TestUnionIntersectionAreaConservation] [rapid] draw b_x0: 1
+# 2026/04/28 22:07:28.735570 [TestUnionIntersectionAreaConservation] [rapid] draw b_y0: 0.5
+# 2026/04/28 22:07:28.735577 [TestUnionIntersectionAreaConservation] [rapid] draw b_r: 1
+# 2026/04/28 22:07:28.735586 [TestUnionIntersectionAreaConservation] [rapid] draw b_rot: 1
+# 2026/04/28 22:07:28.735656 [TestUnionIntersectionAreaConservation] inclusion-exclusion violated: U=1.9546489924544599 + I=1.299038105676658 = 3.2536870981311177, A=1.299038105676658 + B=1.299038105676658 = 2.598076211353316 (tol 0.1299038105676658)
+# 
+v0.4.8#12154451880831673667
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

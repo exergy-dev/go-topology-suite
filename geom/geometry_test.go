@@ -1,317 +1,104 @@
-package geom_test
+package geom
 
 import (
 	"testing"
 
-	"github.com/robert-malhotra/go-topology-suite/geom"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/terra-geo/terra/crs"
 )
 
-func TestCoordinate(t *testing.T) {
-	t.Run("NewCoordinate", func(t *testing.T) {
-		c := geom.NewCoordinate(1.5, 2.5)
-		assert.Equal(t, 1.5, c.X)
-		assert.Equal(t, 2.5, c.Y)
-		assert.False(t, c.HasZ())
-		assert.False(t, c.HasM())
-	})
-
-	t.Run("NewCoordinateZ", func(t *testing.T) {
-		c := geom.NewCoordinateZ(1.0, 2.0, 3.0)
-		assert.Equal(t, 1.0, c.X)
-		assert.Equal(t, 2.0, c.Y)
-		assert.True(t, c.HasZ())
-		assert.Equal(t, 3.0, c.Z)
-	})
-
-	t.Run("Distance", func(t *testing.T) {
-		c1 := geom.NewCoordinate(0, 0)
-		c2 := geom.NewCoordinate(3, 4)
-		dist := c1.Distance(c2)
-		assert.Equal(t, 5.0, dist)
-	})
-
-	t.Run("Equals2D", func(t *testing.T) {
-		c1 := geom.NewCoordinate(1.0, 2.0)
-		c2 := geom.NewCoordinate(1.0, 2.0)
-		c3 := geom.NewCoordinate(1.1, 2.0)
-
-		assert.True(t, c1.Equals2D(c2, 0.001), "Expected c1 and c2 to be equal")
-		assert.False(t, c1.Equals2D(c3, 0.001), "Expected c1 and c3 to be not equal")
-	})
-}
-
-func TestEnvelope(t *testing.T) {
-	t.Run("NewEnvelope", func(t *testing.T) {
-		env := geom.NewEnvelope(0, 0, 10, 10)
-		assert.Equal(t, 0.0, env.MinX)
-		assert.Equal(t, 0.0, env.MinY)
-		assert.Equal(t, 10.0, env.MaxX)
-		assert.Equal(t, 10.0, env.MaxY)
-	})
-
-	t.Run("Contains", func(t *testing.T) {
-		env := geom.NewEnvelope(0, 0, 10, 10)
-		assert.True(t, env.Contains(geom.NewCoordinate(5, 5)), "Expected envelope to contain (5, 5)")
-		assert.False(t, env.Contains(geom.NewCoordinate(15, 5)), "Expected envelope to not contain (15, 5)")
-	})
-
-	t.Run("Intersects", func(t *testing.T) {
-		env1 := geom.NewEnvelope(0, 0, 10, 10)
-		env2 := geom.NewEnvelope(5, 5, 15, 15)
-		env3 := geom.NewEnvelope(20, 20, 30, 30)
-
-		assert.True(t, env1.Intersects(env2), "Expected env1 and env2 to intersect")
-		assert.False(t, env1.Intersects(env3), "Expected env1 and env3 to not intersect")
-	})
-
-	t.Run("Area", func(t *testing.T) {
-		env := geom.NewEnvelope(0, 0, 10, 10)
-		assert.Equal(t, 100.0, env.Area())
-	})
-}
-
-func TestPoint(t *testing.T) {
-	t.Run("Creation", func(t *testing.T) {
-		p := geom.NewPoint(1.0, 2.0)
-		assert.Equal(t, 1.0, p.X())
-		assert.Equal(t, 2.0, p.Y())
-	})
-
-	t.Run("GeometryType", func(t *testing.T) {
-		p := geom.NewPoint(0, 0)
-		assert.Equal(t, "Point", p.GeometryType())
-	})
-
-	t.Run("Empty", func(t *testing.T) {
-		p := geom.NewPointEmpty()
-		assert.True(t, p.IsEmpty(), "Expected point to be empty")
-	})
-
-	t.Run("String/WKT", func(t *testing.T) {
-		p := geom.NewPoint(1, 2)
-		wkt := p.String()
-		assert.Equal(t, "POINT (1 2)", wkt)
-	})
-
-	t.Run("Envelope", func(t *testing.T) {
-		p := geom.NewPoint(5, 10)
-		env := p.Envelope()
-		assert.Equal(t, 5.0, env.MinX)
-		assert.Equal(t, 10.0, env.MinY)
-		assert.Equal(t, 5.0, env.MaxX)
-		assert.Equal(t, 10.0, env.MaxY)
-	})
-}
-
-func TestLineString(t *testing.T) {
-	coords := mustCoordsXY(0, 0, 10, 10, 20, 0)
-
-	t.Run("Creation", func(t *testing.T) {
-		ls := geom.NewLineString(coords)
-		assert.Equal(t, 3, ls.NumPoints())
-	})
-
-	t.Run("GeometryType", func(t *testing.T) {
-		ls := geom.NewLineString(coords)
-		assert.Equal(t, "LineString", ls.GeometryType())
-	})
-
-	t.Run("Length", func(t *testing.T) {
-		ls := mustLineStringXY(0, 0, 3, 4)
-		assert.Equal(t, 5.0, ls.Length())
-	})
-
-	t.Run("IsClosed", func(t *testing.T) {
-		open := mustLineStringXY(0, 0, 10, 0, 10, 10)
-		closed := mustLineStringXY(0, 0, 10, 0, 10, 10, 0, 0)
-
-		assert.False(t, open.IsClosed(), "Expected open linestring to not be closed")
-		assert.True(t, closed.IsClosed(), "Expected closed linestring to be closed")
-	})
-
-	t.Run("Envelope", func(t *testing.T) {
-		ls := geom.NewLineString(coords)
-		env := ls.Envelope()
-		assert.Equal(t, 0.0, env.MinX)
-		assert.Equal(t, 20.0, env.MaxX)
-		assert.Equal(t, 0.0, env.MinY)
-		assert.Equal(t, 10.0, env.MaxY)
-	})
-}
-
-func TestPolygon(t *testing.T) {
-	shell := mustLinearRingXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-
-	t.Run("Creation", func(t *testing.T) {
-		p := geom.NewPolygon(shell, nil)
-		assert.False(t, p.IsEmpty(), "Expected polygon to not be empty")
-	})
-
-	t.Run("GeometryType", func(t *testing.T) {
-		p := geom.NewPolygon(shell, nil)
-		assert.Equal(t, "Polygon", p.GeometryType())
-	})
-
-	t.Run("Area", func(t *testing.T) {
-		p := geom.NewPolygon(shell, nil)
-		assert.Equal(t, 100.0, p.Area())
-	})
-
-	t.Run("WithHole", func(t *testing.T) {
-		hole := mustLinearRingXY(2, 2, 8, 2, 8, 8, 2, 8, 2, 2)
-		p := geom.NewPolygon(shell, []*geom.LinearRing{hole})
-		expected := 100.0 - 36.0 // 10x10 - 6x6
-		assert.InDelta(t, expected, p.Area(), 0.001)
-	})
-
-	t.Run("ContainsPoint", func(t *testing.T) {
-		p := geom.NewPolygon(shell, nil)
-		assert.True(t, p.ContainsPoint(geom.NewCoordinate(5, 5)), "Expected polygon to contain (5, 5)")
-		assert.False(t, p.ContainsPoint(geom.NewCoordinate(15, 5)), "Expected polygon to not contain (15, 5)")
-	})
-
-	t.Run("Centroid_Simple", func(t *testing.T) {
-		p := geom.NewPolygon(shell, nil)
-		centroid := p.Centroid()
-		require.False(t, centroid.IsEmpty())
-		assert.InDelta(t, 5.0, centroid.X(), 0.001)
-		assert.InDelta(t, 5.0, centroid.Y(), 0.001)
-	})
-
-	t.Run("Centroid_WithSymmetricHole", func(t *testing.T) {
-		// A symmetric hole centered at (5,5) should not change the centroid
-		hole := mustLinearRingXY(3, 3, 7, 3, 7, 7, 3, 7, 3, 3)
-		p := geom.NewPolygon(shell, []*geom.LinearRing{hole})
-		centroid := p.Centroid()
-		require.False(t, centroid.IsEmpty())
-		assert.InDelta(t, 5.0, centroid.X(), 0.001)
-		assert.InDelta(t, 5.0, centroid.Y(), 0.001)
-	})
-
-	t.Run("Centroid_WithAsymmetricHole", func(t *testing.T) {
-		// Shell: 20x10 rectangle from (0,0) to (20,10), centroid at (10, 5)
-		// Hole: 4x4 square from (2,3) to (6,7), centroid at (4, 5)
-		asymShell := mustLinearRingXY(0, 0, 20, 0, 20, 10, 0, 10, 0, 0)
-		hole := mustLinearRingXY(2, 3, 6, 3, 6, 7, 2, 7, 2, 3)
-		p := geom.NewPolygon(asymShell, []*geom.LinearRing{hole})
-
-		// Shell area: 20*10 = 200, shell centroid: (10, 5)
-		// Hole area: 4*4 = 16, hole centroid: (4, 5)
-		// Weighted centroid X: (10*200 - 4*16) / (200-16) = (2000-64)/184 = 10.52...
-		// Weighted centroid Y: (5*200 - 5*16) / (200-16) = (1000-80)/184 = 5.0
-		centroid := p.Centroid()
-		require.False(t, centroid.IsEmpty())
-		expectedX := (10.0*200.0 - 4.0*16.0) / (200.0 - 16.0)
-		assert.InDelta(t, expectedX, centroid.X(), 0.01)
-		assert.InDelta(t, 5.0, centroid.Y(), 0.01)
-	})
-}
-
-func TestMultiPoint(t *testing.T) {
-	points := []*geom.Point{
-		geom.NewPoint(0, 0),
-		geom.NewPoint(1, 1),
-		geom.NewPoint(2, 2),
+func TestPointConstruction(t *testing.T) {
+	p := NewPoint(crs.WGS84, XY{-75.16, 39.95})
+	if p.IsEmpty() {
+		t.Fatalf("point should not be empty")
 	}
-
-	t.Run("Creation", func(t *testing.T) {
-		mp := geom.NewMultiPoint(points)
-		assert.Equal(t, 3, mp.NumGeometries(), "Expected 3 points")
-	})
-
-	t.Run("GeometryType", func(t *testing.T) {
-		mp := geom.NewMultiPoint(points)
-		assert.Equal(t, "MultiPoint", mp.GeometryType())
-	})
-}
-
-func TestGeometryCollection(t *testing.T) {
-	geoms := []geom.Geometry{
-		geom.NewPoint(0, 0),
-		mustLineStringXY(0, 0, 10, 10),
+	if p.Type() != PointType {
+		t.Errorf("Type = %v", p.Type())
 	}
-
-	t.Run("Creation", func(t *testing.T) {
-		gc := geom.NewGeometryCollection(geoms)
-		assert.Equal(t, 2, gc.NumGeometries(), "Expected 2 geometries")
-	})
-
-	t.Run("GeometryType", func(t *testing.T) {
-		gc := geom.NewGeometryCollection(geoms)
-		assert.Equal(t, "GeometryCollection", gc.GeometryType())
-	})
+	if p.Layout() != LayoutXY {
+		t.Errorf("Layout = %v", p.Layout())
+	}
+	if p.NumGeometries() != 1 {
+		t.Errorf("NumGeometries = %d", p.NumGeometries())
+	}
+	got := p.XY()
+	if got.X != -75.16 || got.Y != 39.95 {
+		t.Errorf("XY() = %+v", got)
+	}
+	env := p.Envelope()
+	if env.MinX != -75.16 || env.MaxX != -75.16 {
+		t.Errorf("envelope wrong: %+v", env)
+	}
 }
 
-func TestGeometryFactory(t *testing.T) {
-	factory := geom.NewGeometryFactoryDefault()
-
-	t.Run("CreatePoint", func(t *testing.T) {
-		p := factory.CreatePoint(1, 2)
-		assert.Equal(t, 1.0, p.X())
-		assert.Equal(t, 2.0, p.Y())
-	})
-
-	t.Run("CreateLineString", func(t *testing.T) {
-		ls := mustCreateLineStringXY(factory, 0, 0, 10, 10)
-		assert.Equal(t, 2, ls.NumPoints())
-	})
-
-	t.Run("WithSRID", func(t *testing.T) {
-		factoryWithSRID := geom.NewGeometryFactoryWithSRID(4326)
-		p := factoryWithSRID.CreatePoint(1, 2)
-		assert.Equal(t, 4326, p.SRID())
-	})
+func TestEmptyPoint(t *testing.T) {
+	p := NewEmptyPoint(crs.WGS84, LayoutXY)
+	if !p.IsEmpty() {
+		t.Errorf("empty point should be empty")
+	}
+	if !p.Envelope().IsEmpty() {
+		t.Errorf("empty point envelope should be empty")
+	}
 }
 
-func TestPrecisionModel(t *testing.T) {
-	t.Run("FloatingPrecision", func(t *testing.T) {
-		pm := geom.NewFloatingPrecision()
-		val := pm.MakePreciseValue(1.23456789)
-		assert.Equal(t, 1.23456789, val)
-	})
-
-	t.Run("FixedPrecision", func(t *testing.T) {
-		pm := geom.NewFixedPrecision(1000) // 3 decimal places
-		val := pm.MakePreciseValue(1.23456789)
-		expected := 1.235 // Rounded
-		assert.InDelta(t, expected, val, 0.0001)
-	})
-
-	t.Run("SinglePrecision", func(t *testing.T) {
-		pm := geom.NewFloatingSinglePrecision()
-		val := pm.MakePreciseValue(1.23456789)
-		// Single precision may differ from double precision
-		assert.NotEqual(t, 0.0, val, "Single precision should return a value")
-	})
+func TestLineStringConstruction(t *testing.T) {
+	ls := NewLineString(crs.WGS84, []XY{{0, 0}, {1, 1}, {2, 2}})
+	if ls.NumPoints() != 3 {
+		t.Fatalf("NumPoints = %d, want 3", ls.NumPoints())
+	}
+	if got := ls.PointAt(1); got.X != 1 || got.Y != 1 {
+		t.Errorf("PointAt(1) = %+v", got)
+	}
+	count := 0
+	for p := range ls.CoordsXY() {
+		_ = p
+		count++
+	}
+	if count != 3 {
+		t.Errorf("CoordsXY iterator yielded %d, want 3", count)
+	}
 }
 
-func TestLinearRing(t *testing.T) {
-	t.Run("AutoClose", func(t *testing.T) {
-		// Ring without explicit closure
-		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10)
-		lr := geom.NewLinearRing(coords)
-		// Should be auto-closed
-		assert.True(t, lr.IsClosed(), "Expected ring to be closed")
-	})
+func TestPolygonConstruction(t *testing.T) {
+	outer := []XY{{0, 0}, {0, 10}, {10, 10}, {10, 0}, {0, 0}}
+	hole := []XY{{2, 2}, {2, 4}, {4, 4}, {4, 2}, {2, 2}}
+	p := NewPolygon(crs.WGS84, outer, hole)
+	if p.NumRings() != 2 {
+		t.Fatalf("NumRings = %d, want 2", p.NumRings())
+	}
+	got := p.ExteriorRing()
+	if len(got) != 5 {
+		t.Errorf("exterior len = %d, want 5", len(got))
+	}
+	holes := p.InteriorRings()
+	if len(holes) != 1 || len(holes[0]) != 5 {
+		t.Errorf("holes wrong: %+v", holes)
+	}
+	env := p.Envelope()
+	if env.MinX != 0 || env.MaxX != 10 || env.MinY != 0 || env.MaxY != 10 {
+		t.Errorf("polygon envelope = %+v", env)
+	}
+}
 
-	t.Run("IsCCW", func(t *testing.T) {
-		// Counter-clockwise ring
-		ccwCoords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-		ccwRing := geom.NewLinearRing(ccwCoords)
-		assert.True(t, ccwRing.IsCCW(), "Expected ring to be counter-clockwise")
+func TestMultiLineStringEnvelopeUnion(t *testing.T) {
+	a := NewLineString(crs.WGS84, []XY{{0, 0}, {1, 1}})
+	b := NewLineString(crs.WGS84, []XY{{5, 5}, {6, 6}})
+	m := NewMultiLineString(crs.WGS84, a, b)
+	env := m.Envelope()
+	if env.MinX != 0 || env.MaxX != 6 || env.MinY != 0 || env.MaxY != 6 {
+		t.Errorf("union envelope = %+v", env)
+	}
+	if m.NumGeometries() != 2 {
+		t.Errorf("NumGeometries = %d", m.NumGeometries())
+	}
+}
 
-		// Clockwise ring
-		cwCoords := mustCoordsXY(0, 0, 0, 10, 10, 10, 10, 0, 0, 0)
-		cwRing := geom.NewLinearRing(cwCoords)
-		assert.True(t, cwRing.IsCW(), "Expected ring to be clockwise")
-	})
-
-	t.Run("Area", func(t *testing.T) {
-		coords := mustCoordsXY(0, 0, 10, 0, 10, 10, 0, 10, 0, 0)
-		lr := geom.NewLinearRing(coords)
-		area := lr.Area()
-		assert.Equal(t, 100.0, area)
-	})
+func TestGeometryInterfaceSatisfaction(t *testing.T) {
+	// Compile-time checks that every concrete type implements Geometry.
+	var _ Geometry = (*Point)(nil)
+	var _ Geometry = (*LineString)(nil)
+	var _ Geometry = (*Polygon)(nil)
+	var _ Geometry = (*MultiPoint)(nil)
+	var _ Geometry = (*MultiLineString)(nil)
+	var _ Geometry = (*MultiPolygon)(nil)
+	var _ Geometry = (*GeometryCollection)(nil)
 }

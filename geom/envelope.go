@@ -1,221 +1,148 @@
 package geom
 
-import (
-	"fmt"
-	"math"
-)
+import "math"
 
-// Envelope represents a bounding box (axis-aligned rectangle).
-// It is defined by minimum and maximum X and Y values.
+// Envelope is the 2D axis-aligned bounding box used throughout Terra.
+// Z and M coordinates are ignored. The zero value is the empty envelope:
+// MinX > MaxX signals "no extent yet."
 type Envelope struct {
 	MinX, MinY, MaxX, MaxY float64
 }
 
-// NewEnvelope creates a new envelope from two coordinates.
-func NewEnvelope(x1, y1, x2, y2 float64) *Envelope {
-	return &Envelope{
-		MinX: math.Min(x1, x2),
-		MinY: math.Min(y1, y2),
-		MaxX: math.Max(x1, x2),
-		MaxY: math.Max(y1, y2),
+// EmptyEnvelope returns the canonical empty envelope: any subsequent Expand
+// will replace its bounds with the first inserted coordinate.
+func EmptyEnvelope() Envelope {
+	return Envelope{
+		MinX: math.Inf(+1), MinY: math.Inf(+1),
+		MaxX: math.Inf(-1), MaxY: math.Inf(-1),
 	}
 }
 
-// NewEnvelopeFromCoord creates an envelope from a single coordinate.
-func NewEnvelopeFromCoord(c Coordinate) *Envelope {
-	return &Envelope{
-		MinX: c.X,
-		MinY: c.Y,
-		MaxX: c.X,
-		MaxY: c.Y,
-	}
-}
+// IsEmpty reports whether e has no extent.
+func (e Envelope) IsEmpty() bool { return e.MinX > e.MaxX || e.MinY > e.MaxY }
 
-// NewEnvelopeFromCoords creates an envelope from two coordinates.
-func NewEnvelopeFromCoords(c1, c2 Coordinate) *Envelope {
-	return NewEnvelope(c1.X, c1.Y, c2.X, c2.Y)
-}
+// Min returns the lower-left corner.
+func (e Envelope) Min() XY { return XY{e.MinX, e.MinY} }
 
-// NewEnvelopeEmpty creates an empty envelope.
-func NewEnvelopeEmpty() *Envelope {
-	return &Envelope{
-		MinX: math.Inf(1),
-		MinY: math.Inf(1),
-		MaxX: math.Inf(-1),
-		MaxY: math.Inf(-1),
-	}
-}
+// Max returns the upper-right corner.
+func (e Envelope) Max() XY { return XY{e.MaxX, e.MaxY} }
 
-// Clone returns a copy of the envelope.
-func (e *Envelope) Clone() *Envelope {
-	if e == nil {
-		return nil
-	}
-	return &Envelope{
-		MinX: e.MinX,
-		MinY: e.MinY,
-		MaxX: e.MaxX,
-		MaxY: e.MaxY,
-	}
-}
-
-// String returns a string representation of the envelope.
-func (e *Envelope) String() string {
-	if e == nil || e.IsNull() {
-		return "Envelope(EMPTY)"
-	}
-	return fmt.Sprintf("Envelope(%g, %g, %g, %g)", e.MinX, e.MinY, e.MaxX, e.MaxY)
-}
-
-// IsNull returns true if this is an empty envelope.
-func (e *Envelope) IsNull() bool {
-	return e == nil || e.MaxX < e.MinX
-}
-
-// Width returns the width of the envelope (MaxX - MinX).
-func (e *Envelope) Width() float64 {
-	if e.IsNull() {
+// Width returns MaxX-MinX, or 0 if empty.
+func (e Envelope) Width() float64 {
+	if e.IsEmpty() {
 		return 0
 	}
 	return e.MaxX - e.MinX
 }
 
-// Height returns the height of the envelope (MaxY - MinY).
-func (e *Envelope) Height() float64 {
-	if e.IsNull() {
+// Height returns MaxY-MinY, or 0 if empty.
+func (e Envelope) Height() float64 {
+	if e.IsEmpty() {
 		return 0
 	}
 	return e.MaxY - e.MinY
 }
 
-// Area returns the area of the envelope.
-func (e *Envelope) Area() float64 {
-	return e.Width() * e.Height()
-}
+// Area returns Width*Height.
+func (e Envelope) Area() float64 { return e.Width() * e.Height() }
 
-// Centre returns the center point of the envelope.
-func (e *Envelope) Centre() Coordinate {
-	if e.IsNull() {
-		return Coordinate{X: math.NaN(), Y: math.NaN()}
+// ExpandToIncludeXY returns an envelope that includes p.
+// Envelope is a value type, so callers must use the result.
+func (e Envelope) ExpandToIncludeXY(p XY) Envelope {
+	if e.IsEmpty() {
+		return Envelope{p.X, p.Y, p.X, p.Y}
 	}
-	return Coordinate{
-		X: (e.MinX + e.MaxX) / 2,
-		Y: (e.MinY + e.MaxY) / 2,
+	if p.X < e.MinX {
+		e.MinX = p.X
 	}
-}
-
-// ExpandToInclude expands the envelope to include another envelope.
-func (e *Envelope) ExpandToInclude(other *Envelope) {
-	if other == nil || other.IsNull() {
-		return
+	if p.X > e.MaxX {
+		e.MaxX = p.X
 	}
-	if e.IsNull() {
-		e.MinX = other.MinX
-		e.MinY = other.MinY
-		e.MaxX = other.MaxX
-		e.MaxY = other.MaxY
-	} else {
-		e.MinX = math.Min(e.MinX, other.MinX)
-		e.MinY = math.Min(e.MinY, other.MinY)
-		e.MaxX = math.Max(e.MaxX, other.MaxX)
-		e.MaxY = math.Max(e.MaxY, other.MaxY)
+	if p.Y < e.MinY {
+		e.MinY = p.Y
 	}
-}
-
-// ExpandToIncludeCoord expands the envelope to include a coordinate.
-func (e *Envelope) ExpandToIncludeCoord(c Coordinate) {
-	e.ExpandToIncludeXY(c.X, c.Y)
-}
-
-// ExpandToIncludeXY expands the envelope to include a point.
-func (e *Envelope) ExpandToIncludeXY(x, y float64) {
-	if e.IsNull() {
-		e.MinX = x
-		e.MaxX = x
-		e.MinY = y
-		e.MaxY = y
-	} else {
-		e.MinX = math.Min(e.MinX, x)
-		e.MaxX = math.Max(e.MaxX, x)
-		e.MinY = math.Min(e.MinY, y)
-		e.MaxY = math.Max(e.MaxY, y)
+	if p.Y > e.MaxY {
+		e.MaxY = p.Y
 	}
+	return e
 }
 
-// Contains returns true if this envelope contains the given coordinate.
-func (e *Envelope) Contains(c Coordinate) bool {
-	return e.ContainsXY(c.X, c.Y)
+// ExpandToInclude merges another envelope into this one.
+func (e Envelope) ExpandToInclude(o Envelope) Envelope {
+	if o.IsEmpty() {
+		return e
+	}
+	if e.IsEmpty() {
+		return o
+	}
+	if o.MinX < e.MinX {
+		e.MinX = o.MinX
+	}
+	if o.MinY < e.MinY {
+		e.MinY = o.MinY
+	}
+	if o.MaxX > e.MaxX {
+		e.MaxX = o.MaxX
+	}
+	if o.MaxY > e.MaxY {
+		e.MaxY = o.MaxY
+	}
+	return e
 }
 
-// ContainsXY returns true if this envelope contains the given point.
-func (e *Envelope) ContainsXY(x, y float64) bool {
-	if e.IsNull() {
+// Intersects reports whether e and o share at least one point.
+// Touching at a corner or edge counts as intersection.
+func (e Envelope) Intersects(o Envelope) bool {
+	if e.IsEmpty() || o.IsEmpty() {
 		return false
 	}
-	return x >= e.MinX && x <= e.MaxX && y >= e.MinY && y <= e.MaxY
+	return !(o.MinX > e.MaxX || o.MaxX < e.MinX ||
+		o.MinY > e.MaxY || o.MaxY < e.MinY)
 }
 
-// ContainsEnvelope returns true if this envelope completely contains another.
-func (e *Envelope) ContainsEnvelope(other *Envelope) bool {
-	if e.IsNull() || other.IsNull() {
+// ContainsXY reports whether p lies within or on the boundary of e.
+func (e Envelope) ContainsXY(p XY) bool {
+	if e.IsEmpty() {
 		return false
 	}
-	return other.MinX >= e.MinX && other.MaxX <= e.MaxX &&
-		other.MinY >= e.MinY && other.MaxY <= e.MaxY
+	return p.X >= e.MinX && p.X <= e.MaxX && p.Y >= e.MinY && p.Y <= e.MaxY
 }
 
-// Intersects returns true if this envelope intersects another.
-func (e *Envelope) Intersects(other *Envelope) bool {
-	if e.IsNull() || other.IsNull() {
+// Contains reports whether o lies entirely within e (boundary inclusive).
+func (e Envelope) Contains(o Envelope) bool {
+	if e.IsEmpty() || o.IsEmpty() {
 		return false
 	}
-	return !(other.MinX > e.MaxX ||
-		other.MaxX < e.MinX ||
-		other.MinY > e.MaxY ||
-		other.MaxY < e.MinY)
+	return o.MinX >= e.MinX && o.MaxX <= e.MaxX &&
+		o.MinY >= e.MinY && o.MaxY <= e.MaxY
 }
 
-// Equals returns true if this envelope equals another within epsilon.
-func (e *Envelope) Equals(other *Envelope, epsilon float64) bool {
-	if e.IsNull() && other.IsNull() {
-		return true
+// envelopeOfFlat builds an envelope from a flat coordinate slice with the
+// given stride. It is the routine baseGeom uses to populate its envelope
+// cache; exposed at package scope so format decoders can build envelopes
+// without going through a Geometry value.
+func envelopeOfFlat(coords []float64, stride int) Envelope {
+	if len(coords) < stride {
+		return EmptyEnvelope()
 	}
-	if e.IsNull() || other.IsNull() {
-		return false
+	minX := coords[0]
+	maxX := coords[0]
+	minY := coords[1]
+	maxY := coords[1]
+	for i := stride; i+1 < len(coords); i += stride {
+		x, y := coords[i], coords[i+1]
+		if x < minX {
+			minX = x
+		}
+		if x > maxX {
+			maxX = x
+		}
+		if y < minY {
+			minY = y
+		}
+		if y > maxY {
+			maxY = y
+		}
 	}
-	return math.Abs(e.MinX-other.MinX) < epsilon &&
-		math.Abs(e.MinY-other.MinY) < epsilon &&
-		math.Abs(e.MaxX-other.MaxX) < epsilon &&
-		math.Abs(e.MaxY-other.MaxY) < epsilon
-}
-
-// Distance returns the distance from this envelope to another.
-// Returns 0 if they intersect.
-func (e *Envelope) Distance(other *Envelope) float64 {
-	if e.Intersects(other) {
-		return 0
-	}
-
-	var dx, dy float64
-
-	if e.MaxX < other.MinX {
-		dx = other.MinX - e.MaxX
-	} else if e.MinX > other.MaxX {
-		dx = e.MinX - other.MaxX
-	}
-
-	if e.MaxY < other.MinY {
-		dy = other.MinY - e.MaxY
-	} else if e.MinY > other.MaxY {
-		dy = e.MinY - other.MaxY
-	}
-
-	// Handle edge-only or corner distances
-	if dx == 0 {
-		return dy
-	}
-	if dy == 0 {
-		return dx
-	}
-	return math.Sqrt(dx*dx + dy*dy)
+	return Envelope{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}
 }

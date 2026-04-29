@@ -1,184 +1,103 @@
 package geom
 
 import (
-	"fmt"
+	"math"
+
+	"github.com/terra-geo/terra/crs"
 )
 
-// Point represents a single location in coordinate space.
+func nan() float64 { return math.NaN() }
+
+// Point is a single coordinate.
 type Point struct {
-	baseGeometry
-	coord   Coordinate
-	isEmpty bool
+	baseGeom
 }
 
-// NewPoint creates a new Point from x and y coordinates.
-func NewPoint(x, y float64) *Point {
+// NewPoint constructs a Point from an XY coordinate.
+// The CRS may be nil; callers donate the value semantics — Point holds no
+// reference to caller-owned slices.
+func NewPoint(c *crs.CRS, p XY) *Point {
 	return &Point{
-		coord:   NewCoordinate(x, y),
-		isEmpty: false,
+		baseGeom: baseGeom{
+			layout: LayoutXY,
+			coords: []float64{p.X, p.Y},
+			crs:    c,
+		},
 	}
 }
 
-// NewPointFromCoordinate creates a new Point from a Coordinate.
-func NewPointFromCoordinate(coord Coordinate) *Point {
+// NewPointXYZ constructs a 3D Point.
+func NewPointXYZ(c *crs.CRS, p XYZ) *Point {
 	return &Point{
-		coord:   coord.Clone(),
-		isEmpty: false,
+		baseGeom: baseGeom{
+			layout: LayoutXYZ,
+			coords: []float64{p.X, p.Y, p.Z},
+			crs:    c,
+		},
 	}
 }
 
-// NewPointEmpty creates an empty Point.
-func NewPointEmpty() *Point {
+// NewPointXYM constructs a 2D+M Point.
+func NewPointXYM(c *crs.CRS, p XYM) *Point {
 	return &Point{
-		isEmpty: true,
+		baseGeom: baseGeom{
+			layout: LayoutXYM,
+			coords: []float64{p.X, p.Y, p.M},
+			crs:    c,
+		},
 	}
 }
 
-// X returns the X coordinate.
-func (p *Point) X() float64 {
-	return p.coord.X
+// NewPointXYZM constructs a 3D+M Point.
+func NewPointXYZM(c *crs.CRS, p XYZM) *Point {
+	return &Point{
+		baseGeom: baseGeom{
+			layout: LayoutXYZM,
+			coords: []float64{p.X, p.Y, p.Z, p.M},
+			crs:    c,
+		},
+	}
 }
 
-// Y returns the Y coordinate.
-func (p *Point) Y() float64 {
-	return p.coord.Y
+// NewEmptyPoint constructs a POINT EMPTY in the given layout.
+func NewEmptyPoint(c *crs.CRS, layout Layout) *Point {
+	return &Point{baseGeom: baseGeom{layout: layout, crs: c}}
 }
 
-// Z returns the Z coordinate (NaN if not present).
+// Z returns the Z value if the layout has one, otherwise NaN.
 func (p *Point) Z() float64 {
-	return p.coord.Z
+	if p.IsEmpty() || !p.layout.HasZ() {
+		return nan()
+	}
+	return p.coords[2]
 }
 
-// M returns the M coordinate (NaN if not present).
+// M returns the M value if the layout has one, otherwise NaN. M is at
+// index 2 for XYM and index 3 for XYZM.
 func (p *Point) M() float64 {
-	return p.coord.M
-}
-
-// Coordinate returns the point's coordinate.
-func (p *Point) Coordinate() Coordinate {
-	return p.coord
-}
-
-// GeometryType returns "Point".
-func (p *Point) GeometryType() string {
-	return "Point"
-}
-
-// Envelope returns the bounding box (a point for Point geometries).
-func (p *Point) Envelope() *Envelope {
-	if p.isEmpty {
-		return NewEnvelopeEmpty()
+	if p.IsEmpty() || !p.layout.HasM() {
+		return nan()
 	}
-	if env := p.cachedEnvelope(); env != nil {
-		return env.Clone()
+	switch p.layout {
+	case LayoutXYM:
+		return p.coords[2]
+	case LayoutXYZM:
+		return p.coords[3]
 	}
-	env := NewEnvelopeFromCoord(p.coord)
-	p.setCachedEnvelope(env)
-	return env.Clone()
+	return nan()
 }
 
-// IsEmpty returns true if this is an empty point.
-func (p *Point) IsEmpty() bool {
-	return p.isEmpty
-}
+func (p *Point) isGeometry()      {}
+func (p *Point) Type() Type       { return PointType }
+func (p *Point) Envelope() Envelope { return p.envelope() }
+func (p *Point) IsEmpty() bool      { return len(p.coords) == 0 }
+func (p *Point) NumGeometries() int { return 1 }
 
-// IsSimple returns true (points are always simple).
-func (p *Point) IsSimple() bool {
-	return true
-}
-
-// IsValid returns true if the point is valid.
-func (p *Point) IsValid() bool {
-	return p.isEmpty || !p.coord.IsNaN()
-}
-
-// Dimension returns 0 for Point.
-func (p *Point) Dimension() Dimension {
-	return DimensionPoint
-}
-
-// Boundary returns an empty GeometryCollection (points have no boundary).
-func (p *Point) Boundary() Geometry {
-	return NewGeometryCollectionEmpty()
-}
-
-// Coordinates returns the point's coordinate as a sequence.
-func (p *Point) Coordinates() CoordinateSequence {
-	if p.isEmpty {
-		return CoordinateSequence{}
+// XY returns the 2D projection of the point.
+// Returns the zero XY for an empty point.
+func (p *Point) XY() XY {
+	if p.IsEmpty() {
+		return XY{}
 	}
-	return CoordinateSequence{p.coord.Clone()}
+	return XY{p.coords[0], p.coords[1]}
 }
-
-// ApplyCoordinateFilter applies a coordinate filter to the point.
-func (p *Point) ApplyCoordinateFilter(filter CoordinateFilter) {
-	if p.isEmpty || filter == nil {
-		return
-	}
-	filter.Filter(&p.coord)
-	p.invalidateEnvelope()
-}
-
-// NumGeometries returns 1 for Point.
-func (p *Point) NumGeometries() int {
-	return 1
-}
-
-// GeometryN returns the point itself (for n=0).
-func (p *Point) GeometryN(n int) Geometry {
-	if n != 0 {
-		return nil
-	}
-	return p
-}
-
-// Clone returns a deep copy of the point.
-func (p *Point) Clone() Geometry {
-	if p.isEmpty {
-		return NewPointEmpty()
-	}
-	clone := NewPointFromCoordinate(p.coord)
-	clone.srid = p.srid
-	return clone
-}
-
-// Normalized returns the point unchanged (points are already in canonical form).
-func (p *Point) Normalized() Geometry {
-	return p.Clone()
-}
-
-// EqualsExact returns true if the points are exactly equal.
-func (p *Point) EqualsExact(other Geometry, tolerance float64) bool {
-	if other == nil {
-		return false
-	}
-	otherPoint, ok := other.(*Point)
-	if !ok {
-		return false
-	}
-	if p.isEmpty && otherPoint.isEmpty {
-		return true
-	}
-	if p.isEmpty || otherPoint.isEmpty {
-		return false
-	}
-	return p.coord.Equals2D(otherPoint.coord, tolerance)
-}
-
-// String returns the WKT representation.
-func (p *Point) String() string {
-	if p.isEmpty {
-		return "POINT EMPTY"
-	}
-	if p.coord.HasZ() && p.coord.HasM() {
-		return fmt.Sprintf("POINT ZM (%g %g %g %g)", p.coord.X, p.coord.Y, p.coord.Z, p.coord.M)
-	}
-	if p.coord.HasZ() {
-		return fmt.Sprintf("POINT Z (%g %g %g)", p.coord.X, p.coord.Y, p.coord.Z)
-	}
-	if p.coord.HasM() {
-		return fmt.Sprintf("POINT M (%g %g %g)", p.coord.X, p.coord.Y, p.coord.M)
-	}
-	return fmt.Sprintf("POINT (%g %g)", p.coord.X, p.coord.Y)
-}
-

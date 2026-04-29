@@ -1,366 +1,144 @@
-package epsg
+package epsg_test
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/robert-malhotra/go-topology-suite/crs"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/terra-geo/terra/crs"
+	"github.com/terra-geo/terra/crs/epsg"
 )
 
-// TestLookupCommonCRS tests that common EPSG codes can be looked up.
-func TestLookupCommonCRS(t *testing.T) {
-	tests := []struct {
-		code int
-		name string
-	}{
-		{4326, "WGS 84"},
-		{4269, "NAD83"},
-		{4267, "NAD27"},
-		{4258, "ETRS89"},
-		{3857, "WGS 84 / Pseudo-Mercator"},
-		{32610, "WGS 84 / UTM zone 10N"},
-		{32617, "WGS 84 / UTM zone 17N"},
-		{32632, "WGS 84 / UTM zone 32N"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			crs, err := Lookup(tt.code)
-			require.NoError(t, err)
-			require.NotNil(t, crs)
-			expectedCode := fmt.Sprintf("EPSG:%d", tt.code)
-			assert.Equal(t, expectedCode, crs.Code())
-			assert.Equal(t, tt.name, crs.Name())
-		})
-	}
+// namedCase is one row in the table-driven sanity test of every named
+// EPSG code this package exposes.
+type namedCase struct {
+	name string
+	v    *crs.CRS
+	code int
+	kind crs.Kind
 }
 
-// TestLookupNotFound tests that looking up an unregistered code returns an error.
-func TestLookupNotFound(t *testing.T) {
-	_, err := Lookup(99999)
-	require.Error(t, err)
-}
-
-// TestMustLookup tests the MustLookup function.
-func TestMustLookup(t *testing.T) {
-	// Should not panic for valid code
-	crs := MustLookup(4326)
-	require.NotNil(t, crs)
-	assert.Equal(t, "EPSG:4326", crs.Code())
-}
-
-// TestMustLookupPanics tests that MustLookup panics for invalid codes.
-func TestMustLookupPanics(t *testing.T) {
-	assert.Panics(t, func() { MustLookup(99999) })
-}
-
-// TestWGS84IsGeographic tests that WGS84 is identified as geographic.
-func TestWGS84IsGeographic(t *testing.T) {
-	assert.True(t, WGS84.IsGeographic())
-	assert.Equal(t, crs.Geographic, WGS84.Type())
-}
-
-// TestWebMercatorIsProjected tests that Web Mercator is identified as projected.
-func TestWebMercatorIsProjected(t *testing.T) {
-	assert.False(t, WebMercator.IsGeographic())
-	assert.Equal(t, crs.Projected, WebMercator.Type())
-}
-
-// TestUTMZoneGeneration tests the UTMZone function.
-func TestUTMZoneGeneration(t *testing.T) {
-	tests := []struct {
-		zone     int
-		north    bool
-		wantCode string
-		wantName string
-	}{
-		{1, true, "EPSG:32601", "WGS 84 / UTM zone 1N"},
-		{60, true, "EPSG:32660", "WGS 84 / UTM zone 60N"},
-		{1, false, "EPSG:32701", "WGS 84 / UTM zone 1S"},
-		{60, false, "EPSG:32760", "WGS 84 / UTM zone 60S"},
-		{10, true, "EPSG:32610", "WGS 84 / UTM zone 10N"},
-		{32, true, "EPSG:32632", "WGS 84 / UTM zone 32N"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.wantName, func(t *testing.T) {
-			crs, err := UTMZone(tt.zone, tt.north)
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantCode, crs.Code())
-			assert.Equal(t, tt.wantName, crs.Name())
-			assert.False(t, crs.IsGeographic())
-		})
+func namedCases() []namedCase {
+	return []namedCase{
+		{"WGS84", epsg.WGS84, 4326, crs.Geographic},
+		{"NAD83", epsg.NAD83, 4269, crs.Geographic},
+		{"NAD27", epsg.NAD27, 4267, crs.Geographic},
+		{"WGS72", epsg.WGS72, 4322, crs.Geographic},
+		{"ETRS89", epsg.ETRS89, 4258, crs.Geographic},
+		{"WGS84_3D", epsg.WGS84_3D, 4979, crs.Geographic},
+		{"CGCS2000", epsg.CGCS2000, 4490, crs.Geographic},
+		{"Beijing1954", epsg.Beijing1954, 4214, crs.Geographic},
+		{"WebMercator", epsg.WebMercator, 3857, crs.Projected},
+		{"Lambert93", epsg.Lambert93, 2154, crs.Projected},
+		{"BritishNationalGrid", epsg.BritishNationalGrid, 27700, crs.Projected},
+		{"ConusAlbers", epsg.ConusAlbers, 5070, crs.Projected},
+		{"EuropeLAEA", epsg.EuropeLAEA, 3035, crs.Projected},
 	}
 }
 
-// TestUTMZoneErrors tests that UTMZone returns errors for invalid zones.
-func TestUTMZoneErrors(t *testing.T) {
-	tests := []struct {
-		zone  int
-		north bool
-	}{
-		{0, true},
-		{61, true},
-		{-1, false},
-		{100, false},
-	}
-
-	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
-			_, err := UTMZone(tt.zone, tt.north)
-			require.Error(t, err)
-		})
-	}
-}
-
-// TestRegisterCustomCRS tests registering a custom CRS.
-func TestRegisterCustomCRS(t *testing.T) {
-	customCode := 2154
-	customCRS, err := crs.NewProjectedCRS(
-		"EPSG:2154",
-		"RGF93 / Lambert-93",
-		crs.WGS84,
-		crs.CartesianCS2D,
-		"Lambert Conformal Conic",
-		nil,
-	)
-	require.NoError(t, err)
-
-	// Register the custom CRS
-	err = Register(customCRS)
-	require.NoError(t, err)
-
-	// Verify it can be looked up
-	retrieved, err := Lookup(customCode)
-	require.NoError(t, err)
-	assert.Equal(t, "EPSG:2154", retrieved.Code())
-	assert.Equal(t, customCRS.Name(), retrieved.Name())
-
-	// Clean up
-	_ = Unregister(customCode)
-}
-
-// TestRegisterInvalidCode tests that registering a CRS with invalid code returns an error.
-func TestRegisterInvalidCode(t *testing.T) {
-	customCRS, err := crs.NewGeographicCRS(
-		"INVALID:0",
-		"Invalid CRS",
-		crs.WGS84Datum,
-		crs.EllipsoidalCS2D,
-		nil,
-	)
-	require.NoError(t, err)
-
-	err = Register(customCRS)
-	require.Error(t, err)
-}
-
-// TestUnregister tests unregistering a CRS.
-func TestUnregister(t *testing.T) {
-	customCode := 9999
-	customCRS, err := crs.NewGeographicCRS(
-		"EPSG:9999",
-		"Test CRS",
-		crs.WGS84Datum,
-		crs.EllipsoidalCS2D,
-		nil,
-	)
-	require.NoError(t, err)
-
-	// Register and then unregister
-	_ = Register(customCRS)
-	err = Unregister(customCode)
-	require.NoError(t, err)
-
-	// Verify it's no longer in the registry
-	_, err = Lookup(customCode)
-	require.Error(t, err)
-}
-
-// TestUnregisterNotFound tests unregistering a non-existent code.
-func TestUnregisterNotFound(t *testing.T) {
-	err := Unregister(99999)
-	require.Error(t, err)
-}
-
-// TestCodes tests the Codes function.
-func TestCodes(t *testing.T) {
-	codes := Codes()
-	assert.NotEmpty(t, codes)
-
-	// Verify that codes are sorted
-	for i := 1; i < len(codes); i++ {
-		assert.Less(t, codes[i-1], codes[i], "Codes() not sorted at index %d", i)
-	}
-
-	// Verify some expected codes are present
-	assert.Contains(t, codes, 4326)
-	assert.Contains(t, codes, 4269)
-	assert.Contains(t, codes, 3857)
-}
-
-// TestCount tests the Count function.
-func TestCount(t *testing.T) {
-	count := Count()
-	assert.GreaterOrEqual(t, count, 8)
-
-	// Add a custom CRS and verify count increases
-	customCode := 9998
-	customCRS, err := crs.NewGeographicCRS(
-		"EPSG:9998",
-		"Test",
-		crs.WGS84Datum,
-		crs.EllipsoidalCS2D,
-		nil,
-	)
-	require.NoError(t, err)
-
-	_ = Register(customCRS)
-	newCount := Count()
-	assert.Equal(t, count+1, newCount)
-
-	// Clean up
-	_ = Unregister(customCode)
-}
-
-// TestIsRegistered tests the IsRegistered function.
-func TestIsRegistered(t *testing.T) {
-	assert.True(t, IsRegistered(4326))
-	assert.False(t, IsRegistered(99999))
-}
-
-// TestDatumProperties tests that datum properties are correct for geographic CRS.
-func TestDatumProperties(t *testing.T) {
-	tests := []struct {
-		name          string
-		crs           crs.CRS
-		wantDatumName string
-		wantEllipsoid crs.Ellipsoid
-	}{
-		{
-			name:          "WGS84",
-			crs:           WGS84,
-			wantDatumName: "WGS 84",
-			wantEllipsoid: crs.WGS84Ellipsoid,
-		},
-		{
-			name:          "NAD83",
-			crs:           NAD83,
-			wantDatumName: "NAD83",
-			wantEllipsoid: crs.GRS80Ellipsoid,
-		},
-		{
-			name:          "NAD27",
-			crs:           NAD27,
-			wantDatumName: "NAD27",
-			wantEllipsoid: crs.Clarke1866Ellipsoid,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			datum := tt.crs.Datum()
-			assert.Equal(t, tt.wantDatumName, datum.Name())
-			assert.Equal(t, tt.wantEllipsoid, datum.Ellipsoid())
-		})
-	}
-}
-
-// TestCoordinateSystem tests that coordinate systems are correctly set.
-func TestCoordinateSystem(t *testing.T) {
-	tests := []struct {
-		name          string
-		crs           crs.CRS
-		wantDimension int
-		wantUnit      crs.Unit
-	}{
-		{"WGS84", WGS84, 2, crs.Degree},
-		{"NAD83", NAD83, 2, crs.Degree},
-		{"WebMercator", WebMercator, 2, crs.Metre},
-		{"UTM10N", UTM10N, 2, crs.Metre},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cs := tt.crs.CoordinateSystem()
-			assert.Equal(t, tt.wantDimension, cs.Dimension())
-			axis0, err := cs.Axis(0)
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantUnit, axis0.Unit)
-		})
-	}
-}
-
-// TestAreaOfUse tests that area of use is defined for CRS.
-func TestAreaOfUse(t *testing.T) {
-	tests := []struct {
-		name       string
-		crs        crs.CRS
-		wantGlobal bool
-	}{
-		{"WGS84", WGS84, true},
-		{"NAD83", NAD83, false},
-		{"WebMercator", WebMercator, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			minLon, minLat, maxLon, maxLat := tt.crs.AreaOfUse()
-
-			// Check that values are reasonable
-			assert.GreaterOrEqual(t, minLon, -180.0)
-			assert.LessOrEqual(t, minLon, 180.0)
-			assert.GreaterOrEqual(t, maxLon, -180.0)
-			assert.LessOrEqual(t, maxLon, 180.0)
-			assert.GreaterOrEqual(t, minLat, -90.0)
-			assert.LessOrEqual(t, minLat, 90.0)
-			assert.GreaterOrEqual(t, maxLat, -90.0)
-			assert.LessOrEqual(t, maxLat, 90.0)
-
-			if tt.wantGlobal {
-				assert.Equal(t, -180.0, minLon)
-				assert.Equal(t, 180.0, maxLon)
-				assert.Equal(t, -90.0, minLat)
-				assert.Equal(t, 90.0, maxLat)
+func TestNamedLookups(t *testing.T) {
+	for _, tc := range namedCases() {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.v == nil {
+				t.Fatalf("named var %s is nil", tc.name)
+			}
+			if tc.v.Authority != "EPSG" {
+				t.Errorf("Authority = %q, want EPSG", tc.v.Authority)
+			}
+			if tc.v.Code != tc.code {
+				t.Errorf("Code = %d, want %d", tc.v.Code, tc.code)
+			}
+			if tc.v.Kind != tc.kind {
+				t.Errorf("Kind = %v, want %v", tc.v.Kind, tc.kind)
+			}
+			got := epsg.Lookup(tc.code)
+			if got == nil {
+				t.Fatalf("Lookup(%d) returned nil", tc.code)
+			}
+			if got != tc.v {
+				t.Errorf("Lookup(%d) returned a different pointer than the named var", tc.code)
 			}
 		})
 	}
 }
 
-// TestWKT tests that WKT output is generated for CRS.
-func TestWKT(t *testing.T) {
-	tests := []struct {
-		name         string
-		crs          crs.CRS
-		wantContains string
+func TestLookupUnknown(t *testing.T) {
+	if got := epsg.Lookup(99999); got != nil {
+		t.Errorf("Lookup(99999) = %+v, want nil", got)
+	}
+	if got := epsg.Lookup(0); got != nil {
+		t.Errorf("Lookup(0) = %+v, want nil", got)
+	}
+	if got := epsg.Lookup(-1); got != nil {
+		t.Errorf("Lookup(-1) = %+v, want nil", got)
+	}
+}
+
+func TestWGS84EqualsCRSWGS84(t *testing.T) {
+	got := epsg.Lookup(4326)
+	if got == nil {
+		t.Fatal("Lookup(4326) = nil")
+	}
+	if !crs.Equal(got, crs.WGS84) {
+		t.Errorf("Lookup(4326) not Equal to crs.WGS84: %+v vs %+v", got, crs.WGS84)
+	}
+	// And the cross-package WebMercator/NAD83 comparisons should also hold,
+	// since they share authority+code with the upstream crs vars.
+	if !crs.Equal(epsg.WebMercator, crs.WebMercator) {
+		t.Errorf("epsg.WebMercator not Equal to crs.WebMercator")
+	}
+	if !crs.Equal(epsg.NAD83, crs.NAD83) {
+		t.Errorf("epsg.NAD83 not Equal to crs.NAD83")
+	}
+}
+
+func TestUTMZoneCoverage(t *testing.T) {
+	// Spot-check the four programmatic ranges. Every code must resolve to
+	// a Projected CRS with Authority=EPSG.
+	ranges := []struct {
+		first, last int
 	}{
-		{"WGS84", WGS84, "GEOGCS"},
-		{"WebMercator", WebMercator, "PROJCS"},
-		{"UTM10N", UTM10N, "PROJCS"},
+		{32601, 32660},
+		{32701, 32760},
+		{26901, 26923},
+		{25832, 25835},
+	}
+	for _, r := range ranges {
+		for code := r.first; code <= r.last; code++ {
+			c := epsg.Lookup(code)
+			if c == nil {
+				t.Errorf("Lookup(%d) = nil, want non-nil", code)
+				continue
+			}
+			if c.Authority != "EPSG" || c.Code != code {
+				t.Errorf("Lookup(%d) = %+v, want Authority=EPSG Code=%d", code, c, code)
+			}
+			if c.Kind != crs.Projected {
+				t.Errorf("Lookup(%d).Kind = %v, want Projected", code, c.Kind)
+			}
+		}
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wkt := tt.crs.WKT()
-			assert.NotEmpty(t, wkt)
-			assert.GreaterOrEqual(t, len(wkt), 50)
-			assert.Contains(t, wkt, tt.wantContains)
-		})
+	// Sanity bounds: nothing immediately outside each range was registered
+	// as a side-effect.
+	for _, code := range []int{32600, 32661, 32700, 32761, 26900, 26924, 25831, 25836} {
+		if got := epsg.Lookup(code); got != nil {
+			t.Errorf("Lookup(%d) = %+v, want nil (outside registered range)", code, got)
+		}
 	}
 }
 
-// BenchmarkLookup benchmarks the Lookup function.
-func BenchmarkLookup(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_, _ = Lookup(4326)
+func TestCodesReturnsAllRegistered(t *testing.T) {
+	codes := epsg.Codes()
+	// 8 named geographic + 5 named projected + 60 + 60 + 23 + 4 UTM = 160.
+	const want = 8 + 5 + 60 + 60 + 23 + 4
+	if len(codes) != want {
+		t.Errorf("Codes() returned %d entries, want %d", len(codes), want)
 	}
-}
-
-// BenchmarkUTMZone benchmarks the UTMZone function.
-func BenchmarkUTMZone(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		_, _ = UTMZone(10, true)
+	// Verify ordering.
+	for i := 1; i < len(codes); i++ {
+		if codes[i-1] >= codes[i] {
+			t.Errorf("Codes() not strictly sorted at index %d: %d >= %d", i, codes[i-1], codes[i])
+			break
+		}
 	}
 }

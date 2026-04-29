@@ -1,236 +1,64 @@
-// Package crs provides coordinate reference system (CRS) support for the
-// Go Topology Suite. It implements types and interfaces for representing
-// geographic, projected, and other coordinate reference systems according
-// to standards like EPSG and OGC.
-//
-// A coordinate reference system defines how coordinates relate to positions
-// on Earth. This includes the datum (reference frame), ellipsoid (Earth model),
-// and coordinate system (axes and units).
 package crs
 
-import "fmt"
-
-// CRSType represents the type of coordinate reference system.
-type CRSType int
+// Kind classifies a CRS as geographic (lon/lat on the ellipsoid),
+// projected (Cartesian X/Y in some unit, typically meters), or unspecified.
+//
+// Kind drives the default-kernel selection logic in the predicate and
+// measure packages: a geographic-CRS Distance defaults to the geodesic
+// kernel; a projected-CRS Distance defaults to the planar kernel.
+type Kind uint8
 
 const (
-	// Geographic CRS uses latitude and longitude coordinates.
-	Geographic CRSType = iota
-	// Projected CRS uses planar coordinates (e.g., UTM, State Plane).
+	UnknownKind Kind = iota
+	Geographic
 	Projected
-	// Geocentric CRS uses 3D Cartesian coordinates centered at Earth's center.
-	Geocentric
-	// Vertical CRS measures heights or depths relative to a vertical datum.
-	Vertical
-	// Compound CRS combines horizontal and vertical CRS.
-	Compound
 )
 
-// String returns the string representation of a CRSType.
-func (t CRSType) String() string {
-	switch t {
-	case Geographic:
-		return "Geographic"
-	case Projected:
-		return "Projected"
-	case Geocentric:
-		return "Geocentric"
-	case Vertical:
-		return "Vertical"
-	case Compound:
-		return "Compound"
-	default:
-		return "Unknown"
+// CRS identifies a coordinate reference system.
+//
+// In the common case (Authority+Code refers to a registered EPSG code),
+// the WKT2 field is empty and the Kind is supplied either by the registry
+// or — for ad-hoc CRSes — by the caller.
+type CRS struct {
+	Authority string
+	Code      int
+	WKT2      string
+	Kind      Kind
+}
+
+// Equal reports whether two CRSes refer to the same coordinate reference
+// system. Identity is by (Authority, Code) when both have authority codes;
+// otherwise structural over the WKT2 string. Two nil pointers compare equal.
+func Equal(a, b *CRS) bool {
+	if a == b {
+		return true
 	}
-}
-
-// CRS defines the interface for coordinate reference systems.
-// A CRS specifies how coordinates relate to positions in the real world.
-type CRS interface {
-	// Code returns the authority code (e.g., "EPSG:4326" for WGS 84).
-	Code() string
-
-	// Name returns the human-readable name of the CRS.
-	Name() string
-
-	// Type returns the type of coordinate reference system.
-	Type() CRSType
-
-	// IsGeographic returns true if this is a geographic CRS (lat/lon).
-	IsGeographic() bool
-
-	// Datum returns the geodetic datum used by this CRS.
-	Datum() Datum
-
-	// CoordinateSystem returns the coordinate system (axes and units).
-	CoordinateSystem() CoordinateSystem
-
-	// AreaOfUse returns the geographic area where this CRS is valid.
-	// Returns (minLon, minLat, maxLon, maxLat) in degrees.
-	AreaOfUse() (minLon, minLat, maxLon, maxLat float64)
-
-	// WKT returns the Well-Known Text representation of this CRS.
-	WKT() string
-}
-
-// Datum defines the interface for geodetic datums.
-// A datum specifies the reference frame for coordinate measurements,
-// including the ellipsoid model and its orientation relative to Earth.
-type Datum interface {
-	// Name returns the name of the datum.
-	Name() string
-
-	// Ellipsoid returns the ellipsoid (Earth model) used by this datum.
-	Ellipsoid() Ellipsoid
-
-	// PrimeMeridian returns the longitude of the prime meridian in degrees
-	// from Greenwich (0 for Greenwich, others for historical datums).
-	PrimeMeridian() float64
-
-	// ToWGS84Params returns the 7-parameter Helmert transformation
-	// parameters to convert from this datum to WGS84.
-	// Returns (dx, dy, dz, rx, ry, rz, ds) where:
-	//   - dx, dy, dz: translation in meters
-	//   - rx, ry, rz: rotation in arc-seconds
-	//   - ds: scale factor in parts per million
-	ToWGS84Params() (dx, dy, dz, rx, ry, rz, ds float64)
-}
-
-// Ellipsoid defines the interface for reference ellipsoids.
-// An ellipsoid is a mathematical model of Earth's shape.
-type Ellipsoid interface {
-	// Name returns the name of the ellipsoid.
-	Name() string
-
-	// SemiMajorAxis returns the semi-major axis (equatorial radius) in meters.
-	SemiMajorAxis() float64
-
-	// InverseFlattening returns the inverse flattening (1/f).
-	// A value of 0 indicates a sphere.
-	InverseFlattening() float64
-
-	// SemiMinorAxis returns the semi-minor axis (polar radius) in meters.
-	SemiMinorAxis() float64
-
-	// Eccentricity returns the first eccentricity of the ellipsoid.
-	Eccentricity() float64
-
-	// EccentricitySquared returns the square of the first eccentricity.
-	EccentricitySquared() float64
-}
-
-// CoordinateSystem defines the interface for coordinate systems.
-// A coordinate system specifies the axes (directions and units) used
-// for coordinates.
-type CoordinateSystem interface {
-	// Dimension returns the number of dimensions (typically 2 or 3).
-	Dimension() int
-
-	// Axis returns the i-th axis (0-indexed).
-	// Returns an error if i is out of range.
-	Axis(i int) (Axis, error)
-}
-
-// Axis represents a coordinate system axis with its properties.
-type Axis struct {
-	// Name is the axis name (e.g., "Longitude", "Easting", "Height").
-	Name string
-
-	// Direction is the positive direction of the axis.
-	Direction Direction
-
-	// Unit is the unit of measurement for this axis.
-	Unit Unit
-}
-
-// Direction represents the positive direction of a coordinate axis.
-type Direction int
-
-const (
-	// North indicates increasing northward.
-	North Direction = iota
-	// South indicates increasing southward.
-	South
-	// East indicates increasing eastward.
-	East
-	// West indicates increasing westward.
-	West
-	// Up indicates increasing upward (away from Earth center).
-	Up
-	// Down indicates increasing downward (toward Earth center).
-	Down
-)
-
-// String returns the string representation of a Direction.
-func (d Direction) String() string {
-	switch d {
-	case North:
-		return "North"
-	case South:
-		return "South"
-	case East:
-		return "East"
-	case West:
-		return "West"
-	case Up:
-		return "Up"
-	case Down:
-		return "Down"
-	default:
-		return "Unknown"
+	if a == nil || b == nil {
+		return false
 	}
-}
-
-// coordinateSystem is the default implementation of CoordinateSystem.
-type coordinateSystem struct {
-	axes []Axis
-}
-
-// NewCoordinateSystem creates a new coordinate system with the given axes.
-// Returns an error if axes is empty.
-func NewCoordinateSystem(axes []Axis) (CoordinateSystem, error) {
-	if len(axes) == 0 {
-		return nil, fmt.Errorf("coordinate system must have at least one axis")
+	if a.Authority != "" && b.Authority != "" && a.Code != 0 && b.Code != 0 {
+		return a.Authority == b.Authority && a.Code == b.Code
 	}
-	return &coordinateSystem{axes: axes}, nil
+	return a.WKT2 != "" && a.WKT2 == b.WKT2
 }
 
-// mustCS is a helper that panics if NewCoordinateSystem returns an error.
-// It is used only for package-level variable initialization.
-func mustCS(cs CoordinateSystem, err error) CoordinateSystem {
-	if err != nil {
-		panic(err)
-	}
-	return cs
-}
+// IsGeographic reports whether c is known to be a geographic CRS.
+// nil and unknown-kind CRSes return false.
+func (c *CRS) IsGeographic() bool { return c != nil && c.Kind == Geographic }
 
-// Dimension returns the number of dimensions.
-func (cs *coordinateSystem) Dimension() int {
-	return len(cs.axes)
-}
+// IsProjected reports whether c is known to be a projected CRS.
+func (c *CRS) IsProjected() bool { return c != nil && c.Kind == Projected }
 
-// Axis returns the i-th axis.
-// Returns an error if i is out of range.
-func (cs *coordinateSystem) Axis(i int) (Axis, error) {
-	if i < 0 || i >= len(cs.axes) {
-		return Axis{}, fmt.Errorf("axis index %d out of range [0, %d)", i, len(cs.axes))
-	}
-	return cs.axes[i], nil
-}
-
-// Standard coordinate systems used by common CRS types.
+// Pre-defined CRSes. These are placeholders sized for v0.1: the
+// crs/epsg subpackage will hold the full registry.
 var (
-	// EllipsoidalCS2D is the standard 2D geographic coordinate system
-	// with longitude and latitude in degrees.
-	EllipsoidalCS2D = mustCS(NewCoordinateSystem([]Axis{
-		{Name: "Longitude", Direction: East, Unit: Degree},
-		{Name: "Latitude", Direction: North, Unit: Degree},
-	}))
-
-	// CartesianCS2D is the standard 2D Cartesian coordinate system
-	// with easting and northing in meters.
-	CartesianCS2D = mustCS(NewCoordinateSystem([]Axis{
-		{Name: "Easting", Direction: East, Unit: Metre},
-		{Name: "Northing", Direction: North, Unit: Metre},
-	}))
+	WGS84 = &CRS{
+		Authority: "EPSG", Code: 4326, Kind: Geographic,
+	}
+	WebMercator = &CRS{
+		Authority: "EPSG", Code: 3857, Kind: Projected,
+	}
+	NAD83 = &CRS{
+		Authority: "EPSG", Code: 4269, Kind: Geographic,
+	}
 )

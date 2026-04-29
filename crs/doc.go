@@ -1,7 +1,11 @@
-// Package crs provides coordinate reference system definitions and transformations,
-// including EPSG code support and common geographic/projected CRS definitions.
+// Package crs models coordinate reference systems as data, not metadata.
 //
-// A CRS defines how coordinates in a geometry relate to positions on the Earth's
-// surface. This package supports both geographic (lat/lon) and projected
-// coordinate systems.
+// Every Terra geometry carries a *CRS pointer. Operations that mix
+// geometries with incompatible CRS return ErrCRSMismatch (defined in the
+// top-level terra package) rather than silently producing nonsense; users
+// must call crs.Transform explicitly to reconcile.
+//
+// The Authority+Code form ("EPSG", 4326) is the canonical identity used
+// for equality. The optional WKT2 string defines CRSes outside the built-in
+// registry; equality on those is structural over the WKT2 source.
 package crs

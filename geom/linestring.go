@@ -1,451 +1,72 @@
 package geom
 
 import (
-	"fmt"
-	"strings"
+	"iter"
+
+	"github.com/terra-geo/terra/crs"
 )
 
-// LineString represents a sequence of connected line segments.
+// LineString is an ordered sequence of two or more vertices joined by
+// straight (or great-circle, depending on the kernel) edges.
 type LineString struct {
-	baseGeometry
-	coords CoordinateSequence
+	baseGeom
 }
 
-// NewLineString creates a new LineString from a coordinate sequence.
-func NewLineString(coords CoordinateSequence) *LineString {
-	return &LineString{
-		coords: coords.Clone(),
+// NewLineString constructs a LineString from a slice of XY coordinates.
+// The input is cloned; the caller retains ownership.
+func NewLineString(c *crs.CRS, pts []XY) *LineString {
+	flat := make([]float64, 0, 2*len(pts))
+	for _, p := range pts {
+		flat = append(flat, p.X, p.Y)
 	}
+	return &LineString{baseGeom{layout: LayoutXY, coords: flat, crs: c}}
 }
 
-// NewLineStringEmpty creates an empty LineString.
-func NewLineStringEmpty() *LineString {
-	return &LineString{
-		coords: CoordinateSequence{},
-	}
+// NewLineStringFlat constructs a LineString directly from a flat coordinate
+// buffer. The buffer is cloned. Callers wanting zero-copy behaviour should
+// donate ownership via NewLineStringFlatNoClone (intended for format
+// decoders only).
+func NewLineStringFlat(layout Layout, c *crs.CRS, flat []float64) *LineString {
+	return &LineString{baseGeom{layout: layout, coords: cloneFloats(flat), crs: c}}
 }
 
-// GeometryType returns "LineString".
-func (ls *LineString) GeometryType() string {
-	return "LineString"
+// NewLineStringFlatNoClone takes ownership of flat without copying. Intended
+// for format decoders that have just allocated the buffer themselves.
+func NewLineStringFlatNoClone(layout Layout, c *crs.CRS, flat []float64) *LineString {
+	return &LineString{baseGeom{layout: layout, coords: flat, crs: c}}
 }
 
-// Envelope returns the bounding box.
-func (ls *LineString) Envelope() *Envelope {
-	if env := ls.cachedEnvelope(); env != nil {
-		return env.Clone()
-	}
-	env := ls.coords.Envelope()
-	ls.setCachedEnvelope(env)
-	return env.Clone()
+func (ls *LineString) isGeometry()       {}
+func (ls *LineString) Type() Type        { return LineStringType }
+func (ls *LineString) Envelope() Envelope  { return ls.envelope() }
+func (ls *LineString) IsEmpty() bool       { return len(ls.coords) == 0 }
+func (ls *LineString) NumGeometries() int  { return 1 }
+
+// NumPoints returns the number of vertices in the line string.
+func (ls *LineString) NumPoints() int { return ls.numCoords() }
+
+// PointAt returns the i-th vertex projected to XY. Panics on out-of-range
+// i — programmer error, not a runtime failure mode.
+func (ls *LineString) PointAt(i int) XY {
+	stride := ls.stride()
+	off := i * stride
+	return XY{ls.coords[off], ls.coords[off+1]}
 }
 
-// IsEmpty returns true if the linestring has no coordinates.
-func (ls *LineString) IsEmpty() bool {
-	return len(ls.coords) == 0
-}
-
-// IsSimple returns true if the linestring has no self-intersections.
-// This checks all segment pairs for interior intersections.
-func (ls *LineString) IsSimple() bool {
-	if len(ls.coords) <= 3 {
-		return true
-	}
-	return ls.checkSimple()
-}
-
-func (ls *LineString) checkSimple() bool {
-	n := len(ls.coords)
-	if n <= 3 {
-		return true
-	}
-
-	for i := 0; i < n-1; i++ {
-		for j := i + 2; j < n-1; j++ {
-			// Don't check consecutive segments
-			if i == 0 && j == n-2 && ls.IsClosed() {
-				continue
-			}
-			if ls.segmentsIntersect(i, j) {
-				return false
+// CoordsXY returns a range-over-func iterator yielding each vertex as XY.
+// Use:
+//
+//	for p := range ls.CoordsXY() {
+//	    fmt.Println(p.X, p.Y)
+//	}
+func (ls *LineString) CoordsXY() iter.Seq[XY] {
+	stride := ls.stride()
+	coords := ls.coords
+	return func(yield func(XY) bool) {
+		for i := 0; i+1 < len(coords); i += stride {
+			if !yield(XY{coords[i], coords[i+1]}) {
+				return
 			}
 		}
 	}
-	return true
-}
-
-func (ls *LineString) segmentsIntersect(i, j int) bool {
-	p1 := ls.coords[i]
-	p2 := ls.coords[i+1]
-	p3 := ls.coords[j]
-	p4 := ls.coords[j+1]
-
-	info := segmentIntersectionInfo(p1, p2, p3, p4)
-	if !info.intersects {
-		return false
-	}
-	if ls.IsClosed() {
-		return true
-	}
-	if info.proper || info.collinearOverlap {
-		return true
-	}
-	for _, p := range info.points {
-		if !ls.isBoundaryPoint(p) {
-			return true
-		}
-	}
-	// If we couldn't identify an intersection point, treat it as non-simple.
-	return len(info.points) == 0
-}
-
-type segmentIntersection struct {
-	intersects       bool
-	proper           bool
-	collinearOverlap bool
-	points           []Coordinate
-}
-
-func segmentIntersectionInfo(a1, a2, b1, b2 Coordinate) segmentIntersection {
-	o1 := orientation(a1, a2, b1)
-	o2 := orientation(a1, a2, b2)
-	o3 := orientation(b1, b2, a1)
-	o4 := orientation(b1, b2, a2)
-
-	// Proper crossing (interior-interior)
-	if o1 != o2 && o3 != o4 && o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 {
-		return segmentIntersection{intersects: true, proper: true}
-	}
-
-	// Collinear case
-	if o1 == 0 && o2 == 0 && o3 == 0 && o4 == 0 {
-		return collinearIntersectionInfo(a1, a2, b1, b2)
-	}
-
-	info := segmentIntersection{}
-	if o1 == 0 && onSegmentBounds(a1, b1, a2) {
-		info = addIntersectionPoint(info, b1)
-	}
-	if o2 == 0 && onSegmentBounds(a1, b2, a2) {
-		info = addIntersectionPoint(info, b2)
-	}
-	if o3 == 0 && onSegmentBounds(b1, a1, b2) {
-		info = addIntersectionPoint(info, a1)
-	}
-	if o4 == 0 && onSegmentBounds(b1, a2, b2) {
-		info = addIntersectionPoint(info, a2)
-	}
-	if len(info.points) > 0 {
-		info.intersects = true
-	}
-	return info
-}
-
-func collinearIntersectionInfo(a1, a2, b1, b2 Coordinate) segmentIntersection {
-	info := segmentIntersection{}
-
-	onA1 := onSegmentBounds(b1, a1, b2)
-	onA2 := onSegmentBounds(b1, a2, b2)
-	onB1 := onSegmentBounds(a1, b1, a2)
-	onB2 := onSegmentBounds(a1, b2, a2)
-
-	if !onA1 && !onA2 && !onB1 && !onB2 {
-		return info
-	}
-
-	info.intersects = true
-
-	shared := []Coordinate{}
-	shared = addSharedEndpoint(shared, a1, b1)
-	shared = addSharedEndpoint(shared, a1, b2)
-	shared = addSharedEndpoint(shared, a2, b1)
-	shared = addSharedEndpoint(shared, a2, b2)
-
-	overlap := len(shared) >= 2
-	if (onA1 && !isSharedPoint(shared, a1)) ||
-		(onA2 && !isSharedPoint(shared, a2)) ||
-		(onB1 && !isSharedPoint(shared, b1)) ||
-		(onB2 && !isSharedPoint(shared, b2)) {
-		overlap = true
-	}
-
-	if overlap {
-		info.collinearOverlap = true
-		return info
-	}
-
-	for _, p := range shared {
-		info = addIntersectionPoint(info, p)
-	}
-
-	return info
-}
-
-func addSharedEndpoint(shared []Coordinate, a, b Coordinate) []Coordinate {
-	if a.Equals2D(b, DefaultEpsilon) && !isSharedPoint(shared, a) {
-		return append(shared, a.Clone())
-	}
-	return shared
-}
-
-func isSharedPoint(shared []Coordinate, p Coordinate) bool {
-	for _, s := range shared {
-		if s.Equals2D(p, DefaultEpsilon) {
-			return true
-		}
-	}
-	return false
-}
-
-func addIntersectionPoint(info segmentIntersection, p Coordinate) segmentIntersection {
-	for _, existing := range info.points {
-		if existing.Equals2D(p, DefaultEpsilon) {
-			return info
-		}
-	}
-	info.points = append(info.points, p.Clone())
-	return info
-}
-
-func (ls *LineString) isBoundaryPoint(p Coordinate) bool {
-	if ls.IsClosed() || ls.IsEmpty() {
-		return false
-	}
-	return p.Equals2D(ls.coords.First(), DefaultEpsilon) ||
-		p.Equals2D(ls.coords.Last(), DefaultEpsilon)
-}
-
-// IsValid returns true if the linestring is valid.
-// A valid linestring has either 0 or >= 2 points.
-func (ls *LineString) IsValid() bool {
-	return len(ls.coords) == 0 || len(ls.coords) >= 2
-}
-
-// Dimension returns 1 for LineString.
-func (ls *LineString) Dimension() Dimension {
-	return DimensionLine
-}
-
-// Boundary returns the boundary (endpoints for non-closed, empty for closed).
-func (ls *LineString) Boundary() Geometry {
-	if ls.IsEmpty() || ls.IsClosed() {
-		return NewMultiPointEmpty()
-	}
-	points := []*Point{
-		NewPointFromCoordinate(ls.coords.First()),
-		NewPointFromCoordinate(ls.coords.Last()),
-	}
-	return NewMultiPoint(points)
-}
-
-// Coordinates returns the coordinate sequence.
-func (ls *LineString) Coordinates() CoordinateSequence {
-	return ls.coords.Clone()
-}
-
-// ApplyCoordinateFilter applies a coordinate filter to the linestring.
-func (ls *LineString) ApplyCoordinateFilter(filter CoordinateFilter) {
-	if filter == nil {
-		return
-	}
-	for i := range ls.coords {
-		filter.Filter(&ls.coords[i])
-	}
-	ls.invalidateEnvelope()
-}
-
-// NumGeometries returns 1 for LineString.
-func (ls *LineString) NumGeometries() int {
-	return 1
-}
-
-// GeometryN returns the linestring itself (for n=0).
-func (ls *LineString) GeometryN(n int) Geometry {
-	if n != 0 {
-		return nil
-	}
-	return ls
-}
-
-// Clone returns a deep copy.
-func (ls *LineString) Clone() Geometry {
-	clone := NewLineString(ls.coords)
-	clone.srid = ls.srid
-	return clone
-}
-
-// Normalized returns a new linestring in canonical form.
-func (ls *LineString) Normalized() Geometry {
-	if ls.IsEmpty() {
-		return ls.Clone()
-	}
-	clone := ls.Clone().(*LineString)
-	// For non-closed linestrings, ensure first point < last point
-	if !clone.IsClosed() && Compare(NewPointFromCoordinate(clone.coords.First()),
-		NewPointFromCoordinate(clone.coords.Last())) > 0 {
-		clone.coords = clone.coords.Reverse()
-	}
-	return clone
-}
-
-// EqualsExact returns true if the linestrings are exactly equal.
-func (ls *LineString) EqualsExact(other Geometry, tolerance float64) bool {
-	if other == nil {
-		return false
-	}
-	otherLS, ok := other.(*LineString)
-	if !ok {
-		return false
-	}
-	if len(ls.coords) != len(otherLS.coords) {
-		return false
-	}
-	for i, c := range ls.coords {
-		if !c.Equals2D(otherLS.coords[i], tolerance) {
-			return false
-		}
-	}
-	return true
-}
-
-// String returns the WKT representation.
-func (ls *LineString) String() string {
-	if ls.IsEmpty() {
-		return "LINESTRING EMPTY"
-	}
-
-	hasZ := ls.coords.HasZ()
-	hasM := ls.coords.HasM()
-
-	var sb strings.Builder
-	sb.WriteString("LINESTRING ")
-
-	if hasZ && hasM {
-		sb.WriteString("ZM ")
-	} else if hasZ {
-		sb.WriteString("Z ")
-	} else if hasM {
-		sb.WriteString("M ")
-	}
-
-	sb.WriteString("(")
-	for i, c := range ls.coords {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		if hasZ && hasM {
-			sb.WriteString(fmt.Sprintf("%g %g %g %g", c.X, c.Y, c.GetZ(), c.GetM()))
-		} else if hasZ {
-			sb.WriteString(fmt.Sprintf("%g %g %g", c.X, c.Y, c.GetZ()))
-		} else if hasM {
-			sb.WriteString(fmt.Sprintf("%g %g %g", c.X, c.Y, c.GetM()))
-		} else {
-			sb.WriteString(fmt.Sprintf("%g %g", c.X, c.Y))
-		}
-	}
-	sb.WriteString(")")
-	return sb.String()
-}
-
-// NumPoints returns the number of points.
-func (ls *LineString) NumPoints() int {
-	return len(ls.coords)
-}
-
-// PointN returns the nth point (0-indexed).
-func (ls *LineString) PointN(n int) *Point {
-	if n < 0 || n >= len(ls.coords) {
-		return nil
-	}
-	return NewPointFromCoordinate(ls.coords[n])
-}
-
-// StartPoint returns the first point.
-func (ls *LineString) StartPoint() *Point {
-	if ls.IsEmpty() {
-		return nil
-	}
-	return NewPointFromCoordinate(ls.coords.First())
-}
-
-// EndPoint returns the last point.
-func (ls *LineString) EndPoint() *Point {
-	if ls.IsEmpty() {
-		return nil
-	}
-	return NewPointFromCoordinate(ls.coords.Last())
-}
-
-// IsClosed returns true if the first and last points are equal.
-func (ls *LineString) IsClosed() bool {
-	if ls.IsEmpty() {
-		return false
-	}
-	return ls.coords.IsClosed(DefaultEpsilon)
-}
-
-// Length returns the length of the linestring.
-func (ls *LineString) Length() float64 {
-	if len(ls.coords) < 2 {
-		return 0
-	}
-	length := 0.0
-	for i := 1; i < len(ls.coords); i++ {
-		length += ls.coords[i-1].Distance(ls.coords[i])
-	}
-	return length
-}
-
-// Reverse returns a new linestring with reversed coordinate order.
-func (ls *LineString) Reverse() *LineString {
-	reversed := NewLineString(ls.coords.Reverse())
-	reversed.srid = ls.srid
-	return reversed
-}
-
-// Centroid returns the centroid of the linestring.
-func (ls *LineString) Centroid() *Point {
-	if ls.IsEmpty() {
-		return NewPointEmpty()
-	}
-
-	totalLength := 0.0
-	sumX := 0.0
-	sumY := 0.0
-
-	for i := 1; i < len(ls.coords); i++ {
-		p1 := ls.coords[i-1]
-		p2 := ls.coords[i]
-		segLength := p1.Distance(p2)
-		midX := (p1.X + p2.X) / 2
-		midY := (p1.Y + p2.Y) / 2
-		sumX += midX * segLength
-		sumY += midY * segLength
-		totalLength += segLength
-	}
-
-	if totalLength == 0 {
-		return NewPointFromCoordinate(ls.coords[0])
-	}
-
-	return NewPoint(sumX/totalLength, sumY/totalLength)
-}
-
-// ClosestPointOnSegment returns the closest point on segment (a,b) to point p.
-func ClosestPointOnSegment(p, a, b Coordinate) Coordinate {
-	dx := b.X - a.X
-	dy := b.Y - a.Y
-
-	if a.Equals2D(b, DefaultEpsilon) {
-		return a
-	}
-
-	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / (dx*dx + dy*dy)
-	if t < 0 {
-		t = 0
-	} else if t > 1 {
-		t = 1
-	}
-
-	return NewCoordinate(a.X+t*dx, a.Y+t*dy)
 }

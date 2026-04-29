@@ -1,0 +1,67 @@
+# 2026/04/28 21:42:54.819470 [TestIntersectionContainedInBoth] [rapid] draw a_x0: 1
+# 2026/04/28 21:42:54.819491 [TestIntersectionContainedInBoth] [rapid] draw a_y0: -7.275957614183426e-12
+# 2026/04/28 21:42:54.819505 [TestIntersectionContainedInBoth] [rapid] draw a_w: 1
+# 2026/04/28 21:42:54.819517 [TestIntersectionContainedInBoth] [rapid] draw a_h: 7.75
+# 2026/04/28 21:42:54.819530 [TestIntersectionContainedInBoth] [rapid] draw b_x0: 0.5
+# 2026/04/28 21:42:54.819542 [TestIntersectionContainedInBoth] [rapid] draw b_y0: 4.547473508864641e-13
+# 2026/04/28 21:42:54.819550 [TestIntersectionContainedInBoth] [rapid] draw b_w: 1
+# 2026/04/28 21:42:54.819557 [TestIntersectionContainedInBoth] [rapid] draw b_h: 1
+# 2026/04/28 21:42:54.819577 [TestIntersectionContainedInBoth] area(A∩B)=7.75 > min(A,B)=1
+# 
+v0.4.8#17162959086826732581
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0x10000000000000
+0xde5ec9beb6be4
+0x24
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x38e38e38e38e4
+0x2
+0x3
+0x2
+0x3000000000000
+0x0
+0x10000000000000
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0xde5ec9beb6be4
+0x28
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

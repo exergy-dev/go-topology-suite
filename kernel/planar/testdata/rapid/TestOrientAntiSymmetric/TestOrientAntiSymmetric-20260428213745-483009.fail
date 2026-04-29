@@ -1,0 +1,51 @@
+# 2026/04/28 21:37:45.648635 [TestOrientAntiSymmetric] [rapid] draw x: 3.851859888774472e-34
+# 2026/04/28 21:37:45.648675 [TestOrientAntiSymmetric] [rapid] draw y: 3.851859888774472e-34
+# 2026/04/28 21:37:45.648687 [TestOrientAntiSymmetric] [rapid] draw x: 4.81482486096809e-35
+# 2026/04/28 21:37:45.648701 [TestOrientAntiSymmetric] [rapid] draw y: 2.407412430484045e-35
+# 2026/04/28 21:37:45.648709 [TestOrientAntiSymmetric] [rapid] draw x: 1
+# 2026/04/28 21:37:45.648718 [TestOrientAntiSymmetric] [rapid] draw y: 1
+# 2026/04/28 21:37:45.648733 [TestOrientAntiSymmetric] Orient not antisymmetric: CCW vs Collinear (a={3.851859888774472e-34 3.851859888774472e-34} b={4.81482486096809e-35 2.407412430484045e-35} c={1 1})
+# 
+v0.4.8#17854487605884043555
+0x0
+0x10000000000000
+0xfd8fa83405865
+0x6e
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0xfd8fa83405865
+0x6e
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0xfd8fa83405865
+0x71
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0xfd8fa83405865
+0x72
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

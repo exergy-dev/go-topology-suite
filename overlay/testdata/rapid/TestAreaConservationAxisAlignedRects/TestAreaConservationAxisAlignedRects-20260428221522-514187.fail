@@ -1,0 +1,67 @@
+# 2026/04/28 22:15:22.344390 [TestAreaConservationAxisAlignedRects] [rapid] draw a_x0: 1
+# 2026/04/28 22:15:22.344408 [TestAreaConservationAxisAlignedRects] [rapid] draw a_y0: 1
+# 2026/04/28 22:15:22.344419 [TestAreaConservationAxisAlignedRects] [rapid] draw a_w: 1
+# 2026/04/28 22:15:22.344428 [TestAreaConservationAxisAlignedRects] [rapid] draw a_h: 1
+# 2026/04/28 22:15:22.344434 [TestAreaConservationAxisAlignedRects] [rapid] draw b_x0: 2.9802322387695312e-08
+# 2026/04/28 22:15:22.344444 [TestAreaConservationAxisAlignedRects] [rapid] draw b_y0: 0.5
+# 2026/04/28 22:15:22.344450 [TestAreaConservationAxisAlignedRects] [rapid] draw b_w: 1
+# 2026/04/28 22:15:22.344459 [TestAreaConservationAxisAlignedRects] [rapid] draw b_h: 1
+# 2026/04/28 22:15:22.344549 [TestAreaConservationAxisAlignedRects] inclusion-exclusion violated: U+I = 2.999999985098839, A+B = 2 (tol 0.02)
+# 
+v0.4.8#10793720768377661401
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0xbb6a3a5e8f016
+0x18
+0x0
+0x0
+0x0
+0x0
+0x10000000000000
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

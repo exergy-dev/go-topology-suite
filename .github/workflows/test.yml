@@ -1,277 +1,66 @@
-name: Production Gates
+name: Terra CI
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, terra]
     tags: ["v*"]
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, terra]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-env:
-  GO_VERSION: "1.25.3"
-
 jobs:
   test:
-    name: Test and Vet (${{ matrix.module.name }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }} / Go ${{ matrix.go }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - name: root
-            path: .
-          - name: v2
-            path: v2
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ["1.23", "stable"]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: "go.sum"
 
-      - name: Download dependencies
-        working-directory: ${{ matrix.module.path }}
-        run: go mod download
-
-      - name: Verify dependencies
-        working-directory: ${{ matrix.module.path }}
-        run: go mod verify
-
-      - name: Run go vet
-        working-directory: ${{ matrix.module.path }}
+      - name: go vet
         run: go vet ./...
 
-      - name: Run tests
-        working-directory: ${{ matrix.module.path }}
-        run: go test -v ./...
+      - name: go test
+        run: go test ./...
 
-  race:
-    name: Race (${{ matrix.module.name }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        module:
-          - name: root
-            path: .
-          - name: v2
-            path: v2
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
-
-      - name: Run race tests
-        working-directory: ${{ matrix.module.path }}
+      - name: go test -race
         run: go test -race ./...
 
-  coverage:
-    name: Coverage Gate (${{ matrix.target.name }})
+  build:
+    name: Build + tidy
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - name: geom
-            package: ./geom
-            threshold: "60.0"
-          - name: overlay
-            package: ./operation/overlay
-            threshold: "70.0"
-          - name: buffer
-            package: ./operation/buffer
-            threshold: "80.0"
-          - name: relate
-            package: ./operation/relate
-            threshold: "65.0"
-          - name: wkt
-            package: ./io/wkt
-            threshold: "70.0"
-          - name: wkb
-            package: ./io/wkb
-            threshold: "70.0"
-          - name: geojson
-            package: ./io/geojson
-            threshold: "75.0"
-          - name: kml
-            package: ./io/kml
-            threshold: "75.0"
-          - name: shapefile
-            package: ./io/shapefile
-            threshold: "75.0"
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
-
-      - name: Run package coverage
-        run: go test -covermode=atomic -coverprofile=coverage-${{ matrix.target.name }}.out ${{ matrix.target.package }}
-
-      - name: Enforce package coverage threshold
-        run: |
-          coverage=$(go tool cover -func=coverage-${{ matrix.target.name }}.out | awk '/^total:/ { sub(/%/, "", $3); print $3 }')
-          threshold="${{ matrix.target.threshold }}"
-
-          {
-            echo "### Coverage Gate: ${{ matrix.target.package }}"
-            echo
-            echo "| Package | Coverage | Threshold |"
-            echo "| --- | ---: | ---: |"
-            echo "| \`${{ matrix.target.package }}\` | ${coverage}% | ${threshold}% |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          awk -v coverage="$coverage" -v threshold="$threshold" 'BEGIN {
-            if (coverage + 0 < threshold + 0) {
-              printf "coverage %.1f%% is below threshold %.1f%%\n", coverage, threshold
-              exit 1
-            }
-          }'
-
-      - name: Upload coverage profile
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-high-risk-${{ matrix.target.name }}
-          path: coverage-${{ matrix.target.name }}.out
-          if-no-files-found: error
+          go-version: stable
+      - run: go build ./...
+      - run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
 
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
-
-      - name: Run golangci-lint
+          go-version: stable
+      - uses: golangci/golangci-lint-action@v7
         if: ${{ hashFiles('.golangci.yml') != '' }}
-        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.4.0
           args: --timeout=5m
-
-  fuzz-smoke:
-    name: Fuzz Smoke (${{ matrix.target.name }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - name: buffer
-            package: ./operation/buffer
-            fuzz: FuzzBufferPoint
-          - name: overlay
-            package: ./operation/overlay
-            fuzz: FuzzIntersectionPolygons
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
-
-      - name: Run bounded fuzz smoke
-        run: go test -run '^$' -fuzz '^${{ matrix.target.fuzz }}$' -fuzztime=10s ${{ matrix.target.package }}
-
-  benchmark-smoke:
-    name: Benchmark Smoke (${{ matrix.target.name }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - name: point-in-polygon
-            package: ./geom
-            bench: BenchmarkContainsPointInPolygon
-          - name: noding
-            package: ./internal/topology
-            bench: BenchmarkNodeLineSetsGrid
-          - name: overlay
-            package: ./operation/overlay
-            bench: BenchmarkIntersectionPolygonPolygon
-          - name: buffer
-            package: ./operation/buffer
-            bench: BenchmarkBufferPoint
-          - name: wkt
-            package: ./io/wkt
-            bench: BenchmarkMarshalPolygon
-          - name: wkb
-            package: ./io/wkb
-            bench: BenchmarkMarshalPolygon
-          - name: strtree
-            package: ./index/strtree
-            bench: BenchmarkQuery
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
-
-      - name: Run benchmark smoke
-        run: go test -run '^$' -bench '^${{ matrix.target.bench }}$' -benchtime=100ms -count=1 ${{ matrix.target.package }}
-
-  build:
-    name: Build and Tidy Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: "**/go.sum"
-
-      - name: Build root module
-        run: go build ./...
-
-      - name: Check root module tidiness
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
-
-      - name: Build v2 module
-        working-directory: v2
-        run: go build ./...
-
-      - name: Check v2 module tidiness
-        working-directory: v2
-        run: |
-          go mod tidy
-          git diff --exit-code go.mod go.sum
