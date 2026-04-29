@@ -2,28 +2,13 @@ package overlay
 
 import (
 	"fmt"
-	"sync"
 
 	terra "github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/internal/xybuf"
 	"github.com/terra-geo/terra/kernel/planar"
 )
-
-// shScratchPool reuses []geom.XY scratch buffers for sutherlandHodgman's
-// inner snapshot of the working ring. The output ring is returned to the
-// caller and cannot be pooled, but the per-clip-edge "input" snapshot is
-// fully consumed inside the loop and is the dominant scratch alloc.
-var shScratchPool = sync.Pool{
-	New: func() any {
-		buf := make([]geom.XY, 0, 64)
-		return &buf
-	},
-}
-
-// shMaxScratchCap caps pooled scratch capacity to prevent a single
-// pathological huge polygon from pinning a large buffer in steady state.
-const shMaxScratchCap = 8192
 
 // Intersection returns subject ∩ clipper.
 //
@@ -52,11 +37,11 @@ func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
 	}
 	// Convex fast-path.
 	if clip.NumRings() == 1 {
-		clipRingP := shScratchPool.Get().(*[]geom.XY)
+		clipRingP := xybuf.Borrow()
 		clipRing := clip.RingInto((*clipRingP)[:0], 0)
 		*clipRingP = clipRing
 		if isConvexCCW(clipRing) {
-			subjRingP := shScratchPool.Get().(*[]geom.XY)
+			subjRingP := xybuf.Borrow()
 			rings := make([][]geom.XY, 0, subj.NumRings())
 			for r := 0; r < subj.NumRings(); r++ {
 				subjRing := subj.RingInto((*subjRingP)[:0], r)
@@ -66,31 +51,19 @@ func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
 					rings = append(rings, clipped)
 				}
 			}
-			releaseSHScratch(subjRingP)
-			releaseSHScratch(clipRingP)
+			xybuf.Release(subjRingP)
+			xybuf.Release(clipRingP)
 			if len(rings) == 0 {
 				return geom.NewEmptyPolygon(subject.CRS(), geom.LayoutXY), nil
 			}
 			return geom.NewPolygon(subject.CRS(), rings...), nil
 		}
-		releaseSHScratch(clipRingP)
+		xybuf.Release(clipRingP)
 	}
 	// General path: Greiner-Hormann.
 	return IntersectionGeneral(subject, clipper)
 }
 
-// releaseSHScratch returns a borrowed scratch buffer to the pool, capping
-// retained capacity to bound steady-state memory.
-func releaseSHScratch(p *[]geom.XY) {
-	if p == nil {
-		return
-	}
-	if cap(*p) > shMaxScratchCap {
-		return
-	}
-	*p = (*p)[:0]
-	shScratchPool.Put(p)
-}
 
 // isConvexCCW returns true iff the ring is convex and counter-clockwise.
 // Convex iff every consecutive triple has the same chirality (CCW).
@@ -132,8 +105,8 @@ func sutherlandHodgman(subject, clip []geom.XY) []geom.XY {
 	if len(output) > 0 && output[0] == output[len(output)-1] {
 		output = output[:len(output)-1]
 	}
-	scratchP := shScratchPool.Get().(*[]geom.XY)
-	defer releaseSHScratch(scratchP)
+	scratchP := xybuf.Borrow()
+	defer xybuf.Release(scratchP)
 	for i := 0; i+1 < len(clip); i++ {
 		if len(output) == 0 {
 			return nil
