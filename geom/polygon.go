@@ -58,7 +58,25 @@ func (p *Polygon) NumRings() int { return len(p.ringStarts) }
 // XY slice. The slice is freshly allocated; callers may mutate it without
 // affecting the polygon.
 func (p *Polygon) Ring(i int) []XY {
+	return p.RingInto(nil, i)
+}
+
+// RingInto appends the i-th ring (0 = exterior shell, 1..n = holes) into
+// the provided buffer (truncated to length zero before appending) and
+// returns the result. Pass a nil buffer to allocate a fresh slice.
+//
+// The append-in-place pattern lets hot loops reuse a pooled scratch
+// buffer across calls — typical use:
+//
+//	buf = poly.RingInto(buf[:0], 0)
+//
+// The returned slice is owned by the caller; mutating it does not affect
+// the polygon.
+func (p *Polygon) RingInto(buf []XY, i int) []XY {
 	if i < 0 || i >= len(p.ringStarts) {
+		if buf != nil {
+			return buf[:0]
+		}
 		return nil
 	}
 	stride := p.stride()
@@ -67,12 +85,49 @@ func (p *Polygon) Ring(i int) []XY {
 	if i+1 < len(p.ringStarts) {
 		endVertex = p.ringStarts[i+1]
 	}
-	out := make([]XY, 0, endVertex-startVertex)
+	n := endVertex - startVertex
+	out := buf[:0]
+	if cap(out) < n {
+		out = make([]XY, 0, n)
+	}
 	for v := startVertex; v < endVertex; v++ {
 		off := v * stride
 		out = append(out, XY{p.coords[off], p.coords[off+1]})
 	}
 	return out
+}
+
+// RingLen returns the number of vertices in the i-th ring (including the
+// closing duplicate).
+func (p *Polygon) RingLen(i int) int {
+	if i < 0 || i >= len(p.ringStarts) {
+		return 0
+	}
+	startVertex := p.ringStarts[i]
+	endVertex := p.numCoords()
+	if i+1 < len(p.ringStarts) {
+		endVertex = p.ringStarts[i+1]
+	}
+	return endVertex - startVertex
+}
+
+// RingVertex returns the j-th vertex of the i-th ring without
+// allocating. Useful for hot loops that don't need a slice copy.
+func (p *Polygon) RingVertex(i, j int) XY {
+	if i < 0 || i >= len(p.ringStarts) {
+		return XY{}
+	}
+	startVertex := p.ringStarts[i]
+	endVertex := p.numCoords()
+	if i+1 < len(p.ringStarts) {
+		endVertex = p.ringStarts[i+1]
+	}
+	if j < 0 || j >= endVertex-startVertex {
+		return XY{}
+	}
+	stride := p.stride()
+	off := (startVertex + j) * stride
+	return XY{p.coords[off], p.coords[off+1]}
 }
 
 // ExteriorRing returns the outer shell as XY.

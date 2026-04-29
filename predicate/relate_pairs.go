@@ -338,8 +338,11 @@ func relateLinePolygon(ls *geom.LineString, poly *geom.Polygon, k kernel.Kernel)
 	// 0-D intersections in II/IB/BB/BI according to whether the crossing
 	// lies on the line's boundary endpoints.
 	lsBoundary := lineBoundary(ls)
+	ringBufP := borrowRingBuf()
+	defer releaseRingBuf(ringBufP)
 	for r := 0; r < poly.NumRings(); r++ {
-		ring := poly.Ring(r)
+		ring := poly.RingInto((*ringBufP)[:0], r)
+		*ringBufP = ring
 		for j := 0; j+1 < len(ring); j++ {
 			b1, b2 := ring[j], ring[j+1]
 			for i := 0; i+1 < ls.NumPoints(); i++ {
@@ -441,10 +444,16 @@ func relatePolygonPolygon(a, b *geom.Polygon, k kernel.Kernel) matrix {
 	// polygon's boundary has parts on both sides of the other).
 	hasShared := false
 	hasProperX := false
+	bufA := borrowRingBuf()
+	defer releaseRingBuf(bufA)
+	bufB := borrowRingBuf()
+	defer releaseRingBuf(bufB)
 	for ra := 0; ra < a.NumRings(); ra++ {
-		ringA := a.Ring(ra)
+		ringA := a.RingInto((*bufA)[:0], ra)
+		*bufA = ringA
 		for rb := 0; rb < b.NumRings(); rb++ {
-			ringB := b.Ring(rb)
+			ringB := b.RingInto((*bufB)[:0], rb)
+			*bufB = ringB
 			for i := 0; i+1 < len(ringA); i++ {
 				a1, a2 := ringA[i], ringA[i+1]
 				for j := 0; j+1 < len(ringB); j++ {
@@ -502,8 +511,11 @@ func relatePolygonPolygon(a, b *geom.Polygon, k kernel.Kernel) matrix {
 // classifyVerticesAgainst counts vertices of a strictly inside, on
 // boundary of, and strictly outside polygon b.
 func classifyVerticesAgainst(a, b *geom.Polygon, k kernel.Kernel) (in, on, out int) {
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
 	for r := 0; r < a.NumRings(); r++ {
-		ring := a.Ring(r)
+		ring := a.RingInto((*bufp)[:0], r)
+		*bufp = ring
 		for i := 0; i+1 < len(ring); i++ { // skip closing duplicate
 			switch pointInPolygon(ring[i], b, k) {
 			case kernel.Inside:
@@ -521,8 +533,11 @@ func classifyVerticesAgainst(a, b *geom.Polygon, k kernel.Kernel) (in, on, out i
 // polygonContainsAllVertices reports whether every vertex of inner is
 // inside or on the boundary of outer.
 func polygonContainsAllVertices(outer, inner *geom.Polygon, k kernel.Kernel) bool {
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
 	for r := 0; r < inner.NumRings(); r++ {
-		ring := inner.Ring(r)
+		ring := inner.RingInto((*bufp)[:0], r)
+		*bufp = ring
 		for _, p := range ring {
 			if pointInPolygon(p, outer, k) == kernel.Outside {
 				return false
@@ -541,10 +556,13 @@ func samplePoint(p *geom.Polygon) geom.XY {
 	if p.NumRings() == 0 {
 		return geom.XY{}
 	}
-	ring := p.Ring(0)
-	if len(ring) < 2 {
+	if p.RingLen(0) < 2 {
 		return geom.XY{}
 	}
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
+	ring := p.RingInto((*bufp)[:0], 0)
+	*bufp = ring
 	a, b := ring[0], ring[1]
 	mx, my := (a.X+b.X)/2, (a.Y+b.Y)/2
 	dx, dy := b.X-a.X, b.Y-a.Y

@@ -89,7 +89,17 @@ func (p *Point) M() float64 {
 
 func (p *Point) isGeometry()      {}
 func (p *Point) Type() Type       { return PointType }
-func (p *Point) Envelope() Envelope { return p.envelope() }
+
+// Envelope for a Point is the degenerate envelope at its coordinate.
+// Computed inline (no atomic-pointer cache allocation) — for a single
+// coordinate the cost is trivial and the alloc cost dominates the math.
+func (p *Point) Envelope() Envelope {
+	if p.IsEmpty() {
+		return EmptyEnvelope()
+	}
+	x, y := p.coords[0], p.coords[1]
+	return Envelope{MinX: x, MaxX: x, MinY: y, MaxY: y}
+}
 func (p *Point) IsEmpty() bool      { return len(p.coords) == 0 }
 func (p *Point) NumGeometries() int { return 1 }
 

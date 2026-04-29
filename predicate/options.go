@@ -8,7 +8,18 @@ import (
 )
 
 // Option configures a predicate call.
-type Option func(*config)
+//
+// An Option is a value type carrying a kernel choice and/or a prepared
+// handle. Callers construct Options via WithKernel / WithPrepared.
+//
+// The historic shape (a closure) caused config to escape to the heap on
+// every predicate call that used options; the value-type representation
+// keeps the per-call config struct on the stack.
+type Option struct {
+	kernel    kernel.Kernel
+	kernelSet bool
+	prepared  preparedHandle
+}
 
 type config struct {
 	kernel    kernel.Kernel
@@ -28,7 +39,7 @@ type preparedHandle interface {
 // kernel is chosen based on the operands' CRS: geographic → spherical,
 // projected (or no CRS) → planar.
 func WithKernel(k kernel.Kernel) Option {
-	return func(c *config) { c.kernel = k; c.kernelSet = true }
+	return Option{kernel: k, kernelSet: true}
 }
 
 // WithPrepared attaches a pre-computed acceleration structure for `a`,
@@ -48,15 +59,27 @@ func WithKernel(k kernel.Kernel) Option {
 // The handle interface is intentionally narrow so the predicate package
 // doesn't import the prepare package (which itself uses index/predicate).
 func WithPrepared(h preparedHandle) Option {
-	return func(c *config) { c.prepared = h }
+	return Option{prepared: h}
 }
 
 // resolve chooses a kernel given the operands. If the user explicitly
 // passed WithKernel, that wins; otherwise we route by CRS kind.
+//
+// Fast path: when no options are passed (the by-far common case in hot
+// loops) the config stays on the stack.
 func resolve(g geom.Geometry, opts []Option) config {
+	if len(opts) == 0 {
+		return config{kernel: defaultKernelFor(g)}
+	}
 	c := config{}
-	for _, opt := range opts {
-		opt(&c)
+	for _, o := range opts {
+		if o.kernelSet {
+			c.kernel = o.kernel
+			c.kernelSet = true
+		}
+		if o.prepared != nil {
+			c.prepared = o.prepared
+		}
 	}
 	if !c.kernelSet {
 		c.kernel = defaultKernelFor(g)

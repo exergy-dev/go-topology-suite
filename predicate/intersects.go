@@ -182,8 +182,11 @@ func lineRingsIntersect(ls *geom.LineString, p *geom.Polygon, k kernel.Kernel) b
 			return true
 		}
 	}
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
 	for r := 0; r < p.NumRings(); r++ {
-		ring := p.Ring(r)
+		ring := p.RingInto((*bufp)[:0], r)
+		*bufp = ring
 		for i := 0; i+1 < n; i++ {
 			a1, a2 := ls.PointAt(i), ls.PointAt(i+1)
 			for j := 0; j+1 < len(ring); j++ {
@@ -198,8 +201,14 @@ func lineRingsIntersect(ls *geom.LineString, p *geom.Polygon, k kernel.Kernel) b
 
 func polygonPolygonIntersects(a, b *geom.Polygon, k kernel.Kernel) bool {
 	// Quick: any vertex of a inside b, or vice versa, or any edge crossing.
+	bufA := borrowRingBuf()
+	defer releaseRingBuf(bufA)
+	bufB := borrowRingBuf()
+	defer releaseRingBuf(bufB)
+
 	for r := 0; r < a.NumRings(); r++ {
-		ring := a.Ring(r)
+		ring := a.RingInto((*bufA)[:0], r)
+		*bufA = ring
 		for _, v := range ring {
 			if pointInPolygon(v, b, k) != kernel.Outside {
 				return true
@@ -207,7 +216,8 @@ func polygonPolygonIntersects(a, b *geom.Polygon, k kernel.Kernel) bool {
 		}
 	}
 	for r := 0; r < b.NumRings(); r++ {
-		ring := b.Ring(r)
+		ring := b.RingInto((*bufB)[:0], r)
+		*bufB = ring
 		for _, v := range ring {
 			if pointInPolygon(v, a, k) != kernel.Outside {
 				return true
@@ -215,9 +225,11 @@ func polygonPolygonIntersects(a, b *geom.Polygon, k kernel.Kernel) bool {
 		}
 	}
 	for ra := 0; ra < a.NumRings(); ra++ {
-		ringA := a.Ring(ra)
+		ringA := a.RingInto((*bufA)[:0], ra)
+		*bufA = ringA
 		for rb := 0; rb < b.NumRings(); rb++ {
-			ringB := b.Ring(rb)
+			ringB := b.RingInto((*bufB)[:0], rb)
+			*bufB = ringB
 			for i := 0; i+1 < len(ringA); i++ {
 				for j := 0; j+1 < len(ringB); j++ {
 					if _, ok := k.SegmentIntersection(ringA[i], ringA[i+1], ringB[j], ringB[j+1]); ok {
@@ -231,17 +243,24 @@ func polygonPolygonIntersects(a, b *geom.Polygon, k kernel.Kernel) bool {
 }
 
 // pointInPolygon: outer ring contains, then no hole strictly contains.
+// Borrows a pooled scratch buffer for ring snapshots so the hot
+// PIP-many-points loop stays alloc-free.
 func pointInPolygon(p geom.XY, poly *geom.Polygon, k kernel.Kernel) kernel.Containment {
 	if poly.NumRings() == 0 {
 		return kernel.Outside
 	}
-	outer := poly.Ring(0)
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
+	outer := poly.RingInto((*bufp)[:0], 0)
+	*bufp = outer
 	c := k.PointInRing(p, outer)
 	if c == kernel.Outside {
 		return kernel.Outside
 	}
 	for r := 1; r < poly.NumRings(); r++ {
-		hc := k.PointInRing(p, poly.Ring(r))
+		ring := poly.RingInto((*bufp)[:0], r)
+		*bufp = ring
+		hc := k.PointInRing(p, ring)
 		if hc == kernel.Inside {
 			return kernel.Outside
 		}

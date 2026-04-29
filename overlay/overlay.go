@@ -2,12 +2,28 @@ package overlay
 
 import (
 	"fmt"
+	"sync"
 
 	terra "github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel/planar"
 )
+
+// shScratchPool reuses []geom.XY scratch buffers for sutherlandHodgman's
+// inner snapshot of the working ring. The output ring is returned to the
+// caller and cannot be pooled, but the per-clip-edge "input" snapshot is
+// fully consumed inside the loop and is the dominant scratch alloc.
+var shScratchPool = sync.Pool{
+	New: func() any {
+		buf := make([]geom.XY, 0, 64)
+		return &buf
+	},
+}
+
+// shMaxScratchCap caps pooled scratch capacity to prevent a single
+// pathological huge polygon from pinning a large buffer in steady state.
+const shMaxScratchCap = 8192
 
 // Intersection returns subject ∩ clipper.
 //
@@ -35,22 +51,45 @@ func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
 			clipper, terra.ErrUnsupportedKernel)
 	}
 	// Convex fast-path.
-	if clip.NumRings() == 1 && isConvexCCW(clip.Ring(0)) {
-		clipRing := clip.Ring(0)
-		rings := make([][]geom.XY, 0, subj.NumRings())
-		for r := 0; r < subj.NumRings(); r++ {
-			clipped := sutherlandHodgman(subj.Ring(r), clipRing)
-			if len(clipped) >= 4 {
-				rings = append(rings, clipped)
+	if clip.NumRings() == 1 {
+		clipRingP := shScratchPool.Get().(*[]geom.XY)
+		clipRing := clip.RingInto((*clipRingP)[:0], 0)
+		*clipRingP = clipRing
+		if isConvexCCW(clipRing) {
+			subjRingP := shScratchPool.Get().(*[]geom.XY)
+			rings := make([][]geom.XY, 0, subj.NumRings())
+			for r := 0; r < subj.NumRings(); r++ {
+				subjRing := subj.RingInto((*subjRingP)[:0], r)
+				*subjRingP = subjRing
+				clipped := sutherlandHodgman(subjRing, clipRing)
+				if len(clipped) >= 4 {
+					rings = append(rings, clipped)
+				}
 			}
+			releaseSHScratch(subjRingP)
+			releaseSHScratch(clipRingP)
+			if len(rings) == 0 {
+				return geom.NewEmptyPolygon(subject.CRS(), geom.LayoutXY), nil
+			}
+			return geom.NewPolygon(subject.CRS(), rings...), nil
 		}
-		if len(rings) == 0 {
-			return geom.NewEmptyPolygon(subject.CRS(), geom.LayoutXY), nil
-		}
-		return geom.NewPolygon(subject.CRS(), rings...), nil
+		releaseSHScratch(clipRingP)
 	}
 	// General path: Greiner-Hormann.
 	return IntersectionGeneral(subject, clipper)
+}
+
+// releaseSHScratch returns a borrowed scratch buffer to the pool, capping
+// retained capacity to bound steady-state memory.
+func releaseSHScratch(p *[]geom.XY) {
+	if p == nil {
+		return
+	}
+	if cap(*p) > shMaxScratchCap {
+		return
+	}
+	*p = (*p)[:0]
+	shScratchPool.Put(p)
 }
 
 // isConvexCCW returns true iff the ring is convex and counter-clockwise.
@@ -83,19 +122,32 @@ func isConvexCCW(ring []geom.XY) bool {
 // returning the intersection ring. The standard textbook algorithm: clip
 // the subject one edge of the clipper at a time, keeping/cutting points
 // based on which side they fall on relative to the (infinite) clip edge.
+//
+// The per-clip-edge "input" snapshot buffer is pooled — that buffer
+// is fully consumed inside the loop and never escapes, so reusing it
+// across calls is safe. The returned `output` ring DOES escape and is
+// allocated fresh.
 func sutherlandHodgman(subject, clip []geom.XY) []geom.XY {
 	output := append([]geom.XY(nil), subject...)
 	if len(output) > 0 && output[0] == output[len(output)-1] {
 		output = output[:len(output)-1]
 	}
+	scratchP := shScratchPool.Get().(*[]geom.XY)
+	defer releaseSHScratch(scratchP)
 	for i := 0; i+1 < len(clip); i++ {
 		if len(output) == 0 {
 			return nil
 		}
 		ce1, ce2 := clip[i], clip[i+1]
-		// Snapshot input — output's backing storage will be reused for the
-		// new ring, so we must not let `input` alias future writes.
-		input := append([]geom.XY(nil), output...)
+		// Snapshot input via pooled scratch — output's backing storage will
+		// be reused for the new ring, so we must not let `input` alias
+		// future writes.
+		input := (*scratchP)[:0]
+		if cap(input) < len(output) {
+			input = make([]geom.XY, 0, len(output))
+		}
+		input = append(input, output...)
+		*scratchP = input
 		output = output[:0]
 		if len(input) == 0 {
 			break
