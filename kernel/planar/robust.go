@@ -1,7 +1,9 @@
 package planar
 
 import (
+	"math"
 	"math/big"
+	"sync"
 
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
@@ -54,8 +56,77 @@ func adaptiveOrient(a, b, c geom.XY) kernel.Orientation {
 	}
 
 	// Filter fail: inputs are too near collinear for float64 to decide
-	// the sign safely. Recompute exactly.
-	return exactOrient(a, b, c)
+	// the sign safely. The math/big recomputation is expensive — try the
+	// memoization cache first. The cache is consulted ONLY here so that
+	// well-conditioned inputs (the hot path) pay zero overhead.
+	key := orientKey{
+		ax: math.Float64bits(a.X), ay: math.Float64bits(a.Y),
+		bx: math.Float64bits(b.X), by: math.Float64bits(b.Y),
+		cx: math.Float64bits(c.X), cy: math.Float64bits(c.Y),
+	}
+	if o, ok := orientCache.lookup(key); ok {
+		return o
+	}
+	o := exactOrient(a, b, c)
+	orientCache.store(key, o)
+	return o
+}
+
+// orientKey is the bit-pattern key for the adaptive-orient memoization
+// cache. Using math.Float64bits instead of the raw float values gives a
+// strict-equality comparison (NaN==NaN, +0==-0 distinguished) which is
+// what we want: the cached result is the exact predicate output for a
+// specific bit pattern, nothing more.
+type orientKey struct {
+	ax, ay, bx, by, cx, cy uint64
+}
+
+// orientCacheCap bounds the cache at 1024 entries. The eviction strategy
+// is round-robin: when full, the next insert overwrites the slot pointed
+// to by `next`, which advances modulo the capacity. This avoids the bookkeeping
+// of a true LRU while still preventing unbounded growth on adversarial inputs.
+const orientCacheCap = 1024
+
+type orientCacheT struct {
+	mu sync.RWMutex
+	// entries maps key → orientation. Capped at orientCacheCap.
+	entries map[orientKey]kernel.Orientation
+	// order records insertion order so eviction can find the oldest slot.
+	// Round-robin: advance `next` and drop entries[order[next]].
+	order [orientCacheCap]orientKey
+	next  int
+	full  bool
+}
+
+var orientCache = &orientCacheT{
+	entries: make(map[orientKey]kernel.Orientation, orientCacheCap),
+}
+
+func (c *orientCacheT) lookup(k orientKey) (kernel.Orientation, bool) {
+	c.mu.RLock()
+	o, ok := c.entries[k]
+	c.mu.RUnlock()
+	return o, ok
+}
+
+func (c *orientCacheT) store(k orientKey, o kernel.Orientation) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// Re-check inside the write lock; another goroutine may have raced us.
+	if _, ok := c.entries[k]; ok {
+		return
+	}
+	if c.full {
+		// Evict the slot we're about to overwrite.
+		delete(c.entries, c.order[c.next])
+	}
+	c.order[c.next] = k
+	c.entries[k] = o
+	c.next++
+	if c.next >= orientCacheCap {
+		c.next = 0
+		c.full = true
+	}
 }
 
 func signToOrientation(v float64) kernel.Orientation {
