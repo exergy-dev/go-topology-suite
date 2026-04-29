@@ -88,7 +88,7 @@ func overlayCore(c *crs.CRS, subjRings, clipRings [][]geom.XY, op Op) (*geom.Pol
 			Tag:    2,
 		})
 	}
-	noded := noding.SimpleNoder{}.Node(segs)
+	noded := nodeAdaptive(segs)
 	taggedSegs := flattenNoded(noded)
 	d := buildDCEL(taggedSegs)
 	d.traceFaces()

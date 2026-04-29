@@ -1,0 +1,102 @@
+package overlayng
+
+import (
+	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/index"
+	"github.com/terra-geo/terra/internal/noding"
+)
+
+// indexThreshold is the total-segment count at and above which we route
+// the noding stage through the R-tree-backed IndexedNoder. Below it the
+// brute-force SimpleNoder is competitive (no index build cost) and we
+// stick with the simpler path.
+//
+// 64 was chosen empirically: at that point the indexed path's bulk-load
+// cost has been amortised; below it SimpleNoder is faster. Adjust by
+// re-running BenchmarkIndexedNoder vs BenchmarkSimpleNoder in
+// index_bench_test.go.
+const indexThreshold = 64
+
+// segIdxItem is the payload stored in the per-overlay R-tree of segment
+// envelopes. We keep it pointer-free so the leaves stay compact: an
+// (input-string-index, segment-index) pair plus a one-byte source tag
+// (subj=1, clip=2). The actual segment endpoints are recovered from the
+// SegmentString slice by indexing back through stringIdx/segmentIdx.
+type segIdxItem struct {
+	stringIdx  int32
+	segmentIdx int32
+	tag        uint8
+	_pad       [3]byte // explicit padding so the struct is 12 bytes flat
+}
+
+// segmentRTree wraps index.RTree[segIdxItem] so callers don't have to
+// instantiate the generic at every use-site.
+type segmentRTree = index.RTree[segIdxItem]
+
+// buildSegmentIndex bulk-loads every segment of every input string into
+// an R-tree. It is exported (within the package) for use by the overlay
+// noding stage and by benchmarks measuring the index-build cost.
+func buildSegmentIndex(strings []*noding.SegmentString) *segmentRTree {
+	total := 0
+	for _, ss := range strings {
+		total += ss.NumSegments()
+	}
+	items := make([]index.Item[segIdxItem], 0, total)
+	for i, ss := range strings {
+		n := ss.NumSegments()
+		for j := 0; j < n; j++ {
+			a, b := ss.Segment(j)
+			items = append(items, index.Item[segIdxItem]{
+				Env: segEnv(a, b),
+				Value: segIdxItem{
+					stringIdx:  int32(i),
+					segmentIdx: int32(j),
+					tag:        uint8(ss.Tag),
+				},
+			})
+		}
+	}
+	t := index.New[segIdxItem]()
+	t.Bulk(items)
+	return t
+}
+
+// segEnv is the per-segment envelope used for both index loading and
+// candidate queries — must produce the same envelope on both paths so
+// boundary cases (segments meeting at a corner) are handled identically.
+func segEnv(a, b geom.XY) geom.Envelope {
+	env := geom.Envelope{}
+	if a.X < b.X {
+		env.MinX, env.MaxX = a.X, b.X
+	} else {
+		env.MinX, env.MaxX = b.X, a.X
+	}
+	if a.Y < b.Y {
+		env.MinY, env.MaxY = a.Y, b.Y
+	} else {
+		env.MinY, env.MaxY = b.Y, a.Y
+	}
+	return env
+}
+
+// totalSegments returns the sum of NumSegments across the input slice —
+// used to decide whether the index-backed path is worth its build cost.
+func totalSegments(strings []*noding.SegmentString) int {
+	total := 0
+	for _, ss := range strings {
+		total += ss.NumSegments()
+	}
+	return total
+}
+
+// nodeAdaptive picks the best noder for the input size: the
+// brute-force SimpleNoder for small inputs (where O(n^2) is dominated
+// by constants) and the R-tree IndexedNoder once we cross the
+// threshold. The selection is internal — callers see only a noded
+// []*SegmentString.
+func nodeAdaptive(strings []*noding.SegmentString) []*noding.SegmentString {
+	if totalSegments(strings) < indexThreshold {
+		return noding.SimpleNoder{}.Node(strings)
+	}
+	return noding.IndexedNoder{}.Node(strings)
+}
