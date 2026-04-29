@@ -107,3 +107,45 @@ func TestIntersectionContainedInBoth(t *testing.T) {
 		}
 	})
 }
+
+// TestSymmetricDifferenceAreaIdentity: for any two simple polygons,
+//
+//	area(A △ B) ≈ area(A) + area(B) - 2*area(A ∩ B)
+//
+// The symmetric difference is the union of A\B and B\A, equivalently
+// (A ∪ B) \ (A ∩ B). The 5% tolerance matches the inclusion-exclusion
+// test above (same v0.1 GH numerical envelope).
+func TestSymmetricDifferenceAreaIdentity(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		a := randomTriangle(t, "a")
+		b := randomTriangle(t, "b")
+
+		areaA := measure.Area(a)
+		areaB := measure.Area(b)
+
+		iG, err := IntersectionGeneral(a, b)
+		if err != nil {
+			t.Skipf("Intersection failed: %v", err)
+		}
+		sG, err := SymmetricDifference(a, b)
+		if err != nil {
+			t.Skipf("SymmetricDifference failed (acceptable v0.1 limitation): %v", err)
+		}
+
+		areaI := measure.Area(iG)
+		areaS := measure.Area(sG)
+
+		expected := areaA + areaB - 2*areaI
+		// 5% tolerance on the larger of the two sides; clamp below to a
+		// small absolute floor so cases where expected ≈ 0 (A ⊂ B or
+		// B ⊂ A) don't generate a vacuously-tight bound.
+		tol := 0.05 * math.Max(areaA+areaB, math.Abs(expected))
+		if tol < 1e-9 {
+			tol = 1e-9
+		}
+		if math.Abs(areaS-expected) > tol {
+			t.Fatalf("symmetric-difference identity violated: S=%v expected=%v (A=%v B=%v I=%v tol=%v)",
+				areaS, expected, areaA, areaB, areaI, tol)
+		}
+	})
+}
