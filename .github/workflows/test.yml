@@ -64,3 +64,16 @@ jobs:
         with:
           version: v2.4.0
           args: --timeout=5m
+
+  asan:
+    name: Address sanitizer (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: "go.sum"
+
+      - name: go test -asan
+        run: go test -asan ./...
