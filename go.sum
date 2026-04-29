@@ -1,2 +1,4 @@
+github.com/peterstace/simplefeatures v0.59.0 h1:pmn+uh75K3CCGsJCLHnpBqgQmDECLYX3u5hfymVbqmQ=
+github.com/peterstace/simplefeatures v0.59.0/go.mod h1:0QH884YeU4jOeM6Bh7EDdDFyYU1L0I0QONxwwFiknqc=
 pgregory.net/rapid v1.2.0 h1:keKAYRcjm+e1F0oAuU5F5+YPAWcyxNNRK2wud503Gnk=
 pgregory.net/rapid v1.2.0/go.mod h1:PY5XlDGj0+V1FCq0o192FdRhpKHGTRIWBgqjDBTrq04=
