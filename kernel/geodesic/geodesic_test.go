@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 )
@@ -14,16 +15,12 @@ func ll(lon, lat float64) geom.XY { return geom.XY{X: lon, Y: lat} }
 
 func near(t *testing.T, got, want, tol float64, msg string) {
 	t.Helper()
-	if math.Abs(got-want) > tol {
-		t.Errorf("%s: got %v, want %v ± %v", msg, got, want, tol)
-	}
+	assert.InDelta(t, want, got, tol, msg)
 }
 
 func TestSatisfiesKernel(t *testing.T) {
 	var _ kernel.Kernel = Default
-	if Default.Name() != "geodesic" {
-		t.Errorf("name = %q", Default.Name())
-	}
+	assert.Equal(t, "geodesic", Default.Name(), "name")
 }
 
 // TestVincentyAgainstReferences uses canonical NGS reference distances
@@ -31,10 +28,10 @@ func TestSatisfiesKernel(t *testing.T) {
 // confirmations). Tolerance is tight: <1 metre on inter-continental.
 func TestVincentyAgainstReferences(t *testing.T) {
 	cases := []struct {
-		name   string
-		a, b   geom.XY
-		wantM  float64
-		tolM   float64
+		name  string
+		a, b  geom.XY
+		wantM float64
+		tolM  float64
 	}{
 		// JFK→LAX along the WGS84 ellipsoid (Vincenty).
 		{"JFK→LAX", ll(-73.7781, 40.6413), ll(-118.4085, 33.9416), 3983079, 50},
@@ -91,19 +88,13 @@ func TestRingAreaConsistentWithSpherical(t *testing.T) {
 	ring := []geom.XY{ll(0, 0), ll(1, 0), ll(1, 1), ll(0, 1), ll(0, 0)}
 	a := k.RingArea(ring)
 	want := 1.2308e10
-	if math.Abs(a-want)/want > 0.01 {
-		t.Errorf("ring area = %g, want ≈ %g", a, want)
-	}
+	assert.LessOrEqualf(t, math.Abs(a-want)/want, 0.01, "ring area = %g, want ≈ %g", a, want)
 }
 
 func TestPointInRingDelegates(t *testing.T) {
 	ring := []geom.XY{ll(0, 0), ll(10, 0), ll(10, 10), ll(0, 10), ll(0, 0)}
-	if got := k.PointInRing(ll(5, 5), ring); got != kernel.Inside {
-		t.Errorf("inside got %v", got)
-	}
-	if got := k.PointInRing(ll(20, 5), ring); got != kernel.Outside {
-		t.Errorf("outside got %v", got)
-	}
+	assert.Equal(t, kernel.Inside, k.PointInRing(ll(5, 5), ring), "inside")
+	assert.Equal(t, kernel.Outside, k.PointInRing(ll(20, 5), ring), "outside")
 }
 
 func TestAuthalicRadiusReasonable(t *testing.T) {

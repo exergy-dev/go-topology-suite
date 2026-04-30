@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 	"github.com/terra-geo/terra/kernel/planar"
@@ -34,9 +36,7 @@ func TestPreparedPolygon_ContainsPoint_MatchesKernel(t *testing.T) {
 	poly := geom.NewPolygon(nil, ring)
 	pp := prepare.Polygon(poly)
 
-	if pp.Underlying() != poly {
-		t.Fatalf("Underlying() did not return original polygon")
-	}
+	require.Same(t, poly, pp.Underlying(), "Underlying() did not return original polygon")
 
 	rng := rand.New(rand.NewSource(42))
 	const queries = 50
@@ -59,13 +59,11 @@ func TestPreparedPolygon_ContainsPoint_MatchesKernel(t *testing.T) {
 				continue
 			}
 			mismatches++
-			t.Errorf("query %d at %v: prepared=%v kernel=%v",
+			assert.Failf(t, "query mismatch", "query %d at %v: prepared=%v kernel=%v",
 				i, p, got, want)
 		}
 	}
-	if mismatches != 0 {
-		t.Fatalf("%d mismatches across %d queries", mismatches, queries)
-	}
+	require.Equal(t, 0, mismatches, "%d mismatches across %d queries", mismatches, queries)
 }
 
 // isBoundaryFlip filters out the narrow case where one of the two methods
@@ -104,9 +102,8 @@ func TestPreparedPolygon_ContainsPoint_KnownPoints(t *testing.T) {
 		{geom.XY{X: 11, Y: 11}, kernel.Outside},
 	}
 	for _, c := range cases {
-		if got := pp.ContainsPoint(c.p); got != c.want {
-			t.Errorf("ContainsPoint(%v): got %v want %v", c.p, got, c.want)
-		}
+		got := pp.ContainsPoint(c.p)
+		assert.Equal(t, c.want, got, "ContainsPoint(%v)", c.p)
 	}
 }
 
@@ -120,15 +117,9 @@ func TestPreparedPolygon_ContainsPoint_WithHole(t *testing.T) {
 	}
 	pp := prepare.Polygon(geom.NewPolygon(nil, outer, hole))
 
-	if got := pp.ContainsPoint(geom.XY{X: 2, Y: 2}); got != kernel.Inside {
-		t.Errorf("inside shell, outside hole: got %v", got)
-	}
-	if got := pp.ContainsPoint(geom.XY{X: 5, Y: 5}); got != kernel.Outside {
-		t.Errorf("inside hole: got %v want Outside", got)
-	}
-	if got := pp.ContainsPoint(geom.XY{X: 4, Y: 5}); got != kernel.OnBoundary {
-		t.Errorf("on hole boundary: got %v", got)
-	}
+	assert.Equal(t, kernel.Inside, pp.ContainsPoint(geom.XY{X: 2, Y: 2}), "inside shell, outside hole")
+	assert.Equal(t, kernel.Outside, pp.ContainsPoint(geom.XY{X: 5, Y: 5}), "inside hole")
+	assert.Equal(t, kernel.OnBoundary, pp.ContainsPoint(geom.XY{X: 4, Y: 5}), "on hole boundary")
 }
 
 func TestPreparedPolygon_IntersectsEnvelope(t *testing.T) {
@@ -163,9 +154,8 @@ func TestPreparedPolygon_IntersectsEnvelope(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := pp.IntersectsEnvelope(tc.env); got != tc.want {
-				t.Errorf("got %v want %v", got, tc.want)
-			}
+			got := pp.IntersectsEnvelope(tc.env)
+			assert.Equal(t, tc.want, got)
 		})
 	}
 }
@@ -211,7 +201,7 @@ func TestPreparedPolygon_ConcurrentReads(t *testing.T) {
 	wg.Wait()
 	close(errs)
 	for e := range errs {
-		t.Error(e)
+		assert.NoError(t, e)
 	}
 }
 
@@ -240,27 +230,20 @@ func TestPreparedPolygon_DeterministicAcrossBuilds(t *testing.T) {
 		}
 		a := pp1.ContainsPoint(p)
 		b := pp2.ContainsPoint(p)
-		if a != b {
-			t.Fatalf("nondeterministic at %v: pp1=%v pp2=%v", p, a, b)
-		}
+		require.Equal(t, a, b, "nondeterministic at %v: pp1=%v pp2=%v", p, a, b)
 		ea := pp1.IntersectsEnvelope(geom.Envelope{
 			MinX: p.X, MaxX: p.X + 0.5, MinY: p.Y, MaxY: p.Y + 0.5,
 		})
 		eb := pp2.IntersectsEnvelope(geom.Envelope{
 			MinX: p.X, MaxX: p.X + 0.5, MinY: p.Y, MaxY: p.Y + 0.5,
 		})
-		if ea != eb {
-			t.Fatalf("nondeterministic env at %v: pp1=%v pp2=%v", p, ea, eb)
-		}
+		require.Equal(t, ea, eb, "nondeterministic env at %v: pp1=%v pp2=%v", p, ea, eb)
 	}
 }
 
 func TestPreparedPolygon_EmptyPolygon(t *testing.T) {
 	pp := prepare.Polygon(geom.NewEmptyPolygon(nil, geom.LayoutXY))
-	if got := pp.ContainsPoint(geom.XY{X: 0, Y: 0}); got != kernel.Outside {
-		t.Errorf("empty polygon ContainsPoint: got %v want Outside", got)
-	}
-	if pp.IntersectsEnvelope(geom.Envelope{MinX: 0, MaxX: 1, MinY: 0, MaxY: 1}) {
-		t.Errorf("empty polygon should not intersect any envelope")
-	}
+	assert.Equal(t, kernel.Outside, pp.ContainsPoint(geom.XY{X: 0, Y: 0}), "empty polygon ContainsPoint")
+	assert.False(t, pp.IntersectsEnvelope(geom.Envelope{MinX: 0, MaxX: 1, MinY: 0, MaxY: 1}),
+		"empty polygon should not intersect any envelope")
 }

@@ -1,9 +1,10 @@
 package overlayng
 
 import (
-	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 )
@@ -27,16 +28,12 @@ func TestSubjectWithHoleIntersection(t *testing.T) {
 		{X: 4, Y: 4}, {X: 10, Y: 4}, {X: 10, Y: 10}, {X: 4, Y: 10}, {X: 4, Y: 4},
 	})
 	first, rest, err := Overlay(subj, clip, OpIntersection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	total := measure.Area(first)
 	for _, p := range rest {
 		total += measure.Area(p)
 	}
-	if math.Abs(total-27) > 1e-9 {
-		t.Errorf("intersection area = %v, want 27", total)
-	}
+	assert.InDelta(t, 27.0, total, 1e-9, "intersection area")
 }
 
 // TestUnionWithHole: the same subject (with hole) unioned with a
@@ -50,17 +47,13 @@ func TestUnionWithHole(t *testing.T) {
 		{X: 20, Y: 20}, {X: 21, Y: 20}, {X: 21, Y: 21}, {X: 20, Y: 21}, {X: 20, Y: 20},
 	})
 	first, rest, err := Overlay(subj, other, OpUnion)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	total := measure.Area(first)
 	for _, p := range rest {
 		total += measure.Area(p)
 	}
 	want := 84.0 + 1.0
-	if math.Abs(total-want) > 1e-9 {
-		t.Errorf("union area = %v, want %v", total, want)
-	}
+	assert.InDelta(t, want, total, 1e-9, "union area")
 }
 
 // TestDifferenceCreatesHole: a 10×10 square minus an interior 4×4 square.
@@ -74,12 +67,8 @@ func TestDifferenceCreatesHole(t *testing.T) {
 		{X: 3, Y: 3}, {X: 7, Y: 3}, {X: 7, Y: 7}, {X: 3, Y: 7}, {X: 3, Y: 3},
 	})
 	first, _, err := Overlay(subj, hole, OpDifference)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if math.Abs(measure.Area(first)-84) > 1e-9 {
-		t.Errorf("difference area = %v, want 84", measure.Area(first))
-	}
+	require.NoError(t, err)
+	assert.InDelta(t, 84.0, measure.Area(first), 1e-9, "difference area")
 	// The result should be a polygon with a hole — assemble.go classifies
 	// the inner square (which is the smaller-area kept-region boundary)
 	// as a hole.
@@ -90,9 +79,7 @@ func TestDifferenceCreatesHole(t *testing.T) {
 	// (which we'd then need to merge). The valid interpretation depends
 	// on how `assemble.go` orders the rings; assert NumRings == 2 as the
 	// production-quality outcome.
-	if first.NumRings() != 2 {
-		t.Errorf("difference result should have 2 rings (outer+hole), got %d", first.NumRings())
-	}
+	assert.Equal(t, 2, first.NumRings(), "difference result should have 2 rings (outer+hole)")
 }
 
 // TestHoleInputProducingHoleOutput: subj is a 10x10 outer square with
@@ -109,9 +96,7 @@ func TestHoleInputProducingHoleOutput(t *testing.T) {
 		{X: 4, Y: 4}, {X: 10, Y: 4}, {X: 10, Y: 10}, {X: 4, Y: 10}, {X: 4, Y: 4},
 	})
 	first, rest, err := Overlay(subj, clip, OpDifference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	total := measure.Area(first)
 	for _, p := range rest {
 		total += measure.Area(p)
@@ -120,9 +105,7 @@ func TestHoleInputProducingHoleOutput(t *testing.T) {
 	// clip ∩ subj = 27 (computed in TestSubjectWithHoleIntersection)
 	// subj \ clip = subj - (subj ∩ clip) = 84 - 27 = 57
 	want := 57.0
-	if math.Abs(total-want) > 0.5 {
-		t.Errorf("difference area = %v, want ≈ %v", total, want)
-	}
+	assert.InDelta(t, want, total, 0.5, "difference area")
 }
 
 // TestBothInputsHaveHoles: subj is a 10x10 with hole at (3,3..7,7),
@@ -138,9 +121,7 @@ func TestBothInputsHaveHoles(t *testing.T) {
 	clip := geom.NewPolygon(nil, clipOuter, clipHole)
 
 	first, rest, err := Overlay(subj, clip, OpIntersection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	total := measure.Area(first)
 	for _, p := range rest {
 		total += measure.Area(p)
@@ -151,7 +132,5 @@ func TestBothInputsHaveHoles(t *testing.T) {
 	// outer intersection is x ∈ [5,10], so hole-in-intersection is x ∈ [8,10] → 8.
 	// Total intersection area: 50 - 8 - 8 = 34.
 	want := 34.0
-	if math.Abs(total-want) > 0.5 {
-		t.Errorf("intersection area = %v, want ≈ %v", total, want)
-	}
+	assert.InDelta(t, want, total, 0.5, "intersection area")
 }

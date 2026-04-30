@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/wkt"
@@ -14,13 +16,9 @@ import (
 func roundTrip(t *testing.T, g geom.Geometry, opts ...Option) geom.Geometry {
 	t.Helper()
 	data, err := Marshal(g, opts...)
-	if err != nil {
-		t.Fatalf("Marshal: %v", err)
-	}
+	require.NoError(t, err, "Marshal")
 	got, err := Unmarshal(data)
-	if err != nil {
-		t.Fatalf("Unmarshal: %v", err)
-	}
+	require.NoError(t, err, "Unmarshal")
 	return got
 }
 
@@ -38,98 +36,64 @@ func TestRoundTripAllTypes(t *testing.T) {
 	for _, in := range wkts {
 		t.Run(in, func(t *testing.T) {
 			g, err := wkt.Unmarshal(in)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			got := roundTrip(t, g)
 			out, _ := wkt.Marshal(got)
-			if out != in {
-				t.Errorf("round-trip differs:\n got %q\nwant %q", out, in)
-			}
+			assert.Equal(t, in, out, "round-trip differs")
 		})
 	}
 }
 
 func TestEWKBSRIDPreserved(t *testing.T) {
 	g, err := wkt.Unmarshal("POINT (1 2)")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Attach CRS via a fresh point (Unmarshal without SRID prefix has nil CRS).
 	p := geom.NewPoint(crs.WGS84, geom.XY{X: 1, Y: 2})
 	data, err := Marshal(p)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	got, err := Unmarshal(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.CRS() == nil || got.CRS().Code != 4326 {
-		t.Errorf("SRID lost in round-trip: %+v", got.CRS())
-	}
+	require.NoError(t, err)
+	require.NotNil(t, got.CRS(), "SRID lost in round-trip")
+	assert.Equal(t, 4326, got.CRS().Code, "SRID lost in round-trip: %+v", got.CRS())
 
 	// Now without CRS — no SRID flag should be set.
 	data2, _ := Marshal(g) // g has nil CRS
 	got2, _ := Unmarshal(data2)
-	if got2.CRS() != nil {
-		t.Errorf("unexpected CRS: %+v", got2.CRS())
-	}
+	assert.Nilf(t, got2.CRS(), "unexpected CRS: %+v", got2.CRS())
 }
 
 func TestBigEndianRoundTrip(t *testing.T) {
 	p := geom.NewPoint(nil, geom.XY{X: 1, Y: 2})
 	data, err := Marshal(p, WithByteOrder(binary.BigEndian))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if data[0] != 0 {
-		t.Errorf("byte-order tag = %d, want 0 (XDR)", data[0])
-	}
+	require.NoError(t, err)
+	assert.Equal(t, byte(0), data[0], "byte-order tag should be 0 (XDR)")
 	got, err := Unmarshal(data)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pp := got.(*geom.Point)
-	if pp.XY().X != 1 || pp.XY().Y != 2 {
-		t.Errorf("XY = %+v", pp.XY())
-	}
+	assert.Equal(t, float64(1), pp.XY().X, "XY.X")
+	assert.Equal(t, float64(2), pp.XY().Y, "XY.Y")
 }
 
 func TestISOMode(t *testing.T) {
 	// XYZ point under ISO encoding has type code 1001 (POINT Z).
 	p := geom.NewPointXYZ(nil, geom.XYZ{X: 1, Y: 2, Z: 3})
 	data, err := Marshal(p, WithISO())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// type code lives at bytes [1..5] little-endian by default
 	tc := binary.LittleEndian.Uint32(data[1:5])
-	if tc != 1001 {
-		t.Errorf("ISO Z type code = %d, want 1001", tc)
-	}
+	assert.Equal(t, uint32(1001), tc, "ISO Z type code")
 	got, err := Unmarshal(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Layout() != geom.LayoutXYZ {
-		t.Errorf("layout after ISO round-trip = %v", got.Layout())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, geom.LayoutXYZ, got.Layout(), "layout after ISO round-trip")
 }
 
 func TestPointEmpty(t *testing.T) {
 	e := geom.NewEmptyPoint(nil, geom.LayoutXY)
 	data, err := Marshal(e)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	got, err := Unmarshal(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !got.IsEmpty() {
-		t.Errorf("empty point did not survive round-trip")
-	}
+	require.NoError(t, err)
+	assert.True(t, got.IsEmpty(), "empty point did not survive round-trip")
 }
 
 func TestUnmarshalErrors(t *testing.T) {
@@ -140,8 +104,7 @@ func TestUnmarshalErrors(t *testing.T) {
 		{1, 1, 0, 0, 0, 1}, // truncated point body
 	}
 	for _, b := range cases {
-		if _, err := Unmarshal(b); err == nil {
-			t.Errorf("expected error for %v", b)
-		}
+		_, err := Unmarshal(b)
+		assert.Errorf(t, err, "expected error for %v", b)
 	}
 }

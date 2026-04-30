@@ -3,80 +3,60 @@ package geom
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/crs"
 )
 
 func TestPointConstruction(t *testing.T) {
 	p := NewPoint(crs.WGS84, XY{-75.16, 39.95})
-	if p.IsEmpty() {
-		t.Fatalf("point should not be empty")
-	}
-	if p.Type() != PointType {
-		t.Errorf("Type = %v", p.Type())
-	}
-	if p.Layout() != LayoutXY {
-		t.Errorf("Layout = %v", p.Layout())
-	}
-	if p.NumGeometries() != 1 {
-		t.Errorf("NumGeometries = %d", p.NumGeometries())
-	}
+	require.False(t, p.IsEmpty(), "point should not be empty")
+	assert.Equal(t, PointType, p.Type(), "Type")
+	assert.Equal(t, LayoutXY, p.Layout(), "Layout")
+	assert.Equal(t, 1, p.NumGeometries(), "NumGeometries")
 	got := p.XY()
-	if got.X != -75.16 || got.Y != 39.95 {
-		t.Errorf("XY() = %+v", got)
-	}
+	assert.Equal(t, -75.16, got.X, "XY().X")
+	assert.Equal(t, 39.95, got.Y, "XY().Y")
 	env := p.Envelope()
-	if env.MinX != -75.16 || env.MaxX != -75.16 {
-		t.Errorf("envelope wrong: %+v", env)
-	}
+	assert.Equal(t, -75.16, env.MinX, "envelope MinX")
+	assert.Equal(t, -75.16, env.MaxX, "envelope MaxX")
 }
 
 func TestEmptyPoint(t *testing.T) {
 	p := NewEmptyPoint(crs.WGS84, LayoutXY)
-	if !p.IsEmpty() {
-		t.Errorf("empty point should be empty")
-	}
-	if !p.Envelope().IsEmpty() {
-		t.Errorf("empty point envelope should be empty")
-	}
+	assert.True(t, p.IsEmpty(), "empty point should be empty")
+	assert.True(t, p.Envelope().IsEmpty(), "empty point envelope should be empty")
 }
 
 func TestLineStringConstruction(t *testing.T) {
 	ls := NewLineString(crs.WGS84, []XY{{0, 0}, {1, 1}, {2, 2}})
-	if ls.NumPoints() != 3 {
-		t.Fatalf("NumPoints = %d, want 3", ls.NumPoints())
-	}
-	if got := ls.PointAt(1); got.X != 1 || got.Y != 1 {
-		t.Errorf("PointAt(1) = %+v", got)
-	}
+	require.Equal(t, 3, ls.NumPoints(), "NumPoints")
+	got := ls.PointAt(1)
+	assert.Equal(t, 1.0, got.X, "PointAt(1).X")
+	assert.Equal(t, 1.0, got.Y, "PointAt(1).Y")
 	count := 0
 	for p := range ls.CoordsXY() {
 		_ = p
 		count++
 	}
-	if count != 3 {
-		t.Errorf("CoordsXY iterator yielded %d, want 3", count)
-	}
+	assert.Equal(t, 3, count, "CoordsXY iterator yield count")
 }
 
 func TestPolygonConstruction(t *testing.T) {
 	outer := []XY{{0, 0}, {0, 10}, {10, 10}, {10, 0}, {0, 0}}
 	hole := []XY{{2, 2}, {2, 4}, {4, 4}, {4, 2}, {2, 2}}
 	p := NewPolygon(crs.WGS84, outer, hole)
-	if p.NumRings() != 2 {
-		t.Fatalf("NumRings = %d, want 2", p.NumRings())
-	}
+	require.Equal(t, 2, p.NumRings(), "NumRings")
 	got := p.ExteriorRing()
-	if len(got) != 5 {
-		t.Errorf("exterior len = %d, want 5", len(got))
-	}
+	assert.Len(t, got, 5, "exterior len")
 	holes := p.InteriorRings()
-	if len(holes) != 1 || len(holes[0]) != 5 {
-		t.Errorf("holes wrong: %+v", holes)
-	}
+	require.Len(t, holes, 1, "holes count")
+	assert.Len(t, holes[0], 5, "hole[0] len")
 	env := p.Envelope()
-	if env.MinX != 0 || env.MaxX != 10 || env.MinY != 0 || env.MaxY != 10 {
-		t.Errorf("polygon envelope = %+v", env)
-	}
+	assert.Equal(t, 0.0, env.MinX, "polygon envelope MinX")
+	assert.Equal(t, 10.0, env.MaxX, "polygon envelope MaxX")
+	assert.Equal(t, 0.0, env.MinY, "polygon envelope MinY")
+	assert.Equal(t, 10.0, env.MaxY, "polygon envelope MaxY")
 }
 
 func TestMultiLineStringEnvelopeUnion(t *testing.T) {
@@ -84,12 +64,11 @@ func TestMultiLineStringEnvelopeUnion(t *testing.T) {
 	b := NewLineString(crs.WGS84, []XY{{5, 5}, {6, 6}})
 	m := NewMultiLineString(crs.WGS84, a, b)
 	env := m.Envelope()
-	if env.MinX != 0 || env.MaxX != 6 || env.MinY != 0 || env.MaxY != 6 {
-		t.Errorf("union envelope = %+v", env)
-	}
-	if m.NumGeometries() != 2 {
-		t.Errorf("NumGeometries = %d", m.NumGeometries())
-	}
+	assert.Equal(t, 0.0, env.MinX, "union envelope MinX")
+	assert.Equal(t, 6.0, env.MaxX, "union envelope MaxX")
+	assert.Equal(t, 0.0, env.MinY, "union envelope MinY")
+	assert.Equal(t, 6.0, env.MaxY, "union envelope MaxY")
+	assert.Equal(t, 2, m.NumGeometries(), "NumGeometries")
 }
 
 func TestGeometryInterfaceSatisfaction(t *testing.T) {

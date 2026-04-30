@@ -3,14 +3,14 @@ package predicate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/wkt"
 )
 
 func mustWKT(t *testing.T, s string) interface{ /* geom.Geometry */ } {
 	g, err := wkt.Unmarshal(s)
-	if err != nil {
-		t.Fatalf("unmarshal %q: %v", s, err)
-	}
+	require.NoError(t, err, "unmarshal %q", s)
 	return g
 }
 
@@ -20,13 +20,10 @@ func expectMatch(t *testing.T, awkt, bwkt, pattern, label string) {
 	a, _ := wkt.Unmarshal(awkt)
 	b, _ := wkt.Unmarshal(bwkt)
 	d, err := Relate(a, b)
-	if err != nil {
-		t.Fatalf("%s: Relate err: %v", label, err)
-	}
-	if !d.Matches(pattern) {
-		t.Errorf("%s: Relate(%s, %s) = %s, expected match for %s",
-			label, awkt, bwkt, d, pattern)
-	}
+	require.NoError(t, err, "%s: Relate err", label)
+	assert.True(t, d.Matches(pattern),
+		"%s: Relate(%s, %s) = %s, expected match for %s",
+		label, awkt, bwkt, d, pattern)
 }
 
 // TestRelatePointPoint

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	terra "github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel/planar"
@@ -15,15 +17,9 @@ func TestMakeValid_UnclosedRing(t *testing.T) {
 		{X: 0, Y: 0}, {X: 0, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 0},
 	})
 	g, err := MakeValid(p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if g == nil || g.IsEmpty() {
-		t.Fatalf("expected non-empty polygon, got %v", g)
-	}
-	if err := Validate(g); err != nil {
-		t.Errorf("expected valid result, got %v", err)
-	}
+	require.NoError(t, err)
+	require.False(t, g == nil || g.IsEmpty(), "expected non-empty polygon, got %v", g)
+	assert.NoError(t, Validate(g), "expected valid result")
 }
 
 func TestMakeValid_CWRingReorientedToCCW(t *testing.T) {
@@ -31,24 +27,14 @@ func TestMakeValid_CWRingReorientedToCCW(t *testing.T) {
 	cw := []geom.XY{
 		{X: 0, Y: 0}, {X: 0, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 0},
 	}
-	if planar.Default.RingArea(cw) >= 0 {
-		t.Fatalf("test setup: ring should be CW (negative area), got %v", planar.Default.RingArea(cw))
-	}
+	require.Less(t, planar.Default.RingArea(cw), 0.0, "test setup: ring should be CW (negative area), got %v", planar.Default.RingArea(cw))
 	p := geom.NewPolygon(nil, cw)
 	g, err := MakeValid(p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	out, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("expected *Polygon, got %T", g)
-	}
-	if planar.Default.RingArea(out.ExteriorRing()) <= 0 {
-		t.Errorf("expected CCW outer ring (positive area)")
-	}
-	if err := Validate(out); err != nil {
-		t.Errorf("expected valid result, got %v", err)
-	}
+	require.True(t, ok, "expected *Polygon, got %T", g)
+	assert.Greater(t, planar.Default.RingArea(out.ExteriorRing()), 0.0, "expected CCW outer ring (positive area)")
+	assert.NoError(t, Validate(out), "expected valid result")
 }
 
 func TestMakeValid_BowtiePolygon(t *testing.T) {
@@ -57,12 +43,8 @@ func TestMakeValid_BowtiePolygon(t *testing.T) {
 		{X: 0, Y: 0}, {X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 10}, {X: 0, Y: 0},
 	})
 	g, err := MakeValid(p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if g == nil {
-		t.Fatalf("got nil result")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, g, "got nil result")
 	// Result must be non-nil. We don't pin the exact shape (overlay may
 	// simplify in unexpected ways per documented v0.1 limitations); we only
 	// require that the result isn't an obvious structural failure beyond
@@ -75,14 +57,14 @@ func TestMakeValid_BowtiePolygon(t *testing.T) {
 	switch x := g.(type) {
 	case *geom.Polygon:
 		ring := x.ExteriorRing()
-		if len(ring) > 0 && ring[0] != ring[len(ring)-1] {
-			t.Errorf("outer ring not closed in result")
+		if len(ring) > 0 {
+			assert.Equal(t, ring[0], ring[len(ring)-1], "outer ring not closed in result")
 		}
 	case *geom.MultiPolygon:
 		for i := 0; i < x.NumGeometries(); i++ {
 			ring := x.PolygonAt(i).ExteriorRing()
-			if len(ring) > 0 && ring[0] != ring[len(ring)-1] {
-				t.Errorf("part %d outer ring not closed", i)
+			if len(ring) > 0 {
+				assert.Equal(t, ring[0], ring[len(ring)-1], "part %d outer ring not closed", i)
 			}
 		}
 	}
@@ -91,16 +73,10 @@ func TestMakeValid_BowtiePolygon(t *testing.T) {
 func TestMakeValid_LineStringSinglePoint(t *testing.T) {
 	ls := geom.NewLineString(nil, []geom.XY{{X: 3, Y: 4}})
 	g, err := MakeValid(ls)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	pt, ok := g.(*geom.Point)
-	if !ok {
-		t.Fatalf("expected *Point, got %T", g)
-	}
-	if pt.XY() != (geom.XY{X: 3, Y: 4}) {
-		t.Errorf("unexpected point: %v", pt.XY())
-	}
+	require.True(t, ok, "expected *Point, got %T", g)
+	assert.Equal(t, geom.XY{X: 3, Y: 4}, pt.XY(), "unexpected point")
 }
 
 func TestMakeValid_LineStringDuplicatePointsCollapse(t *testing.T) {
@@ -109,28 +85,19 @@ func TestMakeValid_LineStringDuplicatePointsCollapse(t *testing.T) {
 		{X: 1, Y: 1}, {X: 1, Y: 1}, {X: 1, Y: 1},
 	})
 	g, err := MakeValid(ls)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, ok := g.(*geom.Point); !ok {
-		t.Errorf("expected *Point from duplicate-only line, got %T", g)
-	}
+	require.NoError(t, err)
+	_, ok := g.(*geom.Point)
+	assert.True(t, ok, "expected *Point from duplicate-only line, got %T", g)
 }
 
 func TestMakeValid_PolygonTooFewVertices(t *testing.T) {
 	// Triangle missing one vertex; ring length after closure is < 4.
 	p := geom.NewPolygon(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 0}})
 	g, err := MakeValid(p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	out, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("expected *Polygon, got %T", g)
-	}
-	if !out.IsEmpty() {
-		t.Errorf("expected empty polygon for too-few-vertex input, got %v", out)
-	}
+	require.True(t, ok, "expected *Polygon, got %T", g)
+	assert.True(t, out.IsEmpty(), "expected empty polygon for too-few-vertex input, got %v", out)
 }
 
 func TestMakeValid_MultiPolygonPreservesValidMembers(t *testing.T) {
@@ -142,19 +109,11 @@ func TestMakeValid_MultiPolygonPreservesValidMembers(t *testing.T) {
 	mp := geom.NewMultiPolygon(nil, good, bad)
 
 	g, err := MakeValid(mp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	out, ok := g.(*geom.MultiPolygon)
-	if !ok {
-		t.Fatalf("expected *MultiPolygon, got %T", g)
-	}
-	if out.NumGeometries() != 1 {
-		t.Errorf("expected 1 surviving polygon, got %d", out.NumGeometries())
-	}
-	if err := Validate(out); err != nil {
-		t.Errorf("expected valid multipolygon, got %v", err)
-	}
+	require.True(t, ok, "expected *MultiPolygon, got %T", g)
+	assert.Equal(t, 1, out.NumGeometries(), "expected 1 surviving polygon")
+	assert.NoError(t, Validate(out), "expected valid multipolygon")
 }
 
 func TestMakeValid_AlreadyValidPolygonRoundTrips(t *testing.T) {
@@ -162,47 +121,29 @@ func TestMakeValid_AlreadyValidPolygonRoundTrips(t *testing.T) {
 	p := geom.NewPolygon(nil, []geom.XY{
 		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
 	})
-	if err := Validate(p); err != nil {
-		t.Fatalf("test setup: input expected valid, got %v", err)
-	}
+	require.NoError(t, Validate(p), "test setup: input expected valid")
 	g, err := MakeValid(p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if err := Validate(g); err != nil {
-		t.Errorf("expected valid result, got %v", err)
-	}
+	require.NoError(t, err)
+	assert.NoError(t, Validate(g), "expected valid result")
 	out, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("expected *Polygon, got %T", g)
-	}
+	require.True(t, ok, "expected *Polygon, got %T", g)
 	// Same ring vertex count and same first/last vertex.
-	if out.NumRings() != 1 {
-		t.Errorf("expected 1 ring, got %d", out.NumRings())
-	}
+	assert.Equal(t, 1, out.NumRings(), "expected 1 ring")
 	ring := out.ExteriorRing()
-	if len(ring) != 5 {
-		t.Errorf("expected 5 vertices, got %d", len(ring))
-	}
+	assert.Equal(t, 5, len(ring), "expected 5 vertices")
 }
 
 func TestMakeValid_PointPassthrough(t *testing.T) {
 	pt := geom.NewPoint(nil, geom.XY{X: 7, Y: 8})
 	g, err := MakeValid(pt)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if g != pt {
-		t.Errorf("expected same pointer back for valid Point, got %v", g)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, geom.Geometry(pt), g, "expected same pointer back for valid Point, got %v", g)
 }
 
 func TestMakeValid_EmptyReturnsErrEmpty(t *testing.T) {
 	empty := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	g, err := MakeValid(empty)
-	if !errors.Is(err, terra.ErrEmpty) {
-		t.Errorf("expected ErrEmpty, got err=%v g=%v", err, g)
-	}
+	assert.True(t, errors.Is(err, terra.ErrEmpty), "expected ErrEmpty, got err=%v g=%v", err, g)
 }
 
 func TestMakeValid_HolesDropped(t *testing.T) {
@@ -215,16 +156,10 @@ func TestMakeValid_HolesDropped(t *testing.T) {
 	}
 	p := geom.NewPolygon(nil, outer, hole)
 	g, err := MakeValid(p)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	out, ok := g.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("expected *Polygon, got %T", g)
-	}
-	if out.NumRings() != 1 {
-		t.Errorf("expected hole dropped (1 ring), got %d rings", out.NumRings())
-	}
+	require.True(t, ok, "expected *Polygon, got %T", g)
+	assert.Equal(t, 1, out.NumRings(), "expected hole dropped (1 ring), got %d rings", out.NumRings())
 }
 
 func TestMakeValid_GeometryCollectionRecurses(t *testing.T) {
@@ -235,17 +170,9 @@ func TestMakeValid_GeometryCollectionRecurses(t *testing.T) {
 	})
 	gc := geom.NewGeometryCollection(nil, pt, poly)
 	g, err := MakeValid(gc)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	out, ok := g.(*geom.GeometryCollection)
-	if !ok {
-		t.Fatalf("expected *GeometryCollection, got %T", g)
-	}
-	if out.NumGeometries() != 2 {
-		t.Errorf("expected 2 children, got %d", out.NumGeometries())
-	}
-	if err := Validate(out); err != nil {
-		t.Errorf("expected valid collection, got %v", err)
-	}
+	require.True(t, ok, "expected *GeometryCollection, got %T", g)
+	assert.Equal(t, 2, out.NumGeometries(), "expected 2 children")
+	assert.NoError(t, Validate(out), "expected valid collection")
 }

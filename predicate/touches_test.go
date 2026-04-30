@@ -3,15 +3,15 @@ package predicate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/wkt"
 )
 
 func TestPointPointNeverTouches(t *testing.T) {
 	a, _ := wkt.Unmarshal("POINT (1 2)")
 	b, _ := wkt.Unmarshal("POINT (1 2)")
-	if got, _ := Touches(a, b); got {
-		t.Errorf("Point/Point should never Touch (no boundary)")
-	}
+	got, _ := Touches(a, b)
+	assert.False(t, got, "Point/Point should never Touch (no boundary)")
 }
 
 func TestPointTouchesLineEndpoint(t *testing.T) {
@@ -20,15 +20,12 @@ func TestPointTouchesLineEndpoint(t *testing.T) {
 	off, _ := wkt.Unmarshal("POINT (1 0)")
 	ls, _ := wkt.Unmarshal("LINESTRING (0 0, 5 5, 10 10)")
 
-	if got, _ := Touches(endpoint, ls); !got {
-		t.Errorf("point at line endpoint should Touch")
-	}
-	if got, _ := Touches(mid, ls); got {
-		t.Errorf("point in line interior should not Touch (boundary-of-line is endpoints)")
-	}
-	if got, _ := Touches(off, ls); got {
-		t.Errorf("point off line should not Touch")
-	}
+	got, _ := Touches(endpoint, ls)
+	assert.True(t, got, "point at line endpoint should Touch")
+	got, _ = Touches(mid, ls)
+	assert.False(t, got, "point in line interior should not Touch (boundary-of-line is endpoints)")
+	got, _ = Touches(off, ls)
+	assert.False(t, got, "point off line should not Touch")
 }
 
 func TestPointTouchesPolygonBoundary(t *testing.T) {
@@ -37,15 +34,12 @@ func TestPointTouchesPolygonBoundary(t *testing.T) {
 	interior, _ := wkt.Unmarshal("POINT (5 5)")
 	exterior, _ := wkt.Unmarshal("POINT (15 5)")
 
-	if got, _ := Touches(boundary, poly); !got {
-		t.Errorf("boundary point should Touch polygon")
-	}
-	if got, _ := Touches(interior, poly); got {
-		t.Errorf("interior point should not Touch")
-	}
-	if got, _ := Touches(exterior, poly); got {
-		t.Errorf("exterior point should not Touch")
-	}
+	got, _ := Touches(boundary, poly)
+	assert.True(t, got, "boundary point should Touch polygon")
+	got, _ = Touches(interior, poly)
+	assert.False(t, got, "interior point should not Touch")
+	got, _ = Touches(exterior, poly)
+	assert.False(t, got, "exterior point should not Touch")
 }
 
 func TestPolygonsTouchAtEdge(t *testing.T) {
@@ -57,15 +51,12 @@ func TestPolygonsTouchAtEdge(t *testing.T) {
 	// Disjoint.
 	far, _ := wkt.Unmarshal("POLYGON ((20 0, 20 10, 30 10, 30 0, 20 0))")
 
-	if got, _ := Touches(a, right); !got {
-		t.Errorf("edge-sharing polygons should Touch")
-	}
-	if got, _ := Touches(a, overlap); got {
-		t.Errorf("interior-overlapping polygons should not Touch")
-	}
-	if got, _ := Touches(a, far); got {
-		t.Errorf("disjoint polygons should not Touch")
-	}
+	got, _ := Touches(a, right)
+	assert.True(t, got, "edge-sharing polygons should Touch")
+	got, _ = Touches(a, overlap)
+	assert.False(t, got, "interior-overlapping polygons should not Touch")
+	got, _ = Touches(a, far)
+	assert.False(t, got, "disjoint polygons should not Touch")
 }
 
 func TestLineTouchesPolygonAtBoundary(t *testing.T) {
@@ -75,10 +66,8 @@ func TestLineTouchesPolygonAtBoundary(t *testing.T) {
 	// Line that enters the polygon interior.
 	entering, _ := wkt.Unmarshal("LINESTRING (-5 5, 5 5)")
 
-	if got, _ := Touches(tangent, poly); !got {
-		t.Errorf("tangent line should Touch polygon")
-	}
-	if got, _ := Touches(entering, poly); got {
-		t.Errorf("entering line should not Touch (interior crossing)")
-	}
+	got, _ := Touches(tangent, poly)
+	assert.True(t, got, "tangent line should Touch polygon")
+	got, _ = Touches(entering, poly)
+	assert.False(t, got, "entering line should not Touch (interior crossing)")
 }

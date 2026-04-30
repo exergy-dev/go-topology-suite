@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/internal/proptest"
 	"pgregory.net/rapid"
@@ -17,9 +18,7 @@ func TestDistanceSymmetric(t *testing.T) {
 		k := Kernel{}
 		d1 := k.Distance(a, b)
 		d2 := k.Distance(b, a)
-		if d1 != d2 {
-			t.Fatalf("Distance not symmetric: d(a,b)=%v d(b,a)=%v", d1, d2)
-		}
+		assert.Equalf(t, d1, d2, "Distance not symmetric: d(a,b)=%v d(b,a)=%v", d1, d2)
 	})
 }
 
@@ -29,9 +28,8 @@ func TestDistanceNonNegative(t *testing.T) {
 		a := proptest.AnyXY(t)
 		b := proptest.AnyXY(t)
 		k := Kernel{}
-		if d := k.Distance(a, b); d < 0 {
-			t.Fatalf("negative distance: %v for %v,%v", d, a, b)
-		}
+		d := k.Distance(a, b)
+		assert.GreaterOrEqualf(t, d, 0.0, "negative distance: %v for %v,%v", d, a, b)
 	})
 }
 
@@ -42,9 +40,7 @@ func TestOrientAntiSymmetric(t *testing.T) {
 		k := Kernel{}
 		o1 := k.Orient(a, b, c)
 		o2 := k.Orient(c, b, a)
-		if o1 != -o2 {
-			t.Fatalf("Orient not antisymmetric: %v vs %v (a=%v b=%v c=%v)", o1, o2, a, b, c)
-		}
+		assert.Equalf(t, -o2, o1, "Orient not antisymmetric: %v vs %v (a=%v b=%v c=%v)", o1, o2, a, b, c)
 	})
 }
 
@@ -60,10 +56,7 @@ func TestMidpointHalvesDistance(t *testing.T) {
 		d2 := k.Distance(mid, b)
 		// Allow a small relative error on the symmetric halving.
 		tol := 1e-9 * (1 + math.Abs(d1+d2))
-		if math.Abs(d1-d2) > tol {
-			t.Fatalf("midpoint not equidistant: d1=%v d2=%v a=%v b=%v",
-				d1, d2, a, b)
-		}
+		assert.InDeltaf(t, d1, d2, tol, "midpoint not equidistant: d1=%v d2=%v a=%v b=%v", d1, d2, a, b)
 	})
 }
 
@@ -83,13 +76,9 @@ func TestRingAreaCCWPositive(t *testing.T) {
 		}
 		k := Kernel{}
 		a := k.RingArea(ccw)
-		if a <= 0 {
-			t.Fatalf("CCW rectangle has non-positive area %v (corners %v)", a, ccw)
-		}
+		assert.Greaterf(t, a, 0.0, "CCW rectangle has non-positive area %v (corners %v)", a, ccw)
 		// Reverse → CW → negative area.
 		cw := []geom.XY{ccw[0], ccw[3], ccw[2], ccw[1], ccw[4]}
-		if k.RingArea(cw) >= 0 {
-			t.Fatalf("CW rectangle has non-negative area")
-		}
+		assert.Lessf(t, k.RingArea(cw), 0.0, "CW rectangle has non-negative area")
 	})
 }

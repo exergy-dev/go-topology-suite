@@ -3,6 +3,7 @@ package predicate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 )
@@ -20,10 +21,8 @@ func TestPredicateRoutesGeographicToSpherical(t *testing.T) {
 	inside := geom.NewPoint(crs.WGS84, geom.XY{X: 180, Y: 5})
 	outside := geom.NewPoint(crs.WGS84, geom.XY{X: 0, Y: 5})
 
-	if got, _ := Contains(poly, inside); !got {
-		t.Errorf("antimeridian polygon should Contain (180, 5) under spherical kernel")
-	}
-	if got, _ := Contains(poly, outside); got {
-		t.Errorf("antimeridian polygon should not Contain (0, 5)")
-	}
+	got, _ := Contains(poly, inside)
+	assert.True(t, got, "antimeridian polygon should Contain (180, 5) under spherical kernel")
+	got, _ = Contains(poly, outside)
+	assert.False(t, got, "antimeridian polygon should not Contain (0, 5)")
 }

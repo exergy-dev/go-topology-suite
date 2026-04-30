@@ -4,15 +4,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/wkt"
 )
 
 func TestValidPolygon(t *testing.T) {
 	g, _ := wkt.Unmarshal("POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))")
-	if err := Validate(g); err != nil {
-		t.Errorf("expected valid, got %v", err)
-	}
+	assert.NoError(t, Validate(g), "expected valid")
 }
 
 func TestUnclosedRing(t *testing.T) {
@@ -22,30 +22,22 @@ func TestUnclosedRing(t *testing.T) {
 	})
 	err := Validate(p)
 	var ve *ValidationError
-	if !errors.As(err, &ve) {
-		t.Fatalf("expected ValidationError, got %v", err)
-	}
+	require.True(t, errors.As(err, &ve), "expected ValidationError, got %v", err)
 	found := false
 	for _, d := range ve.Defects {
 		if d.Kind == DefectRingNotClosed {
 			found = true
 		}
 	}
-	if !found {
-		t.Errorf("expected DefectRingNotClosed in %v", ve.Defects)
-	}
+	assert.True(t, found, "expected DefectRingNotClosed in %v", ve.Defects)
 }
 
 func TestRingTooFewPoints(t *testing.T) {
 	p := geom.NewPolygon(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 0}})
 	err := Validate(p)
 	var ve *ValidationError
-	if !errors.As(err, &ve) {
-		t.Fatalf("expected ValidationError")
-	}
-	if ve.Defects[0].Kind != DefectRingTooFewPoints {
-		t.Errorf("expected too-few-points, got %v", ve.Defects[0].Kind)
-	}
+	require.True(t, errors.As(err, &ve), "expected ValidationError")
+	assert.Equal(t, DefectRingTooFewPoints, ve.Defects[0].Kind, "expected too-few-points")
 }
 
 func TestSelfIntersectingRing(t *testing.T) {
@@ -55,18 +47,14 @@ func TestSelfIntersectingRing(t *testing.T) {
 	})
 	err := Validate(p)
 	var ve *ValidationError
-	if !errors.As(err, &ve) {
-		t.Fatalf("expected ValidationError")
-	}
+	require.True(t, errors.As(err, &ve), "expected ValidationError")
 	found := false
 	for _, d := range ve.Defects {
 		if d.Kind == DefectSelfIntersection {
 			found = true
 		}
 	}
-	if !found {
-		t.Errorf("expected self-intersection defect")
-	}
+	assert.True(t, found, "expected self-intersection defect")
 }
 
 func TestHoleOutsideShell(t *testing.T) {
@@ -75,29 +63,19 @@ func TestHoleOutsideShell(t *testing.T) {
 	p := geom.NewPolygon(nil, outer, hole)
 	err := Validate(p)
 	var ve *ValidationError
-	if !errors.As(err, &ve) {
-		t.Fatalf("expected ValidationError")
-	}
-	if ve.Defects[0].Kind != DefectHoleOutsideShell {
-		t.Errorf("expected hole-outside-shell, got %+v", ve.Defects)
-	}
+	require.True(t, errors.As(err, &ve), "expected ValidationError")
+	assert.Equal(t, DefectHoleOutsideShell, ve.Defects[0].Kind, "expected hole-outside-shell, got %+v", ve.Defects)
 }
 
 func TestLineStringTooFew(t *testing.T) {
 	ls := geom.NewLineString(nil, []geom.XY{{X: 1, Y: 2}})
 	err := Validate(ls)
 	var ve *ValidationError
-	if !errors.As(err, &ve) {
-		t.Fatalf("expected error")
-	}
-	if ve.Defects[0].Kind != DefectLineTooFewPoints {
-		t.Errorf("got %v", ve.Defects)
-	}
+	require.True(t, errors.As(err, &ve), "expected error")
+	assert.Equal(t, DefectLineTooFewPoints, ve.Defects[0].Kind, "got %v", ve.Defects)
 }
 
 func TestEmptyValid(t *testing.T) {
 	g, _ := wkt.Unmarshal("POLYGON EMPTY")
-	if err := Validate(g); err != nil {
-		t.Errorf("empty polygon should validate, got %v", err)
-	}
+	assert.NoError(t, Validate(g), "empty polygon should validate")
 }

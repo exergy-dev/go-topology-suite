@@ -3,6 +3,8 @@ package hull
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/wkt"
 )
@@ -12,14 +14,10 @@ func TestSquareHull(t *testing.T) {
 		{X: 0, Y: 0}, {X: 0, Y: 1}, {X: 1, Y: 1}, {X: 1, Y: 0}, {X: 0.5, Y: 0.5},
 	})
 	hull := ConvexHull(pts)
-	if hull.Type() != geom.PolygonType {
-		t.Fatalf("hull type = %v", hull.Type())
-	}
+	require.Equal(t, geom.PolygonType, hull.Type(), "hull type")
 	got, _ := wkt.Marshal(hull)
 	want := "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))"
-	if got != want {
-		t.Errorf("got %q\nwant %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestCollinearHull(t *testing.T) {
@@ -27,25 +25,19 @@ func TestCollinearHull(t *testing.T) {
 		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 0},
 	})
 	hull := ConvexHull(pts)
-	if hull.Type() != geom.LineStringType {
-		t.Errorf("collinear hull should be LineString, got %v", hull.Type())
-	}
+	assert.Equal(t, geom.LineStringType, hull.Type(), "collinear hull should be LineString")
 }
 
 func TestSinglePointHull(t *testing.T) {
 	pts := geom.NewMultiPoint(nil, []geom.XY{{X: 5, Y: 5}})
 	hull := ConvexHull(pts)
-	if hull.Type() != geom.PointType {
-		t.Errorf("single-point hull = %v", hull.Type())
-	}
+	assert.Equal(t, geom.PointType, hull.Type(), "single-point hull")
 }
 
 func TestEmptyHull(t *testing.T) {
 	pts := geom.NewMultiPoint(nil, nil)
 	hull := ConvexHull(pts)
-	if !hull.IsEmpty() {
-		t.Errorf("empty hull should be empty")
-	}
+	assert.True(t, hull.IsEmpty(), "empty hull should be empty")
 }
 
 func TestHullOfPolygon(t *testing.T) {
@@ -54,7 +46,5 @@ func TestHullOfPolygon(t *testing.T) {
 	hull := ConvexHull(g)
 	got, _ := wkt.Marshal(hull)
 	want := "POLYGON ((0 0, 4 0, 4 2, 2 4, 0 4, 0 0))"
-	if got != want {
-		t.Errorf("got %q\nwant %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }

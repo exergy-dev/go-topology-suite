@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 	"pgregory.net/rapid"
@@ -56,10 +57,9 @@ func TestBuffer_RoundTripApproximation(t *testing.T) {
 		}
 
 		ratio := areaBack / areaOrig
-		if ratio < 0.9 || ratio > 1.1 {
-			t.Fatalf("round-trip area ratio out of band: orig=%v back=%v ratio=%v",
-				areaOrig, areaBack, ratio)
-		}
+		assert.InDeltaf(t, 1.0, ratio, 0.1,
+			"round-trip area ratio out of band: orig=%v back=%v ratio=%v",
+			areaOrig, areaBack, ratio)
 	})
 }
 
@@ -91,13 +91,11 @@ func TestBuffer_MonotoneArea(t *testing.T) {
 
 		// 1% slack for floating-point noise on the ordering checks.
 		tol := 0.01 * areaG
-		if a1+tol < areaG {
-			t.Fatalf("area(Buffer(g,d1))=%v < area(g)=%v", a1, areaG)
-		}
-		if a2+tol < a1 {
-			t.Fatalf("area(Buffer(g,d2))=%v < area(Buffer(g,d1))=%v (d2=%v d1=%v)",
-				a2, a1, d2, d1)
-		}
+		assert.GreaterOrEqualf(t, a1+tol, areaG,
+			"area(Buffer(g,d1))=%v < area(g)=%v", a1, areaG)
+		assert.GreaterOrEqualf(t, a2+tol, a1,
+			"area(Buffer(g,d2))=%v < area(Buffer(g,d1))=%v (d2=%v d1=%v)",
+			a2, a1, d2, d1)
 	})
 }
 
@@ -118,9 +116,8 @@ func TestBuffer_NegativeInsetNeverGrows(t *testing.T) {
 		}
 		areaOut := measure.Area(out)
 		// Allow 1% slack for floating-point noise around equality.
-		if areaOut > areaG*1.01 {
-			t.Fatalf("inset grew: area(Buffer(g,-d))=%v > area(g)=%v",
-				areaOut, areaG)
-		}
+		assert.LessOrEqualf(t, areaOut, areaG*1.01,
+			"inset grew: area(Buffer(g,-d))=%v > area(g)=%v",
+			areaOut, areaG)
 	})
 }

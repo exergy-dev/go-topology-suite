@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 	"pgregory.net/rapid"
@@ -69,9 +70,7 @@ func TestStressInclusionExclusion(t *testing.T) {
 		lhs := totalU + totalI
 		rhs := areaA + areaB
 		tol := 0.001 * rhs
-		if math.Abs(lhs-rhs) > tol {
-			t.Fatalf("U+I=%v vs A+B=%v (Δ=%v, tol=%v)", lhs, rhs, math.Abs(lhs-rhs), tol)
-		}
+		assert.InDeltaf(t, rhs, lhs, tol, "U+I=%v vs A+B=%v (Δ=%v)", lhs, rhs, math.Abs(lhs-rhs))
 	})
 }
 
@@ -100,9 +99,7 @@ func TestStressDifferenceContainedInSubject(t *testing.T) {
 		for _, p := range rest {
 			total += measure.Area(p)
 		}
-		if total > areaA*1.001 {
-			t.Fatalf("A\\B area %v > A area %v", total, areaA)
-		}
+		assert.LessOrEqualf(t, total, areaA*1.001, "A\\B area %v > A area %v", total, areaA)
 	})
 }
 
@@ -130,8 +127,6 @@ func TestStressIntersectionContainedInBoth(t *testing.T) {
 		for _, p := range rest {
 			total += measure.Area(p)
 		}
-		if total > minAB*1.001 {
-			t.Fatalf("A∩B area %v > min(A,B) %v", total, minAB)
-		}
+		assert.LessOrEqualf(t, total, minAB*1.001, "A∩B area %v > min(A,B) %v", total, minAB)
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 
@@ -88,9 +89,7 @@ func TestConformance(t *testing.T) {
 	others := impls[1:]
 
 	pairs := buildPairs()
-	if len(pairs) == 0 {
-		t.Fatal("conformance: no input pairs from corpus.All() — corpus likely empty")
-	}
+	require.NotEmpty(t, pairs, "conformance: no input pairs from corpus.All() — corpus likely empty")
 
 	// agreeCount[implName][op] = number of (pair, op) outcomes where
 	// the impl agreed with the reference. totalCount[op] is the

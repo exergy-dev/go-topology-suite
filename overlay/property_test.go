@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 	"pgregory.net/rapid"
@@ -64,10 +65,9 @@ func TestUnionIntersectionAreaConservation(t *testing.T) {
 		// 5% tolerance accommodates the v0.1 GH numerical issues at
 		// axis-aligned coincident edges.
 		tol := 0.05 * rhs
-		if math.Abs(lhs-rhs) > tol {
-			t.Fatalf("inclusion-exclusion violated: U=%v + I=%v = %v, A=%v + B=%v = %v (tol %v)",
-				areaU, areaI, lhs, areaA, areaB, rhs, tol)
-		}
+		assert.InDeltaf(t, rhs, lhs, tol,
+			"inclusion-exclusion violated: U=%v + I=%v = %v, A=%v + B=%v = %v",
+			areaU, areaI, lhs, areaA, areaB, rhs)
 	})
 }
 
@@ -83,9 +83,7 @@ func TestDifferenceContainedInSubject(t *testing.T) {
 		}
 		areaD := measure.Area(dG)
 		// Allow 5% slack for numerical noise.
-		if areaD > areaA*1.05 {
-			t.Fatalf("area(A\\B)=%v > area(A)=%v", areaD, areaA)
-		}
+		assert.LessOrEqualf(t, areaD, areaA*1.05, "area(A\\B)=%v > area(A)=%v", areaD, areaA)
 	})
 }
 
@@ -102,9 +100,7 @@ func TestIntersectionContainedInBoth(t *testing.T) {
 		}
 		areaI := measure.Area(iG)
 		minAB := math.Min(areaA, areaB)
-		if areaI > minAB*1.05 {
-			t.Fatalf("area(A∩B)=%v > min(A,B)=%v", areaI, minAB)
-		}
+		assert.LessOrEqualf(t, areaI, minAB*1.05, "area(A∩B)=%v > min(A,B)=%v", areaI, minAB)
 	})
 }
 
@@ -143,9 +139,8 @@ func TestSymmetricDifferenceAreaIdentity(t *testing.T) {
 		if tol < 1e-9 {
 			tol = 1e-9
 		}
-		if math.Abs(areaS-expected) > tol {
-			t.Fatalf("symmetric-difference identity violated: S=%v expected=%v (A=%v B=%v I=%v tol=%v)",
-				areaS, expected, areaA, areaB, areaI, tol)
-		}
+		assert.InDeltaf(t, expected, areaS, tol,
+			"symmetric-difference identity violated: S=%v expected=%v (A=%v B=%v I=%v)",
+			areaS, expected, areaA, areaB, areaI)
 	})
 }

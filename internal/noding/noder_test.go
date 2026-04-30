@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 )
 
@@ -37,18 +39,15 @@ func TestSimpleNoder_TwoCrossingSegments(t *testing.T) {
 	ssB := &SegmentString{Coords: []geom.XY{xy(1, -1), xy(1, 1)}, Tag: 2}
 
 	out := SimpleNoder{}.Node([]*SegmentString{ssA, ssB})
-	if len(out) != 4 {
-		t.Fatalf("expected 4 output strings, got %d", len(out))
-	}
+	require.Equal(t, 4, len(out), "expected 4 output strings")
 
 	// Check by tag the two halves of each input.
 	tagged := map[int][]*SegmentString{}
 	for _, s := range out {
 		tagged[s.Tag] = append(tagged[s.Tag], s)
 	}
-	if len(tagged[1]) != 2 || len(tagged[2]) != 2 {
-		t.Fatalf("expected 2 strings per tag, got %v", tagged)
-	}
+	require.Equal(t, 2, len(tagged[1]), "expected 2 strings per tag, got %v", tagged)
+	require.Equal(t, 2, len(tagged[2]), "expected 2 strings per tag, got %v", tagged)
 
 	// Tag 1 should be (0,0)-(1,0) and (1,0)-(2,0).
 	wantA := [][]geom.XY{
@@ -56,18 +55,14 @@ func TestSimpleNoder_TwoCrossingSegments(t *testing.T) {
 		{xy(1, 0), xy(2, 0)},
 	}
 	for i, s := range tagged[1] {
-		if !stringHas(s, wantA[i]...) {
-			t.Errorf("tag-1 piece %d: got %v want %v", i, s.Coords, wantA[i])
-		}
+		assert.True(t, stringHas(s, wantA[i]...), "tag-1 piece %d: got %v want %v", i, s.Coords, wantA[i])
 	}
 	wantB := [][]geom.XY{
 		{xy(1, -1), xy(1, 0)},
 		{xy(1, 0), xy(1, 1)},
 	}
 	for i, s := range tagged[2] {
-		if !stringHas(s, wantB[i]...) {
-			t.Errorf("tag-2 piece %d: got %v want %v", i, s.Coords, wantB[i])
-		}
+		assert.True(t, stringHas(s, wantB[i]...), "tag-2 piece %d: got %v want %v", i, s.Coords, wantB[i])
 	}
 }
 
@@ -76,13 +71,9 @@ func TestSimpleNoder_ParallelNonOverlapping(t *testing.T) {
 	ssB := &SegmentString{Coords: []geom.XY{xy(0, 1), xy(2, 1)}, Tag: 2}
 
 	out := SimpleNoder{}.Node([]*SegmentString{ssA, ssB})
-	if len(out) != 2 {
-		t.Fatalf("expected 2 output strings, got %d", len(out))
-	}
+	require.Equal(t, 2, len(out), "expected 2 output strings")
 	for _, s := range out {
-		if len(s.Coords) != 2 {
-			t.Errorf("expected unchanged 2-vertex string, got %v", s.Coords)
-		}
+		assert.Equal(t, 2, len(s.Coords), "expected unchanged 2-vertex string, got %v", s.Coords)
 	}
 }
 
@@ -92,13 +83,9 @@ func TestSimpleNoder_SharedEndpoint(t *testing.T) {
 	ssB := &SegmentString{Coords: []geom.XY{xy(1, 0), xy(2, 1)}, Tag: 2}
 
 	out := SimpleNoder{}.Node([]*SegmentString{ssA, ssB})
-	if len(out) != 2 {
-		t.Fatalf("expected 2 output strings, got %d", len(out))
-	}
+	require.Equal(t, 2, len(out), "expected 2 output strings")
 	for _, s := range out {
-		if len(s.Coords) != 2 {
-			t.Errorf("expected unchanged 2-vertex string, got %v", s.Coords)
-		}
+		assert.Equal(t, 2, len(s.Coords), "expected unchanged 2-vertex string, got %v", s.Coords)
 	}
 }
 
@@ -120,13 +107,9 @@ func TestSimpleNoder_SelfCrossing(t *testing.T) {
 	//   (1,1)-(2,2)-(2,0)-(1,1)   // original v1 (2,2) and v2 (2,0) are not breaks
 	//   (1,1)-(0,2)
 	// Total: 3 strings.
-	if len(out) != 3 {
-		t.Fatalf("expected 3 noded substrings, got %d: %+v", len(out), dumpCoords(out))
-	}
+	require.Equal(t, 3, len(out), "expected 3 noded substrings, got %d: %+v", len(out), dumpCoords(out))
 	for _, s := range out {
-		if s.Tag != 7 {
-			t.Errorf("tag preserved: got %d want 7", s.Tag)
-		}
+		assert.Equal(t, 7, s.Tag, "tag preserved")
 	}
 
 	// Verify each output piece starts and ends at one of {original
@@ -135,10 +118,8 @@ func TestSimpleNoder_SelfCrossing(t *testing.T) {
 	for _, s := range out {
 		first := s.Coords[0]
 		last := s.Coords[len(s.Coords)-1]
-		if !nodeIn(first, wantNodes) || !nodeIn(last, wantNodes) {
-			t.Errorf("piece endpoints %v -> %v not in node set %v",
-				first, last, wantNodes)
-		}
+		assert.True(t, nodeIn(first, wantNodes) && nodeIn(last, wantNodes),
+			"piece endpoints %v -> %v not in node set %v", first, last, wantNodes)
 	}
 }
 
@@ -170,24 +151,17 @@ func TestSimpleNoder_CoincidentSegments(t *testing.T) {
 	ssB := &SegmentString{Coords: []geom.XY{xy(0, 0), xy(2, 0)}, Tag: 2}
 
 	out := SimpleNoder{}.Node([]*SegmentString{ssA, ssB})
-	if len(out) != 2 {
-		t.Fatalf("expected 2 unchanged strings (collinear-overlap "+
-			"is a known limitation), got %d", len(out))
-	}
+	require.Equal(t, 2, len(out),
+		"expected 2 unchanged strings (collinear-overlap is a known limitation)")
 	for _, s := range out {
-		if !stringHas(s, xy(0, 0), xy(2, 0)) {
-			t.Errorf("expected unchanged collinear string, got %v", s.Coords)
-		}
+		assert.True(t, stringHas(s, xy(0, 0), xy(2, 0)),
+			"expected unchanged collinear string, got %v", s.Coords)
 	}
 }
 
 func TestSimpleNoder_EmptyInput(t *testing.T) {
-	if out := (SimpleNoder{}).Node(nil); out != nil {
-		t.Errorf("nil input should give nil output, got %v", out)
-	}
-	if out := (SimpleNoder{}).Node([]*SegmentString{}); out != nil {
-		t.Errorf("empty input should give nil output, got %v", out)
-	}
+	assert.Nil(t, (SimpleNoder{}).Node(nil), "nil input should give nil output")
+	assert.Nil(t, (SimpleNoder{}).Node([]*SegmentString{}), "empty input should give nil output")
 }
 
 func TestSimpleNoder_TagsPreserved(t *testing.T) {
@@ -205,9 +179,9 @@ func TestSimpleNoder_TagsPreserved(t *testing.T) {
 	// A is split at x=1 and x=3 -> 3 pieces.
 	// B is split once at (1,0) -> 2 pieces.
 	// C is split once at (3,0) -> 2 pieces.
-	if tags[10] != 3 || tags[20] != 2 || tags[30] != 2 {
-		t.Errorf("piece counts by tag = %v, want {10:3, 20:2, 30:2}", tags)
-	}
+	assert.Equal(t, 3, tags[10], "piece counts by tag = %v, want {10:3, 20:2, 30:2}", tags)
+	assert.Equal(t, 2, tags[20], "piece counts by tag = %v, want {10:3, 20:2, 30:2}", tags)
+	assert.Equal(t, 2, tags[30], "piece counts by tag = %v, want {10:3, 20:2, 30:2}", tags)
 }
 
 func TestSimpleNoder_RingClosed(t *testing.T) {
@@ -221,10 +195,6 @@ func TestSimpleNoder_RingClosed(t *testing.T) {
 		Tag: 1,
 	}
 	out := SimpleNoder{}.Node([]*SegmentString{ring})
-	if len(out) != 1 {
-		t.Fatalf("expected 1 string, got %d", len(out))
-	}
-	if len(out[0].Coords) != 5 {
-		t.Errorf("expected 5 vertices, got %v", out[0].Coords)
-	}
+	require.Equal(t, 1, len(out), "expected 1 string")
+	assert.Equal(t, 5, len(out[0].Coords), "expected 5 vertices, got %v", out[0].Coords)
 }

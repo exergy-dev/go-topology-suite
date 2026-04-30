@@ -3,19 +3,14 @@ package kernel
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 )
 
 func TestOrientationString(t *testing.T) {
-	if Collinear.String() != "Collinear" {
-		t.Errorf("Collinear.String() = %q", Collinear.String())
-	}
-	if CounterClockwise.String() != "CCW" {
-		t.Errorf("CCW.String() = %q", CounterClockwise.String())
-	}
-	if Clockwise.String() != "CW" {
-		t.Errorf("CW.String() = %q", Clockwise.String())
-	}
+	assert.Equal(t, "Collinear", Collinear.String(), "Collinear.String()")
+	assert.Equal(t, "CCW", CounterClockwise.String(), "CCW.String()")
+	assert.Equal(t, "CW", Clockwise.String(), "CW.String()")
 }
 
 // kernelStub is a no-op Kernel used only to verify that the interface

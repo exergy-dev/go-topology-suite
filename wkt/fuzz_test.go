@@ -2,6 +2,8 @@ package wkt
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // FuzzUnmarshal exercises the WKT/EWKT parser with arbitrary string input.
@@ -39,23 +41,13 @@ func FuzzUnmarshal(f *testing.F) {
 		if err != nil {
 			return // expected for most random input
 		}
-		if g == nil {
-			t.Fatalf("Unmarshal returned (nil, nil) for input %q", s)
-		}
+		require.NotNil(t, g, "Unmarshal returned (nil, nil) for input %q", s)
 		out, err := Marshal(g)
-		if err != nil {
-			t.Fatalf("Marshal of parsed geometry failed: %v\ninput: %q", err, s)
-		}
+		require.NoErrorf(t, err, "Marshal of parsed geometry failed\ninput: %q", s)
 		g2, err := Unmarshal(out)
-		if err != nil {
-			t.Fatalf("re-Unmarshal of own Marshal output failed: %v\ninput: %q\nintermediate: %q", err, s, out)
-		}
+		require.NoErrorf(t, err, "re-Unmarshal of own Marshal output failed\ninput: %q\nintermediate: %q", s, out)
 		out2, err := Marshal(g2)
-		if err != nil {
-			t.Fatalf("re-Marshal failed: %v\nintermediate: %q", err, out)
-		}
-		if out != out2 {
-			t.Fatalf("round-trip not idempotent:\nfirst:  %q\nsecond: %q\ninput: %q", out, out2, s)
-		}
+		require.NoErrorf(t, err, "re-Marshal failed\nintermediate: %q", out)
+		require.Equalf(t, out, out2, "round-trip not idempotent:\nfirst:  %q\nsecond: %q\ninput: %q", out, out2, s)
 	})
 }

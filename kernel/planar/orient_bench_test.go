@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 )
@@ -105,13 +107,9 @@ func TestOrientCacheAgreesWithUncached(t *testing.T) {
 	for i, tc := range cases {
 		want := uncachedAdaptiveOrient(tc.a, tc.b, tc.c)
 		// First call: cache miss → exact path → store.
-		if got := adaptiveOrient(tc.a, tc.b, tc.c); got != want {
-			t.Errorf("case %d miss: got %v want %v", i, got, want)
-		}
+		assert.Equalf(t, want, adaptiveOrient(tc.a, tc.b, tc.c), "case %d miss", i)
 		// Second call: cache hit → must still match.
-		if got := adaptiveOrient(tc.a, tc.b, tc.c); got != want {
-			t.Errorf("case %d hit: got %v want %v", i, got, want)
-		}
+		assert.Equalf(t, want, adaptiveOrient(tc.a, tc.b, tc.c), "case %d hit", i)
 	}
 }
 
@@ -131,14 +129,10 @@ func TestOrientCacheEvictionBounded(t *testing.T) {
 		}
 		want := uncachedAdaptiveOrient(a, b, c)
 		got := adaptiveOrient(a, b, c)
-		if got != want {
-			t.Fatalf("iter %d: got %v want %v", i, got, want)
-		}
+		require.Equalf(t, want, got, "iter %d", i)
 	}
 	orientCache.mu.RLock()
 	size := len(orientCache.entries)
 	orientCache.mu.RUnlock()
-	if size > orientCacheCap {
-		t.Errorf("cache grew past cap: size=%d cap=%d", size, orientCacheCap)
-	}
+	assert.LessOrEqualf(t, size, orientCacheCap, "cache grew past cap: size=%d cap=%d", size, orientCacheCap)
 }

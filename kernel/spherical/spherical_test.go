@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 )
@@ -15,9 +17,7 @@ func ll(lon, lat float64) geom.XY { return geom.XY{X: lon, Y: lat} }
 // approx returns a function that asserts a value is within tol of want.
 func near(t *testing.T, got, want, tol float64, msg string) {
 	t.Helper()
-	if math.Abs(got-want) > tol {
-		t.Errorf("%s: got %v, want %v ± %v", msg, got, want, tol)
-	}
+	assert.InDelta(t, want, got, tol, msg)
 }
 
 func TestSatisfiesKernel(t *testing.T) {
@@ -78,9 +78,7 @@ func TestMidpoint(t *testing.T) {
 func TestSegmentIntersection(t *testing.T) {
 	// Equator (lon 0..10, lat 0) crosses meridian (lon 5, lat -10..10) at (5,0).
 	got, ok := k.SegmentIntersection(ll(0, 0), ll(10, 0), ll(5, -10), ll(5, 10))
-	if !ok {
-		t.Fatal("expected intersection")
-	}
+	require.True(t, ok, "expected intersection")
 	near(t, got.X, 5, 1e-6, "ix lon")
 	near(t, got.Y, 0, 1e-6, "ix lat")
 }
@@ -88,34 +86,22 @@ func TestSegmentIntersection(t *testing.T) {
 func TestSegmentIntersectionSameGreatCircle(t *testing.T) {
 	// Two arcs along the equator: same great circle → no unique intersection.
 	_, ok := k.SegmentIntersection(ll(0, 0), ll(10, 0), ll(20, 0), ll(30, 0))
-	if ok {
-		t.Errorf("collinear-arc intersection should report ok=false")
-	}
+	assert.False(t, ok, "collinear-arc intersection should report ok=false")
 }
 
 func TestPointInRingEquatorialBox(t *testing.T) {
 	// Box (lon 0..10, lat 0..10), CCW.
 	ring := []geom.XY{ll(0, 0), ll(10, 0), ll(10, 10), ll(0, 10), ll(0, 0)}
-	if got := k.PointInRing(ll(5, 5), ring); got != kernel.Inside {
-		t.Errorf("(5,5) inside box, got %v", got)
-	}
-	if got := k.PointInRing(ll(15, 5), ring); got != kernel.Outside {
-		t.Errorf("(15,5) outside box, got %v", got)
-	}
-	if got := k.PointInRing(ll(0, 5), ring); got != kernel.OnBoundary {
-		t.Errorf("(0,5) on boundary, got %v", got)
-	}
+	assert.Equal(t, kernel.Inside, k.PointInRing(ll(5, 5), ring), "(5,5) inside box")
+	assert.Equal(t, kernel.Outside, k.PointInRing(ll(15, 5), ring), "(15,5) outside box")
+	assert.Equal(t, kernel.OnBoundary, k.PointInRing(ll(0, 5), ring), "(0,5) on boundary")
 }
 
 func TestPointInRingAntimeridianBox(t *testing.T) {
 	// Box straddling the antimeridian: lon 170..190 (= -170), lat 0..10.
 	ring := []geom.XY{ll(170, 0), ll(-170, 0), ll(-170, 10), ll(170, 10), ll(170, 0)}
-	if got := k.PointInRing(ll(180, 5), ring); got != kernel.Inside {
-		t.Errorf("(180,5) inside antimeridian box, got %v", got)
-	}
-	if got := k.PointInRing(ll(0, 5), ring); got != kernel.Outside {
-		t.Errorf("(0,5) outside antimeridian box, got %v", got)
-	}
+	assert.Equal(t, kernel.Inside, k.PointInRing(ll(180, 5), ring), "(180,5) inside antimeridian box")
+	assert.Equal(t, kernel.Outside, k.PointInRing(ll(0, 5), ring), "(0,5) outside antimeridian box")
 }
 
 func TestRingAreaSquareDegree(t *testing.T) {
@@ -125,19 +111,13 @@ func TestRingAreaSquareDegree(t *testing.T) {
 	ring := []geom.XY{ll(0, 0), ll(1, 0), ll(1, 1), ll(0, 1), ll(0, 0)}
 	a := k.RingArea(ring)
 	want := 1.2308e10
-	if math.Abs(a-want)/want > 0.01 {
-		t.Errorf("ring area = %g, want ≈ %g", a, want)
-	}
+	assert.LessOrEqualf(t, math.Abs(a-want)/want, 0.01, "ring area = %g, want ≈ %g", a, want)
 }
 
 func TestOrientChirality(t *testing.T) {
 	// CCW triangle near equator (viewed from outside).
-	if k.Orient(ll(0, 0), ll(10, 0), ll(0, 10)) != kernel.CounterClockwise {
-		t.Errorf("expected CCW")
-	}
-	if k.Orient(ll(0, 0), ll(0, 10), ll(10, 0)) != kernel.Clockwise {
-		t.Errorf("expected CW")
-	}
+	assert.Equal(t, kernel.CounterClockwise, k.Orient(ll(0, 0), ll(10, 0), ll(0, 10)), "expected CCW")
+	assert.Equal(t, kernel.Clockwise, k.Orient(ll(0, 0), ll(0, 10), ll(10, 0)), "expected CW")
 }
 
 func TestSegmentDistance(t *testing.T) {

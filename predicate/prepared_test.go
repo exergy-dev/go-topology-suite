@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/prepare"
 )
@@ -29,9 +30,7 @@ func TestWithPreparedAgreesWithUnprepared(t *testing.T) {
 		pt := geom.NewPoint(nil, geom.XY{X: r.Float64()*250 - 125, Y: r.Float64()*250 - 125})
 		want, _ := Contains(poly, pt)
 		got, _ := Contains(poly, pt, WithPrepared(pp))
-		if got != want {
-			t.Errorf("query %d at %v: prepared=%v want=%v", i, pt.XY(), got, want)
-		}
+		assert.Equal(t, want, got, "query %d at %v: prepared vs unprepared", i, pt.XY())
 	}
 }
 

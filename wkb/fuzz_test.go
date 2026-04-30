@@ -1,8 +1,9 @@
 package wkb
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // FuzzUnmarshal exercises the WKB/EWKB parser with arbitrary byte input.
@@ -48,23 +49,13 @@ func FuzzUnmarshal(f *testing.F) {
 		if err != nil {
 			return // expected for most random input
 		}
-		if g == nil {
-			t.Fatalf("Unmarshal returned (nil, nil) for %x", data)
-		}
+		require.NotNilf(t, g, "Unmarshal returned (nil, nil) for %x", data)
 		first, err := Marshal(g)
-		if err != nil {
-			t.Fatalf("Marshal of parsed geometry failed: %v\ninput: %x", err, data)
-		}
+		require.NoErrorf(t, err, "Marshal of parsed geometry failed\ninput: %x", data)
 		g2, err := Unmarshal(first)
-		if err != nil {
-			t.Fatalf("re-Unmarshal of own Marshal output failed: %v\nfirst: %x", err, first)
-		}
+		require.NoErrorf(t, err, "re-Unmarshal of own Marshal output failed\nfirst: %x", first)
 		second, err := Marshal(g2)
-		if err != nil {
-			t.Fatalf("re-Marshal failed: %v", err)
-		}
-		if !bytes.Equal(first, second) {
-			t.Fatalf("round-trip not idempotent:\nfirst:  %x\nsecond: %x\ninput: %x", first, second, data)
-		}
+		require.NoError(t, err, "re-Marshal failed")
+		require.Equalf(t, first, second, "round-trip not idempotent:\nfirst:  %x\nsecond: %x\ninput: %x", first, second, data)
 	})
 }

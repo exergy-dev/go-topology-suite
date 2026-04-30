@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	terra "github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
@@ -66,14 +68,14 @@ func TestMakeValid_Idempotent(t *testing.T) {
 			if errors.Is(err, terra.ErrEmpty) {
 				t.Skipf("input collapsed to empty: %v", err)
 			}
-			t.Fatalf("first MakeValid failed: %v", err)
+			require.NoError(t, err, "first MakeValid failed")
 		}
 		v2, err := MakeValid(v1)
 		if err != nil {
 			if errors.Is(err, terra.ErrEmpty) {
 				t.Skipf("first-pass result collapsed to empty: %v", err)
 			}
-			t.Fatalf("second MakeValid failed: %v", err)
+			require.NoError(t, err, "second MakeValid failed")
 		}
 
 		a1 := measure.Area(v1)
@@ -81,24 +83,16 @@ func TestMakeValid_Idempotent(t *testing.T) {
 		// Strict equality is normally fine, but allow a tiny epsilon
 		// against floating-point noise from re-running shoelace etc.
 		eps := 1e-9 * (1 + math.Abs(a1))
-		if math.Abs(a1-a2) > eps {
-			t.Fatalf("area not idempotent: a1=%v a2=%v (delta %v)", a1, a2, a1-a2)
-		}
+		assert.InDeltaf(t, a1, a2, eps, "area not idempotent: a1=%v a2=%v (delta %v)", a1, a2, a1-a2)
 
 		// Structural fields must agree when both are polygons.
 		if p1, ok := v1.(*geom.Polygon); ok {
 			p2, ok2 := v2.(*geom.Polygon)
-			if !ok2 {
-				t.Fatalf("type changed between passes: %T -> %T", v1, v2)
-			}
-			if p1.NumGeometries() != p2.NumGeometries() {
-				t.Fatalf("NumGeometries diverged: %d vs %d",
-					p1.NumGeometries(), p2.NumGeometries())
-			}
-			if p1.NumRings() != p2.NumRings() {
-				t.Fatalf("NumRings diverged: %d vs %d",
-					p1.NumRings(), p2.NumRings())
-			}
+			require.Truef(t, ok2, "type changed between passes: %T -> %T", v1, v2)
+			assert.Equalf(t, p1.NumGeometries(), p2.NumGeometries(),
+				"NumGeometries diverged: %d vs %d", p1.NumGeometries(), p2.NumGeometries())
+			assert.Equalf(t, p1.NumRings(), p2.NumRings(),
+				"NumRings diverged: %d vs %d", p1.NumRings(), p2.NumRings())
 		}
 	})
 }
@@ -113,10 +107,8 @@ func TestMakeValid_AlwaysValidates(t *testing.T) {
 			if errors.Is(err, terra.ErrEmpty) {
 				t.Skipf("input collapsed to empty: %v", err)
 			}
-			t.Fatalf("MakeValid failed: %v", err)
+			require.NoError(t, err, "MakeValid failed")
 		}
-		if err := Validate(out); err != nil {
-			t.Fatalf("MakeValid produced invalid result: %v", err)
-		}
+		assert.NoError(t, Validate(out), "MakeValid produced invalid result")
 	})
 }

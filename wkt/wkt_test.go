@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 )
@@ -11,20 +13,14 @@ import (
 func TestEncodePoint(t *testing.T) {
 	p := geom.NewPoint(crs.WGS84, geom.XY{X: 1, Y: 2})
 	got, err := Marshal(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "POINT (1 2)" {
-		t.Errorf("got %q", got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "POINT (1 2)", got)
 }
 
 func TestEncodeEmptyPoint(t *testing.T) {
 	p := geom.NewEmptyPoint(nil, geom.LayoutXY)
 	got, _ := Marshal(p)
-	if got != "POINT EMPTY" {
-		t.Errorf("got %q", got)
-	}
+	assert.Equal(t, "POINT EMPTY", got)
 }
 
 func TestEncodePolygonWithHole(t *testing.T) {
@@ -33,9 +29,7 @@ func TestEncodePolygonWithHole(t *testing.T) {
 	p := geom.NewPolygon(nil, outer, hole)
 	got, _ := Marshal(p)
 	want := "POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0), (2 2, 2 4, 4 4, 4 2, 2 2))"
-	if got != want {
-		t.Errorf("got %q\nwant %q", got, want)
-	}
+	assert.Equal(t, want, got)
 }
 
 func TestRoundTripAllTypes(t *testing.T) {
@@ -59,42 +53,27 @@ func TestRoundTripAllTypes(t *testing.T) {
 	for _, in := range cases {
 		t.Run(in, func(t *testing.T) {
 			g, err := Unmarshal(in)
-			if err != nil {
-				t.Fatalf("Unmarshal: %v", err)
-			}
+			require.NoError(t, err, "Unmarshal")
 			out, err := Marshal(g)
-			if err != nil {
-				t.Fatalf("Marshal: %v", err)
-			}
-			if out != in {
-				t.Errorf("round-trip differs:\n got %q\nwant %q", out, in)
-			}
+			require.NoError(t, err, "Marshal")
+			assert.Equal(t, in, out, "round-trip differs")
 		})
 	}
 }
 
 func TestSRIDPrefix(t *testing.T) {
 	g, err := Unmarshal("SRID=4326;POINT (1 2)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if g.CRS() == nil || g.CRS().Code != 4326 {
-		t.Errorf("SRID prefix not attached: %+v", g.CRS())
-	}
+	require.NoError(t, err)
+	require.NotNil(t, g.CRS(), "SRID prefix not attached")
+	assert.Equal(t, 4326, g.CRS().Code, "SRID prefix not attached: %+v", g.CRS())
 	out, _ := MarshalEWKT(g)
-	if out != "SRID=4326;POINT (1 2)" {
-		t.Errorf("EWKT round-trip = %q", out)
-	}
+	assert.Equal(t, "SRID=4326;POINT (1 2)", out, "EWKT round-trip")
 }
 
 func TestCaseInsensitive(t *testing.T) {
 	g, err := Unmarshal("point (1 2)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if g.Type() != geom.PointType {
-		t.Errorf("got %v", g.Type())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, geom.PointType, g.Type())
 }
 
 func TestErrors(t *testing.T) {
@@ -105,41 +84,28 @@ func TestErrors(t *testing.T) {
 		"POINT (1 2) junk", // trailing
 	}
 	for _, in := range cases {
-		if _, err := Unmarshal(in); err == nil {
-			t.Errorf("expected error for %q", in)
-		}
+		_, err := Unmarshal(in)
+		assert.Errorf(t, err, "expected error for %q", in)
 	}
 }
 
 func TestEncodeXYZLayout(t *testing.T) {
 	p := geom.NewPointXYZ(nil, geom.XYZ{X: 1, Y: 2, Z: 3})
 	got, _ := Marshal(p)
-	if got != "POINT Z (1 2 3)" {
-		t.Errorf("got %q", got)
-	}
+	assert.Equal(t, "POINT Z (1 2 3)", got)
 }
 
 func TestDecodeXYZLineString(t *testing.T) {
 	g, err := Unmarshal("LINESTRING Z (0 0 1, 1 1 2, 2 2 3)")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ls := g.(*geom.LineString)
-	if ls.Layout() != geom.LayoutXYZ {
-		t.Errorf("layout = %v, want XYZ", ls.Layout())
-	}
-	if ls.NumPoints() != 3 {
-		t.Errorf("NumPoints = %d", ls.NumPoints())
-	}
+	assert.Equal(t, geom.LayoutXYZ, ls.Layout(), "layout")
+	assert.Equal(t, 3, ls.NumPoints(), "NumPoints")
 }
 
 func TestEncodeOmitsTrailingZeros(t *testing.T) {
 	p := geom.NewPoint(nil, geom.XY{X: 1.5, Y: 2})
 	got, _ := Marshal(p)
-	if !strings.Contains(got, "1.5") {
-		t.Errorf("expected 1.5 in %q", got)
-	}
-	if strings.Contains(got, "2.0") {
-		t.Errorf("did not expect 2.0 in %q", got)
-	}
+	assert.Truef(t, strings.Contains(got, "1.5"), "expected 1.5 in %q", got)
+	assert.Falsef(t, strings.Contains(got, "2.0"), "did not expect 2.0 in %q", got)
 }

@@ -5,16 +5,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/crs"
 )
 
 func TestParse_TopLevelKinds(t *testing.T) {
 	cases := []struct {
-		name    string
-		input   string
-		kind    crs.Kind
-		auth    string
-		code    int
+		name  string
+		input string
+		kind  crs.Kind
+		auth  string
+		code  int
 	}{
 		{
 			name:  "GEOGCRS WGS 84",
@@ -109,7 +111,7 @@ func TestParse_TopLevelKinds(t *testing.T) {
 			auth:  "EPSG", code: 4326,
 		},
 		{
-			name: "No ID clause leaves Authority/Code zero",
+			name:  "No ID clause leaves Authority/Code zero",
 			input: `GEOGCRS["Local",DATUM["Local",ELLIPSOID["Local",6378137,298.257223563]]]`,
 			kind:  crs.Geographic,
 			auth:  "", code: 0,
@@ -119,24 +121,12 @@ func TestParse_TopLevelKinds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := Parse(tc.input)
-			if err != nil {
-				t.Fatalf("Parse: unexpected error: %v", err)
-			}
-			if got == nil {
-				t.Fatal("Parse: returned nil CRS")
-			}
-			if got.WKT2 != tc.input {
-				t.Errorf("WKT2 not preserved verbatim:\n got: %q\nwant: %q", got.WKT2, tc.input)
-			}
-			if got.Kind != tc.kind {
-				t.Errorf("Kind = %d, want %d", got.Kind, tc.kind)
-			}
-			if got.Authority != tc.auth {
-				t.Errorf("Authority = %q, want %q", got.Authority, tc.auth)
-			}
-			if got.Code != tc.code {
-				t.Errorf("Code = %d, want %d", got.Code, tc.code)
-			}
+			require.NoError(t, err, "Parse: unexpected error")
+			require.NotNil(t, got, "Parse: returned nil CRS")
+			assert.Equal(t, tc.input, got.WKT2, "WKT2 not preserved verbatim")
+			assert.Equal(t, tc.kind, got.Kind, "Kind")
+			assert.Equal(t, tc.auth, got.Authority, "Authority")
+			assert.Equal(t, tc.code, got.Code, "Code")
 		})
 	}
 }
@@ -161,15 +151,12 @@ func TestParse_Errors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := Parse(tc.input)
-			if err == nil {
-				t.Fatalf("Parse: expected error, got nil")
-			}
+			require.Error(t, err, "Parse: expected error, got nil")
 			var se *SyntaxError
-			if !errors.As(err, &se) {
-				t.Errorf("error type = %T, want *SyntaxError", err)
-			}
-			if tc.wantSub != "" && !strings.Contains(err.Error(), tc.wantSub) {
-				t.Errorf("error %q does not contain %q", err.Error(), tc.wantSub)
+			assert.True(t, errors.As(err, &se), "error type = %T, want *SyntaxError", err)
+			if tc.wantSub != "" {
+				assert.True(t, strings.Contains(err.Error(), tc.wantSub),
+					"error %q does not contain %q", err.Error(), tc.wantSub)
 			}
 		})
 	}
@@ -178,16 +165,10 @@ func TestParse_Errors(t *testing.T) {
 func TestParse_OffsetReporting(t *testing.T) {
 	// The unterminated string starts at offset 9.
 	_, err := Parse(`GEOGCRS["unterminated`)
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err, "expected error")
 	var se *SyntaxError
-	if !errors.As(err, &se) {
-		t.Fatalf("error type = %T, want *SyntaxError", err)
-	}
-	if se.Offset != 8 {
-		t.Errorf("Offset = %d, want 8 (start of opening quote)", se.Offset)
-	}
+	require.True(t, errors.As(err, &se), "error type = %T, want *SyntaxError", err)
+	assert.Equal(t, 8, se.Offset, "Offset (start of opening quote)")
 }
 
 func TestParse_NestedIDOuterWins(t *testing.T) {
@@ -196,26 +177,16 @@ func TestParse_NestedIDOuterWins(t *testing.T) {
 	input := `PROJCRS["x",BASEGEOGCRS["y",DATUM["d",ELLIPSOID["e",6378137,298.257223563]],ID["EPSG",4326]],` +
 		`CONVERSION["c",METHOD["m"]],CS[Cartesian,2],ID["EPSG",3857]]`
 	got, err := Parse(input)
-	if err != nil {
-		t.Fatalf("Parse: %v", err)
-	}
-	if got.Code != 3857 {
-		t.Errorf("Code = %d, want 3857 (outer ID)", got.Code)
-	}
-	if got.Authority != "EPSG" {
-		t.Errorf("Authority = %q, want EPSG", got.Authority)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 3857, got.Code, "Code (outer ID)")
+	assert.Equal(t, "EPSG", got.Authority, "Authority")
 }
 
 func TestParse_PreservesOriginalInWKT2(t *testing.T) {
 	in := `  GeogCRS["WGS 84",ID["EPSG",4326]]  `
 	got, err := Parse(in)
-	if err != nil {
-		t.Fatalf("Parse: %v", err)
-	}
-	if got.WKT2 != in {
-		t.Errorf("WKT2 was normalised; want verbatim original input")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, in, got.WKT2, "WKT2 was normalised; want verbatim original input")
 }
 
 func TestLexer_NumberFormats(t *testing.T) {
@@ -226,29 +197,18 @@ func TestLexer_NumberFormats(t *testing.T) {
 	for _, c := range cases {
 		l := newLexer(c)
 		tok, err := l.next()
-		if err != nil {
-			t.Errorf("number %q: %v", c, err)
+		if !assert.NoError(t, err, "number %q", c) {
 			continue
 		}
-		if tok.kind != tokNumber {
-			t.Errorf("number %q: kind=%v want number", c, tok.kind)
-		}
-		if tok.value != c {
-			t.Errorf("number %q: value=%q", c, tok.value)
-		}
+		assert.Equal(t, tokNumber, tok.kind, "number %q: kind", c)
+		assert.Equal(t, c, tok.value, "number %q: value", c)
 	}
 }
 
 func TestLexer_StringEscape(t *testing.T) {
 	l := newLexer(`"a""b"`)
 	tok, err := l.next()
-	if err != nil {
-		t.Fatalf("lex: %v", err)
-	}
-	if tok.kind != tokString {
-		t.Fatalf("kind=%v", tok.kind)
-	}
-	if tok.value != `a"b` {
-		t.Errorf("value=%q want a\"b", tok.value)
-	}
+	require.NoError(t, err, "lex")
+	require.Equal(t, tokString, tok.kind, "kind")
+	assert.Equal(t, `a"b`, tok.value, "value")
 }

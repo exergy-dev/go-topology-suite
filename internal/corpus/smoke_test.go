@@ -5,6 +5,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/buffer"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
@@ -37,23 +39,19 @@ func dimension(g geom.Geometry) int {
 // the contract this harness enforces.
 func TestCorpusSmoke(t *testing.T) {
 	fixtures := All()
-	if len(fixtures) == 0 {
-		t.Fatal("corpus.All() returned no fixtures")
-	}
+	require.NotEmpty(t, fixtures, "corpus.All() returned no fixtures")
 
 	for _, fx := range fixtures {
 		fx := fx
 		t.Run(fx.Name, func(t *testing.T) {
-			if len(fx.Features) == 0 {
-				t.Fatalf("fixture %s decoded with zero features", fx.Name)
-			}
+			require.NotEmpty(t, fx.Features, "fixture %s decoded with zero features", fx.Name)
 
 			for i, g := range fx.Features {
 				label := fmt.Sprintf("%s/feat%d/%s", fx.Name, i, g.Type())
 
 				// 1. Validate.
 				if err := validate.Validate(g); err != nil {
-					t.Errorf("%s: validate.Validate: %v", label, err)
+					assert.NoErrorf(t, err, "%s: validate.Validate", label)
 					// Skip downstream checks when input is invalid.
 					continue
 				}
@@ -63,26 +61,25 @@ func TestCorpusSmoke(t *testing.T) {
 				// 2. Length (dim >= 1).
 				if dim >= 1 {
 					l := measure.Length(g)
-					if math.IsNaN(l) || math.IsInf(l, 0) {
-						t.Errorf("%s: measure.Length non-finite: %v", label, l)
-					}
+					assert.False(t, math.IsNaN(l) || math.IsInf(l, 0),
+						"%s: measure.Length non-finite: %v", label, l)
 				}
 
 				// 3. Area (dim >= 2).
 				if dim >= 2 {
 					a := measure.Area(g)
-					if math.IsNaN(a) || math.IsInf(a, 0) {
-						t.Errorf("%s: measure.Area non-finite: %v", label, a)
-					}
+					assert.False(t, math.IsNaN(a) || math.IsInf(a, 0),
+						"%s: measure.Area non-finite: %v", label, a)
 				}
 
 				// 4. Buffer with a small positive distance.
 				if !g.IsEmpty() {
 					buf, err := buffer.Buffer(g, 0.001)
 					if err != nil {
-						t.Errorf("%s: buffer.Buffer: %v", label, err)
-					} else if buf == nil || buf.IsEmpty() {
-						t.Errorf("%s: buffer.Buffer produced empty result for non-empty input", label)
+						assert.NoErrorf(t, err, "%s: buffer.Buffer", label)
+					} else {
+						assert.False(t, buf == nil || buf.IsEmpty(),
+							"%s: buffer.Buffer produced empty result for non-empty input", label)
 					}
 				}
 			}

@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/crs"
 )
 
@@ -31,8 +32,6 @@ func TestEnvelopeCacheConcurrent(t *testing.T) {
 
 	want := envs[0]
 	for i, e := range envs {
-		if e != want {
-			t.Fatalf("envelope inconsistency at %d: %+v vs %+v", i, e, want)
-		}
+		assert.Equal(t, want, e, "envelope inconsistency at %d", i)
 	}
 }

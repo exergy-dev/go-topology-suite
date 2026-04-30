@@ -3,6 +3,8 @@ package predicate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/internal/proptest"
 	"pgregory.net/rapid"
@@ -15,9 +17,7 @@ func TestIntersectsSymmetric(t *testing.T) {
 		b := geom.NewPoint(nil, proptest.SmallXY(t))
 		ab, _ := Intersects(a, b)
 		ba, _ := Intersects(b, a)
-		if ab != ba {
-			t.Fatalf("Intersects not symmetric: %v vs %v", ab, ba)
-		}
+		assert.Equal(t, ab, ba, "Intersects not symmetric")
 	})
 }
 
@@ -26,12 +26,8 @@ func TestEqualsReflexive(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		p := geom.NewPoint(nil, proptest.AnyXY(t))
 		eq, err := Equals(p, p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !eq {
-			t.Fatalf("Equals not reflexive for %v", p.XY())
-		}
+		require.NoError(t, err)
+		assert.True(t, eq, "Equals not reflexive for %v", p.XY())
 	})
 }
 
@@ -42,9 +38,7 @@ func TestDisjointIsComplementOfIntersects(t *testing.T) {
 		b := geom.NewPoint(nil, proptest.SmallXY(t))
 		i, _ := Intersects(a, b)
 		d, _ := Disjoint(a, b)
-		if i == d {
-			t.Fatalf("Disjoint and Intersects should never agree (got %v, %v)", i, d)
-		}
+		assert.NotEqual(t, i, d, "Disjoint and Intersects should never agree")
 	})
 }
 
@@ -70,8 +64,8 @@ func TestContainsImpliesIntersects(t *testing.T) {
 		pt := geom.NewPoint(nil, geom.XY{X: px, Y: py})
 		c, _ := Contains(poly, pt)
 		i, _ := Intersects(poly, pt)
-		if c && !i {
-			t.Fatalf("Contains true but Intersects false")
+		if c {
+			assert.True(t, i, "Contains true but Intersects false")
 		}
 	})
 }
@@ -96,8 +90,8 @@ func TestCoversIsLooserThanContains(t *testing.T) {
 		pt := geom.NewPoint(nil, geom.XY{X: px, Y: py})
 		c, _ := Contains(poly, pt)
 		cov, _ := Covers(poly, pt)
-		if c && !cov {
-			t.Fatalf("Contains=true but Covers=false")
+		if c {
+			assert.True(t, cov, "Contains=true but Covers=false")
 		}
 	})
 }

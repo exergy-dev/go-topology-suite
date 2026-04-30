@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 )
 
@@ -20,10 +21,7 @@ func TestKarneyAreaEquatorialBox(t *testing.T) {
 	}
 	got := k.RingArea(ring)
 	const want = 12308778361.4695
-	if math.Abs(got-want) > 1.0 {
-		t.Errorf("ring area = %.4f, want %.4f ± 1m (delta %.4f)",
-			got, want, got-want)
-	}
+	assert.InDeltaf(t, want, got, 1.0, "ring area = %.4f, want %.4f ± 1m (delta %.4f)", got, want, got-want)
 }
 
 // TestKarneyAreaCONUSBox verifies A4 on a continent-scale polygon.
@@ -37,10 +35,7 @@ func TestKarneyAreaCONUSBox(t *testing.T) {
 	}
 	got := k.RingArea(ring)
 	const want = 14404108189597.77
-	if math.Abs(got-want) > 1.0 {
-		t.Errorf("CONUS bbox area = %.4f, want %.4f ± 1m (delta %.4f)",
-			got, want, got-want)
-	}
+	assert.InDeltaf(t, want, got, 1.0, "CONUS bbox area = %.4f, want %.4f ± 1m (delta %.4f)", got, want, got-want)
 }
 
 // TestKarneyAreaSignReverses confirms reversing ring orientation
@@ -54,12 +49,9 @@ func TestKarneyAreaSignReverses(t *testing.T) {
 	}
 	a := k.RingArea(ccw)
 	b := k.RingArea(cw)
-	if a <= 0 || b >= 0 {
-		t.Errorf("expected CCW > 0 and CW < 0; got CCW=%v CW=%v", a, b)
-	}
-	if math.Abs(a+b) > 1e-6 {
-		t.Errorf("magnitudes should match: |CCW|=%v |CW|=%v", a, -b)
-	}
+	assert.Greaterf(t, a, 0.0, "expected CCW > 0; got CCW=%v", a)
+	assert.Lessf(t, b, 0.0, "expected CW < 0; got CW=%v", b)
+	assert.InDeltaf(t, 0.0, a+b, 1e-6, "magnitudes should match: |CCW|=%v |CW|=%v", a, -b)
 }
 
 // TestKarneyInverseNearAntipodal verifies that the Karney fallback
@@ -81,25 +73,21 @@ func TestKarneyInverseNearAntipodal(t *testing.T) {
 
 	got := k.Distance(a, b)
 	const ref = 20003920.3089
-	if math.Abs(got-ref) > 1.0 {
-		t.Errorf("near-antipodal distance = %.4f, want %.4f ± 1m", got, ref)
-	}
+	assert.InDeltaf(t, ref, got, 1.0, "near-antipodal distance = %.4f, want %.4f ± 1m", got, ref)
 
 	// Sanity check: should be within a few % of π·a.
 	pia := math.Pi * SemiMajorA
-	if math.Abs(got-pia) > pia*0.01 {
-		t.Errorf("distance %.4f is unexpectedly far from π·a=%.4f", got, pia)
-	}
+	assert.InDeltaf(t, pia, got, pia*0.01, "distance %.4f is unexpectedly far from π·a=%.4f", got, pia)
 }
 
 // TestKarneyInverseAdditionalReferences exercises more cases with
 // reference values generated from geographiclib's Python binding.
 func TestKarneyInverseAdditionalReferences(t *testing.T) {
 	cases := []struct {
-		name      string
-		a, b      geom.XY
-		wantM     float64
-		tolM      float64
+		name  string
+		a, b  geom.XY
+		wantM float64
+		tolM  float64
 	}{
 		{"equator antipode", geom.XY{X: 0, Y: 0}, geom.XY{X: 180, Y: 0}, 20003931.4586, 1.0},
 		{"179.5° equator", geom.XY{X: 0, Y: 0}, geom.XY{X: 179.5, Y: 0}, 19980861.9089, 1.0},
@@ -108,9 +96,7 @@ func TestKarneyInverseAdditionalReferences(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := k.Distance(tc.a, tc.b)
-			if math.Abs(got-tc.wantM) > tc.tolM {
-				t.Errorf("got %.4f, want %.4f ± %.4f", got, tc.wantM, tc.tolM)
-			}
+			assert.InDeltaf(t, tc.wantM, got, tc.tolM, "got %.4f, want %.4f ± %.4f", got, tc.wantM, tc.tolM)
 		})
 	}
 }

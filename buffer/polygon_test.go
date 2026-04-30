@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 )
@@ -29,12 +31,10 @@ func extractFirstPolygon(t *testing.T, g geom.Geometry) *geom.Polygon {
 	case *geom.Polygon:
 		return v
 	case *geom.MultiPolygon:
-		if v.NumGeometries() != 1 {
-			t.Fatalf("expected 1 polygon part, got %d", v.NumGeometries())
-		}
+		require.Equal(t, 1, v.NumGeometries(), "expected 1 polygon part, got %d", v.NumGeometries())
 		return v.PolygonAt(0)
 	default:
-		t.Fatalf("unexpected geometry type %T", g)
+		require.Failf(t, "unexpected geometry type", "%T", g)
 	}
 	return nil
 }
@@ -43,12 +43,8 @@ func TestBufferPolygonZeroDistance(t *testing.T) {
 	side := 4.0
 	poly := geom.NewPolygon(nil, squareRingCCW(side/2))
 	g, err := Buffer(poly, 0)
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
-	if g != poly {
-		t.Fatalf("expected identity geometry for zero distance, got %T", g)
-	}
+	require.NoError(t, err)
+	require.Equal(t, geom.Geometry(poly), g, "expected identity geometry for zero distance, got %T", g)
 }
 
 func TestBufferPolygonPositiveRound(t *testing.T) {
@@ -58,9 +54,7 @@ func TestBufferPolygonPositiveRound(t *testing.T) {
 	const quad = 8
 
 	g, err := Buffer(poly, d, WithJoinStyle(JoinRound), WithQuadSegments(quad))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	out := extractFirstPolygon(t, g)
 	got := measure.Area(out)
 
@@ -69,12 +63,8 @@ func TestBufferPolygonPositiveRound(t *testing.T) {
 	original := side * side
 	perim := 4 * side
 	want := original + perim*d + math.Pi*d*d
-	if math.Abs(got-want) > 0.05*want {
-		t.Errorf("positive round buffer area = %v, want ≈ %v", got, want)
-	}
-	if got <= original {
-		t.Errorf("positive buffer must grow the polygon; got %v ≤ original %v", got, original)
-	}
+	assert.InDelta(t, want, got, 0.05*want, "positive round buffer area = %v, want ≈ %v", got, want)
+	assert.Greater(t, got, original, "positive buffer must grow the polygon; got %v ≤ original %v", got, original)
 }
 
 func TestBufferPolygonPositiveMitre(t *testing.T) {
@@ -83,9 +73,7 @@ func TestBufferPolygonPositiveMitre(t *testing.T) {
 	const d = 1.0
 
 	g, err := Buffer(poly, d, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	out := extractFirstPolygon(t, g)
 	got := measure.Area(out)
 
@@ -93,12 +81,8 @@ func TestBufferPolygonPositiveMitre(t *testing.T) {
 	// up to 10% area error from the GH-overlay union step (documented in
 	// package doc).
 	want := (side + 2*d) * (side + 2*d)
-	if math.Abs(got-want) > 0.1*want {
-		t.Errorf("positive mitre buffer area = %v, want ≈ %v (10%% tol)", got, want)
-	}
-	if got <= side*side {
-		t.Errorf("positive buffer must grow the polygon")
-	}
+	assert.InDelta(t, want, got, 0.1*want, "positive mitre buffer area = %v, want ≈ %v (10%% tol)", got, want)
+	assert.Greater(t, got, side*side, "positive buffer must grow the polygon")
 }
 
 func TestBufferPolygonNegative(t *testing.T) {
@@ -107,20 +91,14 @@ func TestBufferPolygonNegative(t *testing.T) {
 	const d = -1.0
 
 	g, err := Buffer(poly, d, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	out := extractFirstPolygon(t, g)
 	got := measure.Area(out)
 
 	// Mitre inset of a square: smaller square of side - 2|d|.
 	want := (side + 2*d) * (side + 2*d)
-	if math.Abs(got-want) > 1e-6 {
-		t.Errorf("negative mitre buffer area = %v, want %v", got, want)
-	}
-	if got >= side*side {
-		t.Errorf("negative buffer must shrink the polygon; got %v ≥ original %v", got, side*side)
-	}
+	assert.InDelta(t, want, got, 1e-6, "negative mitre buffer area = %v, want %v", got, want)
+	assert.Less(t, got, side*side, "negative buffer must shrink the polygon; got %v ≥ original %v", got, side*side)
 }
 
 func TestBufferPolygonNegativeFullErase(t *testing.T) {
@@ -133,14 +111,9 @@ func TestBufferPolygonNegativeFullErase(t *testing.T) {
 	const d = -3.0 // inradius is 2.0
 
 	g, err := Buffer(poly, d, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	a := measure.Area(g)
-	if a > side*side/4 {
-		t.Errorf("over-eroded inset should collapse; got area = %v (orig %v)",
-			a, side*side)
-	}
+	assert.LessOrEqual(t, a, side*side/4, "over-eroded inset should collapse; got area = %v (orig %v)", a, side*side)
 }
 
 func TestBufferMultiPolygon(t *testing.T) {
@@ -154,17 +127,13 @@ func TestBufferMultiPolygon(t *testing.T) {
 	mp := geom.NewMultiPolygon(nil, left, right)
 
 	g, err := Buffer(mp, 0.5, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	got := measure.Area(g)
 
 	// Each grows from 4 to 9 (square 3×3); two disjoint = 18. 10% tol per
 	// the v0.1 GH-overlay union limitation.
 	want := 2 * 9.0
-	if math.Abs(got-want) > 0.1*want {
-		t.Errorf("multipolygon buffer area = %v, want ≈ %v", got, want)
-	}
+	assert.InDelta(t, want, got, 0.1*want, "multipolygon buffer area = %v, want ≈ %v", got, want)
 }
 
 func TestBufferMultiPolygonOverlapMerges(t *testing.T) {
@@ -180,12 +149,9 @@ func TestBufferMultiPolygonOverlapMerges(t *testing.T) {
 	})
 	mp := geom.NewMultiPolygon(nil, left, right)
 	g, err := Buffer(mp, 2, WithJoinStyle(JoinRound), WithQuadSegments(8))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
-	if _, ok := g.(*geom.Polygon); !ok {
-		t.Errorf("expected merged Polygon, got %T", g)
-	}
+	require.NoError(t, err)
+	_, ok := g.(*geom.Polygon)
+	assert.True(t, ok, "expected merged Polygon, got %T", g)
 }
 
 // TestBufferPositiveShrinksHole: a 10×10 outer with a 4×4 hole at the
@@ -197,15 +163,11 @@ func TestBufferPositiveShrinksHole(t *testing.T) {
 	poly := geom.NewPolygon(nil, outer, hole)
 
 	g, err := Buffer(poly, 1, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	got := measure.Area(g)
 	want := 144.0 - 4.0
 	// Allow 10% — same tolerance the rest of the polygon-buffer suite uses.
-	if math.Abs(got-want) > 0.1*want {
-		t.Errorf("buffer-with-hole area = %v, want ≈ %v", got, want)
-	}
+	assert.InDelta(t, want, got, 0.1*want, "buffer-with-hole area = %v, want ≈ %v", got, want)
 }
 
 // TestBufferPositiveCollapsesSmallHole: a hole small enough that a
@@ -218,13 +180,9 @@ func TestBufferPositiveCollapsesSmallHole(t *testing.T) {
 	poly := geom.NewPolygon(nil, outer, hole)
 
 	g, err := Buffer(poly, 2, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	out := extractFirstPolygon(t, g)
-	if out.NumRings() != 1 {
-		t.Errorf("expected hole to collapse, got %d rings", out.NumRings())
-	}
+	assert.Equal(t, 1, out.NumRings(), "expected hole to collapse, got %d rings", out.NumRings())
 }
 
 // TestBufferNegativeGrowsHole: a 10×10 outer with a 4×4 hole, inset by
@@ -236,24 +194,15 @@ func TestBufferNegativeGrowsHole(t *testing.T) {
 	poly := geom.NewPolygon(nil, outer, hole)
 
 	g, err := Buffer(poly, -1, WithJoinStyle(JoinMitre))
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
+	require.NoError(t, err)
 	got := measure.Area(g)
 	want := 64.0 - 36.0
-	if math.Abs(got-want) > 0.1*want {
-		t.Errorf("inset-with-hole area = %v, want ≈ %v", got, want)
-	}
+	assert.InDelta(t, want, got, 0.1*want, "inset-with-hole area = %v, want ≈ %v", got, want)
 }
 
 func TestBufferEmptyPolygon(t *testing.T) {
 	empty := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	g, err := Buffer(empty, 1)
-	if err != nil {
-		t.Fatalf("Buffer: %v", err)
-	}
-	if !g.IsEmpty() {
-		t.Errorf("buffer of empty polygon should be empty; got area = %v",
-			measure.Area(g))
-	}
+	require.NoError(t, err)
+	assert.True(t, g.IsEmpty(), "buffer of empty polygon should be empty; got area = %v", measure.Area(g))
 }

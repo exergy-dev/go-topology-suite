@@ -1,9 +1,10 @@
 package overlayng
 
 import (
-	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 )
@@ -20,16 +21,9 @@ func TestIntersectionAxisAligned(t *testing.T) {
 		{X: -1, Y: -5}, {X: 1, Y: -5}, {X: 1, Y: 5}, {X: -1, Y: 5}, {X: -1, Y: -5},
 	})
 	first, rest, err := Overlay(a, b, OpIntersection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rest) != 0 {
-		t.Errorf("expected single-ring result, got %d additional rings", len(rest))
-	}
-	got := measure.Area(first)
-	if math.Abs(got-4) > 1e-9 {
-		t.Errorf("intersection area = %v, want 4", got)
-	}
+	require.NoError(t, err)
+	assert.Empty(t, rest, "expected single-ring result")
+	assert.InDelta(t, 4.0, measure.Area(first), 1e-9, "intersection area")
 }
 
 // TestIntersectionTwoOverlappingSquares: classic case. Two 10x10 squares
@@ -42,13 +36,8 @@ func TestIntersectionTwoOverlappingSquares(t *testing.T) {
 		{X: 5, Y: 5}, {X: 15, Y: 5}, {X: 15, Y: 15}, {X: 5, Y: 15}, {X: 5, Y: 5},
 	})
 	first, _, err := Overlay(a, b, OpIntersection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := measure.Area(first)
-	if math.Abs(got-25) > 1e-9 {
-		t.Errorf("intersection area = %v, want 25", got)
-	}
+	require.NoError(t, err)
+	assert.InDelta(t, 25.0, measure.Area(first), 1e-9, "intersection area")
 }
 
 // TestUnionTwoOverlappingSquares: A=B=100, A∩B=25, A∪B = 100+100-25 = 175.
@@ -60,16 +49,12 @@ func TestUnionTwoOverlappingSquares(t *testing.T) {
 		{X: 5, Y: 5}, {X: 15, Y: 5}, {X: 15, Y: 15}, {X: 5, Y: 15}, {X: 5, Y: 5},
 	})
 	first, rest, err := Overlay(a, b, OpUnion)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	totalArea := measure.Area(first)
 	for _, p := range rest {
 		totalArea += measure.Area(p)
 	}
-	if math.Abs(totalArea-175) > 1e-9 {
-		t.Errorf("union area = %v, want 175", totalArea)
-	}
+	assert.InDelta(t, 175.0, totalArea, 1e-9, "union area")
 }
 
 // TestDifferenceTwoSquares: A \ B = 100 - 25 = 75.
@@ -81,16 +66,12 @@ func TestDifferenceTwoSquares(t *testing.T) {
 		{X: 5, Y: 5}, {X: 15, Y: 5}, {X: 15, Y: 15}, {X: 5, Y: 15}, {X: 5, Y: 5},
 	})
 	first, rest, err := Overlay(a, b, OpDifference)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	totalArea := measure.Area(first)
 	for _, p := range rest {
 		totalArea += measure.Area(p)
 	}
-	if math.Abs(totalArea-75) > 1e-9 {
-		t.Errorf("difference area = %v, want 75", totalArea)
-	}
+	assert.InDelta(t, 75.0, totalArea, 1e-9, "difference area")
 }
 
 // TestSharedBoundaryUnion: two squares that share an edge x=10. Their
@@ -116,9 +97,7 @@ func TestSharedBoundaryUnion(t *testing.T) {
 	// 100..200 range demonstrates the algorithm at least found one of
 	// the squares. Tighten this once shared-edge tag merging is verified.
 	t.Logf("shared-boundary union area = %v (want 200)", totalArea)
-	if totalArea < 50 {
-		t.Errorf("shared-boundary union area = %v, way below 200", totalArea)
-	}
+	assert.GreaterOrEqualf(t, totalArea, 50.0, "shared-boundary union area = %v, way below 200", totalArea)
 }
 
 // TestOverlayWithToleranceNearCoincidentEdges: two rectangles whose Y
@@ -138,17 +117,13 @@ func TestOverlayWithToleranceNearCoincidentEdges(t *testing.T) {
 	})
 	const tol = 1e-7
 	uFirst, uRest, err := OverlayWithTolerance(a, b, OpUnion, tol)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	totalU := measure.Area(uFirst)
 	for _, p := range uRest {
 		totalU += measure.Area(p)
 	}
 	iFirst, iRest, err := OverlayWithTolerance(a, b, OpIntersection, tol)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	totalI := measure.Area(iFirst)
 	for _, p := range iRest {
 		totalI += measure.Area(p)
@@ -156,10 +131,9 @@ func TestOverlayWithToleranceNearCoincidentEdges(t *testing.T) {
 	areaA, areaB := measure.Area(a), measure.Area(b)
 	lhs := totalU + totalI
 	rhs := areaA + areaB
-	if math.Abs(lhs-rhs) > 0.01*rhs {
-		t.Errorf("inclusion-exclusion violated: U=%v + I=%v = %v, A+B=%v",
-			totalU, totalI, lhs, rhs)
-	}
+	assert.InDeltaf(t, rhs, lhs, 0.01*rhs,
+		"inclusion-exclusion violated: U=%v + I=%v = %v, A+B=%v",
+		totalU, totalI, lhs, rhs)
 }
 
 // TestDisjointEmptyIntersection: two non-overlapping squares; intersection
@@ -172,14 +146,10 @@ func TestDisjointEmptyIntersection(t *testing.T) {
 		{X: 5, Y: 5}, {X: 6, Y: 5}, {X: 6, Y: 6}, {X: 5, Y: 6}, {X: 5, Y: 5},
 	})
 	first, rest, err := Overlay(a, b, OpIntersection)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	totalArea := measure.Area(first)
 	for _, p := range rest {
 		totalArea += measure.Area(p)
 	}
-	if totalArea > 1e-9 {
-		t.Errorf("disjoint intersection should be empty, got area %v", totalArea)
-	}
+	assert.LessOrEqualf(t, totalArea, 1e-9, "disjoint intersection should be empty, got area %v", totalArea)
 }

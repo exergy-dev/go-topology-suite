@@ -5,19 +5,18 @@ package jtstest
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestJTSConformance walks the embedded testdata corpus and runs every
 // op against terra. The harness logs aggregate counts and reports
-// per-failure detail via t.Errorf.
+// per-failure detail via assert.Failf.
 func TestJTSConformance(t *testing.T) {
 	files, err := findCorpus("testdata")
-	if err != nil {
-		t.Fatalf("walk testdata: %v", err)
-	}
-	if len(files) == 0 {
-		t.Fatal("no XML test files found under testdata/")
-	}
+	require.NoError(t, err, "walk testdata")
+	require.NotEmpty(t, files, "no XML test files found under testdata/")
 
 	var (
 		total   int
@@ -28,8 +27,7 @@ func TestJTSConformance(t *testing.T) {
 
 	for _, path := range files {
 		rn, err := loadFile(path)
-		if err != nil {
-			t.Errorf("%s: load: %v", path, err)
+		if !assert.NoErrorf(t, err, "%s: load", path) {
 			continue
 		}
 		rel, _ := filepath.Rel("testdata", path)
@@ -46,7 +44,7 @@ func TestJTSConformance(t *testing.T) {
 					passed++
 				default:
 					failed++
-					t.Errorf("FAIL %s: %s", label, res.Detail)
+					assert.Failf(t, "FAIL "+label, "%s", res.Detail)
 				}
 			}
 		}

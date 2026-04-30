@@ -1,31 +1,32 @@
 package geom
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestEmptyEnvelopeIsEmpty(t *testing.T) {
 	e := EmptyEnvelope()
-	if !e.IsEmpty() {
-		t.Fatalf("EmptyEnvelope().IsEmpty() = false, want true")
-	}
-	if e.Width() != 0 || e.Height() != 0 || e.Area() != 0 {
-		t.Fatalf("empty envelope should have zero dimensions, got w=%v h=%v area=%v",
-			e.Width(), e.Height(), e.Area())
-	}
+	assert.True(t, e.IsEmpty(), "EmptyEnvelope().IsEmpty() should be true")
+	assert.Equal(t, 0.0, e.Width(), "empty envelope width")
+	assert.Equal(t, 0.0, e.Height(), "empty envelope height")
+	assert.Equal(t, 0.0, e.Area(), "empty envelope area")
 }
 
 func TestEnvelopeExpandToIncludeXY(t *testing.T) {
 	e := EmptyEnvelope()
 	e = e.ExpandToIncludeXY(XY{1, 2})
-	if e.IsEmpty() {
-		t.Fatalf("envelope still empty after first expand")
-	}
-	if e.MinX != 1 || e.MinY != 2 || e.MaxX != 1 || e.MaxY != 2 {
-		t.Fatalf("expand-to-first-point bounds wrong: %+v", e)
-	}
+	assert.False(t, e.IsEmpty(), "envelope still empty after first expand")
+	assert.Equal(t, 1.0, e.MinX, "MinX after first expand")
+	assert.Equal(t, 2.0, e.MinY, "MinY after first expand")
+	assert.Equal(t, 1.0, e.MaxX, "MaxX after first expand")
+	assert.Equal(t, 2.0, e.MaxY, "MaxY after first expand")
 	e = e.ExpandToIncludeXY(XY{-1, 5})
-	if e.MinX != -1 || e.MinY != 2 || e.MaxX != 1 || e.MaxY != 5 {
-		t.Fatalf("expand bounds wrong: %+v", e)
-	}
+	assert.Equal(t, -1.0, e.MinX, "MinX after second expand")
+	assert.Equal(t, 2.0, e.MinY, "MinY after second expand")
+	assert.Equal(t, 1.0, e.MaxX, "MaxX after second expand")
+	assert.Equal(t, 5.0, e.MaxY, "MaxY after second expand")
 }
 
 func TestEnvelopeIntersects(t *testing.T) {
@@ -33,15 +34,9 @@ func TestEnvelopeIntersects(t *testing.T) {
 	b := Envelope{5, 5, 15, 15}
 	c := Envelope{20, 20, 30, 30}
 
-	if !a.Intersects(b) {
-		t.Errorf("a should intersect b")
-	}
-	if a.Intersects(c) {
-		t.Errorf("a should not intersect c")
-	}
-	if a.Intersects(EmptyEnvelope()) {
-		t.Errorf("nothing should intersect empty")
-	}
+	assert.True(t, a.Intersects(b), "a should intersect b")
+	assert.False(t, a.Intersects(c), "a should not intersect c")
+	assert.False(t, a.Intersects(EmptyEnvelope()), "nothing should intersect empty")
 }
 
 func TestEnvelopeContainsXY(t *testing.T) {
@@ -57,22 +52,22 @@ func TestEnvelopeContainsXY(t *testing.T) {
 		{XY{5, 11}, false},
 	}
 	for _, c := range cases {
-		if got := e.ContainsXY(c.p); got != c.want {
-			t.Errorf("Contains(%v) = %v, want %v", c.p, got, c.want)
-		}
+		assert.Equal(t, c.want, e.ContainsXY(c.p), "Contains(%v)", c.p)
 	}
 }
 
 func TestEnvelopeOfFlat(t *testing.T) {
 	flat := []float64{1, 2, 3, 4, -1, 5}
 	e := envelopeOfFlat(flat, 2)
-	if e.MinX != -1 || e.MinY != 2 || e.MaxX != 3 || e.MaxY != 5 {
-		t.Fatalf("envelopeOfFlat got %+v", e)
-	}
+	assert.Equal(t, -1.0, e.MinX, "envelopeOfFlat MinX")
+	assert.Equal(t, 2.0, e.MinY, "envelopeOfFlat MinY")
+	assert.Equal(t, 3.0, e.MaxX, "envelopeOfFlat MaxX")
+	assert.Equal(t, 5.0, e.MaxY, "envelopeOfFlat MaxY")
 
 	flat3 := []float64{1, 2, 99, 3, 4, 99, -1, 5, 99}
 	e3 := envelopeOfFlat(flat3, 3)
-	if e3.MinX != -1 || e3.MinY != 2 || e3.MaxX != 3 || e3.MaxY != 5 {
-		t.Fatalf("envelopeOfFlat XYZ got %+v", e3)
-	}
+	assert.Equal(t, -1.0, e3.MinX, "envelopeOfFlat XYZ MinX")
+	assert.Equal(t, 2.0, e3.MinY, "envelopeOfFlat XYZ MinY")
+	assert.Equal(t, 3.0, e3.MaxX, "envelopeOfFlat XYZ MaxX")
+	assert.Equal(t, 5.0, e3.MaxY, "envelopeOfFlat XYZ MaxY")
 }

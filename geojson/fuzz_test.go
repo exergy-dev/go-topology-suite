@@ -1,8 +1,9 @@
 package geojson
 
 import (
-	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // FuzzUnmarshal exercises the GeoJSON parser with arbitrary byte input.
@@ -36,23 +37,13 @@ func FuzzUnmarshal(f *testing.F) {
 		if err != nil {
 			return // expected for most random input
 		}
-		if g == nil {
-			t.Fatalf("Unmarshal returned (nil, nil) for %q", data)
-		}
+		require.NotNilf(t, g, "Unmarshal returned (nil, nil) for %q", data)
 		first, err := Marshal(g)
-		if err != nil {
-			t.Fatalf("Marshal of parsed geometry failed: %v\ninput: %q", err, data)
-		}
+		require.NoErrorf(t, err, "Marshal of parsed geometry failed\ninput: %q", data)
 		g2, err := Unmarshal(first)
-		if err != nil {
-			t.Fatalf("re-Unmarshal of own Marshal output failed: %v\nfirst: %s", err, first)
-		}
+		require.NoErrorf(t, err, "re-Unmarshal of own Marshal output failed\nfirst: %s", first)
 		second, err := Marshal(g2)
-		if err != nil {
-			t.Fatalf("re-Marshal failed: %v", err)
-		}
-		if !bytes.Equal(first, second) {
-			t.Fatalf("round-trip not idempotent:\nfirst:  %s\nsecond: %s\ninput: %q", first, second, data)
-		}
+		require.NoError(t, err, "re-Marshal failed")
+		require.Equalf(t, first, second, "round-trip not idempotent:\nfirst:  %s\nsecond: %s\ninput: %q", first, second, data)
 	})
 }

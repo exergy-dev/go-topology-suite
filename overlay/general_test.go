@@ -3,6 +3,8 @@ package overlay
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/measure"
 	"github.com/terra-geo/terra/wkt"
@@ -11,9 +13,7 @@ import (
 func mp(t *testing.T, s string) geom.Geometry {
 	t.Helper()
 	g, err := wkt.Unmarshal(s)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return g
 }
 
@@ -25,55 +25,39 @@ func TestGHIntersectionTwoSquares(t *testing.T) {
 	a := mp(t, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 	b := mp(t, "POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 	got, err := IntersectionGeneral(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 25.0 // 5×5
-	if a := measure.Area(got); a < 24.99 || a > 25.01 {
-		t.Errorf("area = %v, want %v", a, want)
-	}
+	assert.InDelta(t, want, measure.Area(got), 0.01, "area")
 }
 
 func TestGHUnionTwoSquares(t *testing.T) {
 	a := mp(t, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 	b := mp(t, "POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 	got, err := Union(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Areas: A=100, B=100, A∩B=25 → A∪B = 175.
 	want := 175.0
-	if a := measure.Area(got); a < 174.5 || a > 175.5 {
-		t.Errorf("area = %v, want %v", a, want)
-	}
+	assert.InDelta(t, want, measure.Area(got), 0.5, "area")
 }
 
 func TestGHDifferenceTwoSquares(t *testing.T) {
 	a := mp(t, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 	b := mp(t, "POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 	got, err := Difference(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// A \ B = 100 - 25 = 75.
 	want := 75.0
-	if ar := measure.Area(got); ar < 74.5 || ar > 75.5 {
-		t.Errorf("area = %v, want %v", ar, want)
-	}
+	assert.InDelta(t, want, measure.Area(got), 0.5, "area")
 }
 
 func TestGHSymmetricDifference(t *testing.T) {
 	a := mp(t, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 	b := mp(t, "POLYGON ((5 5, 15 5, 15 15, 5 15, 5 5))")
 	got, err := SymmetricDifference(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// A∪B - A∩B = 175 - 25 = 150.
 	want := 150.0
-	if ar := measure.Area(got); ar < 149.5 || ar > 150.5 {
-		t.Errorf("area = %v, want %v", ar, want)
-	}
+	assert.InDelta(t, want, measure.Area(got), 0.5, "area")
 }
 
 func TestGHContainmentNoIntersection(t *testing.T) {
@@ -82,21 +66,15 @@ func TestGHContainmentNoIntersection(t *testing.T) {
 
 	// Intersection: smaller one.
 	ix, _ := IntersectionGeneral(outer, inner)
-	if a := measure.Area(ix); a < 399 || a > 401 {
-		t.Errorf("contained intersection area = %v, want 400", a)
-	}
+	assert.InDelta(t, 400.0, measure.Area(ix), 1.0, "contained intersection area")
 
 	// Union: larger one.
 	un, _ := Union(outer, inner)
-	if a := measure.Area(un); a < 9999 || a > 10001 {
-		t.Errorf("contained union area = %v, want 10000", a)
-	}
+	assert.InDelta(t, 10000.0, measure.Area(un), 1.0, "contained union area")
 
 	// Difference: outer with inner as hole = 10000 - 400 = 9600.
 	d, _ := Difference(outer, inner)
-	if a := measure.Area(d); a < 9599 || a > 9601 {
-		t.Errorf("contained difference area = %v, want 9600", a)
-	}
+	assert.InDelta(t, 9600.0, measure.Area(d), 1.0, "contained difference area")
 }
 
 func TestGHDisjointNoIntersection(t *testing.T) {
@@ -104,17 +82,11 @@ func TestGHDisjointNoIntersection(t *testing.T) {
 	b := mp(t, "POLYGON ((5 5, 6 5, 6 6, 5 6, 5 5))")
 
 	ix, _ := IntersectionGeneral(a, b)
-	if !ix.IsEmpty() {
-		t.Errorf("disjoint intersection should be empty")
-	}
+	assert.True(t, ix.IsEmpty(), "disjoint intersection should be empty")
 	un, _ := Union(a, b)
-	if un.Type() != geom.MultiPolygonType {
-		t.Errorf("disjoint union should be MultiPolygon, got %v", un.Type())
-	}
+	assert.Equal(t, geom.MultiPolygonType, un.Type(), "disjoint union should be MultiPolygon")
 	d, _ := Difference(a, b)
-	if a := measure.Area(d); a < 0.99 || a > 1.01 {
-		t.Errorf("disjoint difference = a, area %v want 1", a)
-	}
+	assert.InDelta(t, 1.0, measure.Area(d), 0.01, "disjoint difference area")
 }
 
 // Two crossed L-shaped polygons producing a multi-piece intersection.
@@ -126,14 +98,7 @@ func TestGHCrossingRectangles(t *testing.T) {
 	a := mp(t, "POLYGON ((-5 -1, 5 -1, 5 1, -5 1, -5 -1))")
 	b := mp(t, "POLYGON ((-1 -5, 1 -5, 1 5, -1 5, -1 -5))")
 	got, err := IntersectionGeneral(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.IsEmpty() {
-		t.Fatalf("intersection of crossing rectangles should not be empty")
-	}
-	a1 := measure.Area(got)
-	if a1 < 3.99 || a1 > 4.01 {
-		t.Errorf("crossing-rect intersection area = %v, want 4", a1)
-	}
+	require.NoError(t, err)
+	require.False(t, got.IsEmpty(), "intersection of crossing rectangles should not be empty")
+	assert.InDelta(t, 4.0, measure.Area(got), 0.01, "crossing-rect intersection area")
 }

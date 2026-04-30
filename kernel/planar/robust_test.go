@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 )
@@ -15,18 +16,12 @@ func TestOrientNearCollinear(t *testing.T) {
 	a := geom.XY{X: 0, Y: 0}
 	b := geom.XY{X: 1, Y: 1}
 	k := Kernel{}
-	if got := k.Orient(a, b, geom.XY{X: 2, Y: 2}); got != kernel.Collinear {
-		t.Errorf("on-line: got %v, want Collinear", got)
-	}
+	assert.Equal(t, kernel.Collinear, k.Orient(a, b, geom.XY{X: 2, Y: 2}), "on-line")
 	const ulp = 4.440892098500626e-16
 	above := geom.XY{X: 2, Y: 2 + ulp}
-	if got := k.Orient(a, b, above); got != kernel.CounterClockwise {
-		t.Errorf("slightly above: got %v, want CCW", got)
-	}
+	assert.Equal(t, kernel.CounterClockwise, k.Orient(a, b, above), "slightly above")
 	below := geom.XY{X: 2, Y: 2 - ulp}
-	if got := k.Orient(a, b, below); got != kernel.Clockwise {
-		t.Errorf("slightly below: got %v, want CW", got)
-	}
+	assert.Equal(t, kernel.Clockwise, k.Orient(a, b, below), "slightly below")
 }
 
 // TestOrientLargeMagnitudeCollinear: at large magnitudes the naive cross
@@ -38,9 +33,7 @@ func TestOrientLargeMagnitudeCollinear(t *testing.T) {
 	a := geom.XY{X: 1e16, Y: 1e16}
 	b := geom.XY{X: 2e16, Y: 2e16}
 	c := geom.XY{X: 3e16, Y: 3e16}
-	if got := k.Orient(a, b, c); got != kernel.Collinear {
-		t.Errorf("large collinear: got %v, want Collinear", got)
-	}
+	assert.Equal(t, kernel.Collinear, k.Orient(a, b, c), "large collinear")
 }
 
 // TestOrientSymmetry: Orient(a,b,c) == -Orient(c,b,a) for every triple,
@@ -58,9 +51,7 @@ func TestOrientSymmetry(t *testing.T) {
 	for i, tc := range cases {
 		o1 := k.Orient(tc.a, tc.b, tc.c)
 		o2 := k.Orient(tc.c, tc.b, tc.a)
-		if o1 != -o2 {
-			t.Errorf("case %d: o1=%v o2=%v not antisymmetric", i, o1, o2)
-		}
+		assert.Equalf(t, -o2, o1, "case %d: o1=%v o2=%v not antisymmetric", i, o1, o2)
 	}
 }
 
@@ -77,9 +68,7 @@ func TestExactFallbackFires(t *testing.T) {
 	c := geom.XY{X: 2, Y: 2}
 	got := k.Orient(a, b, c)
 	// b lies above the line a-c, so the turn a→b→c bends CW (right turn).
-	if got != kernel.Clockwise {
-		t.Errorf("exact fallback: got %v, want CW", got)
-	}
+	assert.Equal(t, kernel.Clockwise, got, "exact fallback")
 }
 
 // TestNonCollinearWellConditioned: the filter path should be taken
@@ -100,9 +89,7 @@ func TestNonCollinearWellConditioned(t *testing.T) {
 	}
 	for i, tc := range cases {
 		got := k.Orient(tc.a, tc.b, tc.c)
-		if got != tc.want {
-			t.Errorf("case %d: got %v want %v", i, got, tc.want)
-		}
+		assert.Equalf(t, tc.want, got, "case %d", i)
 	}
 }
 

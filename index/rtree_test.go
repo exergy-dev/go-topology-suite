@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 )
 
@@ -15,17 +17,13 @@ func env(minX, minY, maxX, maxY float64) geom.Envelope {
 
 func TestEmptyTree(t *testing.T) {
 	tr := New[int]()
-	if tr.Len() != 0 {
-		t.Errorf("Len = %d, want 0", tr.Len())
-	}
+	assert.Equal(t, 0, tr.Len(), "Len")
 	hits := 0
 	tr.Search(env(0, 0, 100, 100), func(Item[int]) bool {
 		hits++
 		return true
 	})
-	if hits != 0 {
-		t.Errorf("empty tree returned %d hits", hits)
-	}
+	assert.Equal(t, 0, hits, "empty tree returned %d hits", hits)
 }
 
 func TestInsertAndSearch(t *testing.T) {
@@ -34,22 +32,16 @@ func TestInsertAndSearch(t *testing.T) {
 		x := float64(i)
 		tr.Insert(env(x, x, x+1, x+1), i)
 	}
-	if tr.Len() != 100 {
-		t.Errorf("Len = %d", tr.Len())
-	}
+	assert.Equal(t, 100, tr.Len(), "Len")
 	got := []int{}
 	tr.Search(env(10, 10, 20, 20), func(it Item[int]) bool {
 		got = append(got, it.Value)
 		return true
 	})
 	// Items with envelopes [i,i+1] intersecting [10,20] are i in 9..20.
-	if len(got) < 11 {
-		t.Errorf("got %d hits, want at least 11", len(got))
-	}
+	assert.GreaterOrEqual(t, len(got), 11, "got %d hits, want at least 11", len(got))
 	for _, v := range got {
-		if v < 9 || v > 20 {
-			t.Errorf("hit %d outside expected range", v)
-		}
+		assert.True(t, v >= 9 && v <= 20, "hit %d outside expected range", v)
 	}
 }
 
@@ -63,9 +55,7 @@ func TestSearchEarlyExit(t *testing.T) {
 		count++
 		return count < 3 // stop after 3
 	})
-	if count != 3 {
-		t.Errorf("early exit failed: got %d", count)
-	}
+	assert.Equal(t, 3, count, "early exit failed")
 }
 
 func TestBulk(t *testing.T) {
@@ -76,9 +66,7 @@ func TestBulk(t *testing.T) {
 		{Env: env(5, 5, 6, 6), Value: "c"},
 	}
 	tr.Bulk(items)
-	if tr.Len() != 3 {
-		t.Errorf("Len = %d", tr.Len())
-	}
+	assert.Equal(t, 3, tr.Len(), "Len")
 }
 
 // treeDepth returns the maximum depth (root = 1) of the tree. Used to
@@ -131,17 +119,13 @@ func TestBulkSTRDepthAndQuery(t *testing.T) {
 		}
 	}
 	tr.Bulk(items)
-	if tr.Len() != N {
-		t.Fatalf("Len = %d, want %d", tr.Len(), N)
-	}
+	require.Equal(t, N, tr.Len(), "Len")
 
 	// Expected upper bound: ceil(log_M(N)) with M=16 => ceil(log_16(1000)) = 3.
 	// STR may produce one extra "internal" level above the leaves; allow +1.
 	maxAcceptableDepth := int(math.Ceil(math.Log(float64(N))/math.Log(float64(tr.maxEntries)))) + 1
 	depth := treeDepth(tr.root)
-	if depth > maxAcceptableDepth {
-		t.Errorf("STR tree depth = %d, want <= %d", depth, maxAcceptableDepth)
-	}
+	assert.LessOrEqual(t, depth, maxAcceptableDepth, "STR tree depth = %d, want <= %d", depth, maxAcceptableDepth)
 
 	// A full-extent query should find every item.
 	full := 0
@@ -149,9 +133,7 @@ func TestBulkSTRDepthAndQuery(t *testing.T) {
 		full++
 		return true
 	})
-	if full != N {
-		t.Errorf("full-extent search returned %d items, want %d", full, N)
-	}
+	assert.Equal(t, N, full, "full-extent search returned %d items, want %d", full, N)
 
 	// Spot-check a small box: brute-force counts must match the index.
 	q := env(100, 100, 200, 200)
@@ -163,9 +145,7 @@ func TestBulkSTRDepthAndQuery(t *testing.T) {
 	}
 	got := 0
 	tr.Search(q, func(Item[int]) bool { got++; return true })
-	if got != want {
-		t.Errorf("Search returned %d items, want %d (brute force)", got, want)
-	}
+	assert.Equal(t, want, got, "Search returned %d items, want %d (brute force)", got, want)
 }
 
 func TestRStarSplitQuality(t *testing.T) {
@@ -201,9 +181,7 @@ func TestRStarSplitQuality(t *testing.T) {
 	// same input commonly exceed 200. We assert a comfortable threshold
 	// of 150 to allow CI variance while still failing if split quality
 	// regresses meaningfully.
-	if avg > 150 {
-		t.Errorf("avg nodes visited = %.1f, want <= 150 (split quality regressed)", avg)
-	}
+	assert.LessOrEqual(t, avg, 150.0, "avg nodes visited = %.1f, want <= 150 (split quality regressed)", avg)
 	t.Logf("avg nodes visited per small query: %.1f", avg)
 }
 
@@ -260,10 +238,9 @@ func TestRStarBeatsLinear(t *testing.T) {
 
 	t.Logf("rstar visits=%d  linear visits=%d  ratio=%.2f",
 		rstarVisited, linearVisited, float64(linearVisited)/float64(rstarVisited))
-	if rstarVisited >= linearVisited {
-		t.Errorf("rstar split should visit fewer nodes than linear: rstar=%d linear=%d",
-			rstarVisited, linearVisited)
-	}
+	assert.Less(t, rstarVisited, linearVisited,
+		"rstar split should visit fewer nodes than linear: rstar=%d linear=%d",
+		rstarVisited, linearVisited)
 }
 
 // splitWith runs the supplied split heuristic in place of splitNode for
