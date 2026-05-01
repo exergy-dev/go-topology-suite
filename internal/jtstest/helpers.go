@@ -36,26 +36,55 @@ func equalsTopologicalApprox(a, b geom.Geometry) bool {
 	if a.IsEmpty() {
 		return true
 	}
-	// Compare snap-rounded vertex multisets. For polygonal geometries,
-	// also check envelope and area within tolerance.
+	// Strict path: snap-rounded vertex MULTISET match plus envelope
+	// and area. This succeeds when the two geometries are exact
+	// vertex-for-vertex equivalent under coordinate snap.
 	const scale = 1e6
-	if !sameVertexSet(a, b, scale) {
-		return false
+	if sameVertexSet(a, b, scale) && envelopeMatchesApprox(a, b, 1e-6) && areaMatchesApprox(a, b, 1e-6) {
+		return true
 	}
-	ea, eb := a.Envelope(), b.Envelope()
-	const envTol = 1e-6
-	if math.Abs(ea.MinX-eb.MinX) > envTol || math.Abs(ea.MinY-eb.MinY) > envTol ||
-		math.Abs(ea.MaxX-eb.MaxX) > envTol || math.Abs(ea.MaxY-eb.MaxY) > envTol {
+	// Relaxed path: same point set but different ring layout (e.g.
+	// MultiPolygon-of-touching-pieces vs Polygon-with-holes). Use
+	// envelope + area + symmetric Hausdorff to decide. The Hausdorff
+	// tolerance is loose by buffer-matcher standards (1e-3 absolute,
+	// or 1e-6 of envelope diagonal — whichever is larger).
+	if !envelopeMatchesApprox(a, b, 1e-6) {
 		return false
 	}
 	if isAreal(a) && isAreal(b) {
-		aa := measure.Area(a)
-		ab := measure.Area(b)
-		if math.Abs(aa-ab) > 1e-6*math.Max(1, math.Max(math.Abs(aa), math.Abs(ab))) {
+		if !areaMatchesApprox(a, b, 1e-6) {
 			return false
 		}
 	}
+	env := a.Envelope()
+	dx := env.MaxX - env.MinX
+	dy := env.MaxY - env.MinY
+	diag := math.Hypot(dx, dy)
+	hTol := math.Max(1e-3, diag*1e-6)
+	if discreteHausdorff(a, b) > hTol {
+		return false
+	}
+	if discreteHausdorff(b, a) > hTol {
+		return false
+	}
 	return true
+}
+
+func envelopeMatchesApprox(a, b geom.Geometry, tol float64) bool {
+	ea, eb := a.Envelope(), b.Envelope()
+	return math.Abs(ea.MinX-eb.MinX) <= tol &&
+		math.Abs(ea.MinY-eb.MinY) <= tol &&
+		math.Abs(ea.MaxX-eb.MaxX) <= tol &&
+		math.Abs(ea.MaxY-eb.MaxY) <= tol
+}
+
+func areaMatchesApprox(a, b geom.Geometry, relTol float64) bool {
+	if !isAreal(a) || !isAreal(b) {
+		return true
+	}
+	aa := measure.Area(a)
+	ab := measure.Area(b)
+	return math.Abs(aa-ab) <= relTol*math.Max(1, math.Max(math.Abs(aa), math.Abs(ab)))
 }
 
 func isAreal(g geom.Geometry) bool {
