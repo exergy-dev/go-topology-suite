@@ -28,10 +28,10 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream H part 1 (snap-rounding noder landed in
-`internal/snaprounding`, wired into overlay-NG and as a self-union
-cleanup pass on linear-buffer offset polygons) the corpus stands at
-**96.4% pass rate** (8629/8951 passing, 292 failures, 30 skipped).
+After Stream H part 2 (Sutherland-Hodgman fast path no longer used for
+polygon-with-hole subjects; touching-rings canonicalisation pass
+added to overlay-NG output) the corpus stands at **96.4% pass rate**
+(8630/8951 passing, 291 failures, 30 skipped).
 Phase 1 of the closure plan unblocked one buffer case; the SR-suffixed
 overlay residuals were not affected because the JTS harness pre-snaps
 operands to the precision grid before dispatching, so the failure

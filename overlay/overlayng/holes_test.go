@@ -134,3 +134,32 @@ func TestBothInputsHaveHoles(t *testing.T) {
 	want := 34.0
 	assert.InDelta(t, want, total, 0.5, "intersection area")
 }
+
+// TestPolygonWithHoleIntersectionLShape covers the regression that
+// TestOverlayAA case#1 surfaces: subj = polygon with hole, clip =
+// polygon that crosses the subj hole boundary. The intersection's
+// expected representation is a single-ring L-shape, not an outer
+// rectangle plus a touching-hole rectangle. Pre-fix, the
+// Sutherland-Hodgman fast path clipped each subj ring independently
+// and produced the invalid touching-rings polygon.
+func TestPolygonWithHoleIntersectionLShape(t *testing.T) {
+	subj := geom.NewPolygon(nil,
+		[]geom.XY{{X: 20, Y: 20}, {X: 20, Y: 160}, {X: 160, Y: 160}, {X: 160, Y: 20}, {X: 20, Y: 20}},
+		[]geom.XY{{X: 140, Y: 140}, {X: 40, Y: 140}, {X: 40, Y: 40}, {X: 140, Y: 40}, {X: 140, Y: 140}},
+	)
+	clip := geom.NewPolygon(nil,
+		[]geom.XY{{X: 80, Y: 100}, {X: 220, Y: 100}, {X: 220, Y: 240}, {X: 80, Y: 240}, {X: 80, Y: 100}},
+	)
+	first, rest, err := Overlay(subj, clip, OpIntersection)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	require.Empty(t, rest)
+	// L-shape: 2×6 + 4×2 = 12 + 8 = 20 unit squares ×100 = 2000? Let's
+	// just compute exact: outer 80×60 = 4800 minus hole-overlap
+	// 60×40 = 2400 → 2400.
+	got := measure.Area(first)
+	assert.InDelta(t, 2400.0, got, 0.5, "L-shape area")
+	// Result must be a single-ring polygon (no holes), since the
+	// canonical L-shape merges the touching hole into the outer.
+	assert.Equal(t, 1, first.NumRings(), "expected single ring; got %d", first.NumRings())
+}

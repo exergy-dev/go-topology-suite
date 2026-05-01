@@ -31,8 +31,12 @@ func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
 		}
 		return intersectionNonPolygonal(subject, clipper)
 	}
-	// Convex fast-path.
-	if clip.NumRings() == 1 {
+	// Convex fast-path. Restricted to single-ring subjects: when subj
+	// has holes, clipping each ring independently against the convex
+	// clipper produces an invalid polygon-with-touching-hole when the
+	// clip boundary slices through both outer and hole at coincident
+	// vertices. The general overlay-NG path handles those correctly.
+	if clip.NumRings() == 1 && subj.NumRings() == 1 {
 		clipRingP := xybuf.Borrow()
 		clipRing := clip.RingInto((*clipRingP)[:0], 0)
 		*clipRingP = clipRing

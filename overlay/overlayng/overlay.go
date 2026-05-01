@@ -74,7 +74,14 @@ func OverlayPolygonalWithTolerance(subj, clip []*geom.Polygon, op Op, tolerance 
 		}
 	}
 
-	return overlayCorePolygonal(c, subjRings, subjPerPoly, clipRings, clipPerPoly, op)
+	first, rest, err := overlayCorePolygonal(c, subjRings, subjPerPoly, clipRings, clipPerPoly, op)
+	if err != nil {
+		return nil, nil, err
+	}
+	if needsCanonicalize(first, rest) {
+		return canonicalizeTouchingRings(c, first, rest)
+	}
+	return first, rest, nil
 }
 
 // hotPixelRoundCombined runs hot-pixel snap rounding across the
@@ -262,6 +269,12 @@ func overlayCorePolygonalMixed(
 	if polyErr != nil {
 		return nil, polyErr
 	}
+	if needsCanonicalize(first, rest) {
+		canFirst, canRest, canErr := canonicalizeTouchingRings(c, first, rest)
+		if canErr == nil {
+			first, rest = canFirst, canRest
+		}
+	}
 	lines := extractResultLines(d, op)
 	points := extractResultPoints(d, op, lines, rings)
 
@@ -405,6 +418,192 @@ func overlayCorePolygonal(
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil, nil
 	}
 	return assembleOutputPolygons(c, rings)
+}
+
+// needsCanonicalize reports whether (first, rest) contains any polygon
+// whose hole shares a vertex with its outer ring, or any two polygons
+// whose outer rings share a vertex. The DCEL face trace can produce
+// such configurations when the kept region's "shape" — geometrically
+// an L-form — is encoded as a rectangle outer with a touching
+// rectangular hole. JTS normalises these into a single ring; we do the
+// same by re-running the polygons through a self-Union, which the
+// overlay-NG noding step decomposes cleanly.
+func needsCanonicalize(first *geom.Polygon, rest []*geom.Polygon) bool {
+	all := make([]*geom.Polygon, 0, 1+len(rest))
+	if first != nil && !first.IsEmpty() {
+		all = append(all, first)
+	}
+	for _, p := range rest {
+		if p != nil && !p.IsEmpty() {
+			all = append(all, p)
+		}
+	}
+	for _, p := range all {
+		if polygonHasTouchingHole(p) {
+			return true
+		}
+	}
+	if len(all) >= 2 && multiPolygonsTouch(all) {
+		return true
+	}
+	return false
+}
+
+// polygonHasTouchingHole returns true when an outer ring and a hole
+// share a boundary segment (rather than just a vertex). The diagnostic
+// signal is a hole vertex lying STRICTLY on the interior of an outer
+// segment (or vice versa) — that vertex represents a hot pixel where
+// the noder split one ring at the other's vertex, producing two rings
+// that share a finite-length edge.
+//
+// A hole that merely touches the outer at a single vertex (case #3 of
+// TestOverlayAA, where two diamond cavities meet at a corner of the
+// outer) is geometrically valid and must not be flagged here, since
+// the canonicalisation pass would erase the hole and corrupt the
+// result.
+func polygonHasTouchingHole(p *geom.Polygon) bool {
+	if p == nil || p.NumRings() < 2 {
+		return false
+	}
+	outer := p.Ring(0)
+	outerVerts := vertexSet(outer)
+	for r := 1; r < p.NumRings(); r++ {
+		hole := p.Ring(r)
+		holeVerts := vertexSet(hole)
+		// Hole vertex on interior of outer segment.
+		for v := range holeVerts {
+			if _, isOuterVertex := outerVerts[v]; isOuterVertex {
+				continue
+			}
+			if pointOnAnySegmentInterior(v, outer) {
+				return true
+			}
+		}
+		// Outer vertex on interior of hole segment (symmetric).
+		for v := range outerVerts {
+			if _, isHoleVertex := holeVerts[v]; isHoleVertex {
+				continue
+			}
+			if pointOnAnySegmentInterior(v, hole) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// multiPolygonsTouch returns true when any two outer rings of distinct
+// polygons share a boundary segment — same diagnostic as
+// polygonHasTouchingHole but across polygon members. Pure vertex
+// coincidence (a single shared corner) is not flagged.
+func multiPolygonsTouch(polys []*geom.Polygon) bool {
+	for i := 0; i < len(polys); i++ {
+		ri := polys[i].Ring(0)
+		viSet := vertexSet(ri)
+		for j := i + 1; j < len(polys); j++ {
+			rj := polys[j].Ring(0)
+			vjSet := vertexSet(rj)
+			for v := range viSet {
+				if _, isJ := vjSet[v]; isJ {
+					continue
+				}
+				if pointOnAnySegmentInterior(v, rj) {
+					return true
+				}
+			}
+			for v := range vjSet {
+				if _, isI := viSet[v]; isI {
+					continue
+				}
+				if pointOnAnySegmentInterior(v, ri) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// pointOnAnySegmentInterior reports whether p lies strictly inside any
+// segment of the closed ring (between two consecutive vertices,
+// excluding the endpoints themselves).
+func pointOnAnySegmentInterior(p geom.XY, ring []geom.XY) bool {
+	for j := 0; j+1 < len(ring); j++ {
+		if pointOnSegmentInterior(p, ring[j], ring[j+1]) {
+			return true
+		}
+	}
+	return false
+}
+
+// pointOnSegmentInterior is the standard "collinear and strictly
+// between endpoints" test. Equality with either endpoint returns
+// false; only interior position counts.
+func pointOnSegmentInterior(p, a, b geom.XY) bool {
+	if p == a || p == b {
+		return false
+	}
+	cross := (b.X-a.X)*(p.Y-a.Y) - (b.Y-a.Y)*(p.X-a.X)
+	if cross != 0 {
+		return false
+	}
+	// Project onto the longer axis for numerical stability.
+	dx, dy := b.X-a.X, b.Y-a.Y
+	if dx*dx >= dy*dy {
+		if dx == 0 {
+			return false
+		}
+		t := (p.X - a.X) / dx
+		return t > 0 && t < 1
+	}
+	if dy == 0 {
+		return false
+	}
+	t := (p.Y - a.Y) / dy
+	return t > 0 && t < 1
+}
+
+// vertexSet returns the set of unique vertices in ring (excluding the
+// closing duplicate, since rings are stored with first==last).
+func vertexSet(ring []geom.XY) map[geom.XY]struct{} {
+	if len(ring) == 0 {
+		return nil
+	}
+	end := len(ring)
+	if end > 1 && ring[0] == ring[end-1] {
+		end--
+	}
+	out := make(map[geom.XY]struct{}, end)
+	for i := 0; i < end; i++ {
+		out[ring[i]] = struct{}{}
+	}
+	return out
+}
+
+// canonicalizeTouchingRings re-runs the polygon set through
+// overlayCorePolygonal with op=Union (using the same set as both subj
+// and clip). The Union path nodes the touching rings together and
+// extracts the merged boundary as a single ring per kept face,
+// converting an "outer + touching hole" representation into the
+// equivalent simple polygon (an L-shape, U-shape, etc).
+//
+// This is a single canonicalisation pass; the result is returned even
+// if it still contains touching rings, to avoid any chance of
+// non-termination.
+func canonicalizeTouchingRings(c *crs.CRS, first *geom.Polygon, rest []*geom.Polygon) (*geom.Polygon, []*geom.Polygon, error) {
+	polys := make([]*geom.Polygon, 0, 1+len(rest))
+	if first != nil && !first.IsEmpty() {
+		polys = append(polys, first)
+	}
+	polys = append(polys, rest...)
+	if len(polys) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil, nil
+	}
+	rings, perPoly := snapAndPartition(polys, 0)
+	if len(rings) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil, nil
+	}
+	return overlayCorePolygonal(c, rings, perPoly, rings, perPoly, OpUnion)
 }
 
 // rebuildPolygons reconstructs the per-polygon slice from a flat ring
