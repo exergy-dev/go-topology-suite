@@ -31,16 +31,22 @@ func TestBufferPointRing(t *testing.T) {
 }
 
 func TestBufferPointZeroDistance(t *testing.T) {
+	// JTS semantics: buffer of a Point with zero distance is POLYGON
+	// EMPTY (the result has the dim-2 type of a buffer output, but no
+	// area).
 	p := geom.NewPoint(nil, geom.XY{X: 1, Y: 2})
 	g, err := Buffer(p, 0)
 	require.NoError(t, err)
-	require.Equal(t, geom.Geometry(p), g, "expected identity geometry, got %T", g)
+	require.True(t, g.IsEmpty(), "expected empty result, got %v", g)
 }
 
 func TestBufferPointNegativeDistance(t *testing.T) {
+	// JTS semantics: buffer of a Point with non-positive distance is
+	// POLYGON EMPTY (the geometry collapses below dim 2).
 	p := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
-	_, err := Buffer(p, -1)
-	require.True(t, errors.Is(err, terra.ErrInvalidGeometry), "err = %v, want ErrInvalidGeometry", err)
+	g, err := Buffer(p, -1)
+	require.NoError(t, err)
+	require.True(t, g.IsEmpty(), "expected empty result, got %v", g)
 }
 
 func TestBufferLineFlatCapRectangle(t *testing.T) {
@@ -110,9 +116,12 @@ func TestBufferLineSquareCap(t *testing.T) {
 }
 
 func TestBufferLineNegativeDistance(t *testing.T) {
+	// JTS semantics: buffer of a LineString with non-positive distance
+	// is POLYGON EMPTY.
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}})
-	_, err := Buffer(ls, -1)
-	require.True(t, errors.Is(err, terra.ErrInvalidGeometry), "err = %v, want ErrInvalidGeometry", err)
+	g, err := Buffer(ls, -1)
+	require.NoError(t, err)
+	require.True(t, g.IsEmpty(), "expected empty result, got %v", g)
 }
 
 func TestBufferGeometryCollectionRejected(t *testing.T) {

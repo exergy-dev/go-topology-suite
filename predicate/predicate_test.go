@@ -82,6 +82,15 @@ func TestContainsPolygonPolygon(t *testing.T) {
 	assert.False(t, got, "partial overlap should not be Contains")
 }
 
+func TestCoveredByPointOnNonSimpleLineInterior(t *testing.T) {
+	p := mustParse(t, "POINT (110 20)")
+	line := mustParse(t, "LINESTRING (110 110, 220 20, 20 20, 220 220)")
+
+	got, err := CoveredBy(p, line)
+	require.NoError(t, err)
+	assert.True(t, got)
+}
+
 func TestEquals(t *testing.T) {
 	a := mustParse(t, "POINT (1 2)")
 	b := mustParse(t, "POINT (1 2)")

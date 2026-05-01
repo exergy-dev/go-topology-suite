@@ -25,13 +25,22 @@ func Simplify(g geom.Geometry, tolerance float64) geom.Geometry {
 	case *geom.MultiLineString:
 		parts := make([]*geom.LineString, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
-			parts = append(parts, simplifyLineString(v.LineStringAt(i), tolerance))
+			part := simplifyLineString(v.LineStringAt(i), tolerance)
+			if !part.IsEmpty() {
+				parts = append(parts, part)
+			}
 		}
 		return geom.NewMultiLineString(v.CRS(), parts...)
 	case *geom.MultiPolygon:
 		parts := make([]*geom.Polygon, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
-			parts = append(parts, simplifyPolygon(v.PolygonAt(i), tolerance))
+			part := simplifyPolygon(v.PolygonAt(i), tolerance)
+			if !part.IsEmpty() {
+				parts = append(parts, part)
+			}
+		}
+		if len(parts) == 1 {
+			return parts[0]
 		}
 		return geom.NewMultiPolygon(v.CRS(), parts...)
 	case *geom.GeometryCollection:
@@ -57,15 +66,21 @@ func simplifyPolygon(p *geom.Polygon, tol float64) *geom.Polygon {
 		simplified := douglasPeucker(ring, tol)
 		// A polygon ring needs at least 4 distinct vertices (closed). If
 		// simplification collapses below that, drop the ring.
-		if len(simplified) >= 4 {
+		if len(simplified) >= 4 && math.Abs(ringArea2(simplified)) > 0 {
 			rings = append(rings, simplified)
 		} else if r == 0 {
-			// Outer ring collapsed: return the original polygon — refusing
-			// to over-simplify into an empty polygon.
-			return p
+			return geom.NewEmptyPolygon(p.CRS(), p.Layout())
 		}
 	}
 	return geom.NewPolygon(p.CRS(), rings...)
+}
+
+func ringArea2(ring []geom.XY) float64 {
+	var a float64
+	for i := 0; i+1 < len(ring); i++ {
+		a += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
+	}
+	return a
 }
 
 func lineToXY(ls *geom.LineString) []geom.XY {

@@ -1,7 +1,8 @@
 package noding
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/index"
@@ -146,7 +147,7 @@ func (IndexedNoder) Node(input []*SegmentString) []*SegmentString {
 			breaks = append(breaks, false)
 			ints := splits[i][j]
 			if len(ints) > 0 {
-				sort.Slice(ints, func(p, q int) bool { return ints[p].t < ints[q].t })
+				slices.SortFunc(ints, func(a, b split) int { return cmp.Compare(a.t, b.t) })
 				for k, s := range ints {
 					if k > 0 && s.t-ints[k-1].t < 1e-12 {
 						continue
@@ -184,4 +185,3 @@ func passThrough(input []*SegmentString) []*SegmentString {
 	}
 	return out
 }
-

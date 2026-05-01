@@ -1,7 +1,8 @@
 package hull
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 )
@@ -77,11 +78,11 @@ func visit(g geom.Geometry, fn func(geom.XY)) {
 func monotoneChain(in []geom.XY) []geom.XY {
 	pts := make([]geom.XY, len(in))
 	copy(pts, in)
-	sort.Slice(pts, func(i, j int) bool {
-		if pts[i].X != pts[j].X {
-			return pts[i].X < pts[j].X
+	slices.SortFunc(pts, func(a, b geom.XY) int {
+		if c := cmp.Compare(a.X, b.X); c != 0 {
+			return c
 		}
-		return pts[i].Y < pts[j].Y
+		return cmp.Compare(a.Y, b.Y)
 	})
 	pts = dedupe(pts)
 	if len(pts) <= 2 {

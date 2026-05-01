@@ -1,10 +1,6 @@
 package overlay
 
 import (
-	"fmt"
-
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/internal/xybuf"
 	"github.com/terra-geo/terra/kernel/planar"
@@ -19,21 +15,21 @@ import (
 // See greiner_hormann.go for v0.1 limitations (no holes, vertex-coincident
 // inputs unreliable).
 func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
-	if !crs.Equal(subject.CRS(), clipper.CRS()) {
-		return nil, terra.ErrCRSMismatch
+	if err := requireSameCRS(subject, clipper); err != nil {
+		return nil, err
 	}
 	if subject.IsEmpty() || clipper.IsEmpty() {
-		return geom.NewEmptyPolygon(subject.CRS(), geom.LayoutXY), nil
+		return emptyOfDim(subject.CRS(), minDim(subject, clipper)), nil
 	}
-	subj, ok := subject.(*geom.Polygon)
-	if !ok {
-		return nil, fmt.Errorf("overlay: subject must be Polygon (got %T): %w",
-			subject, terra.ErrUnsupportedKernel)
-	}
-	clip, ok := clipper.(*geom.Polygon)
-	if !ok {
-		return nil, fmt.Errorf("overlay: clipper must be Polygon (got %T): %w",
-			clipper, terra.ErrUnsupportedKernel)
+	// Non-polygonal operands (Point/LineString/MultiPoint/MultiLineString)
+	// or any MultiPolygon: route to the general path.
+	subj, sIsPoly := subject.(*geom.Polygon)
+	clip, cIsPoly := clipper.(*geom.Polygon)
+	if !sIsPoly || !cIsPoly {
+		if isPolygonal(subject) && isPolygonal(clipper) {
+			return IntersectionGeneral(subject, clipper)
+		}
+		return intersectionNonPolygonal(subject, clipper)
 	}
 	// Convex fast-path.
 	if clip.NumRings() == 1 {
@@ -63,7 +59,6 @@ func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
 	// General path: Greiner-Hormann.
 	return IntersectionGeneral(subject, clipper)
 }
-
 
 // isConvexCCW returns true iff the ring is convex and counter-clockwise.
 // Convex iff every consecutive triple has the same chirality (CCW).

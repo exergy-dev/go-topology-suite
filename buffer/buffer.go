@@ -40,35 +40,35 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 		o(&cfg)
 	}
 
-	// distance == 0: identity (return original geometry; values are
-	// read-only after construction so no clone is required).
+	// distance ≤ 0 on Point/Line geometries collapses the geometry to
+	// nothing (JTS semantics: buffer of a 0/1-dim with non-positive
+	// distance is POLYGON EMPTY). Polygon inputs handle distance == 0
+	// as identity in their per-type branches below.
+	switch g.(type) {
+	case *geom.Point, *geom.LineString,
+		*geom.MultiPoint, *geom.MultiLineString:
+		if distance <= 0 {
+			return geom.NewEmptyPolygon(g.CRS(), geom.LayoutXY), nil
+		}
+	}
 	if distance == 0 {
 		return g, nil
 	}
 
 	switch v := g.(type) {
 	case *geom.Point:
-		if distance < 0 {
-			return nil, fmt.Errorf("buffer.Buffer: negative distance on Point: %w", terra.ErrInvalidGeometry)
-		}
 		if v.IsEmpty() {
 			return geom.NewEmptyPolygon(v.CRS(), v.Layout()), nil
 		}
 		return bufferPoint(v.CRS(), v.XY(), distance, cfg), nil
 
 	case *geom.LineString:
-		if distance < 0 {
-			return nil, fmt.Errorf("buffer.Buffer: negative distance on LineString: %w", terra.ErrInvalidGeometry)
-		}
 		if v.IsEmpty() {
 			return geom.NewEmptyPolygon(v.CRS(), v.Layout()), nil
 		}
 		return bufferLineString(v, distance, cfg)
 
 	case *geom.MultiPoint:
-		if distance < 0 {
-			return nil, fmt.Errorf("buffer.Buffer: negative distance on MultiPoint: %w", terra.ErrInvalidGeometry)
-		}
 		if v.IsEmpty() {
 			return geom.NewMultiPolygon(v.CRS()), nil
 		}
@@ -79,9 +79,6 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 		return geom.NewMultiPolygon(v.CRS(), parts...), nil
 
 	case *geom.MultiLineString:
-		if distance < 0 {
-			return nil, fmt.Errorf("buffer.Buffer: negative distance on MultiLineString: %w", terra.ErrInvalidGeometry)
-		}
 		if v.IsEmpty() {
 			return geom.NewMultiPolygon(v.CRS()), nil
 		}

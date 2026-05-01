@@ -32,6 +32,18 @@ func relatePointLine(p *geom.Point, ls *geom.LineString, k kernel.Kernel) matrix
 	m.raise(mEE, 2)
 	pp := p.XY()
 
+	if isZeroLengthLine(ls) {
+		if ls.NumPoints() > 0 && ls.PointAt(0) == pp {
+			m.raise(mII, 0)
+		} else {
+			m.raise(mIE, 0)
+			if ls.NumPoints() > 0 {
+				m.raise(mEI, 0)
+			}
+		}
+		return m
+	}
+
 	hasBoundary := ls.NumPoints() >= 2 && ls.PointAt(0) != ls.PointAt(ls.NumPoints()-1)
 	atBoundary := false
 	if hasBoundary {
@@ -65,6 +77,19 @@ func relatePointLine(p *geom.Point, ls *geom.LineString, k kernel.Kernel) matrix
 		}
 	}
 	return m
+}
+
+func isZeroLengthLine(ls *geom.LineString) bool {
+	if ls.NumPoints() == 0 {
+		return false
+	}
+	first := ls.PointAt(0)
+	for i := 1; i < ls.NumPoints(); i++ {
+		if ls.PointAt(i) != first {
+			return false
+		}
+	}
+	return true
 }
 
 // relatePointPolygon: a point lies strictly inside, on the boundary, or
@@ -130,9 +155,21 @@ func relateLineLine(a, b *geom.LineString, k kernel.Kernel) matrix {
 func recordSegmentIntersection(m *matrix, a1, a2, b1, b2 geom.XY, aBoundary, bBoundary [2]boundaryPoint, k kernel.Kernel) {
 	// Detect collinear-overlap first: if both segments lie on the same
 	// line and their parameter ranges overlap on more than a point, we
-	// have a 1-D intersection.
+	// have a 1-D intersection. After raising II=1 we also need to
+	// classify any segment endpoints that coincide — a shared boundary
+	// endpoint must contribute to BB (or BI/IB), not just to II.
 	if collinearOverlap(a1, a2, b1, b2) {
 		m.raise(mII, 1)
+		for _, p := range []geom.XY{a1, a2} {
+			if k.SegmentDistance(p, b1, b2) == 0 {
+				classifyPointOnLines(m, p, true, false, aBoundary, bBoundary)
+			}
+		}
+		for _, p := range []geom.XY{b1, b2} {
+			if k.SegmentDistance(p, a1, a2) == 0 {
+				classifyPointOnLines(m, p, false, true, aBoundary, bBoundary)
+			}
+		}
 		return
 	}
 	// Check segment intersection (proper or improper).
@@ -248,21 +285,27 @@ func lineStringPoints(ls *geom.LineString) []geom.XY {
 	return out
 }
 
-// lineFullyOn reports whether every vertex of `inner` lies on `outer`.
-// (Approximation: vertex-level coverage is sufficient for the IE/EI cells
-// when the inputs come from typical user data.)
+// lineFullyOn reports whether every point of `inner` lies on `outer`.
+// Each segment of inner is sampled at its endpoints AND midpoint —
+// catching the case where two adjacent vertices of inner lie on outer
+// but the segment between them detours outside outer (e.g., when the
+// two lines overlap on partial segments only).
 func lineFullyOn(inner, outer *geom.LineString, k kernel.Kernel) bool {
 	for i := 0; i < inner.NumPoints(); i++ {
 		if !pointOnLine(inner.PointAt(i), outer, k) {
 			return false
 		}
 	}
-	// Also check that every interior vertex of the inner segments has
-	// matching outer geometry. The vertex-level approximation is exact
-	// when inner is a sub-polyline of outer; otherwise a segment of inner
-	// might cross outside outer between two coincident vertices. In that
-	// case the segment crossing will already have raised mIE via
-	// recordSegmentIntersection.
+	for i := 0; i+1 < inner.NumPoints(); i++ {
+		a, b := inner.PointAt(i), inner.PointAt(i+1)
+		if a == b {
+			continue
+		}
+		mid := geom.XY{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+		if !pointOnLine(mid, outer, k) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -398,9 +441,9 @@ func relateLinePolygon(ls *geom.LineString, poly *geom.Polygon, k kernel.Kernel)
 }
 
 // relatePolygonPolygon: the principal case. We use an aggregate
-// computation: vertex-level classification + edge intersections. For
-// shared boundary segments we sample interior points adjacent to the
-// shared edges.
+// computation: vertex-level classification + edge intersections + per-
+// segment classification of each ring. For shared boundary segments we
+// sample interior points adjacent to the shared edges.
 func relatePolygonPolygon(a, b *geom.Polygon, k kernel.Kernel) matrix {
 	m := newMatrix()
 	m.raise(mEE, 2)
@@ -437,6 +480,13 @@ func relatePolygonPolygon(a, b *geom.Polygon, k kernel.Kernel) matrix {
 		m.raise(mEB, 1)
 		m.raise(mEI, 2)
 	}
+
+	// Segment-level classification: each segment of A's boundary
+	// classified vs B's polygon (and symmetric). A segment whose
+	// endpoints + midpoint all lie inside B contributes a 1-D piece of
+	// (A.boundary ∩ B.interior); same logic populates BE/BB/IB/EB.
+	classifyRingSegments(&m, a, b, k, mBI, mBB, mBE)
+	classifyRingSegments(&m, b, a, k, mIB, mBB, mEB)
 
 	// Edge crossings: any proper intersection between rings of a and b
 	// contributes to BB at point dim (crossings) and ensures both II and
@@ -494,6 +544,18 @@ func relatePolygonPolygon(a, b *geom.Polygon, k kernel.Kernel) matrix {
 		m.raise(mII, 2)
 	}
 
+	// Hole-as-exterior: a polygon's "exterior" includes its holes. If A
+	// has a hole and that hole's interior overlaps B's interior, then
+	// EI=2. We do NOT raise EB here — whether B's boundary lies in A's
+	// exterior is determined by per-segment classification above (a
+	// segment with any sample Outside raises EB).
+	if holeOverlapsInterior(a, b, k) {
+		m.raise(mEI, 2)
+	}
+	if holeOverlapsInterior(b, a, k) {
+		m.raise(mIE, 2)
+	}
+
 	// Exterior coverage test: if a is not fully contained in b, IE=2
 	// and BE=1. Symmetric for b.
 	if !polygonContainsAllVertices(b, a, k) || aOut > 0 {
@@ -506,6 +568,87 @@ func relatePolygonPolygon(a, b *geom.Polygon, k kernel.Kernel) matrix {
 	}
 
 	return m
+}
+
+// classifyRingSegments classifies each segment of x's rings against y,
+// using endpoint+midpoint sampling, and updates the cell triplet
+// (cellInside, cellBoundary, cellOutside) according to where the
+// segment's classification samples fall.
+//
+// A single segment can contribute to MULTIPLE cells if its endpoints
+// fall in different regions of y (e.g., one endpoint inside y, midpoint
+// on boundary, other outside). We treat each classification
+// independently:
+//   - Any sample Inside  → cellInside  ≥ 1 (curve in y's interior).
+//   - Any sample Outside → cellOutside ≥ 1 (curve in y's exterior).
+//   - All samples OnBdry → cellBoundary = 1 (curve on y's boundary).
+func classifyRingSegments(m *matrix, x, y *geom.Polygon, k kernel.Kernel,
+	cellInside, cellBoundary, cellOutside int,
+) {
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
+	for r := 0; r < x.NumRings(); r++ {
+		ring := x.RingInto((*bufp)[:0], r)
+		*bufp = ring
+		for i := 0; i+1 < len(ring); i++ {
+			p1, p2 := ring[i], ring[i+1]
+			if p1 == p2 {
+				continue
+			}
+			mid := geom.XY{X: (p1.X + p2.X) / 2, Y: (p1.Y + p2.Y) / 2}
+			c1 := pointInPolygon(p1, y, k)
+			c2 := pointInPolygon(p2, y, k)
+			cm := pointInPolygon(mid, y, k)
+			anyInside := c1 == kernel.Inside || c2 == kernel.Inside || cm == kernel.Inside
+			anyOutside := c1 == kernel.Outside || c2 == kernel.Outside || cm == kernel.Outside
+			allBoundary := c1 == kernel.OnBoundary && c2 == kernel.OnBoundary && cm == kernel.OnBoundary
+			if anyInside {
+				m.raise(cellInside, 1)
+			}
+			if anyOutside {
+				m.raise(cellOutside, 1)
+			}
+			if allBoundary {
+				m.raise(cellBoundary, 1)
+			}
+		}
+	}
+}
+
+// holeOverlapsInterior reports whether any hole of `withHoles` has a
+// region that overlaps the interior of `other`. Used to populate the
+// E*I/E*B cells correctly when one polygon's exterior (its holes) lies
+// inside the other.
+func holeOverlapsInterior(withHoles, other *geom.Polygon, k kernel.Kernel) bool {
+	if withHoles.NumRings() < 2 {
+		return false
+	}
+	bufp := borrowRingBuf()
+	defer releaseRingBuf(bufp)
+	for r := 1; r < withHoles.NumRings(); r++ {
+		ring := withHoles.RingInto((*bufp)[:0], r)
+		*bufp = ring
+		// Sample a point inside the hole. The first inner ring's
+		// signed area indicates orientation; pick a midpoint nudged
+		// toward the hole's interior.
+		if len(ring) < 3 {
+			continue
+		}
+		a, bp := ring[0], ring[1]
+		mx, my := (a.X+bp.X)/2, (a.Y+bp.Y)/2
+		dx, dy := bp.X-a.X, bp.Y-a.Y
+		const eps = 1e-9
+		var sample geom.XY
+		if signedRingArea(ring) >= 0 {
+			sample = geom.XY{X: mx - dy*eps, Y: my + dx*eps}
+		} else {
+			sample = geom.XY{X: mx + dy*eps, Y: my - dx*eps}
+		}
+		if pointInPolygon(sample, other, k) == kernel.Inside {
+			return true
+		}
+	}
+	return false
 }
 
 // classifyVerticesAgainst counts vertices of a strictly inside, on

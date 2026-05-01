@@ -39,8 +39,7 @@ func TestSimplifyPolygon(t *testing.T) {
 	// Square with extra collinear point on top edge.
 	g, _ := wkt.Unmarshal("POLYGON ((0 0, 5 10, 10 10, 10 0, 0 0))")
 	out := Simplify(g, 100) // very aggressive
-	// Should fall back to original (refuses to over-simplify).
-	assert.NotEqual(t, 0, out.(*geom.Polygon).NumRings(), "over-simplification produced empty polygon")
+	assert.True(t, out.(*geom.Polygon).IsEmpty(), "JTS-compatible DP collapse should produce POLYGON EMPTY")
 }
 
 func TestSimplifyPoint(t *testing.T) {

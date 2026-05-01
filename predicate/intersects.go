@@ -146,11 +146,31 @@ func pointOnLine(p geom.XY, ls *geom.LineString, k kernel.Kernel) bool {
 	n := ls.NumPoints()
 	for i := 0; i+1 < n; i++ {
 		a, b := ls.PointAt(i), ls.PointAt(i+1)
-		if k.SegmentDistance(p, a, b) == 0 {
+		if pointOnSegmentRobust(p, a, b, k) {
 			return true
 		}
 	}
 	return false
+}
+
+func pointOnSegmentRobust(p, a, b geom.XY, k kernel.Kernel) bool {
+	if a == b {
+		return p == a
+	}
+	if k.Orient(a, b, p) != kernel.Collinear {
+		return false
+	}
+	const eps = 1e-12
+	minX, maxX := a.X, b.X
+	if minX > maxX {
+		minX, maxX = maxX, minX
+	}
+	minY, maxY := a.Y, b.Y
+	if minY > maxY {
+		minY, maxY = maxY, minY
+	}
+	return p.X >= minX-eps && p.X <= maxX+eps &&
+		p.Y >= minY-eps && p.Y <= maxY+eps
 }
 
 func lineLineIntersects(a, b *geom.LineString, k kernel.Kernel) bool {

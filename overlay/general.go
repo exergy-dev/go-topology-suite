@@ -27,17 +27,33 @@ func tryOverlayNG(subj, clip []*geom.Polygon, op overlayng.Op, c *crs.CRS) (geom
 	return geom.NewMultiPolygon(c, all...), true
 }
 
+func requireSameCRS(a, b geom.Geometry) error {
+	if !crs.Equal(a.CRS(), b.CRS()) {
+		return terra.ErrCRSMismatch
+	}
+	return nil
+}
+
 // IntersectionGeneral returns subject ∩ clipper for arbitrary polygons
 // or multipolygons. Falls back to the v0.1 Greiner-Hormann path on
 // inputs the overlay-NG path can't handle (currently only single-polygon
 // inputs go through GH; multi-polygon inputs always use overlay-NG).
 func IntersectionGeneral(subject, clipper geom.Geometry) (geom.Geometry, error) {
+	if err := requireSameCRS(subject, clipper); err != nil {
+		return nil, err
+	}
+	if subject.IsEmpty() || clipper.IsEmpty() {
+		return emptyOfDim(subject.CRS(), minDim(subject, clipper)), nil
+	}
+	if !isPolygonal(subject) || !isPolygonal(clipper) {
+		return intersectionNonPolygonal(subject, clipper)
+	}
 	subj, clip, err := unwrapPolygonal(subject, clipper)
 	if err != nil {
 		return nil, err
 	}
 	if subj == nil || clip == nil {
-		return geom.NewEmptyPolygon(subject.CRS(), geom.LayoutXY), nil
+		return emptyOfDim(subject.CRS(), minDim(subject, clipper)), nil
 	}
 	if g, ok := tryOverlayNG(subj, clip, overlayng.OpIntersection, subject.CRS()); ok {
 		return g, nil
@@ -47,7 +63,7 @@ func IntersectionGeneral(subject, clipper geom.Geometry) (geom.Geometry, error) 
 		return nil, terra.ErrUnsupportedKernel
 	}
 	sp, cp := subj[0], clip[0]
-	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(cp), "intersection")
+	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(cp), string(opIntersection))
 	if hadIx {
 		return ringsToGeometry(subject.CRS(), rings)
 	}
@@ -62,6 +78,21 @@ func IntersectionGeneral(subject, clipper geom.Geometry) (geom.Geometry, error) 
 
 // Union returns subject ∪ other for arbitrary polygons or multipolygons.
 func Union(subject, other geom.Geometry) (geom.Geometry, error) {
+	if err := requireSameCRS(subject, other); err != nil {
+		return nil, err
+	}
+	if subject.IsEmpty() && other.IsEmpty() {
+		return emptyOfDim(subject.CRS(), maxDim(subject, other)), nil
+	}
+	if subject.IsEmpty() {
+		return other, nil
+	}
+	if other.IsEmpty() {
+		return subject, nil
+	}
+	if !isPolygonal(subject) || !isPolygonal(other) {
+		return unionNonPolygonal(subject, other)
+	}
 	subj, oth, err := unwrapPolygonal(subject, other)
 	if err != nil {
 		return nil, err
@@ -77,7 +108,7 @@ func Union(subject, other geom.Geometry) (geom.Geometry, error) {
 		return nil, terra.ErrUnsupportedKernel
 	}
 	sp, op := subj[0], oth[0]
-	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(op), "union")
+	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(op), string(opUnion))
 	if hadIx {
 		return ringsToGeometry(subject.CRS(), rings)
 	}
@@ -96,12 +127,24 @@ func Union(subject, other geom.Geometry) (geom.Geometry, error) {
 // Difference returns subject \ other for arbitrary polygons or
 // multipolygons.
 func Difference(subject, other geom.Geometry) (geom.Geometry, error) {
+	if err := requireSameCRS(subject, other); err != nil {
+		return nil, err
+	}
+	if subject.IsEmpty() {
+		return emptyOfDim(subject.CRS(), dimensionOf(subject)), nil
+	}
+	if other.IsEmpty() {
+		return subject, nil
+	}
+	if !isPolygonal(subject) || !isPolygonal(other) {
+		return differenceNonPolygonal(subject, other)
+	}
 	subj, oth, err := unwrapPolygonal(subject, other)
 	if err != nil {
 		return nil, err
 	}
 	if subj == nil {
-		return geom.NewEmptyPolygon(subject.CRS(), geom.LayoutXY), nil
+		return emptyOfDim(subject.CRS(), dimensionOf(subject)), nil
 	}
 	if oth == nil {
 		// Nothing to subtract.
@@ -114,7 +157,7 @@ func Difference(subject, other geom.Geometry) (geom.Geometry, error) {
 		return nil, terra.ErrUnsupportedKernel
 	}
 	sp, op := subj[0], oth[0]
-	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(op), "difference")
+	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(op), string(opDifference))
 	if hadIx {
 		return ringsToGeometry(subject.CRS(), rings)
 	}
@@ -130,6 +173,21 @@ func Difference(subject, other geom.Geometry) (geom.Geometry, error) {
 // SymmetricDifference returns (a \ b) ∪ (b \ a). For polygons without
 // shared boundary this is the union of both differences.
 func SymmetricDifference(a, b geom.Geometry) (geom.Geometry, error) {
+	if err := requireSameCRS(a, b); err != nil {
+		return nil, err
+	}
+	if a.IsEmpty() && b.IsEmpty() {
+		return emptyOfDim(a.CRS(), maxDim(a, b)), nil
+	}
+	if a.IsEmpty() {
+		return b, nil
+	}
+	if b.IsEmpty() {
+		return a, nil
+	}
+	if !isPolygonal(a) || !isPolygonal(b) {
+		return symDifferenceNonPolygonal(a, b)
+	}
 	d1, err := Difference(a, b)
 	if err != nil {
 		return nil, err
@@ -147,13 +205,66 @@ func SymmetricDifference(a, b geom.Geometry) (geom.Geometry, error) {
 	return collectAsMultiPolygon(a.CRS(), d1, d2), nil
 }
 
+// dimensionOf returns the topological dimension of g (0=point, 1=line,
+// 2=areal). For GeometryCollection the maximum member dimension is used,
+// matching JTS overlay-NG empty-result-type rules.
+func dimensionOf(g geom.Geometry) int {
+	switch v := g.(type) {
+	case *geom.Point, *geom.MultiPoint:
+		return 0
+	case *geom.LineString, *geom.MultiLineString:
+		return 1
+	case *geom.Polygon, *geom.MultiPolygon:
+		return 2
+	case *geom.GeometryCollection:
+		max := 0
+		for i := 0; i < v.NumGeometries(); i++ {
+			if d := dimensionOf(v.GeometryAt(i)); d > max {
+				max = d
+			}
+		}
+		return max
+	}
+	return 0
+}
+
+func minDim(a, b geom.Geometry) int {
+	da, db := dimensionOf(a), dimensionOf(b)
+	if da < db {
+		return da
+	}
+	return db
+}
+
+func maxDim(a, b geom.Geometry) int {
+	da, db := dimensionOf(a), dimensionOf(b)
+	if da > db {
+		return da
+	}
+	return db
+}
+
+// emptyOfDim returns the canonical empty geometry of the given dimension.
+// JTS overlay-NG returns `POINT EMPTY` / `LINESTRING EMPTY` / `POLYGON
+// EMPTY` (not the multi variants) for empty overlay results.
+func emptyOfDim(c *crs.CRS, dim int) geom.Geometry {
+	switch dim {
+	case 0:
+		return geom.NewEmptyPoint(c, geom.LayoutXY)
+	case 1:
+		return geom.NewLineStringFlat(geom.LayoutXY, c, nil)
+	default:
+		return geom.NewEmptyPolygon(c, geom.LayoutXY)
+	}
+}
+
 // unwrapPolygonal normalises operands to ([]*geom.Polygon, []*geom.Polygon)
 // after CRS-equal checks. Empty inputs return nil slices (caller must
 // handle). Both *geom.Polygon and *geom.MultiPolygon are accepted; any
 // other geometry type returns ErrUnsupportedKernel.
 func unwrapPolygonal(a, b geom.Geometry) ([]*geom.Polygon, []*geom.Polygon, error) {
-	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, nil, terra.ErrCRSMismatch
+	if err := requireSameCRS(a, b); err != nil {
+		return nil, nil, err
 	}
 	pa, err := polygonsOf(a)
 	if err != nil {

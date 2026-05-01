@@ -1,7 +1,9 @@
 package snap
 
 import (
+	"cmp"
 	"math"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/index"
@@ -159,7 +161,9 @@ func (s *HotPixelSet) SegmentSplitsAt(a, b geom.XY) []geom.XY {
 		return nil
 	}
 	// Sort by parameter t.
-	sortSplitsByT(splits)
+	slices.SortFunc(splits, func(a, b hotPixelSplit) int {
+		return cmp.Compare(a.t, b.t)
+	})
 	out := make([]geom.XY, 0, len(splits))
 	const tEps = 1e-12
 	for i, sp := range splits {
@@ -196,16 +200,6 @@ func segmentParam(a, b, p geom.XY) float64 {
 		return 0
 	}
 	return (p.Y - a.Y) / dy
-}
-
-func sortSplitsByT(s []hotPixelSplit) {
-	// Insertion sort: split lists are small (O(hot pixels per segment)),
-	// usually <10. Avoids the import cost of sort.Slice on the hot path.
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j].t < s[j-1].t; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
 }
 
 // SnapRoundRings is the full Goodrich-Guibas pipeline: snap every

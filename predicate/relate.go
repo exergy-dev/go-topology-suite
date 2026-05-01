@@ -130,11 +130,39 @@ func computeMatrix(a, b geom.Geometry, k kernel.Kernel) matrix {
 
 	// Multi/collection on either side: iterate members and merge.
 	if isMulti(a) || isMulti(b) {
-		return relateMulti(a, b, k)
+		m := relateMulti(a, b, k)
+		// Aggregate-boundary post-processing: when A or B has empty
+		// boundary at the multi-level (mod-2 for MLS, closed-line
+		// detection), clear the row/column cells that the per-member
+		// merge spuriously raised.
+		if boundaryDim(a) < 0 {
+			m[mBI] = -1
+			m[mBB] = -1
+			m[mBE] = -1
+		}
+		if boundaryDim(b) < 0 {
+			m[mIB] = -1
+			m[mBB] = -1
+			m[mEB] = -1
+		}
+		return m
 	}
 
 	// Single-type dispatch.
-	return relatePair(a, b, k)
+	m := relatePair(a, b, k)
+	// Closed-line boundary post-processing: if a is a closed LineString
+	// (LinearRing) its boundary is empty; same for b.
+	if boundaryDim(a) < 0 {
+		m[mBI] = -1
+		m[mBB] = -1
+		m[mBE] = -1
+	}
+	if boundaryDim(b) < 0 {
+		m[mIB] = -1
+		m[mBB] = -1
+		m[mEB] = -1
+	}
+	return m
 }
 
 // relatePair computes the matrix for a pair of single-typed (Point,
@@ -193,9 +221,8 @@ func transposeMatrix(m matrix) matrix {
 }
 
 // boundaryDim returns the topological dimension of g's boundary, or -1 if
-// the boundary is empty (Point, MultiPoint, closed LineString — though we
-// approximate the closed-curve case as still having empty boundary at the
-// ring level).
+// the boundary is empty (Point, MultiPoint, closed LineString, or a
+// MultiLineString whose mod-2 endpoint set is empty).
 func boundaryDim(g geom.Geometry) int {
 	switch v := g.(type) {
 	case *geom.Point, *geom.MultiPoint:
@@ -204,9 +231,18 @@ func boundaryDim(g geom.Geometry) int {
 		if v.NumPoints() < 2 {
 			return -1
 		}
+		if v.PointAt(0) == v.PointAt(v.NumPoints()-1) {
+			// Closed line — empty boundary.
+			return -1
+		}
 		return 0
 	case *geom.MultiLineString:
-		// Mod-2 rule: shared endpoints cancel. Conservative bound: 0.
+		// Mod-2 rule: an endpoint shared by an even number of members
+		// is not a boundary point. If the aggregate set is empty,
+		// boundary is empty.
+		if len(multiLineStringBoundary(v)) == 0 {
+			return -1
+		}
 		return 0
 	case *geom.Polygon, *geom.MultiPolygon:
 		if g.IsEmpty() {
@@ -224,6 +260,33 @@ func boundaryDim(g geom.Geometry) int {
 		return bd
 	}
 	return -1
+}
+
+// multiLineStringBoundary returns the OGC mod-2 boundary point set of
+// a MultiLineString: endpoints appearing in an odd number of member
+// boundary endpoints. Closed members contribute nothing.
+func multiLineStringBoundary(ml *geom.MultiLineString) []geom.XY {
+	count := map[geom.XY]int{}
+	for i := 0; i < ml.NumGeometries(); i++ {
+		ls := ml.LineStringAt(i)
+		if ls.IsEmpty() || ls.NumPoints() < 2 {
+			continue
+		}
+		first := ls.PointAt(0)
+		last := ls.PointAt(ls.NumPoints() - 1)
+		if first == last {
+			continue
+		}
+		count[first]++
+		count[last]++
+	}
+	var out []geom.XY
+	for p, c := range count {
+		if c%2 == 1 {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // isMulti reports whether g is a Multi* or GeometryCollection.
@@ -274,16 +337,15 @@ func relateMulti(a, b geom.Geometry, k kernel.Kernel) matrix {
 		}
 		for _, bj := range bMembers {
 			pair := relatePair(ai, bj, k)
-			// Bring across only the non-exterior columns; the I/B
-			// exterior cells from sub-pairs are about ext(bj), not
-			// ext(B).
-			for _, idx := range []int{mII, mIB, mBI, mBB, mEI, mEB} {
+			// Bring across only the I/B-row × I/B-col cells. The
+			// exterior cells (IE/BE on the I/B rows, EI/EB on the
+			// E row) are about ext(ai) or ext(bj), not ext(A) or
+			// ext(B); we compute those globally after this loop.
+			for _, idx := range []int{mII, mIB, mBI, mBB} {
 				if pair[idx] > mi[idx] {
 					mi[idx] = pair[idx]
 				}
 			}
-			// IE/BE cells: only "exterior of all bj" counts. Compute
-			// after the loop.
 		}
 		// After processing all bj, IE/BE for ai stays at its default
 		// only if ai had no overlap at all; if ai is entirely covered
@@ -355,10 +417,12 @@ func flatten(g geom.Geometry) []geom.Geometry {
 
 // geometryCoveredByAny reports whether g is covered by the union of
 // `members` (i.e., every point of g lies in some member's closure).
-// Conservative shortcut: returns true only when at least one member
-// individually covers g. This under-reports coverage when g is split
-// across multiple members; acceptable for v1.0 since the alternative is
-// computing a full union.
+//
+// Fast path: if any single member covers g, return true.
+// Slow path (lineal/pointal g): split g into atomic pieces (vertices
+// for points, segments for lines) and verify each piece is covered by
+// at least one member. Areal g still uses the single-member fast path
+// — the cross-member union case is rare for valid inputs.
 func geometryCoveredByAny(g geom.Geometry, members []geom.Geometry, k kernel.Kernel) bool {
 	for _, m := range members {
 		ok, err := Covers(m, g, WithKernel(k))
@@ -366,7 +430,74 @@ func geometryCoveredByAny(g geom.Geometry, members []geom.Geometry, k kernel.Ker
 			return true
 		}
 	}
+	// Fallback for lineal/pointal split-coverage cases.
+	switch v := g.(type) {
+	case *geom.Point:
+		return pointCoveredByAny(v.XY(), members, k)
+	case *geom.MultiPoint:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !pointCoveredByAny(v.PointAt(i), members, k) {
+				return false
+			}
+		}
+		return v.NumGeometries() > 0
+	case *geom.LineString:
+		return lineCoveredByAny(v, members, k)
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !lineCoveredByAny(v.LineStringAt(i), members, k) {
+				return false
+			}
+		}
+		return v.NumGeometries() > 0
+	}
 	return false
+}
+
+func pointCoveredByAny(p geom.XY, members []geom.Geometry, k kernel.Kernel) bool {
+	for _, m := range members {
+		pt := geom.NewPoint(m.CRS(), p)
+		if ok, err := Covers(m, pt, WithKernel(k)); err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+// lineCoveredByAny reports whether every segment of ls is covered by
+// at least one member's closure. Segments are sampled at endpoints +
+// midpoint for the test; a segment is "covered" iff all three samples
+// are covered by the same single member.
+func lineCoveredByAny(ls *geom.LineString, members []geom.Geometry, k kernel.Kernel) bool {
+	if ls.NumPoints() < 2 {
+		return false
+	}
+	for i := 0; i+1 < ls.NumPoints(); i++ {
+		a := ls.PointAt(i)
+		b := ls.PointAt(i + 1)
+		mid := geom.XY{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+		if !segmentCoveredByAny(a, b, mid, members, k) {
+			return false
+		}
+	}
+	return true
+}
+
+func segmentCoveredByAny(a, b, mid geom.XY, members []geom.Geometry, k kernel.Kernel) bool {
+	for _, m := range members {
+		if pointCoveredByOne(a, m, k) &&
+			pointCoveredByOne(b, m, k) &&
+			pointCoveredByOne(mid, m, k) {
+			return true
+		}
+	}
+	return false
+}
+
+func pointCoveredByOne(p geom.XY, m geom.Geometry, k kernel.Kernel) bool {
+	pt := geom.NewPoint(m.CRS(), p)
+	ok, err := Covers(m, pt, WithKernel(k))
+	return err == nil && ok
 }
 
 // Matches reports whether the DE-9IM matrix matches the given pattern.

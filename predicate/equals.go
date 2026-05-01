@@ -6,31 +6,54 @@ import (
 	"github.com/terra-geo/terra/geom"
 )
 
-// Equals reports whether a and b describe the same point set, ignoring
-// vertex order within rings beyond a starting offset and ignoring
-// duplicate consecutive vertices.
+// Equals reports whether a and b describe the same point set.
 //
-// The Phase 1 implementation is a strict structural comparison: same type,
-// same coordinate buffer, same ring layout. A topological-equality
-// implementation (matching JTS semantics) lands in Phase 3 with the
-// overlay graph.
+// Fast path: a strict structural comparison (identical type, layout, and
+// coordinate buffer) returns true immediately. When that fails — e.g.
+// rings start at different vertices, or a Polygon vs MultiPolygon-of-one
+// is being compared — Equals falls back to topological equality via the
+// DE-9IM matrix (pattern "T*F**FFF*").
+//
+// Empty inputs of the same type compare equal; an empty geometry is
+// considered topologically equal to any other empty geometry of any
+// type.
 func Equals(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return false, terra.ErrCRSMismatch
 	}
-	if a.Type() != b.Type() {
-		return false, nil
-	}
-	if a.Layout() != b.Layout() {
-		return false, nil
+	if a.IsEmpty() && b.IsEmpty() {
+		// JTS semantics: any two empty geometries are equal regardless
+		// of advertised type.
+		return true, nil
 	}
 	if a.IsEmpty() != b.IsEmpty() {
 		return false, nil
 	}
-	if a.IsEmpty() {
+	if a.Type() == b.Type() && a.Layout() == b.Layout() && structuralEqual(a, b) {
 		return true, nil
 	}
-	return structuralEqual(a, b), nil
+	if pointZeroLengthLinePair(a, b) {
+		return false, nil
+	}
+	d, err := Relate(a, b, opts...)
+	if err != nil {
+		return false, err
+	}
+	return d.Matches("T*F**FFF*"), nil
+}
+
+func pointZeroLengthLinePair(a, b geom.Geometry) bool {
+	if _, ok := a.(*geom.Point); ok {
+		if ls, ok := b.(*geom.LineString); ok {
+			return isZeroLengthLine(ls)
+		}
+	}
+	if _, ok := b.(*geom.Point); ok {
+		if ls, ok := a.(*geom.LineString); ok {
+			return isZeroLengthLine(ls)
+		}
+	}
+	return false
 }
 
 func structuralEqual(a, b geom.Geometry) bool {

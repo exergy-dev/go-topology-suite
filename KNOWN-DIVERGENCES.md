@@ -26,6 +26,70 @@ Each entry should record:
 
 ## Current entries
 
+### JTS testxml conformance residuals (2026-05-01)
+
+After the conformance push that landed Phases 1–14 of the JTS-test
+plan, the corpus stands at **94.6% pass rate** (8471/8951 passing,
+450 failures, 30 skipped). The remaining buckets are tracked here as
+known divergences pending deeper engine work.
+
+- **Op:** `buffer` (~87 failures)
+- **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
+- **Trigger:** TestBuffer, TestBufferExternal2, TestBigNastyBuffer,
+  TestBufferFailure, TestBufferInsideNonEmpty.
+- **Resolution:** Terra's `buffer.Buffer` uses an offset-curve
+  generator without robust snap-rounding cleanup. Buffer correctness
+  for complex inputs (long zig-zag rings, sharp concavities, nearly-
+  parallel edges, exact JTS round-cap subdivision) requires a
+  snap-rounding noder + boundary-merge pass. Tracked.
+
+- **Op:** `relate` / cascading predicates on GeometryCollection /
+  overlapping multi cases (~150 across `relate`/`within`/`contains`/
+  `touches`)
+- **Trigger:** TestRelateGC, TestRelateLL (validate suite),
+  TestRelateLA, TestRelateAA-big (skinny-polygon precision).
+- **Resolution:** Terra's `predicate.Relate` flattens multi-geometries
+  and combines per-member matrices. Aggregate-boundary post-processing
+  (mod-2 for MLS, closed-line detection) is implemented in Phase 11,
+  but exact results for overlapping GC members + segment-level GC
+  boundary semantics need a global noded relate engine. Tracked.
+
+- **Op:** mixed-dimension overlay results
+- **Trigger:** TestOverlayAA case#3 (intersection that produces
+  P+L+A in a GeometryCollection), TestNGOverlayA precision sliver
+  cases.
+- **Resolution:** Terra's overlay-NG result extractor only emits
+  result polygons; result lines (overlay-shared edges that don't
+  bound result polygons) and result points (vertex-only intersections)
+  need additional DCEL traversal. Phase 12 in the followup plan
+  proposes this work but it has not yet landed.
+
+- **Op:** snap-rounding precision overlays (`*SR` arg3 ≠ 1, `*Prec`
+  test files ~120)
+- **Trigger:** TestOverlayAAPrec, TestNGOverlayAPrec, TestNGOverlayLPrec.
+- **Resolution:** Terra has no true snap-rounding noder. The harness
+  pre-snaps inputs to the precision scale before running overlay
+  (Phase 14), which handles the simpler cases; sliver-precision
+  overlays where snap-rounding is required during the noding step
+  itself still fail. A real `internal/snaprounding/noder.go` is the
+  proper fix.
+
+- **Op:** `isValid` on complex polygon validity
+- **Trigger:** TestValid case#74–86 (interior-disconnected via hole
+  chains), TestInvalidA (adjacent-hole chains, zero-width spikes
+  along boundary).
+- **Resolution:** These need a noded validation analysis (build
+  edge graph of all rings, check connectedness of polygon interior).
+  Single-ring + simple hole-pair checks are implemented in Phase 10.
+
+- **Op:** various AA real overlay correctness (~30)
+- **Trigger:** TestOverlayAA case#1 (polygon with hole intersecting
+  another polygon) and similar.
+- **Resolution:** Terra's overlay-NG doesn't always correctly
+  subtract holes when computing intersection of polygon-with-hole
+  vs polygon. Needs targeted fixes in
+  `overlay/overlayng/result.go`.
+
 ### `length` on polygonal geometries — terra vs simplefeatures
 
 - **Op:** `length`

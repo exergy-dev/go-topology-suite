@@ -3,6 +3,7 @@ package wkt
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -77,6 +78,11 @@ func (p *parser) readWord() string {
 
 func (p *parser) readNumber() (float64, error) {
 	p.skipWhitespace()
+	// Special tokens NaN, Inf, Infinity (with optional sign) — JTS's
+	// WKT extension uses these for invalid-coordinate test fixtures.
+	if v, ok := p.tryReadSpecialFloat(); ok {
+		return v, nil
+	}
 	start := p.pos
 	if p.pos < len(p.src) && (p.src[p.pos] == '-' || p.src[p.pos] == '+') {
 		p.pos++
@@ -93,6 +99,30 @@ func (p *parser) readNumber() (float64, error) {
 		return 0, fmt.Errorf("wkt: expected number at offset %d", p.pos)
 	}
 	return strconv.ParseFloat(p.src[start:p.pos], 64)
+}
+
+// tryReadSpecialFloat consumes a `NaN`, `Inf`, or `Infinity` token
+// (case-insensitive, with optional `+`/`-` sign) and returns the
+// corresponding float64. Returns ok=false if no such token is present
+// at p.pos; the parser position is left unchanged in that case.
+func (p *parser) tryReadSpecialFloat() (float64, bool) {
+	save := p.pos
+	sign := 1.0
+	if p.pos < len(p.src) && (p.src[p.pos] == '-' || p.src[p.pos] == '+') {
+		if p.src[p.pos] == '-' {
+			sign = -1.0
+		}
+		p.pos++
+	}
+	w := p.readWord()
+	switch w {
+	case "NAN":
+		return math.NaN(), true
+	case "INF", "INFINITY":
+		return math.Inf(int(sign)), true
+	}
+	p.pos = save
+	return 0, false
 }
 
 // parseSRIDPrefix consumes "SRID=<int>;" if present and stores the
@@ -143,7 +173,7 @@ func (p *parser) parseGeometry() (geom.Geometry, error) {
 	switch w {
 	case "POINT":
 		return p.parsePoint()
-	case "LINESTRING":
+	case "LINESTRING", "LINEARRING":
 		return p.parseLineString()
 	case "POLYGON":
 		return p.parsePolygon()
@@ -172,6 +202,36 @@ func (p *parser) parseEmptyOrLayout() (geom.Layout, bool) {
 	}
 	p.pos = save
 	return layout, false
+}
+
+// tryReadEmpty consumes the bare token EMPTY if present and returns true.
+// Used inside multi-geometry / polygon-ring loops where an element may be
+// EMPTY rather than a parenthesised payload (per JTS WKT extensions).
+func (p *parser) tryReadEmpty() bool {
+	save := p.pos
+	w := p.readWord()
+	if w == "EMPTY" {
+		return true
+	}
+	p.pos = save
+	return false
+}
+
+func (p *parser) consumeMemberSeparator(context string) (done bool, err error) {
+	p.skipWhitespace()
+	if p.pos >= len(p.src) {
+		return false, fmt.Errorf("wkt: unexpected EOF in %s", context)
+	}
+	switch p.src[p.pos] {
+	case ',':
+		p.pos++
+		return false, nil
+	case ')':
+		p.pos++
+		return true, nil
+	default:
+		return false, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
+	}
 }
 
 func (p *parser) parsePoint() (geom.Geometry, error) {
@@ -265,23 +325,21 @@ func (p *parser) parsePolygon() (geom.Geometry, error) {
 	stride := layout.Stride()
 	var rings [][]geom.XY
 	for {
-		flat, err := p.readCoordSequence(stride)
+		if p.tryReadEmpty() {
+			// Skip empty ring; matches JTS POLYGON((..) EMPTY) semantics.
+		} else {
+			flat, err := p.readCoordSequence(stride)
+			if err != nil {
+				return nil, err
+			}
+			rings = append(rings, flatToXY(flat, stride))
+		}
+		done, err := p.consumeMemberSeparator("polygon")
 		if err != nil {
 			return nil, err
 		}
-		rings = append(rings, flatToXY(flat, stride))
-		p.skipWhitespace()
-		if p.pos >= len(p.src) {
-			return nil, errors.New("wkt: unexpected EOF in polygon")
-		}
-		switch p.src[p.pos] {
-		case ',':
-			p.pos++
-		case ')':
-			p.pos++
+		if done {
 			return geom.NewPolygon(p.crs, rings...), nil
-		default:
-			return nil, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
 		}
 	}
 }
@@ -306,39 +364,40 @@ func (p *parser) parseMultiPoint() (geom.Geometry, error) {
 	stride := layout.Stride()
 	var pts []geom.XY
 	for {
-		// Each member may be either parenthesised "(x y)" or bare "x y".
+		// Each member may be EMPTY, parenthesised "(x y)", or bare "x y".
 		p.skipWhitespace()
-		var flat []float64
-		if p.peek() == '(' {
-			p.pos++
-			c, err := p.readCoord(stride)
-			if err != nil {
-				return nil, err
-			}
-			if err := p.consume(')'); err != nil {
-				return nil, err
-			}
-			flat = c
+		if p.tryReadEmpty() {
+			// Drop empty Point member; terra's MultiPoint is a flat XY
+			// list and has no representation for empty Points. JTS
+			// behaviour is preserved for relate/distance/overlay since
+			// an empty Point contributes nothing topologically.
 		} else {
-			c, err := p.readCoord(stride)
-			if err != nil {
-				return nil, err
+			var flat []float64
+			if p.peek() == '(' {
+				p.pos++
+				c, err := p.readCoord(stride)
+				if err != nil {
+					return nil, err
+				}
+				if err := p.consume(')'); err != nil {
+					return nil, err
+				}
+				flat = c
+			} else {
+				c, err := p.readCoord(stride)
+				if err != nil {
+					return nil, err
+				}
+				flat = c
 			}
-			flat = c
+			pts = append(pts, geom.XY{X: flat[0], Y: flat[1]})
 		}
-		pts = append(pts, geom.XY{X: flat[0], Y: flat[1]})
-		p.skipWhitespace()
-		if p.pos >= len(p.src) {
-			return nil, errors.New("wkt: unexpected EOF in multipoint")
+		done, err := p.consumeMemberSeparator("multipoint")
+		if err != nil {
+			return nil, err
 		}
-		switch p.src[p.pos] {
-		case ',':
-			p.pos++
-		case ')':
-			p.pos++
+		if done {
 			return geom.NewMultiPoint(p.crs, pts), nil
-		default:
-			return nil, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
 		}
 	}
 }
@@ -354,23 +413,21 @@ func (p *parser) parseMultiLineString() (geom.Geometry, error) {
 	stride := layout.Stride()
 	var lines []*geom.LineString
 	for {
-		flat, err := p.readCoordSequence(stride)
+		if p.tryReadEmpty() {
+			lines = append(lines, geom.NewLineStringFlat(layout, p.crs, nil))
+		} else {
+			flat, err := p.readCoordSequence(stride)
+			if err != nil {
+				return nil, err
+			}
+			lines = append(lines, geom.NewLineStringFlatNoClone(layout, p.crs, flat))
+		}
+		done, err := p.consumeMemberSeparator("multilinestring")
 		if err != nil {
 			return nil, err
 		}
-		lines = append(lines, geom.NewLineStringFlatNoClone(layout, p.crs, flat))
-		p.skipWhitespace()
-		if p.pos >= len(p.src) {
-			return nil, errors.New("wkt: unexpected EOF in multilinestring")
-		}
-		switch p.src[p.pos] {
-		case ',':
-			p.pos++
-		case ')':
-			p.pos++
+		if done {
 			return geom.NewMultiLineString(p.crs, lines...), nil
-		default:
-			return nil, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
 		}
 	}
 }
@@ -386,44 +443,49 @@ func (p *parser) parseMultiPolygon() (geom.Geometry, error) {
 	stride := layout.Stride()
 	var polys []*geom.Polygon
 	for {
+		if p.tryReadEmpty() {
+			polys = append(polys, geom.NewEmptyPolygon(p.crs, layout))
+			done, err := p.consumeMemberSeparator("multipolygon")
+			if err != nil {
+				return nil, err
+			}
+			if !done {
+				continue
+			}
+			return geom.NewMultiPolygon(p.crs, polys...), nil
+		}
 		if err := p.consume('('); err != nil {
 			return nil, err
 		}
 		var rings [][]geom.XY
 		for {
-			flat, err := p.readCoordSequence(stride)
+			if p.tryReadEmpty() {
+				// Skip empty ring.
+			} else {
+				flat, err := p.readCoordSequence(stride)
+				if err != nil {
+					return nil, err
+				}
+				rings = append(rings, flatToXY(flat, stride))
+			}
+			done, err := p.consumeMemberSeparator("multipolygon")
 			if err != nil {
 				return nil, err
 			}
-			rings = append(rings, flatToXY(flat, stride))
-			p.skipWhitespace()
-			if p.pos >= len(p.src) {
-				return nil, errors.New("wkt: unexpected EOF in multipolygon")
-			}
-			if p.src[p.pos] == ',' {
-				p.pos++
+			if !done {
 				continue
 			}
-			if p.src[p.pos] == ')' {
-				p.pos++
-				break
-			}
-			return nil, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
+			break
 		}
 		polys = append(polys, geom.NewPolygon(p.crs, rings...))
-		p.skipWhitespace()
-		if p.pos >= len(p.src) {
-			return nil, errors.New("wkt: unexpected EOF in multipolygon")
+		done, err := p.consumeMemberSeparator("multipolygon")
+		if err != nil {
+			return nil, err
 		}
-		if p.src[p.pos] == ',' {
-			p.pos++
+		if !done {
 			continue
 		}
-		if p.src[p.pos] == ')' {
-			p.pos++
-			return geom.NewMultiPolygon(p.crs, polys...), nil
-		}
-		return nil, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
+		return geom.NewMultiPolygon(p.crs, polys...), nil
 	}
 }
 
@@ -442,18 +504,12 @@ func (p *parser) parseGeometryCollection() (geom.Geometry, error) {
 			return nil, err
 		}
 		members = append(members, g)
-		p.skipWhitespace()
-		if p.pos >= len(p.src) {
-			return nil, errors.New("wkt: unexpected EOF in collection")
+		done, err := p.consumeMemberSeparator("collection")
+		if err != nil {
+			return nil, err
 		}
-		switch p.src[p.pos] {
-		case ',':
-			p.pos++
-		case ')':
-			p.pos++
+		if done {
 			return geom.NewGeometryCollection(p.crs, members...), nil
-		default:
-			return nil, fmt.Errorf("wkt: expected ',' or ')' at offset %d", p.pos)
 		}
 	}
 }

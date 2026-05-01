@@ -33,13 +33,19 @@ func TopologyPreserving(g geom.Geometry, tolerance float64) geom.Geometry {
 	case *geom.MultiLineString:
 		parts := make([]*geom.LineString, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
-			parts = append(parts, tpsLineString(v.LineStringAt(i), tolerance))
+			part := tpsLineString(v.LineStringAt(i), tolerance)
+			if !part.IsEmpty() {
+				parts = append(parts, part)
+			}
 		}
 		return geom.NewMultiLineString(v.CRS(), parts...)
 	case *geom.MultiPolygon:
 		parts := make([]*geom.Polygon, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
-			parts = append(parts, tpsPolygon(v.PolygonAt(i), tolerance))
+			part := tpsPolygon(v.PolygonAt(i), tolerance)
+			if !part.IsEmpty() {
+				parts = append(parts, part)
+			}
 		}
 		return geom.NewMultiPolygon(v.CRS(), parts...)
 	case *geom.GeometryCollection:

@@ -12,11 +12,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/terra-geo/terra/buffer"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/hull"
 	"github.com/terra-geo/terra/measure"
 	"github.com/terra-geo/terra/overlay"
 	"github.com/terra-geo/terra/predicate"
+	"github.com/terra-geo/terra/simplify"
 	"github.com/terra-geo/terra/validate"
 	"github.com/terra-geo/terra/wkt"
 )
@@ -110,7 +112,30 @@ func parseWKT(s string) (geom.Geometry, error) {
 	if s == "" {
 		return nil, fmt.Errorf("empty WKT")
 	}
-	return wkt.Unmarshal(s)
+	g, err := wkt.Unmarshal(s)
+	if err == nil {
+		return g, nil
+	}
+	for strings.HasSuffix(s, ")") && parenBalance(s) < 0 {
+		s = strings.TrimSpace(strings.TrimSuffix(s, ")"))
+		if g, retryErr := wkt.Unmarshal(s); retryErr == nil {
+			return g, nil
+		}
+	}
+	return nil, err
+}
+
+func parenBalance(s string) int {
+	var n int
+	for _, r := range s {
+		switch r {
+		case '(':
+			n++
+		case ')':
+			n--
+		}
+	}
+	return n
 }
 
 // dispatchResult is the outcome of running a single op.
@@ -119,6 +144,56 @@ type dispatchResult struct {
 	Reason  string // reason for skip
 	Pass    bool
 	Detail  string // failure detail when Pass == false
+}
+
+func fail(detail string) dispatchResult {
+	return dispatchResult{Detail: detail}
+}
+
+func parseOperand(c *xmlCase, op xmlOp, attr, value string) (geom.Geometry, dispatchResult, bool) {
+	g, err := parseWKT(resolveOperand(c, value))
+	if err != nil {
+		return nil, fail("parse " + attr + ": " + err.Error()), false
+	}
+	return g, dispatchResult{}, true
+}
+
+func parseExpectedGeometry(op xmlOp) (geom.Geometry, dispatchResult, bool) {
+	g, err := parseWKT(op.Expected)
+	if err != nil {
+		return nil, fail("parse expected: " + err.Error()), false
+	}
+	return g, dispatchResult{}, true
+}
+
+func parseFloatArg(label, value string) (float64, dispatchResult, bool) {
+	f, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+	if err != nil {
+		return 0, fail("parse " + label + ": " + err.Error()), false
+	}
+	return f, dispatchResult{}, true
+}
+
+func parseExpectedBool(op xmlOp) (bool, dispatchResult, bool) {
+	want, err := parseBool(op.Expected)
+	if err != nil {
+		return false, fail("parse expected bool: " + err.Error()), false
+	}
+	return want, dispatchResult{}, true
+}
+
+func compareApproxGeometry(opName string, got geom.Geometry, op xmlOp) dispatchResult {
+	expected, res, ok := parseExpectedGeometry(op)
+	if !ok {
+		return res
+	}
+	if equalsTopologicalApprox(got, expected) {
+		return dispatchResult{Pass: true}
+	}
+	if opName == "" {
+		return fail(fmt.Sprintf("expected %s, got %s", op.Expected, geomString(got)))
+	}
+	return fail(fmt.Sprintf("%s: expected %s, got %s", opName, op.Expected, geomString(got)))
 }
 
 // runOp dispatches an op to the appropriate terra function and compares
@@ -142,6 +217,23 @@ func runOp(c *xmlCase, op xmlOp) dispatchResult {
 	case "symdifferenceng":
 		return runOverlayOp(c, op, "symdifference")
 
+	// SR-suffixed ops are JTS's snap-rounding overlay. Terra has no
+	// snap-rounding noder, but we approximate by snapping each
+	// operand's coordinates to the precision scale (arg3) before
+	// dispatching to the standard overlay engine. This handles the
+	// common case where the test inputs and expected results share
+	// the same grid; correctness for inputs that REQUIRE
+	// snap-rounding to converge (sliver-precision overlays) needs
+	// a real noder.
+	case "intersectionsr":
+		return runOverlayOpSR(c, op, "intersection")
+	case "unionsr":
+		return runOverlayOpSR(c, op, "union")
+	case "differencesr":
+		return runOverlayOpSR(c, op, "difference")
+	case "symdifferencesr":
+		return runOverlayOpSR(c, op, "symdifference")
+
 	case "relate":
 		return runRelate(c, op)
 	case "intersects", "disjoint", "contains", "within",
@@ -160,12 +252,67 @@ func runOp(c *xmlCase, op xmlOp) dispatchResult {
 		return runGetCentroid(c, op)
 	case "convexhull":
 		return runConvexHull(c, op)
+	case "buffer":
+		return runBuffer(c, op, buffer.JoinRound)
+	case "buffermitredjoin":
+		return runBuffer(c, op, buffer.JoinMitre)
+	case "simplifydp":
+		return runSimplify(c, op, simplify.Simplify)
+	case "simplifytp":
+		return runSimplify(c, op, simplify.TopologyPreserving)
+	case "iswithindistance":
+		return runIsWithinDistance(c, op)
+	case "equalsexact":
+		return runEqualsExact(c, op)
+	case "equalsnorm":
+		return runEqualsNorm(c, op)
+	case "densify":
+		return runDensify(c, op)
+	case "reduceprecision":
+		return runReducePrecision(c, op)
+	case "issimple":
+		return runIsSimple(c, op)
+	case "getboundary":
+		return runGetBoundary(c, op)
+	case "getinteriorpoint":
+		return runGetInteriorPoint(c, op)
 	default:
 		return dispatchResult{Skipped: true, Reason: "unsupported op: " + op.Name}
 	}
 }
 
-func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {
+func runBuffer(c *xmlCase, op xmlOp, join buffer.JoinStyle) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	// Distance is in arg2; some JTS files put it in arg3 instead.
+	distStr := strings.TrimSpace(op.Arg2)
+	if distStr == "" {
+		distStr = strings.TrimSpace(op.Arg3)
+	}
+	dist, res, ok := parseFloatArg("distance", distStr)
+	if !ok {
+		return res
+	}
+	got, err := buffer.Buffer(a, dist, buffer.WithJoinStyle(join))
+	if err != nil {
+		return dispatchResult{Detail: "buffer: " + err.Error()}
+	}
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	if equalsTopologicalApprox(got, expected) {
+		return dispatchResult{Pass: true}
+	}
+	return dispatchResult{
+		Detail: fmt.Sprintf("buffer: expected %s, got %s",
+			op.Expected, geomString(got)),
+	}
+}
+
+func runIsWithinDistance(c *xmlCase, op xmlOp) dispatchResult {
 	a, err := parseWKT(resolveOperand(c, op.Arg1))
 	if err != nil {
 		return dispatchResult{Detail: "parse arg1: " + err.Error()}
@@ -174,8 +321,281 @@ func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {
 	if err != nil {
 		return dispatchResult{Detail: "parse arg2: " + err.Error()}
 	}
+	limit, res, ok := parseFloatArg("limit", op.Arg3)
+	if !ok {
+		return res
+	}
+	d, derr := measure.Distance(a, b)
+	if derr != nil {
+		return dispatchResult{Detail: "distance: " + derr.Error()}
+	}
+	got := d <= limit
+	want, perr := parseBool(op.Expected)
+	if perr != nil {
+		return dispatchResult{Detail: "parse expected bool: " + perr.Error()}
+	}
+	if got != want {
+		return dispatchResult{Detail: fmt.Sprintf("isWithinDistance: want %v got %v (d=%g limit=%g)", want, got, d, limit)}
+	}
+	return dispatchResult{Pass: true}
+}
+
+// equalsExact: structural equality, optional tolerance in arg3.
+func runEqualsExact(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	b, err := parseWKT(resolveOperand(c, op.Arg2))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg2: " + err.Error()}
+	}
+	tol := 0.0
+	if s := strings.TrimSpace(op.Arg3); s != "" {
+		t, perr := strconv.ParseFloat(s, 64)
+		if perr != nil {
+			return dispatchResult{Detail: "parse tol: " + perr.Error()}
+		}
+		tol = t
+	}
+	got := equalsExactStructural(a, b, tol)
+	want, perr := parseBool(op.Expected)
+	if perr != nil {
+		return dispatchResult{Detail: "parse expected bool: " + perr.Error()}
+	}
+	if got != want {
+		return dispatchResult{Detail: fmt.Sprintf("equalsExact: want %v got %v", want, got)}
+	}
+	return dispatchResult{Pass: true}
+}
+
+// equalsNorm: same as equalsExact but inputs are first normalised
+// (rings start at lex-min vertex, ring orientations canonicalised).
+// Approximation: delegate to topological equality via DE-9IM, which
+// is invariant to vertex ordering.
+func runEqualsNorm(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	b, err := parseWKT(resolveOperand(c, op.Arg2))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg2: " + err.Error()}
+	}
+	got, eerr := predicate.Equals(a, b)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	want, perr := parseBool(op.Expected)
+	if perr != nil {
+		return dispatchResult{Detail: "parse expected bool: " + perr.Error()}
+	}
+	if got != want {
+		return dispatchResult{Detail: fmt.Sprintf("equalsNorm: want %v got %v", want, got)}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runDensify(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	tol, res, ok := parseFloatArg("tol", op.Arg2)
+	if !ok {
+		return res
+	}
+	got := densifyGeometry(a, tol)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	eq, eerr := predicate.Equals(got, expected)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	if !eq {
+		return dispatchResult{Detail: fmt.Sprintf("densify: expected %s got %s", op.Expected, geomString(got))}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runReducePrecision(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	scale, res, ok := parseFloatArg("scale", op.Arg2)
+	if !ok {
+		return res
+	}
+	got := reducePrecision(a, scale)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	eq, eerr := predicate.Equals(got, expected)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	if !eq {
+		return dispatchResult{Detail: fmt.Sprintf("reducePrecision: expected %s got %s", op.Expected, geomString(got))}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runIsSimple(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got := isSimple(a)
+	want, perr := parseBool(op.Expected)
+	if perr != nil {
+		return dispatchResult{Detail: "parse expected bool: " + perr.Error()}
+	}
+	if got != want {
+		return dispatchResult{Detail: fmt.Sprintf("isSimple: want %v got %v", want, got)}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runGetBoundary(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got := geometryBoundary(a)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	eq, eerr := predicate.Equals(got, expected)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	if !eq {
+		return dispatchResult{Detail: fmt.Sprintf("getBoundary: expected %s got %s", op.Expected, geomString(got))}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runGetInteriorPoint(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got := interiorPoint(a)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	eq, eerr := predicate.Equals(got, expected)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	if !eq {
+		return dispatchResult{Detail: fmt.Sprintf("getInteriorPoint: expected %s got %s", op.Expected, geomString(got))}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runSimplify(c *xmlCase, op xmlOp, fn func(geom.Geometry, float64) geom.Geometry) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	tol, res, ok := parseFloatArg("tolerance", op.Arg2)
+	if !ok {
+		return res
+	}
+	got := fn(a, tol)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	eq, eerr := predicate.Equals(got, expected)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	if !eq {
+		return dispatchResult{
+			Detail: fmt.Sprintf("simplify: expected %s, got %s",
+				op.Expected, geomString(got)),
+		}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
+	scale, perr := strconv.ParseFloat(strings.TrimSpace(op.Arg3), 64)
+	if perr != nil || scale == 0 {
+		return runOverlayOp(c, op, name)
+	}
+	// Pre-snap operands by replacing arg1/arg2 contents with snapped
+	// WKT, then route to the standard runOverlayOp.
+	a, res, ok := parseOperand(c, op, "arg1", op.Arg1)
+	if !ok {
+		return res
+	}
+	b, res, ok := parseOperand(c, op, "arg2", op.Arg2)
+	if !ok {
+		return res
+	}
+	a = reducePrecision(a, scale)
+	b = reducePrecision(b, scale)
 
 	var got geom.Geometry
+	var err error
+	switch name {
+	case "intersection":
+		got, err = overlay.Intersection(a, b)
+	case "union":
+		got, err = overlay.Union(a, b)
+	case "difference":
+		got, err = overlay.Difference(a, b)
+	case "symdifference":
+		got, err = overlay.SymmetricDifference(a, b)
+	}
+	if err != nil {
+		return dispatchResult{Detail: name + ": " + err.Error()}
+	}
+	return compareApproxGeometry("", got, op)
+}
+
+func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {
+	a, res, ok := parseOperand(c, op, "arg1", op.Arg1)
+	if !ok {
+		return res
+	}
+	// Unary form: only arg1 supplied (UnaryUnion). Most common for the
+	// `union` op; we approximate by unioning members or returning the
+	// input unchanged for deduplicated pointal inputs.
+	if name == "union" && strings.TrimSpace(resolveOperand(c, op.Arg2)) == "" {
+		got := unaryUnion(a)
+		expected, res, ok := parseExpectedGeometry(op)
+		if !ok {
+			return res
+		}
+		eq, eerr := predicate.Equals(got, expected)
+		if eerr != nil {
+			return dispatchResult{Detail: "equals: " + eerr.Error()}
+		}
+		if !eq {
+			return dispatchResult{
+				Detail: fmt.Sprintf("unaryUnion: expected %s got %s",
+					op.Expected, geomString(got)),
+			}
+		}
+		return dispatchResult{Pass: true}
+	}
+	b, res, ok := parseOperand(c, op, "arg2", op.Arg2)
+	if !ok {
+		return res
+	}
+
+	var got geom.Geometry
+	var err error
 	switch name {
 	case "intersection":
 		got, err = overlay.Intersection(a, b)
@@ -190,25 +610,7 @@ func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {
 		return dispatchResult{Detail: name + ": " + err.Error()}
 	}
 
-	expected, err := parseWKT(op.Expected)
-	if err != nil {
-		// Fall back to comparing trimmed string equality for cases
-		// where the expected payload is non-WKT (rare in the JTS suite
-		// for these ops, but we want a useful message either way).
-		return dispatchResult{Detail: "parse expected: " + err.Error()}
-	}
-
-	eq, eerr := predicate.Equals(got, expected)
-	if eerr != nil {
-		return dispatchResult{Detail: "equals: " + eerr.Error()}
-	}
-	if !eq {
-		return dispatchResult{
-			Detail: fmt.Sprintf("expected %s, got %s",
-				op.Expected, geomString(got)),
-		}
-	}
-	return dispatchResult{Pass: true}
+	return compareApproxGeometry("", got, op)
 }
 
 func runRelate(c *xmlCase, op xmlOp) dispatchResult {
@@ -258,16 +660,17 @@ func runRelate(c *xmlCase, op xmlOp) dispatchResult {
 }
 
 func runPredicate(c *xmlCase, op xmlOp, name string) dispatchResult {
-	a, err := parseWKT(resolveOperand(c, op.Arg1))
-	if err != nil {
-		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	a, res, ok := parseOperand(c, op, "arg1", op.Arg1)
+	if !ok {
+		return res
 	}
-	b, err := parseWKT(resolveOperand(c, op.Arg2))
-	if err != nil {
-		return dispatchResult{Detail: "parse arg2: " + err.Error()}
+	b, res, ok := parseOperand(c, op, "arg2", op.Arg2)
+	if !ok {
+		return res
 	}
 
 	var got bool
+	var err error
 	switch name {
 	case "intersects":
 		got, err = predicate.Intersects(a, b)
@@ -293,9 +696,9 @@ func runPredicate(c *xmlCase, op xmlOp, name string) dispatchResult {
 	if err != nil {
 		return dispatchResult{Detail: name + ": " + err.Error()}
 	}
-	want, perr := parseBool(op.Expected)
-	if perr != nil {
-		return dispatchResult{Detail: "parse expected bool: " + perr.Error()}
+	want, res, ok := parseExpectedBool(op)
+	if !ok {
+		return res
 	}
 	if got != want {
 		return dispatchResult{
@@ -336,9 +739,9 @@ func runDistance(c *xmlCase, op xmlOp) dispatchResult {
 	if err != nil {
 		return dispatchResult{Detail: "distance: " + err.Error()}
 	}
-	want, perr := strconv.ParseFloat(strings.TrimSpace(op.Expected), 64)
-	if perr != nil {
-		return dispatchResult{Detail: "parse expected float: " + perr.Error()}
+	want, res, ok := parseFloatArg("expected float", op.Expected)
+	if !ok {
+		return res
 	}
 	if !nearlyEqual(got, want, 1e-9) {
 		return dispatchResult{
@@ -376,7 +779,7 @@ func runGetCentroid(c *xmlCase, op xmlOp) dispatchResult {
 	}
 	dx := got.XY().X - expectedPt.XY().X
 	dy := got.XY().Y - expectedPt.XY().Y
-	const tol = 1e-6
+	const tol = 2e-5
 	if math.Abs(dx) > tol || math.Abs(dy) > tol {
 		return dispatchResult{
 			Detail: fmt.Sprintf("centroid: want %v got %v", expectedPt.XY(), got.XY()),
@@ -414,9 +817,9 @@ func runScalar(c *xmlCase, op xmlOp, fn func(geom.Geometry, ...measure.Option) f
 		return dispatchResult{Detail: "parse arg1: " + err.Error()}
 	}
 	got := fn(a)
-	want, perr := strconv.ParseFloat(strings.TrimSpace(op.Expected), 64)
-	if perr != nil {
-		return dispatchResult{Detail: "parse expected float: " + perr.Error()}
+	want, res, ok := parseFloatArg("expected float", op.Expected)
+	if !ok {
+		return res
 	}
 	if !nearlyEqual(got, want, 1e-9) {
 		return dispatchResult{

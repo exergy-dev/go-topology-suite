@@ -1,7 +1,8 @@
 package noding
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
@@ -149,7 +150,7 @@ func (SimpleNoder) Node(input []*SegmentString) []*SegmentString {
 			breaks = append(breaks, false)
 			ints := splits[i][j]
 			if len(ints) > 0 {
-				sort.Slice(ints, func(p, q int) bool { return ints[p].t < ints[q].t })
+				slices.SortFunc(ints, func(a, b split) int { return cmp.Compare(a.t, b.t) })
 				for k, s := range ints {
 					// Skip duplicates produced when the same edge
 					// is hit by multiple other edges at near-equal

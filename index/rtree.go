@@ -1,7 +1,8 @@
 package index
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"sync"
 
 	"github.com/terra-geo/terra/geom"
@@ -207,8 +208,8 @@ func linearSplit[T any](n *node[T], min int) (*node[T], *node[T]) {
 	right := &node[T]{leaf: n.leaf}
 	if n.leaf {
 		items := n.items
-		sort.Slice(items, func(i, j int) bool {
-			return items[i].Env.MinX < items[j].Env.MinX
+		slices.SortFunc(items, func(a, b Item[T]) int {
+			return cmp.Compare(a.Env.MinX, b.Env.MinX)
 		})
 		mid := len(items) / 2
 		if mid < min {
@@ -218,8 +219,8 @@ func linearSplit[T any](n *node[T], min int) (*node[T], *node[T]) {
 		right.items = append(right.items, items[mid:]...)
 	} else {
 		children := n.children
-		sort.Slice(children, func(i, j int) bool {
-			return children[i].env.MinX < children[j].env.MinX
+		slices.SortFunc(children, func(a, b *node[T]) int {
+			return cmp.Compare(a.env.MinX, b.env.MinX)
 		})
 		mid := len(children) / 2
 		if mid < min {

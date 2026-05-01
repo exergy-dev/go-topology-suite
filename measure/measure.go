@@ -69,9 +69,15 @@ func geometryDistance(a, b geom.Geometry, k kernel.Kernel) float64 {
 			return k.Distance(pa.XY(), pb.XY())
 		}
 	}
-	// Otherwise: minimum distance between any vertex of a and any segment of b
-	// (and vice versa). This is correct for non-overlapping geometries.
+
+	// If either operand is areal and contains a point of the other, the
+	// distance is zero (the geometries overlap or touch).
+	if areaContainsAnyPoint(a, b, k) || areaContainsAnyPoint(b, a, k) {
+		return 0
+	}
+
 	min := math.Inf(+1)
+	// Vertex-segment crosses (a's vertex to b's edges, and vice versa).
 	visitVertices(a, func(p geom.XY) {
 		visitSegments(b, func(s1, s2 geom.XY) {
 			if d := k.SegmentDistance(p, s1, s2); d < min {
@@ -86,10 +92,91 @@ func geometryDistance(a, b geom.Geometry, k kernel.Kernel) float64 {
 			}
 		})
 	})
+
+	// Vertex-vertex distances — required when either geometry is purely
+	// pointal (Point or MultiPoint, which have no segments) so the
+	// vertex-segment loops above don't fire.
+	if min > 0 {
+		visitVertices(a, func(pa geom.XY) {
+			visitVertices(b, func(pb geom.XY) {
+				if d := k.Distance(pa, pb); d < min {
+					min = d
+				}
+			})
+		})
+	}
+
+	// Segment-segment crossings: if any edge of a crosses any edge of b
+	// (proper or improper intersection), distance is zero.
+	if min > 0 {
+		segmentsIntersect := false
+		visitSegments(a, func(a1, a2 geom.XY) {
+			if segmentsIntersect {
+				return
+			}
+			visitSegments(b, func(b1, b2 geom.XY) {
+				if segmentsIntersect {
+					return
+				}
+				if _, ok := k.SegmentIntersection(a1, a2, b1, b2); ok {
+					segmentsIntersect = true
+				}
+			})
+		})
+		if segmentsIntersect {
+			return 0
+		}
+	}
+
 	if math.IsInf(min, +1) {
 		return 0
 	}
 	return min
+}
+
+// areaContainsAnyPoint reports whether g (when areal) contains any
+// vertex of other in its closure (interior or boundary).
+func areaContainsAnyPoint(g, other geom.Geometry, k kernel.Kernel) bool {
+	switch v := g.(type) {
+	case *geom.Polygon:
+		return polygonContainsAnyVertex(v, other, k)
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if polygonContainsAnyVertex(v.PolygonAt(i), other, k) {
+				return true
+			}
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if areaContainsAnyPoint(v.GeometryAt(i), other, k) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func polygonContainsAnyVertex(p *geom.Polygon, other geom.Geometry, k kernel.Kernel) bool {
+	hit := false
+	visitVertices(other, func(q geom.XY) {
+		if hit {
+			return
+		}
+		if c := k.PointInRing(q, p.Ring(0)); c != kernel.Outside {
+			// Interior or on outer boundary — verify not in any hole.
+			inHole := false
+			for r := 1; r < p.NumRings(); r++ {
+				if hc := k.PointInRing(q, p.Ring(r)); hc == kernel.Inside {
+					inHole = true
+					break
+				}
+			}
+			if !inHole {
+				hit = true
+			}
+		}
+	})
+	return hit
 }
 
 // Length returns the total length of all linear components in g.
@@ -171,6 +258,126 @@ func Centroid(g geom.Geometry, opts ...Option) *geom.Point {
 		return multiLineCentroid(v, c.kernel)
 	case *geom.MultiPolygon:
 		return multiPolygonCentroid(v, c.kernel)
+	case *geom.GeometryCollection:
+		return geometryCollectionCentroid(v, c.kernel)
+	}
+	return geom.NewEmptyPoint(g.CRS(), geom.LayoutXY)
+}
+
+type weightedCentroid struct {
+	x, y, weight float64
+}
+
+func (a *weightedCentroid) addPoint(p geom.XY, weight float64) {
+	if weight == 0 {
+		return
+	}
+	a.x += p.X * weight
+	a.y += p.Y * weight
+	a.weight += weight
+}
+
+func (a weightedCentroid) point(c *crs.CRS) *geom.Point {
+	if a.weight == 0 {
+		return geom.NewEmptyPoint(c, geom.LayoutXY)
+	}
+	return geom.NewPoint(c, geom.XY{X: a.x / a.weight, Y: a.y / a.weight})
+}
+
+type pointCentroid struct {
+	x, y  float64
+	count int
+}
+
+func (a *pointCentroid) add(p geom.XY) {
+	a.x += p.X
+	a.y += p.Y
+	a.count++
+}
+
+func (a pointCentroid) point(c *crs.CRS) *geom.Point {
+	if a.count == 0 {
+		return geom.NewEmptyPoint(c, geom.LayoutXY)
+	}
+	n := float64(a.count)
+	return geom.NewPoint(c, geom.XY{X: a.x / n, Y: a.y / n})
+}
+
+// geometryCollectionCentroid combines per-member centroids by descending
+// dimension priority: areal members dominate, linear members are used
+// only if no areal members contribute, and pointal members are used
+// only if no areal/linear members contribute. This matches JTS's
+// CentroidCalc behaviour for heterogeneous collections.
+func geometryCollectionCentroid(g *geom.GeometryCollection, k kernel.Kernel) *geom.Point {
+	var (
+		area, line, degenerate weightedCentroid
+		points                 pointCentroid
+	)
+	var visit func(geom.Geometry)
+	visit = func(g geom.Geometry) {
+		if g == nil || g.IsEmpty() {
+			return
+		}
+		switch v := g.(type) {
+		case *geom.Point:
+			points.add(v.XY())
+		case *geom.MultiPoint:
+			for i := 0; i < v.NumGeometries(); i++ {
+				points.add(v.PointAt(i))
+			}
+		case *geom.LineString:
+			c := lineStringCentroid(v, k)
+			if c.IsEmpty() {
+				return
+			}
+			w := lineStringLength(v, k)
+			if w > 0 {
+				line.addPoint(c.XY(), w)
+			} else if !c.IsEmpty() {
+				degenerate.addPoint(c.XY(), 1)
+			}
+		case *geom.MultiLineString:
+			for i := 0; i < v.NumGeometries(); i++ {
+				visit(v.LineStringAt(i))
+			}
+		case *geom.Polygon:
+			c := polygonCentroid(v)
+			if c.IsEmpty() {
+				return
+			}
+			w := math.Abs(polygonArea(v, k))
+			if w <= degenerateAreaThreshold(v.Envelope()) {
+				w = 0
+			}
+			if w > 0 {
+				area.addPoint(c.XY(), w)
+			} else {
+				_, wdeg := polygonLineCentroidAndWeight(v)
+				if wdeg <= 0 {
+					wdeg = 1
+				}
+				degenerate.addPoint(c.XY(), wdeg)
+			}
+		case *geom.MultiPolygon:
+			for i := 0; i < v.NumGeometries(); i++ {
+				visit(v.PolygonAt(i))
+			}
+		case *geom.GeometryCollection:
+			for i := 0; i < v.NumGeometries(); i++ {
+				visit(v.GeometryAt(i))
+			}
+		}
+	}
+	visit(g)
+	switch {
+	case area.weight > 0:
+		return area.point(g.CRS())
+	case line.weight > 0:
+		return line.point(g.CRS())
+	case degenerate.weight > 0:
+		return degenerate.point(g.CRS())
+	case points.count > 0:
+		return points.point(g.CRS())
 	}
 	return geom.NewEmptyPoint(g.CRS(), geom.LayoutXY)
 }
@@ -198,6 +405,14 @@ func lineStringCentroid(ls *geom.LineString, k kernel.Kernel) *geom.Point {
 	return geom.NewPoint(ls.CRS(), geom.XY{X: cx / totalLen, Y: cy / totalLen})
 }
 
+func lineStringLength(ls *geom.LineString, k kernel.Kernel) float64 {
+	var length float64
+	for i := 0; i+1 < ls.NumPoints(); i++ {
+		length += k.Distance(ls.PointAt(i), ls.PointAt(i+1))
+	}
+	return length
+}
+
 func polygonCentroid(p *geom.Polygon) *geom.Point {
 	if p.NumRings() == 0 {
 		return geom.NewEmptyPoint(p.CRS(), geom.LayoutXY)
@@ -206,26 +421,72 @@ func polygonCentroid(p *geom.Polygon) *geom.Point {
 	for r := 0; r < p.NumRings(); r++ {
 		ring := p.Ring(r)
 		rx, ry, ra := ringCentroidContribution(ring)
+		if ra == 0 {
+			continue
+		}
+		// Per-ring centroid is rx/ra, ry/ra; weight by absolute area
+		// with sign = +1 for the outer ring, -1 for holes. Using
+		// absolute area makes the formula robust to rings of
+		// arbitrary orientation (the OGC convention is CCW outer,
+		// CW holes — but the corpus contains valid mixed forms).
 		sign := 1.0
 		if r > 0 {
 			sign = -1.0
 		}
-		sx += sign * rx
-		sy += sign * ry
-		sa += sign * ra
+		absA := math.Abs(ra)
+		sx += sign * (rx / ra) * absA
+		sy += sign * (ry / ra) * absA
+		sa += sign * absA
 	}
-	if sa == 0 {
-		// Degenerate; fall back to vertex average.
-		ring := p.Ring(0)
-		var x, y float64
-		for _, v := range ring {
-			x += v.X
-			y += v.Y
-		}
-		n := float64(len(ring))
-		return geom.NewPoint(p.CRS(), geom.XY{X: x / n, Y: y / n})
+	if sa == 0 || math.Abs(sa) <= degenerateAreaThreshold(p.Envelope()) {
+		return polygonLineCentroid(p)
 	}
 	return geom.NewPoint(p.CRS(), geom.XY{X: sx / sa, Y: sy / sa})
+}
+
+func degenerateAreaThreshold(e geom.Envelope) float64 {
+	maxAbs := math.Max(math.Max(math.Abs(e.MinX), math.Abs(e.MaxX)),
+		math.Max(math.Abs(e.MinY), math.Abs(e.MaxY)))
+	span := math.Max(e.MaxX-e.MinX, e.MaxY-e.MinY)
+	scale := math.Max(1, math.Max(maxAbs, span))
+	return 1e-12 * scale * scale
+}
+
+func polygonLineCentroid(p *geom.Polygon) *geom.Point {
+	c, _ := polygonLineCentroidAndWeight(p)
+	return c
+}
+
+func polygonLineCentroidAndWeight(p *geom.Polygon) (*geom.Point, float64) {
+	var sx, sy, totalLen float64
+	var pointSX, pointSY float64
+	var pointN int
+	for r := 0; r < p.NumRings(); r++ {
+		ring := p.Ring(r)
+		for i := 0; i+1 < len(ring); i++ {
+			a, b := ring[i], ring[i+1]
+			segLen := math.Hypot(b.X-a.X, b.Y-a.Y)
+			if segLen == 0 {
+				continue
+			}
+			sx += ((a.X + b.X) / 2) * segLen
+			sy += ((a.Y + b.Y) / 2) * segLen
+			totalLen += segLen
+		}
+		for _, q := range ring {
+			pointSX += q.X
+			pointSY += q.Y
+			pointN++
+		}
+	}
+	if totalLen > 0 {
+		return geom.NewPoint(p.CRS(), geom.XY{X: sx / totalLen, Y: sy / totalLen}), totalLen
+	}
+	if pointN > 0 {
+		n := float64(pointN)
+		return geom.NewPoint(p.CRS(), geom.XY{X: pointSX / n, Y: pointSY / n}), 0
+	}
+	return geom.NewEmptyPoint(p.CRS(), geom.LayoutXY), 0
 }
 
 // ringCentroidContribution returns 6*Cx*A, 6*Cy*A, 6*A for the ring (the
@@ -245,39 +506,51 @@ func ringCentroidContribution(ring []geom.XY) (cxNum, cyNum, areaSum float64) {
 }
 
 func multiLineCentroid(m *geom.MultiLineString, k kernel.Kernel) *geom.Point {
-	var sx, sy, totalLen float64
+	var lines weightedCentroid
+	var zero pointCentroid
 	for i := 0; i < m.NumGeometries(); i++ {
 		ls := m.LineStringAt(i)
 		c := lineStringCentroid(ls, k)
-		var segLen float64
-		for j := 0; j+1 < ls.NumPoints(); j++ {
-			a, b := ls.PointAt(j), ls.PointAt(j+1)
-			segLen += k.Distance(a, b)
+		segLen := lineStringLength(ls, k)
+		lines.addPoint(c.XY(), segLen)
+		if segLen == 0 && !c.IsEmpty() {
+			zero.add(c.XY())
 		}
-		sx += c.XY().X * segLen
-		sy += c.XY().Y * segLen
-		totalLen += segLen
 	}
-	if totalLen == 0 {
+	if lines.weight == 0 {
+		if zero.count > 0 {
+			return zero.point(m.CRS())
+		}
 		return geom.NewEmptyPoint(m.CRS(), geom.LayoutXY)
 	}
-	return geom.NewPoint(m.CRS(), geom.XY{X: sx / totalLen, Y: sy / totalLen})
+	return lines.point(m.CRS())
 }
 
 func multiPolygonCentroid(m *geom.MultiPolygon, k kernel.Kernel) *geom.Point {
-	var sx, sy, totalArea float64
+	var area, line weightedCentroid
 	for i := 0; i < m.NumGeometries(); i++ {
 		p := m.PolygonAt(i)
 		c := polygonCentroid(p)
 		a := polygonArea(p, k)
-		sx += c.XY().X * a
-		sy += c.XY().Y * a
-		totalArea += a
+		if math.Abs(a) <= degenerateAreaThreshold(p.Envelope()) {
+			a = 0
+		}
+		area.addPoint(c.XY(), a)
+		if a == 0 && !c.IsEmpty() {
+			_, w := polygonLineCentroidAndWeight(p)
+			if w <= 0 {
+				w = 1
+			}
+			line.addPoint(c.XY(), w)
+		}
 	}
-	if totalArea == 0 {
+	if area.weight == 0 {
+		if line.weight > 0 {
+			return line.point(m.CRS())
+		}
 		return geom.NewEmptyPoint(m.CRS(), geom.LayoutXY)
 	}
-	return geom.NewPoint(m.CRS(), geom.XY{X: sx / totalArea, Y: sy / totalArea})
+	return area.point(m.CRS())
 }
 
 // visitVertices yields every vertex in g.

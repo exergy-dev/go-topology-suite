@@ -1,8 +1,9 @@
 package overlayng
 
 import (
+	"cmp"
 	"math"
-	"sort"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 )
@@ -127,8 +128,8 @@ func buildDCEL(segs []taggedSegment) *dcel {
 
 	// Sort outgoing half-edges at each vertex by angle (CCW from +X).
 	for _, v := range d.vertices {
-		sort.Slice(v.out, func(i, j int) bool {
-			return v.out[i].angle < v.out[j].angle
+		slices.SortFunc(v.out, func(a, b *halfEdge) int {
+			return cmp.Compare(a.angle, b.angle)
 		})
 	}
 

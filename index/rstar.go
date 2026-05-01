@@ -1,7 +1,8 @@
 package index
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 )
@@ -195,13 +196,13 @@ func sortByAxis[T any](se splitEntries[T], axis int, useMax bool) {
 		}
 	}
 	if se.leaf {
-		sort.SliceStable(se.items, func(i, j int) bool {
-			return key(se.items[i].Env) < key(se.items[j].Env)
+		slices.SortStableFunc(se.items, func(a, b Item[T]) int {
+			return cmp.Compare(key(a.Env), key(b.Env))
 		})
 		return
 	}
-	sort.SliceStable(se.children, func(i, j int) bool {
-		return key(se.children[i].env) < key(se.children[j].env)
+	slices.SortStableFunc(se.children, func(a, b *node[T]) int {
+		return cmp.Compare(key(a.env), key(b.env))
 	})
 }
 

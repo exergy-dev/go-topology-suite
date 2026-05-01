@@ -1,8 +1,9 @@
 package index
 
 import (
+	"cmp"
 	"math"
-	"sort"
+	"slices"
 
 	"github.com/terra-geo/terra/geom"
 )
@@ -65,8 +66,8 @@ func strPackLeaves[T any](items []Item[T], maxEntries int) []*node[T] {
 	itemsPerSlice := int(math.Ceil(float64(n) / float64(sliceCount)))
 
 	// Sort by centre X.
-	sort.SliceStable(items, func(i, j int) bool {
-		return centreX(items[i].Env) < centreX(items[j].Env)
+	slices.SortStableFunc(items, func(a, b Item[T]) int {
+		return cmp.Compare(centreX(a.Env), centreX(b.Env))
 	})
 
 	leaves := make([]*node[T], 0, leafCount)
@@ -80,8 +81,8 @@ func strPackLeaves[T any](items []Item[T], maxEntries int) []*node[T] {
 			hi = n
 		}
 		strip := items[lo:hi]
-		sort.SliceStable(strip, func(i, j int) bool {
-			return centreY(strip[i].Env) < centreY(strip[j].Env)
+		slices.SortStableFunc(strip, func(a, b Item[T]) int {
+			return cmp.Compare(centreY(a.Env), centreY(b.Env))
 		})
 		for i := 0; i < len(strip); i += maxEntries {
 			j := i + maxEntries
@@ -112,8 +113,8 @@ func strPackInternal[T any](children []*node[T], maxEntries int) []*node[T] {
 	}
 	perSlice := int(math.Ceil(float64(n) / float64(sliceCount)))
 
-	sort.SliceStable(children, func(i, j int) bool {
-		return centreX(children[i].env) < centreX(children[j].env)
+	slices.SortStableFunc(children, func(a, b *node[T]) int {
+		return cmp.Compare(centreX(a.env), centreX(b.env))
 	})
 
 	parents := make([]*node[T], 0, parentCount)
@@ -127,8 +128,8 @@ func strPackInternal[T any](children []*node[T], maxEntries int) []*node[T] {
 			hi = n
 		}
 		strip := children[lo:hi]
-		sort.SliceStable(strip, func(i, j int) bool {
-			return centreY(strip[i].env) < centreY(strip[j].env)
+		slices.SortStableFunc(strip, func(a, b *node[T]) int {
+			return cmp.Compare(centreY(a.env), centreY(b.env))
 		})
 		for i := 0; i < len(strip); i += maxEntries {
 			j := i + maxEntries
