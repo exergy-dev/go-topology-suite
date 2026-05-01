@@ -19,8 +19,9 @@ const (
 	DefectLineTooFewPoints  DefectKind = "line-too-few-points"
 	DefectSelfIntersection  DefectKind = "self-intersection"
 	DefectHoleOutsideShell  DefectKind = "hole-outside-shell"
-	DefectInvalidLayout     DefectKind = "invalid-layout"
-	DefectInvalidCoordinate DefectKind = "invalid-coordinate"
+	DefectInvalidLayout        DefectKind = "invalid-layout"
+	DefectInvalidCoordinate    DefectKind = "invalid-coordinate"
+	DefectDisconnectedInterior DefectKind = "disconnected-interior"
 )
 
 // Defect describes one specific failure.
@@ -191,8 +192,125 @@ func (v *validator) checkPolygon(p *geom.Polygon) {
 		}
 	}
 	if p.NumRings() > 1 {
-		v.checkPolygonHoles(p, planar.Default)
+		k := planar.Default
+		v.checkPolygonHoles(p, k)
+		v.checkInteriorConnectivity(p, k)
 	}
+}
+
+// checkInteriorConnectivity reports a disconnected-interior defect
+// when the polygon's rings (shell + holes) form a graph cycle whose
+// touch points are distinct enough to enclose a real sub-region of
+// the interior.
+//
+// The touch graph has rings as nodes and an undirected edge for each
+// pair of rings that share a point. A connected component contains a
+// cycle iff its edge count exceeds (node count - 1). A cycle
+// genuinely disconnects the interior iff the cycle traverses ≥2
+// distinct touch points; multiple holes meeting at a single common
+// point form a "spider" that's still topologically simply connected.
+func (v *validator) checkInteriorConnectivity(p *geom.Polygon, k kernel.Kernel) {
+	n := p.NumRings()
+	if n < 3 {
+		return
+	}
+	rings := make([][]geom.XY, n)
+	for i := 0; i < n; i++ {
+		rings[i] = p.Ring(i)
+	}
+	type edge struct {
+		i, j  int
+		point geom.XY
+	}
+	var edges []edge
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			if pt, ok := ringsTouchPoint(rings[i], rings[j], k); ok {
+				edges = append(edges, edge{i, j, pt})
+			}
+		}
+	}
+	if len(edges) == 0 {
+		return
+	}
+	// Group edges into connected components, then test each component
+	// for cycles + distinct touch points.
+	parent := make([]int, n)
+	for i := range parent {
+		parent[i] = i
+	}
+	find := func(x int) int {
+		for parent[x] != x {
+			parent[x] = parent[parent[x]]
+			x = parent[x]
+		}
+		return x
+	}
+	for _, e := range edges {
+		ri, rj := find(e.i), find(e.j)
+		if ri != rj {
+			parent[ri] = rj
+		}
+	}
+	// For each component: count nodes, edges, and distinct points.
+	comps := map[int]*componentStats{}
+	for i := 0; i < n; i++ {
+		root := find(i)
+		c := comps[root]
+		if c == nil {
+			c = &componentStats{points: map[geom.XY]struct{}{}}
+			comps[root] = c
+		}
+		c.nodes++
+	}
+	for _, e := range edges {
+		root := find(e.i)
+		c := comps[root]
+		c.edges++
+		c.points[e.point] = struct{}{}
+	}
+	for root, c := range comps {
+		if c.edges > c.nodes-1 && len(c.points) >= 2 {
+			v.add(DefectDisconnectedInterior,
+				"rings form a cycle that disconnects the interior",
+				rings[root][0])
+			return
+		}
+	}
+}
+
+type componentStats struct {
+	nodes  int
+	edges  int
+	points map[geom.XY]struct{}
+}
+
+// ringsTouchPoint reports whether ring A and ring B share at least
+// one point and returns one such point (vertex-on-segment or
+// vertex-on-vertex). Multiple touch points for the same pair are
+// already detected by `ringTouchPointCount > 1` upstream as a
+// self-intersection.
+func ringsTouchPoint(a, b []geom.XY, k kernel.Kernel) (geom.XY, bool) {
+	for i := 0; i+1 < len(a); i++ {
+		if pointOnRingSegments(a[i], b, k) {
+			return a[i], true
+		}
+	}
+	for i := 0; i+1 < len(b); i++ {
+		if pointOnRingSegments(b[i], a, k) {
+			return b[i], true
+		}
+	}
+	return geom.XY{}, false
+}
+
+func pointOnRingSegments(p geom.XY, ring []geom.XY, k kernel.Kernel) bool {
+	for i := 0; i+1 < len(ring); i++ {
+		if k.SegmentDistance(p, ring[i], ring[i+1]) <= 1e-12 {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *validator) checkRing(ring []geom.XY, index int) bool {

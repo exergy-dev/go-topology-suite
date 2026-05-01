@@ -28,10 +28,10 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream C (GC relate via UnaryUnion + redundant-element
-absorption) the corpus stands at **95.8% pass rate** (8578/8951
-passing, 343 failures, 30 skipped). The remaining buckets are tracked
-here as known divergences pending deeper engine work.
+After Stream E (validity disconnected-interior detection via ring
+touch-graph cycle analysis) the corpus stands at **95.9% pass rate**
+(8583/8951 passing, 338 failures, 30 skipped). The remaining buckets
+are tracked here as known divergences pending deeper engine work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
