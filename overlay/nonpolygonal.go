@@ -9,6 +9,41 @@ import (
 	"github.com/terra-geo/terra/predicate"
 )
 
+// simplifyGCPair detects GeometryCollection operands and replaces
+// them with their UnaryUnion form so the overlay dispatcher can pick
+// the right type-specific path. Returns ok=true iff at least one
+// operand is a GC and was rewritten.
+func simplifyGCPair(a, b geom.Geometry) (geom.Geometry, geom.Geometry, bool) {
+	_, aIsGC := a.(*geom.GeometryCollection)
+	_, bIsGC := b.(*geom.GeometryCollection)
+	if !aIsGC && !bIsGC {
+		return nil, nil, false
+	}
+	as, bs := a, b
+	if aIsGC {
+		s, err := UnaryUnion(a)
+		if err != nil || s == nil {
+			return nil, nil, false
+		}
+		as = s
+	}
+	if bIsGC {
+		s, err := UnaryUnion(b)
+		if err != nil || s == nil {
+			return nil, nil, false
+		}
+		bs = s
+	}
+	// Avoid infinite loops: if UnaryUnion didn't reduce a GC away,
+	// don't re-dispatch.
+	_, asStillGC := as.(*geom.GeometryCollection)
+	_, bsStillGC := bs.(*geom.GeometryCollection)
+	if asStillGC && bsStillGC && as == a && bs == b {
+		return nil, nil, false
+	}
+	return as, bs, true
+}
+
 // isPolygonal reports whether g is a Polygon or MultiPolygon (the
 // inputs the polygon-overlay engine accepts).
 func isPolygonal(g geom.Geometry) bool {
@@ -88,6 +123,9 @@ func intersectionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return nil, terra.ErrCRSMismatch
 	}
+	if as, bs, ok := simplifyGCPair(a, b); ok {
+		return Intersection(as, bs)
+	}
 	k := planar.Default
 	if isPointal(a) {
 		pts := extractPoints(a)
@@ -122,6 +160,9 @@ func intersectionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 func unionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return nil, terra.ErrCRSMismatch
+	}
+	if as, bs, ok := simplifyGCPair(a, b); ok {
+		return Union(as, bs)
 	}
 	k := planar.Default
 	if isPointal(a) && isPointal(b) {
@@ -183,6 +224,9 @@ func differenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return nil, terra.ErrCRSMismatch
 	}
+	if as, bs, ok := simplifyGCPair(a, b); ok {
+		return Difference(as, bs)
+	}
 	k := planar.Default
 	if isPointal(a) {
 		pts := extractPoints(a)
@@ -221,6 +265,9 @@ func differenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 func symDifferenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return nil, terra.ErrCRSMismatch
+	}
+	if as, bs, ok := simplifyGCPair(a, b); ok {
+		return SymmetricDifference(as, bs)
 	}
 	if isLineal(a) && isLineal(b) {
 		return lineLineOverlay(a, b, opSymDiff)

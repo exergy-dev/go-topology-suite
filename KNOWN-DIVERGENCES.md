@@ -28,10 +28,11 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream G part 2 (lineal − pointal difference + WKB hex parse
-fallback) the corpus stands at **96.3% pass rate** (8620/8951
-passing, 301 failures, 30 skipped). The remaining buckets are
-tracked here as known divergences pending deeper engine work.
+After Stream G part 3 (GC operands routed through UnaryUnion in
+non-polygonal overlay paths) the corpus stands at **96.4% pass
+rate** (8628/8951 passing, 293 failures, 30 skipped). The
+remaining buckets are tracked here as known divergences pending
+deeper engine work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
