@@ -13,9 +13,11 @@ import (
 	"strings"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/hull"
 	"github.com/terra-geo/terra/measure"
 	"github.com/terra-geo/terra/overlay"
 	"github.com/terra-geo/terra/predicate"
+	"github.com/terra-geo/terra/validate"
 	"github.com/terra-geo/terra/wkt"
 )
 
@@ -127,16 +129,37 @@ func runOp(c *xmlCase, op xmlOp) dispatchResult {
 	switch name {
 	case "intersection", "union", "difference", "symdifference":
 		return runOverlayOp(c, op, name)
+
+	// NG-suffixed ops are JTS's overlay-NG path. Terra always uses
+	// overlay-NG for polygonal overlays, so map these to the same
+	// implementation as their non-suffixed counterparts.
+	case "intersectionng":
+		return runOverlayOp(c, op, "intersection")
+	case "unionng":
+		return runOverlayOp(c, op, "union")
+	case "differenceng":
+		return runOverlayOp(c, op, "difference")
+	case "symdifferenceng":
+		return runOverlayOp(c, op, "symdifference")
+
 	case "relate":
 		return runRelate(c, op)
 	case "intersects", "disjoint", "contains", "within",
 		"covers", "coveredby", "touches", "crosses",
 		"overlaps", "equals", "equalstopo":
 		return runPredicate(c, op, name)
+	case "isvalid":
+		return runIsValid(c, op)
 	case "getarea":
 		return runScalar(c, op, measure.Area)
 	case "getlength":
 		return runScalar(c, op, measure.Length)
+	case "distance":
+		return runDistance(c, op)
+	case "getcentroid":
+		return runGetCentroid(c, op)
+	case "convexhull":
+		return runConvexHull(c, op)
 	default:
 		return dispatchResult{Skipped: true, Reason: "unsupported op: " + op.Name}
 	}
@@ -277,6 +300,109 @@ func runPredicate(c *xmlCase, op xmlOp, name string) dispatchResult {
 	if got != want {
 		return dispatchResult{
 			Detail: fmt.Sprintf("%s: want %v got %v", name, want, got),
+		}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runIsValid(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got := validate.Validate(a) == nil
+	want, perr := parseBool(op.Expected)
+	if perr != nil {
+		return dispatchResult{Detail: "parse expected bool: " + perr.Error()}
+	}
+	if got != want {
+		return dispatchResult{
+			Detail: fmt.Sprintf("isValid: want %v got %v", want, got),
+		}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runDistance(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	b, err := parseWKT(resolveOperand(c, op.Arg2))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg2: " + err.Error()}
+	}
+	got, err := measure.Distance(a, b)
+	if err != nil {
+		return dispatchResult{Detail: "distance: " + err.Error()}
+	}
+	want, perr := strconv.ParseFloat(strings.TrimSpace(op.Expected), 64)
+	if perr != nil {
+		return dispatchResult{Detail: "parse expected float: " + perr.Error()}
+	}
+	if !nearlyEqual(got, want, 1e-9) {
+		return dispatchResult{
+			Detail: fmt.Sprintf("distance: want %g got %g", want, got),
+		}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runGetCentroid(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got := measure.Centroid(a)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	// Compare as points with a small tolerance — JTS's centroid
+	// algorithm differs from terra's planar Bashein-Detmer formula by
+	// rounding noise on real-data inputs.
+	expectedPt, ok := expected.(*geom.Point)
+	if !ok {
+		return dispatchResult{Detail: "expected POINT, got " + expected.Type().String()}
+	}
+	if got.IsEmpty() != expectedPt.IsEmpty() {
+		return dispatchResult{
+			Detail: fmt.Sprintf("centroid emptiness: want empty=%v got empty=%v",
+				expectedPt.IsEmpty(), got.IsEmpty()),
+		}
+	}
+	if got.IsEmpty() {
+		return dispatchResult{Pass: true}
+	}
+	dx := got.XY().X - expectedPt.XY().X
+	dy := got.XY().Y - expectedPt.XY().Y
+	const tol = 1e-6
+	if math.Abs(dx) > tol || math.Abs(dy) > tol {
+		return dispatchResult{
+			Detail: fmt.Sprintf("centroid: want %v got %v", expectedPt.XY(), got.XY()),
+		}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runConvexHull(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got := hull.ConvexHull(a)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	eq, eerr := predicate.Equals(got, expected)
+	if eerr != nil {
+		return dispatchResult{Detail: "equals: " + eerr.Error()}
+	}
+	if !eq {
+		return dispatchResult{
+			Detail: fmt.Sprintf("convexhull: expected %s got %s",
+				op.Expected, geomString(got)),
 		}
 	}
 	return dispatchResult{Pass: true}

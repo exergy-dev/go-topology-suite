@@ -3,20 +3,52 @@
 // The harness reads JTS-format XML test cases (as used by the
 // locationtech/jts project for its testxml suite) and dispatches each
 // op to the corresponding terra function. It exists purely to validate
-// behavior parity with JTS and is not part of the terra public API.
+// behaviour parity with JTS and is not part of the terra public API.
 //
-// Build tag
+// # Build tag
 //
 // The package is gated behind the "jts" build tag so that the default
 // `go test ./...` invocation never compiles or runs it. To execute the
 // harness use:
 //
-//	go test -tags=jts ./internal/jtstest/
+//	go test -tags=jts ./internal/jtstest/...
 //
-// Sample corpus
+// # Corpus
 //
-// A small hand-crafted corpus lives in testdata/. It is not a full
-// mirror of the upstream JTS suite — that would be brought in as a
-// vendored or fetched-on-demand dataset in a follow-up. The shipped
-// cases exist to prove the runner works end-to-end.
+// Two corpus sources are present under testdata/:
+//
+//   - testdata/*.xml — small hand-crafted sentinel cases that prove
+//     the runner works end-to-end (kept for fast iteration when
+//     modifying the harness itself).
+//   - testdata/upstream/{failure,general,misc,robust,validate}/ — the
+//     full JTS testxml corpus, vendored from
+//     github.com/locationtech/jts. See testdata/upstream/NOTICE.md for
+//     provenance, license terms, and update instructions.
+//
+// # Output convention
+//
+// Following the bench/conformance convention, divergences are recorded
+// via t.Logf, not t.Errorf. The harness reports aggregate
+// pass / fail / skip counts plus per-failure detail without breaking
+// CI. This makes it usable as a tracking baseline against which
+// targeted fixes can be measured. Intentional divergences should be
+// added to KNOWN-DIVERGENCES.md once their root cause is understood.
+//
+// # Supported ops
+//
+// The harness dispatches the following JTS op names:
+//
+//   - Predicates: intersects, disjoint, contains, within, covers,
+//     coveredBy, touches, crosses, overlaps, equals, equalsTopo
+//   - Spatial relation: relate (with arg3 DE-9IM pattern OR matrix text)
+//   - Constructive: intersection, union, difference, symdifference,
+//     plus the *NG variants aliased to the same terra ops since
+//     terra always uses overlay-NG for polygonal overlay
+//   - Validity: isValid (via package validate)
+//   - Measurement: getArea, getLength, distance, getCentroid
+//   - Construction: convexHull
+//
+// Unsupported ops (e.g. buffer, isWithinDistance, getInteriorPoint,
+// equalsExact, *SR snap-rounded variants, simplifyTP) are skipped with
+// a reason string and counted in the per-reason skip tally.
 package jtstest

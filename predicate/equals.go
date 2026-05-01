@@ -34,6 +34,17 @@ func Equals(a, b geom.Geometry, opts ...Option) (bool, error) {
 }
 
 func structuralEqual(a, b geom.Geometry) bool {
+	// Recursive paths (GeometryCollection, MultiPolygon child loops)
+	// dispatch on a's concrete type without checking that b matches —
+	// type assertions below panic if the children disagree. The
+	// outer-level Equals() guards the top level; this guards the
+	// recursive calls.
+	if a.Type() != b.Type() {
+		return false
+	}
+	if a.Layout() != b.Layout() {
+		return false
+	}
 	switch va := a.(type) {
 	case *geom.Point:
 		return va.XY() == b.(*geom.Point).XY()
