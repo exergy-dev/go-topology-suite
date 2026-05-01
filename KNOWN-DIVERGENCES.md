@@ -29,9 +29,10 @@ Each entry should record:
 ### JTS testxml conformance residuals (2026-05-01)
 
 After the conformance push that landed Phases 1–14 of the JTS-test
-plan, the corpus stands at **94.6% pass rate** (8471/8951 passing,
-450 failures, 30 skipped). The remaining buckets are tracked here as
-known divergences pending deeper engine work.
+plan, plus the multi-level relate dispatch + intersection-aware ring
+sampling work, the corpus stands at **95.5% pass rate** (8544/8951
+passing, 377 failures, 30 skipped). The remaining buckets are tracked
+here as known divergences pending deeper engine work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding

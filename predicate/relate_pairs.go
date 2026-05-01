@@ -587,6 +587,8 @@ func classifyRingSegments(m *matrix, x, y *geom.Polygon, k kernel.Kernel,
 ) {
 	bufp := borrowRingBuf()
 	defer releaseRingBuf(bufp)
+	bufq := borrowRingBuf()
+	defer releaseRingBuf(bufq)
 	for r := 0; r < x.NumRings(); r++ {
 		ring := x.RingInto((*bufp)[:0], r)
 		*bufp = ring
@@ -595,13 +597,57 @@ func classifyRingSegments(m *matrix, x, y *geom.Polygon, k kernel.Kernel,
 			if p1 == p2 {
 				continue
 			}
-			mid := geom.XY{X: (p1.X + p2.X) / 2, Y: (p1.Y + p2.Y) / 2}
+			// Collect parameter values t∈(0,1) where this segment meets
+			// any of y's ring segments — refine the sub-interval midpoint
+			// classification, so very thin overlaps aren't missed by the
+			// coarse 3-sample default.
+			ts := []float64{0, 1}
+			dx, dy := p2.X-p1.X, p2.Y-p1.Y
+			denom2 := dx*dx + dy*dy
+			for r2 := 0; r2 < y.NumRings(); r2++ {
+				ring2 := y.RingInto((*bufq)[:0], r2)
+				*bufq = ring2
+				for j := 0; j+1 < len(ring2); j++ {
+					q1, q2 := ring2[j], ring2[j+1]
+					ip, ok := k.SegmentIntersection(p1, p2, q1, q2)
+					if !ok {
+						continue
+					}
+					t := ((ip.X-p1.X)*dx + (ip.Y-p1.Y)*dy) / denom2
+					if t > 1e-15 && t < 1-1e-15 {
+						ts = append(ts, t)
+					}
+				}
+			}
+			sortFloats(ts)
+			anyInside, anyOutside, allBoundary := false, false, true
+			for s := 0; s+1 < len(ts); s++ {
+				ta, tb := ts[s], ts[s+1]
+				if tb-ta < 1e-15 {
+					continue
+				}
+				tm := (ta + tb) / 2
+				mid := geom.XY{X: p1.X + tm*dx, Y: p1.Y + tm*dy}
+				switch pointInPolygon(mid, y, k) {
+				case kernel.Inside:
+					anyInside = true
+					allBoundary = false
+				case kernel.Outside:
+					anyOutside = true
+					allBoundary = false
+				}
+			}
 			c1 := pointInPolygon(p1, y, k)
 			c2 := pointInPolygon(p2, y, k)
-			cm := pointInPolygon(mid, y, k)
-			anyInside := c1 == kernel.Inside || c2 == kernel.Inside || cm == kernel.Inside
-			anyOutside := c1 == kernel.Outside || c2 == kernel.Outside || cm == kernel.Outside
-			allBoundary := c1 == kernel.OnBoundary && c2 == kernel.OnBoundary && cm == kernel.OnBoundary
+			if c1 == kernel.Inside || c2 == kernel.Inside {
+				anyInside = true
+			}
+			if c1 == kernel.Outside || c2 == kernel.Outside {
+				anyOutside = true
+			}
+			if c1 != kernel.OnBoundary || c2 != kernel.OnBoundary {
+				allBoundary = false
+			}
 			if anyInside {
 				m.raise(cellInside, 1)
 			}
@@ -612,6 +658,20 @@ func classifyRingSegments(m *matrix, x, y *geom.Polygon, k kernel.Kernel,
 				m.raise(cellBoundary, 1)
 			}
 		}
+	}
+}
+
+// sortFloats is an in-place insertion sort suitable for small slices
+// generated per ring segment (typically ≤ 8 elements).
+func sortFloats(a []float64) {
+	for i := 1; i < len(a); i++ {
+		v := a[i]
+		j := i - 1
+		for j >= 0 && a[j] > v {
+			a[j+1] = a[j]
+			j--
+		}
+		a[j+1] = v
 	}
 }
 

@@ -262,6 +262,19 @@ func collectionPolygonCoveredInterior(a *geom.GeometryCollection, poly *geom.Pol
 		covered, hit := collectionPointCoveredInterior(a, poly.Ring(0)[0], k)
 		interior = interior || (covered && hit)
 	}
+	// Interior representative: a point strictly inside poly. The collection
+	// must cover this point too — otherwise poly's interior contains a
+	// region in the collection's exterior. Without this check, a polygon
+	// that "wraps around" gaps between collection members would falsely be
+	// reported as contained.
+	rep := samplePoint(poly)
+	if rep != (geom.XY{}) {
+		covered, hit := collectionPointCoveredInterior(a, rep, k)
+		if !covered {
+			return false, false
+		}
+		interior = interior || hit
+	}
 	return true, interior
 }
 

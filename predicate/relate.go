@@ -128,6 +128,23 @@ func computeMatrix(a, b geom.Geometry, k kernel.Kernel) matrix {
 		return m
 	}
 
+	// MLS-* dedicated multi-level paths that respect the mod-2 boundary
+	// rule on intersection-point classification. The pairs not handled
+	// here fall through to the per-member merge in relateMulti.
+	if m, ok := dispatchMLSPair(a, b, k); ok {
+		if boundaryDim(a) < 0 {
+			m[mBI] = -1
+			m[mBB] = -1
+			m[mBE] = -1
+		}
+		if boundaryDim(b) < 0 {
+			m[mIB] = -1
+			m[mBB] = -1
+			m[mEB] = -1
+		}
+		return m
+	}
+
 	// Multi/collection on either side: iterate members and merge.
 	if isMulti(a) || isMulti(b) {
 		m := relateMulti(a, b, k)
@@ -262,6 +279,52 @@ func boundaryDim(g geom.Geometry) int {
 	return -1
 }
 
+// dispatchMLSPair routes MLS-on-one-side or MLS-on-both-sides cases to
+// dedicated multi-level relate functions. Returns (matrix, true) when a
+// dispatch was made, otherwise (zero, false).
+//
+// LineString operands are also accepted: they're wrapped as a one-member
+// MultiLineString. Mod-2 boundary of {start,end} is exactly the natural
+// open-line boundary, so the dispatch is semantics-preserving.
+func dispatchMLSPair(a, b geom.Geometry, k kernel.Kernel) (matrix, bool) {
+	amls, aIsLineal := asMLSWrapped(a)
+	bmls, bIsLineal := asMLSWrapped(b)
+	if aIsLineal && bIsLineal {
+		return relateMLStoMLS(amls, bmls, k), true
+	}
+	if aIsLineal {
+		switch v := b.(type) {
+		case *geom.Polygon:
+			return relateMLStoPolygon(amls, v, k), true
+		case *geom.MultiPolygon:
+			return relateMLStoMultiPolygon(amls, v, k), true
+		}
+	}
+	if bIsLineal {
+		switch v := a.(type) {
+		case *geom.Polygon:
+			return transposeMatrix(relateMLStoPolygon(bmls, v, k)), true
+		case *geom.MultiPolygon:
+			return transposeMatrix(relateMLStoMultiPolygon(bmls, v, k)), true
+		}
+	}
+	return matrix{}, false
+}
+
+// asMLSWrapped returns g as a MultiLineString if g is lineal: any
+// MultiLineString is returned as-is; a LineString is wrapped as a
+// single-member MLS. Other types return (nil, false).
+func asMLSWrapped(g geom.Geometry) (*geom.MultiLineString, bool) {
+	switch v := g.(type) {
+	case *geom.MultiLineString:
+		return v, true
+	case *geom.LineString:
+		ml := geom.NewMultiLineString(v.CRS(), v)
+		return ml, true
+	}
+	return nil, false
+}
+
 // multiLineStringBoundary returns the OGC mod-2 boundary point set of
 // a MultiLineString: endpoints appearing in an odd number of member
 // boundary endpoints. Closed members contribute nothing.
@@ -358,6 +421,8 @@ func relateMulti(a, b geom.Geometry, k kernel.Kernel) matrix {
 				if bdi >= 0 {
 					mi[mBE] = -1
 				}
+			} else if bdi >= 0 && boundaryCoveredByAny(ai, bMembers, k) {
+				mi[mBE] = -1
 			}
 		}
 		m.merge(mi)
@@ -372,7 +437,7 @@ func relateMulti(a, b geom.Geometry, k kernel.Kernel) matrix {
 		}
 		if !geometryCoveredByAny(bj, aMembers, k) {
 			m.raise(mEI, dj)
-			if bdj >= 0 {
+			if bdj >= 0 && !boundaryCoveredByAny(bj, aMembers, k) {
 				m.raise(mEB, bdj)
 			}
 		}
@@ -454,6 +519,63 @@ func geometryCoveredByAny(g geom.Geometry, members []geom.Geometry, k kernel.Ker
 	return false
 }
 
+// boundaryCoveredByAny reports whether the topological boundary of g is
+// fully covered by the union of `members`' closures. This is a weaker
+// condition than full coverage (which also requires the interior to be
+// covered); used to clear the BE cell independently of IE when a polygon's
+// boundary fits inside the union of an MP without the polygon being fully
+// contained.
+func boundaryCoveredByAny(g geom.Geometry, members []geom.Geometry, k kernel.Kernel) bool {
+	switch v := g.(type) {
+	case *geom.Polygon:
+		for r := 0; r < v.NumRings(); r++ {
+			ring := v.Ring(r)
+			if !ringCoveredByAny(ring, members, k) {
+				return false
+			}
+		}
+		return true
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			if !boundaryCoveredByAny(v.PolygonAt(i), members, k) {
+				return false
+			}
+		}
+		return true
+	case *geom.LineString:
+		if v.NumPoints() < 2 || v.PointAt(0) == v.PointAt(v.NumPoints()-1) {
+			return true
+		}
+		return pointCoveredByAny(v.PointAt(0), members, k) &&
+			pointCoveredByAny(v.PointAt(v.NumPoints()-1), members, k)
+	case *geom.MultiLineString:
+		bd := multiLineStringBoundary(v)
+		for _, p := range bd {
+			if !pointCoveredByAny(p, members, k) {
+				return false
+			}
+		}
+		return true
+	case *geom.Point, *geom.MultiPoint:
+		return true
+	}
+	return false
+}
+
+func ringCoveredByAny(ring []geom.XY, members []geom.Geometry, k kernel.Kernel) bool {
+	for i := 0; i+1 < len(ring); i++ {
+		a, b := ring[i], ring[i+1]
+		if a == b {
+			continue
+		}
+		mid := geom.XY{X: (a.X + b.X) / 2, Y: (a.Y + b.Y) / 2}
+		if !segmentCoveredByAny(a, b, mid, members, k) {
+			return false
+		}
+	}
+	return true
+}
+
 func pointCoveredByAny(p geom.XY, members []geom.Geometry, k kernel.Kernel) bool {
 	for _, m := range members {
 		pt := geom.NewPoint(m.CRS(), p)
@@ -484,6 +606,7 @@ func lineCoveredByAny(ls *geom.LineString, members []geom.Geometry, k kernel.Ker
 }
 
 func segmentCoveredByAny(a, b, mid geom.XY, members []geom.Geometry, k kernel.Kernel) bool {
+	// Same-member fast path: many cases are covered by a single member.
 	for _, m := range members {
 		if pointCoveredByOne(a, m, k) &&
 			pointCoveredByOne(b, m, k) &&
@@ -491,7 +614,17 @@ func segmentCoveredByAny(a, b, mid geom.XY, members []geom.Geometry, k kernel.Ke
 			return true
 		}
 	}
-	return false
+	// Union-coverage fallback: a segment may straddle two adjacent
+	// members (sharing a boundary). Check that every sample lies in the
+	// closure of at least one member, possibly different members per
+	// sample. This is a 3-sample approximation that misses true
+	// "dipping into the gap" cases for non-adjacent members; valid
+	// MultiPolygons have non-overlapping members but they may touch
+	// along boundaries, so the 3-sample check is reliable for those
+	// touching configurations.
+	return pointCoveredByAny(a, members, k) &&
+		pointCoveredByAny(b, members, k) &&
+		pointCoveredByAny(mid, members, k)
 }
 
 func pointCoveredByOne(p geom.XY, m geom.Geometry, k kernel.Kernel) bool {
