@@ -4,7 +4,7 @@ import (
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/index"
 	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/internal/snap"
+	"github.com/terra-geo/terra/internal/snaprounding"
 )
 
 // indexThreshold is the total-segment count at and above which we route
@@ -84,99 +84,21 @@ func nodeAdaptive(strings []*noding.SegmentString) []*noding.SegmentString {
 	return noding.IndexedNoder{}.Node(strings)
 }
 
-// nodeAndSnap wraps nodeAdaptive with a snap-rounding post-pass:
-// every output segment vertex is snapped to the precision grid, and
-// any newly-introduced hot pixels (intersection points snapped onto
-// passing segments) trigger another noding round.
+// nodeAndSnap wraps nodeAdaptive with a snap-rounding post-pass.
+// Tolerance > 0 routes through the snap-rounding noder, which iterates
+// a noding/hot-pixel-insertion fixpoint until no segment passes through
+// a hot pixel without sharing it as a vertex. Tolerance <= 0 short-
+// circuits to plain noding.
 //
-// Iterates up to a small fixed bound; in practice JTS-style snap
-// rounding converges in 1-2 passes once segments are pre-snapped.
-// Pure no-tolerance callers route directly through nodeAdaptive.
+// Non-convergence (the snap-rounding fixpoint failing to stabilise
+// within MaxIter) is not propagated to the caller: the best-effort
+// result is returned, matching the previous bounded-iteration
+// behaviour. The harness will still surface any topological mismatch
+// downstream as a divergence.
 func nodeAndSnap(strings []*noding.SegmentString, tolerance float64) []*noding.SegmentString {
 	if tolerance <= 0 {
 		return nodeAdaptive(strings)
 	}
-	rd := snap.New(tolerance)
-	noded := nodeAdaptive(strings)
-	const maxIter = 3
-	for iter := 0; iter < maxIter; iter++ {
-		// Snap every vertex to the grid.
-		for _, s := range noded {
-			for i, v := range s.Coords {
-				s.Coords[i] = rd.SnapVertex(v)
-			}
-		}
-		// Drop runs of consecutive duplicates created by snapping.
-		for _, s := range noded {
-			s.Coords = dedupeConsecutive(s.Coords)
-		}
-		// Build a hot-pixel set from the snapped vertices and re-node
-		// any segment that now passes through a vertex hot pixel that
-		// isn't already one of its endpoints.
-		hp := snap.NewHotPixelSet(tolerance)
-		for _, s := range noded {
-			for _, v := range s.Coords {
-				hp.Add(v)
-			}
-		}
-		split := false
-		next := make([]*noding.SegmentString, 0, len(noded))
-		for _, s := range noded {
-			if len(s.Coords) < 2 {
-				continue
-			}
-			parts := splitSegmentsAtHotPixels(s.Coords, hp)
-			if len(parts) > 1 {
-				split = true
-			}
-			for _, p := range parts {
-				if len(p) >= 2 {
-					next = append(next, &noding.SegmentString{Coords: p, Tag: s.Tag})
-				}
-			}
-		}
-		if !split {
-			return noded
-		}
-		// Run the noder again on the split result, then iterate.
-		noded = nodeAdaptive(next)
-	}
-	return noded
-}
-
-// dedupeConsecutive removes runs of consecutive equal coordinates.
-func dedupeConsecutive(pts []geom.XY) []geom.XY {
-	if len(pts) <= 1 {
-		return pts
-	}
-	out := pts[:1]
-	for i := 1; i < len(pts); i++ {
-		if pts[i] != pts[i-1] {
-			out = append(out, pts[i])
-		}
-	}
+	out, _, _ := (&snaprounding.Noder{Tolerance: tolerance}).Node(strings)
 	return out
-}
-
-// splitSegmentsAtHotPixels walks pts as a polyline and inserts hot-
-// pixel centres at any segment that passes through one (other than
-// at its endpoints). Returns one slice per resulting sub-string —
-// typically just a single string, but multiple if any segment was
-// split into more than two pieces.
-func splitSegmentsAtHotPixels(pts []geom.XY, hp *snap.HotPixelSet) [][]geom.XY {
-	if len(pts) < 2 {
-		return [][]geom.XY{pts}
-	}
-	out := []geom.XY{pts[0]}
-	for i := 0; i+1 < len(pts); i++ {
-		a, b := pts[i], pts[i+1]
-		splits := hp.SegmentSplitsAt(a, b)
-		for _, sp := range splits {
-			if sp != a && sp != b {
-				out = append(out, sp)
-			}
-		}
-		out = append(out, b)
-	}
-	return [][]geom.XY{out}
 }

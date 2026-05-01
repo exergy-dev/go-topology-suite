@@ -28,9 +28,15 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream G part 3 (GC operands routed through UnaryUnion in
-non-polygonal overlay paths) the corpus stands at **96.4% pass
-rate** (8628/8951 passing, 293 failures, 30 skipped). The
+After Stream H part 1 (snap-rounding noder landed in
+`internal/snaprounding`, wired into overlay-NG and as a self-union
+cleanup pass on linear-buffer offset polygons) the corpus stands at
+**96.4% pass rate** (8629/8951 passing, 292 failures, 30 skipped).
+Phase 1 of the closure plan unblocked one buffer case; the SR-suffixed
+overlay residuals were not affected because the JTS harness pre-snaps
+operands to the precision grid before dispatching, so the failure
+modes are dominated by downstream result-construction (mixed-dim
+extraction, hole subtraction, GC relate) rather than noding. The
 remaining buckets are tracked here as known divergences pending
 deeper engine work.
 

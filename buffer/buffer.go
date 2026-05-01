@@ -266,7 +266,51 @@ func bufferLineString(ls *geom.LineString, distance float64, cfg config) (*geom.
 	ring = append(ring, startCap...)
 	ring = append(ring, ring[0])
 
-	return geom.NewPolygon(ls.CRS(), ring), nil
+	raw := geom.NewPolygon(ls.CRS(), ring)
+	return cleanOffsetPolygon(raw)
+}
+
+// cleanOffsetPolygon resolves the self-intersections produced by the
+// offset-curve generator at concave corners by unioning the polygon
+// with itself. Overlay-NG nodes the self-intersection points (now via
+// the snap-rounding noder) and emits the simply-connected outer
+// boundary. For a non-self-intersecting input the result is identical
+// to the input (modulo coordinate canonicalisation).
+//
+// On overlay failure the raw polygon is returned, preserving the
+// pre-cleanup behaviour as a safe fallback.
+func cleanOffsetPolygon(raw *geom.Polygon) (*geom.Polygon, error) {
+	cleaned, err := overlay.Union(raw, raw)
+	if err != nil {
+		return raw, nil
+	}
+	switch v := cleaned.(type) {
+	case *geom.Polygon:
+		if v.IsEmpty() {
+			return raw, nil
+		}
+		return v, nil
+	case *geom.MultiPolygon:
+		// A self-intersecting offset that splits into multiple disjoint
+		// polygons under union: return the largest by area as the
+		// representative buffer body. Rare in practice — generally
+		// concave corners produce a single outer boundary plus one or
+		// more inner loops which Union absorbs as holes.
+		var best *geom.Polygon
+		bestArea := math.Inf(-1)
+		for i := 0; i < v.NumGeometries(); i++ {
+			p := v.PolygonAt(i)
+			a := math.Abs(planar.Default.RingArea(p.Ring(0)))
+			if a > bestArea {
+				bestArea = a
+				best = p
+			}
+		}
+		if best != nil {
+			return best, nil
+		}
+	}
+	return raw, nil
 }
 
 // reverseSegment returns the segment with a/b swapped. The left normal of
