@@ -335,6 +335,14 @@ func runBuffer(c *xmlCase, op xmlOp, join buffer.JoinStyle) dispatchResult {
 	if err != nil {
 		return dispatchResult{Detail: "parse expected: " + err.Error()}
 	}
+	// Buffer comparison is JTS-style: round-cap sampling rates differ
+	// between implementations, so vertex-set equality is too strict.
+	// First try the relaxed buffer matcher (area + Hausdorff); fall
+	// back to the standard topological-approx test for empties and
+	// degenerate cases.
+	if bufferResultMatchesApprox(got, expected) {
+		return dispatchResult{Pass: true}
+	}
 	if equalsTopologicalApprox(got, expected) {
 		return dispatchResult{Pass: true}
 	}

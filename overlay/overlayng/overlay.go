@@ -493,9 +493,11 @@ func polygonHasTouchingHole(p *geom.Polygon) bool {
 }
 
 // multiPolygonsTouch returns true when any two outer rings of distinct
-// polygons share a boundary segment — same diagnostic as
-// polygonHasTouchingHole but across polygon members. Pure vertex
-// coincidence (a single shared corner) is not flagged.
+// polygons share a boundary segment — either as a strict
+// "vertex on segment interior" hit (case#11 hole-vs-shell) or as an
+// identical edge that appears in both outer rings (case#3
+// symdifference, where two assembled polygons abut along a shared
+// spine of length > 0). Pure single-vertex coincidence is not flagged.
 func multiPolygonsTouch(polys []*geom.Polygon) bool {
 	for i := 0; i < len(polys); i++ {
 		ri := polys[i].Ring(0)
@@ -503,6 +505,7 @@ func multiPolygonsTouch(polys []*geom.Polygon) bool {
 		for j := i + 1; j < len(polys); j++ {
 			rj := polys[j].Ring(0)
 			vjSet := vertexSet(rj)
+			// Vertex of i on interior of a j segment.
 			for v := range viSet {
 				if _, isJ := vjSet[v]; isJ {
 					continue
@@ -511,6 +514,7 @@ func multiPolygonsTouch(polys []*geom.Polygon) bool {
 					return true
 				}
 			}
+			// Vertex of j on interior of an i segment.
 			for v := range vjSet {
 				if _, isI := viSet[v]; isI {
 					continue
@@ -519,6 +523,27 @@ func multiPolygonsTouch(polys []*geom.Polygon) bool {
 					return true
 				}
 			}
+		}
+	}
+	// Detect identical-edge sharing across distinct polygons by
+	// canonicalising each outer-ring segment (lex-min endpoint first)
+	// and watching for any segment that appears in two polygons.
+	type seg struct{ a, b geom.XY }
+	canon := func(p, q geom.XY) seg {
+		if p.X < q.X || (p.X == q.X && p.Y < q.Y) {
+			return seg{p, q}
+		}
+		return seg{q, p}
+	}
+	owner := map[seg]int{}
+	for i, p := range polys {
+		ring := p.Ring(0)
+		for k := 0; k+1 < len(ring); k++ {
+			s := canon(ring[k], ring[k+1])
+			if prev, ok := owner[s]; ok && prev != i {
+				return true
+			}
+			owner[s] = i
 		}
 	}
 	return false

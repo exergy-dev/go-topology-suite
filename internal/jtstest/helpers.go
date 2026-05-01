@@ -66,6 +66,149 @@ func isAreal(g geom.Geometry) bool {
 	return false
 }
 
+// bufferResultMatchesApprox is the harness equivalent of JTS's
+// BufferResultMatcher: a buffer output is considered correct iff the
+// areas agree within ~1% AND every vertex of one geometry lies within
+// a small Hausdorff tolerance of the other. This accommodates the
+// principal source of buffer-test divergence — different round-cap
+// vertex sampling rates between Terra and JTS produce geometrically
+// equivalent shapes whose vertex sets do not snap-match.
+//
+// Returns true iff:
+//
+//	|area(a) − area(b)| ≤ 0.001 · max(area(a), area(b)) + 1e-9, AND
+//	hausdorff(a→b, b→a) ≤ 0.01 · diag(envelope) + 1e-6
+//
+// The constants mirror JTS's BufferResultMatcher defaults
+// (MAX_RELATIVE_AREA_DIFFERENCE=0.001, MAX_HAUSDORFF_DISTANCE=0.01).
+func bufferResultMatchesApprox(got, expected geom.Geometry) bool {
+	if got == nil || expected == nil {
+		return false
+	}
+	if got.IsEmpty() != expected.IsEmpty() {
+		return false
+	}
+	if got.IsEmpty() {
+		return true
+	}
+	// Areal comparison.
+	aa, ab := measure.Area(got), measure.Area(expected)
+	areaScale := math.Max(math.Abs(aa), math.Abs(ab))
+	if math.Abs(aa-ab) > 0.001*areaScale+1e-9 {
+		return false
+	}
+	// Envelope diagonal as a Hausdorff scale; floor at 1.0 to avoid
+	// over-tight tolerances on small inputs.
+	env := got.Envelope()
+	dx := env.MaxX - env.MinX
+	dy := env.MaxY - env.MinY
+	diag := math.Hypot(dx, dy)
+	if diag < 1.0 {
+		diag = 1.0
+	}
+	hTol := 0.01*diag + 1e-6
+	if discreteHausdorff(got, expected) > hTol {
+		return false
+	}
+	if discreteHausdorff(expected, got) > hTol {
+		return false
+	}
+	return true
+}
+
+// discreteHausdorff returns the maximum over the vertices of A of
+// the minimum distance from each vertex to B. This is a discrete
+// approximation of the directed Hausdorff distance, sufficient for
+// buffer-shape comparison where both inputs sample dense polygon
+// rings.
+func discreteHausdorff(a, b geom.Geometry) float64 {
+	max := 0.0
+	visitGeomVertices(a, func(p geom.XY) {
+		d := pointToGeometryDistance(p, b)
+		if d > max {
+			max = d
+		}
+	})
+	return max
+}
+
+// pointToGeometryDistance returns the minimum distance from p to any
+// vertex or segment of g. Polygons are treated as their boundary —
+// the function reports distance to the boundary, not signed distance
+// to the interior.
+func pointToGeometryDistance(p geom.XY, g geom.Geometry) float64 {
+	min := math.Inf(1)
+	consider := func(a, b geom.XY) {
+		d := pointSegmentDistance(p, a, b)
+		if d < min {
+			min = d
+		}
+	}
+	visitGeometrySegments(g, consider)
+	if math.IsInf(min, 1) {
+		// No segments — fall back to vertex distance.
+		visitGeomVertices(g, func(q geom.XY) {
+			d := math.Hypot(p.X-q.X, p.Y-q.Y)
+			if d < min {
+				min = d
+			}
+		})
+		if math.IsInf(min, 1) {
+			return 0
+		}
+	}
+	return min
+}
+
+// pointSegmentDistance returns the perpendicular distance from p to
+// segment [a, b], clamped to the segment endpoints when the foot of
+// the perpendicular lies outside [a, b].
+func pointSegmentDistance(p, a, b geom.XY) float64 {
+	dx, dy := b.X-a.X, b.Y-a.Y
+	if dx == 0 && dy == 0 {
+		return math.Hypot(p.X-a.X, p.Y-a.Y)
+	}
+	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / (dx*dx + dy*dy)
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+	fx := a.X + t*dx
+	fy := a.Y + t*dy
+	return math.Hypot(p.X-fx, p.Y-fy)
+}
+
+// visitGeometrySegments calls fn for each oriented segment of g's
+// boundary. Polygons emit each ring; multi-types recurse.
+func visitGeometrySegments(g geom.Geometry, fn func(a, b geom.XY)) {
+	switch v := g.(type) {
+	case *geom.LineString:
+		for i := 0; i+1 < v.NumPoints(); i++ {
+			fn(v.PointAt(i), v.PointAt(i+1))
+		}
+	case *geom.Polygon:
+		for r := 0; r < v.NumRings(); r++ {
+			ring := v.Ring(r)
+			for i := 0; i+1 < len(ring); i++ {
+				fn(ring[i], ring[i+1])
+			}
+		}
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			visitGeometrySegments(v.LineStringAt(i), fn)
+		}
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			visitGeometrySegments(v.PolygonAt(i), fn)
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			visitGeometrySegments(v.GeometryAt(i), fn)
+		}
+	}
+}
+
 func sameVertexSet(a, b geom.Geometry, scale float64) bool {
 	snap := func(p geom.XY) geom.XY {
 		return geom.XY{
