@@ -17,6 +17,7 @@ import (
 	"github.com/terra-geo/terra/hull"
 	"github.com/terra-geo/terra/measure"
 	"github.com/terra-geo/terra/overlay"
+	"github.com/terra-geo/terra/overlay/overlayng"
 	"github.com/terra-geo/terra/predicate"
 	"github.com/terra-geo/terra/simplify"
 	"github.com/terra-geo/terra/validate"
@@ -532,8 +533,6 @@ func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
 	if perr != nil || scale == 0 {
 		return runOverlayOp(c, op, name)
 	}
-	// Pre-snap operands by replacing arg1/arg2 contents with snapped
-	// WKT, then route to the standard runOverlayOp.
 	a, res, ok := parseOperand(c, op, "arg1", op.Arg1)
 	if !ok {
 		return res
@@ -545,22 +544,75 @@ func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
 	a = reducePrecision(a, scale)
 	b = reducePrecision(b, scale)
 
-	var got geom.Geometry
-	var err error
-	switch name {
-	case "intersection":
-		got, err = overlay.Intersection(a, b)
-	case "union":
-		got, err = overlay.Union(a, b)
-	case "difference":
-		got, err = overlay.Difference(a, b)
-	case "symdifference":
-		got, err = overlay.SymmetricDifference(a, b)
+	// Tolerance for snap-rounding noder = grid cell width = 1/scale.
+	tolerance := 1.0
+	if scale != 0 {
+		tolerance = 1.0 / scale
 	}
+	got, err := overlayWithTolerance(a, b, name, tolerance)
 	if err != nil {
 		return dispatchResult{Detail: name + ": " + err.Error()}
 	}
 	return compareApproxGeometry("", got, op)
+}
+
+// overlayWithTolerance routes polygon-polygon ops through overlay-NG
+// with explicit snap-rounding tolerance. Non-polygonal operands fall
+// back to the float overlay path.
+func overlayWithTolerance(a, b geom.Geometry, name string, tolerance float64) (geom.Geometry, error) {
+	subj, clip, ok := unwrapBothPolygonal(a, b)
+	if !ok {
+		switch name {
+		case "intersection":
+			return overlay.Intersection(a, b)
+		case "union":
+			return overlay.Union(a, b)
+		case "difference":
+			return overlay.Difference(a, b)
+		case "symdifference":
+			return overlay.SymmetricDifference(a, b)
+		}
+		return nil, fmt.Errorf("unknown op: %s", name)
+	}
+	var op overlayng.Op
+	switch name {
+	case "intersection":
+		op = overlayng.OpIntersection
+	case "union":
+		op = overlayng.OpUnion
+	case "difference":
+		op = overlayng.OpDifference
+	case "symdifference":
+		op = overlayng.OpSymDiff
+	default:
+		return nil, fmt.Errorf("unknown op: %s", name)
+	}
+	return overlayng.OverlayPolygonalMixedDim(subj, clip, op, tolerance)
+}
+
+// unwrapBothPolygonal returns the polygon slices for a pair of
+// polygonal inputs, or (nil, nil, false) if either is non-polygonal.
+func unwrapBothPolygonal(a, b geom.Geometry) ([]*geom.Polygon, []*geom.Polygon, bool) {
+	subj, ok1 := unwrapPolygonal(a)
+	clip, ok2 := unwrapPolygonal(b)
+	if !ok1 || !ok2 {
+		return nil, nil, false
+	}
+	return subj, clip, true
+}
+
+func unwrapPolygonal(g geom.Geometry) ([]*geom.Polygon, bool) {
+	switch v := g.(type) {
+	case *geom.Polygon:
+		return []*geom.Polygon{v}, true
+	case *geom.MultiPolygon:
+		out := make([]*geom.Polygon, v.NumGeometries())
+		for i := range out {
+			out[i] = v.PolygonAt(i)
+		}
+		return out, true
+	}
+	return nil, false
 }
 
 func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {

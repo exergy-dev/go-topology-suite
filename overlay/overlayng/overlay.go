@@ -215,7 +215,7 @@ func OverlayPolygonalMixedDim(subj, clip []*geom.Polygon, op Op, tolerance float
 			return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
 		}
 	}
-	return overlayCorePolygonalMixed(c, subjRings, subjPerPoly, clipRings, clipPerPoly, op)
+	return overlayCorePolygonalMixed(c, subjRings, subjPerPoly, clipRings, clipPerPoly, op, tolerance)
 }
 
 // overlayCorePolygonalMixed is the variant of overlayCorePolygonal
@@ -227,6 +227,7 @@ func overlayCorePolygonalMixed(
 	subjRings [][]geom.XY, subjPerPoly []int,
 	clipRings [][]geom.XY, clipPerPoly []int,
 	op Op,
+	tolerance float64,
 ) (geom.Geometry, error) {
 	segs := make([]*noding.SegmentString, 0, len(subjRings)+len(clipRings))
 	for _, r := range subjRings {
@@ -235,7 +236,7 @@ func overlayCorePolygonalMixed(
 	for _, r := range clipRings {
 		segs = append(segs, &noding.SegmentString{Coords: append([]geom.XY(nil), r...), Tag: 2})
 	}
-	noded := nodeAdaptive(segs)
+	noded := nodeAndSnap(segs, tolerance)
 	taggedSegs := flattenNoded(noded)
 	d := buildDCEL(taggedSegs)
 	d.traceFaces()
