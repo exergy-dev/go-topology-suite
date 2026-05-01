@@ -63,6 +63,13 @@ func simplifyPolygon(p *geom.Polygon, tol float64) *geom.Polygon {
 	rings := make([][]geom.XY, 0, p.NumRings())
 	for r := 0; r < p.NumRings(); r++ {
 		ring := p.Ring(r)
+		// JTS-style envelope collapse check: a ring whose envelope's
+		// minimum dimension is ≤ tolerance is considered collapsed by
+		// the simplification (its area cannot reliably be larger than
+		// tol² so the simplification would yield a degenerate polygon).
+		if r == 0 && ringEnvelopeMinDim(ring) <= tol {
+			return geom.NewEmptyPolygon(p.CRS(), p.Layout())
+		}
 		simplified := douglasPeucker(ring, tol)
 		// A polygon ring needs at least 4 distinct vertices (closed). If
 		// simplification collapses below that, drop the ring.
@@ -73,6 +80,38 @@ func simplifyPolygon(p *geom.Polygon, tol float64) *geom.Polygon {
 		}
 	}
 	return geom.NewPolygon(p.CRS(), rings...)
+}
+
+// ringEnvelopeMinDim returns the smaller of the ring's bounding box
+// width and height. Used as a JTS-aligned collapse heuristic for DP
+// simplification: rings tighter than the tolerance in some dimension
+// would simplify to degenerate output.
+func ringEnvelopeMinDim(ring []geom.XY) float64 {
+	if len(ring) == 0 {
+		return 0
+	}
+	minX, maxX := ring[0].X, ring[0].X
+	minY, maxY := ring[0].Y, ring[0].Y
+	for _, p := range ring[1:] {
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	w := maxX - minX
+	h := maxY - minY
+	if w < h {
+		return w
+	}
+	return h
 }
 
 func ringArea2(ring []geom.XY) float64 {
