@@ -28,10 +28,9 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After the conformance push that landed Phases 1–14 of the JTS-test
-plan, plus the multi-level relate dispatch + intersection-aware ring
-sampling work, the corpus stands at **95.5% pass rate** (8544/8951
-passing, 377 failures, 30 skipped). The remaining buckets are tracked
+After Stream C (GC relate via UnaryUnion + redundant-element
+absorption) the corpus stands at **95.8% pass rate** (8578/8951
+passing, 343 failures, 30 skipped). The remaining buckets are tracked
 here as known divergences pending deeper engine work.
 
 - **Op:** `buffer` (~87 failures)

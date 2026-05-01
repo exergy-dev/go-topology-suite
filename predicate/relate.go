@@ -128,6 +128,14 @@ func computeMatrix(a, b geom.Geometry, k kernel.Kernel) matrix {
 		return m
 	}
 
+	// GC-aware dispatch: simplify GeometryCollection operands via
+	// UnaryUnion (registered by the overlay package) before
+	// classification. This collapses shared edges between adjacent
+	// polygon members into the union's interior (per OGC).
+	if m, ok := dispatchGCPair(a, b, k); ok {
+		return m
+	}
+
 	// MLS-* dedicated multi-level paths that respect the mod-2 boundary
 	// rule on intersection-point classification. The pairs not handled
 	// here fall through to the per-member merge in relateMulti.
