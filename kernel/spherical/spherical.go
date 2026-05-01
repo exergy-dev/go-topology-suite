@@ -115,25 +115,23 @@ func (k Kernel) SegmentDistance(p, a, b geom.XY) float64 {
 	return math.Min(k.Distance(p, a), k.Distance(p, b))
 }
 
-// Orient classifies the chirality of (a, b, c) on the sphere. The sign of
-// the signed-volume det = a · (b × c) gives:
+// Orient classifies the chirality of (a, b, c) on the sphere. The sign
+// of the signed-volume det = a · (b × c) gives:
 //
 //   - det > 0: CCW when viewed from outside the sphere
 //   - det < 0: CW
 //   - det == 0: collinear (a, b, c lie on a common great circle)
+//
+// The predicate is Shewchuk-style adaptive: a float64 fast path with
+// a running absolute-error bound, falling back to math/big.Rat exact
+// arithmetic when the float sign cannot be trusted. The result is
+// correct for all triples derivable from finite lon/lat inputs (see
+// adaptiveOrient3D in robust.go).
 func (k Kernel) Orient(a, b, c geom.XY) kernel.Orientation {
 	va := lonLatToVec(a.X, a.Y)
 	vb := lonLatToVec(b.X, b.Y)
 	vc := lonLatToVec(c.X, c.Y)
-	det := va.dot(vb.cross(vc))
-	switch {
-	case det > 1e-15:
-		return kernel.CounterClockwise
-	case det < -1e-15:
-		return kernel.Clockwise
-	default:
-		return kernel.Collinear
-	}
+	return adaptiveOrient3D(va, vb, vc)
 }
 
 // PointInRing tests p against a closed spherical ring using the signed-

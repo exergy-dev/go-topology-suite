@@ -81,3 +81,59 @@ func TestGeometryInterfaceSatisfaction(t *testing.T) {
 	var _ Geometry = (*MultiPolygon)(nil)
 	var _ Geometry = (*GeometryCollection)(nil)
 }
+
+func TestNewMultiLineStringStrict_RejectsMixedLayout(t *testing.T) {
+	xy := NewLineString(crs.WGS84, []XY{{0, 0}, {1, 1}})
+	xyz := NewLineStringFlat(LayoutXYZ, crs.WGS84, []float64{0, 0, 0, 1, 1, 1})
+
+	_, err := NewMultiLineStringStrict(crs.WGS84, xy, xyz)
+	require.Error(t, err, "mixed XY/XYZ children should be rejected")
+	assert.Contains(t, err.Error(), "child 1")
+	assert.Contains(t, err.Error(), "expected XY")
+
+	// Same-layout case should succeed.
+	m, err := NewMultiLineStringStrict(crs.WGS84, xy, xy)
+	require.NoError(t, err)
+	assert.Equal(t, 2, m.NumGeometries())
+
+	// Empty case yields a usable empty MLS, not an error.
+	empty, err := NewMultiLineStringStrict(crs.WGS84)
+	require.NoError(t, err)
+	assert.True(t, empty.IsEmpty())
+
+	// Non-strict variant retains backwards-compatible silent inheritance,
+	// which is the trap NewMultiLineStringStrict guards against.
+	silent := NewMultiLineString(crs.WGS84, xy, xyz)
+	assert.Equal(t, LayoutXY, silent.Layout(),
+		"non-strict NewMultiLineString silently inherits first child's layout (XY) — Z dropped")
+}
+
+func TestNewMultiPolygonStrict_RejectsMixedLayout(t *testing.T) {
+	// NewPolygon produces XY only; NewEmptyPolygon allows a chosen layout.
+	// That's enough to exercise the validation: a MultiPolygon advertising
+	// layout XY but containing an XYZ-empty child would corrupt callers
+	// inspecting Layout() for serialisation.
+	pXY := NewPolygon(crs.WGS84, []XY{{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0}})
+	pXYZ := NewEmptyPolygon(crs.WGS84, LayoutXYZ)
+
+	_, err := NewMultiPolygonStrict(crs.WGS84, pXY, pXYZ)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "child 1")
+
+	m, err := NewMultiPolygonStrict(crs.WGS84, pXY, pXY)
+	require.NoError(t, err)
+	assert.Equal(t, 2, m.NumGeometries())
+}
+
+func TestNewGeometryCollectionStrict_RejectsMixedLayout(t *testing.T) {
+	pt := NewPoint(crs.WGS84, XY{0, 0})
+	ptZ := NewPointXYZ(crs.WGS84, XYZ{0, 0, 5})
+
+	_, err := NewGeometryCollectionStrict(crs.WGS84, pt, ptZ)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "child 1")
+
+	gc, err := NewGeometryCollectionStrict(crs.WGS84, pt, pt)
+	require.NoError(t, err)
+	assert.Equal(t, 2, gc.NumGeometries())
+}

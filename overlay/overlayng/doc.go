@@ -24,10 +24,22 @@
 //     face (or the outer face). Trace those edges into rings.
 //
 // v1.0 status: this is the foundation for the full JTS overlay-NG port.
-// Currently it handles shells (no holes) and produces correct results
-// for the cases v0.1 Greiner-Hormann fails on (axis-aligned coincident
-// edges, shared boundaries). Hole support, full DE-9IM derivation, and
-// MULTIPOLYGON↔MULTIPOLYGON via this path remain future work — the
-// public Overlay function returns ErrUnsupportedKernel for those inputs
-// and the caller (overlay package) falls back to GH where appropriate.
+// Holes are supported on input and output: the noder includes every
+// ring, the classifier tests interior points against the original
+// (multi-ring) polygons, and the assembler distinguishes outer rings
+// from holes by orientation and containment. The corresponding test
+// suite lives in holes_test.go and exercises intersection, union,
+// difference, hole-creating-difference, and both-inputs-have-holes.
+//
+// Remaining v1.0 limitations:
+//
+//   - MultiPolygon inputs are not yet accepted by the public Overlay
+//     entry points (overlay/general.go rejects them with
+//     ErrUnsupportedKernel).
+//   - Snap rounding does not yet implement Goodrich-Guibas hot-pixel
+//     detection; for adversarial inputs with near-coincident vertices,
+//     pre-node externally or pass an explicit tolerance via
+//     OverlayWithTolerance.
+//   - Full DE-9IM derivation from the DCEL is future work; predicates
+//     compute the matrix independently in package predicate.
 package overlayng

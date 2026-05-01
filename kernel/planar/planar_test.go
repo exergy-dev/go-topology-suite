@@ -61,6 +61,86 @@ func TestSegmentIntersection(t *testing.T) {
 	}
 }
 
+func TestSegmentIntersect_PointAndDisjoint(t *testing.T) {
+	r := k.SegmentIntersect(xy(0, 0), xy(2, 2), xy(0, 2), xy(2, 0))
+	assert.Equal(t, kernel.PointIntersection, r.Kind, "crossing X is a point intersection")
+	assert.Equal(t, xy(1, 1), r.P)
+
+	r = k.SegmentIntersect(xy(0, 0), xy(1, 0), xy(0, 1), xy(1, 1))
+	assert.Equal(t, kernel.NoIntersection, r.Kind, "parallel offset is no intersection")
+
+	r = k.SegmentIntersect(xy(0, 0), xy(1, 0), xy(2, 0), xy(3, 0))
+	assert.Equal(t, kernel.NoIntersection, r.Kind, "disjoint collinear is no intersection")
+}
+
+func TestSegmentIntersect_CollinearOverlap(t *testing.T) {
+	// Two segments along y=0 sharing [(2,0), (4,0)].
+	r := k.SegmentIntersect(xy(0, 0), xy(4, 0), xy(2, 0), xy(6, 0))
+	assert.Equal(t, kernel.CollinearOverlap, r.Kind)
+	// P should be the lower-t end (2,0); Q the higher-t (4,0).
+	assert.Equal(t, xy(2, 0), r.P)
+	assert.Equal(t, xy(4, 0), r.Q)
+
+	// One segment fully inside the other: shared overlap is the inner.
+	r = k.SegmentIntersect(xy(0, 0), xy(10, 0), xy(3, 0), xy(7, 0))
+	assert.Equal(t, kernel.CollinearOverlap, r.Kind)
+	assert.Equal(t, xy(3, 0), r.P)
+	assert.Equal(t, xy(7, 0), r.Q)
+
+	// Reversed direction of b should produce the same overlap interval.
+	r = k.SegmentIntersect(xy(0, 0), xy(4, 0), xy(6, 0), xy(2, 0))
+	assert.Equal(t, kernel.CollinearOverlap, r.Kind)
+	assert.Equal(t, xy(2, 0), r.P)
+	assert.Equal(t, xy(4, 0), r.Q)
+
+	// Non-axis-aligned collinear (45° line y=x).
+	r = k.SegmentIntersect(xy(0, 0), xy(4, 4), xy(2, 2), xy(6, 6))
+	assert.Equal(t, kernel.CollinearOverlap, r.Kind)
+	assert.Equal(t, xy(2, 2), r.P)
+	assert.Equal(t, xy(4, 4), r.Q)
+}
+
+func TestSegmentIntersect_CollinearTouchAtEndpoint(t *testing.T) {
+	// Collinear, touching only at (1, 0). Should be PointIntersection,
+	// not CollinearOverlap (the shared sub-segment has zero length).
+	r := k.SegmentIntersect(xy(0, 0), xy(1, 0), xy(1, 0), xy(2, 0))
+	assert.Equal(t, kernel.PointIntersection, r.Kind)
+	assert.Equal(t, xy(1, 0), r.P)
+}
+
+func TestSegmentIntersect_DegenerateSegment(t *testing.T) {
+	// Degenerate "segment" a (a1 == a2 = a point on b).
+	r := k.SegmentIntersect(xy(2, 2), xy(2, 2), xy(0, 0), xy(4, 4))
+	assert.Equal(t, kernel.PointIntersection, r.Kind)
+	assert.Equal(t, xy(2, 2), r.P)
+
+	// Degenerate point off b.
+	r = k.SegmentIntersect(xy(2, 3), xy(2, 3), xy(0, 0), xy(4, 4))
+	assert.Equal(t, kernel.NoIntersection, r.Kind)
+}
+
+// SegmentIntersect must agree with SegmentIntersection on the
+// PointIntersection cases (both return the same point) and only
+// disagree on CollinearOverlap (where SegmentIntersection returns
+// ok=false).
+func TestSegmentIntersect_AgreesWithSegmentIntersection(t *testing.T) {
+	cases := [][4]geom.XY{
+		{xy(0, 0), xy(2, 2), xy(0, 2), xy(2, 0)}, // crossing
+		{xy(0, 0), xy(1, 0), xy(0, 1), xy(1, 1)}, // parallel offset
+		{xy(0, 0), xy(1, 1), xy(2, 0), xy(3, 1)}, // skew, no intersect
+	}
+	for _, c := range cases {
+		p, ok := k.SegmentIntersection(c[0], c[1], c[2], c[3])
+		r := k.SegmentIntersect(c[0], c[1], c[2], c[3])
+		if ok {
+			assert.Equal(t, kernel.PointIntersection, r.Kind)
+			assert.Equal(t, p, r.P)
+		} else {
+			assert.Equal(t, kernel.NoIntersection, r.Kind)
+		}
+	}
+}
+
 func TestPointInRing(t *testing.T) {
 	square := []geom.XY{{X: 0, Y: 0}, {X: 0, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 0}}
 	cases := []struct {

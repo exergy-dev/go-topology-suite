@@ -15,12 +15,28 @@ func TestXYEqual(t *testing.T) {
 	assert.False(t, a.Equal(c))
 }
 
-func TestXYEqualOrBothNaN(t *testing.T) {
+func TestXYEqual_NaN(t *testing.T) {
 	nan := math.NaN()
 	a := XY{nan, 2}
 	b := XY{nan, 2}
-	assert.True(t, a.EqualOrBothNaN(b), "EqualOrBothNaN should treat matching NaN as equal")
-	assert.False(t, a.Equal(b), "plain Equal should not treat NaN==NaN")
+	c := XY{nan, 3}
+	// Equal is now NaN-safe: NaN ordinates compare equal to NaN ordinates.
+	assert.True(t, a.Equal(b), "Equal should treat matching NaN as equal")
+	assert.False(t, a.Equal(c), "Equal should still respect non-NaN differences")
+	// EqualOrBothNaN is preserved as a deprecated synonym.
+	assert.True(t, a.EqualOrBothNaN(b))
+}
+
+func TestXYEqualBitwise(t *testing.T) {
+	nan := math.NaN()
+	a := XY{nan, 2}
+	b := XY{nan, 2}
+	// EqualBitwise uses raw IEEE-754 == — NaN never equals NaN.
+	assert.False(t, a.EqualBitwise(b), "EqualBitwise should not treat NaN==NaN")
+	// Non-NaN bit-equal values still compare equal.
+	c := XY{1.5, 2.5}
+	d := XY{1.5, 2.5}
+	assert.True(t, c.EqualBitwise(d))
 }
 
 func TestLayoutStride(t *testing.T) {

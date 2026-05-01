@@ -29,7 +29,8 @@ func (Kernel) DistanceSquared(a, b geom.XY) float64 {
 
 // SegmentIntersection returns the intersection of segment [a1,a2] with
 // [b1,b2]. Collinear-overlap segments return ok=false; consumers needing
-// the full DE-9IM relationship should go through the relate package.
+// to detect the shared sub-segment should call SegmentIntersect (the
+// structured form) instead.
 func (Kernel) SegmentIntersection(a1, a2, b1, b2 geom.XY) (geom.XY, bool) {
 	rx := a2.X - a1.X
 	ry := a2.Y - a1.Y
@@ -49,6 +50,104 @@ func (Kernel) SegmentIntersection(a1, a2, b1, b2 geom.XY) (geom.XY, bool) {
 		return geom.XY{}, false
 	}
 	return geom.XY{X: a1.X + t*rx, Y: a1.Y + t*ry}, true
+}
+
+// SegmentIntersect is the structured form of SegmentIntersection. Unlike
+// the single-point predicate, it distinguishes:
+//
+//   - NoIntersection — the segments are disjoint.
+//   - PointIntersection — the segments meet at exactly one point (P).
+//   - CollinearOverlap — the segments are collinear and share the
+//     sub-segment [P, Q]. P != Q.
+//
+// The CollinearOverlap branch is the load-bearing one for noding shared
+// boundary edges between adjacent polygons; SegmentIntersection returns
+// false for those cases, leaving topology graphs disconnected.
+//
+// Note: this is not on the Kernel interface. Spherical/geodesic noding
+// is not yet implemented; once it is, those kernels will grow their own
+// SegmentIntersect with the same return shape.
+func (k Kernel) SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersectionResult {
+	rx := a2.X - a1.X
+	ry := a2.Y - a1.Y
+	sx := b2.X - b1.X
+	sy := b2.Y - b1.Y
+
+	denom := rx*sy - ry*sx
+	if denom != 0 {
+		// Single-point intersection candidate.
+		tNum := (b1.X-a1.X)*sy - (b1.Y-a1.Y)*sx
+		uNum := (b1.X-a1.X)*ry - (b1.Y-a1.Y)*rx
+		t := tNum / denom
+		u := uNum / denom
+		if t < 0 || t > 1 || u < 0 || u > 1 {
+			return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
+		}
+		return kernel.SegmentIntersectionResult{
+			Kind: kernel.PointIntersection,
+			P:    geom.XY{X: a1.X + t*rx, Y: a1.Y + t*ry},
+		}
+	}
+
+	// Parallel: collinear iff b1 lies on line(a1,a2). Test via the
+	// adaptive Orient predicate so this is sign-correct for all float64
+	// inputs that don't overflow.
+	if adaptiveOrient(a1, a2, b1) != kernel.Collinear {
+		return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
+	}
+
+	// Collinear: parameterise b1, b2 along (a1, a2) and intersect the
+	// 1D intervals [0, 1] and [t1, t2]. Use the dominant axis to avoid
+	// dividing by a near-zero |a2-a1|^2 when the segment is degenerate.
+	if rx == 0 && ry == 0 {
+		// Degenerate a-segment: a is a point. Check whether it lies on b.
+		if pointOnSegment(a1, b1, b2) {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: a1}
+		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
+	}
+
+	// t parameter of b1 and b2 on segment [a1, a2].
+	var tB1, tB2 float64
+	if math.Abs(rx) >= math.Abs(ry) {
+		tB1 = (b1.X - a1.X) / rx
+		tB2 = (b2.X - a1.X) / rx
+	} else {
+		tB1 = (b1.Y - a1.Y) / ry
+		tB2 = (b2.Y - a1.Y) / ry
+	}
+	tMin, tMax := tB1, tB2
+	if tMin > tMax {
+		tMin, tMax = tMax, tMin
+	}
+	// Intersect [tMin, tMax] with [0, 1].
+	lo := math.Max(0, tMin)
+	hi := math.Min(1, tMax)
+	if lo > hi {
+		return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
+	}
+	if lo == hi {
+		return kernel.SegmentIntersectionResult{
+			Kind: kernel.PointIntersection,
+			P:    geom.XY{X: a1.X + lo*rx, Y: a1.Y + lo*ry},
+		}
+	}
+	return kernel.SegmentIntersectionResult{
+		Kind: kernel.CollinearOverlap,
+		P:    geom.XY{X: a1.X + lo*rx, Y: a1.Y + lo*ry},
+		Q:    geom.XY{X: a1.X + hi*rx, Y: a1.Y + hi*ry},
+	}
+}
+
+// pointOnSegment reports whether p lies on the closed segment [a, b].
+// Used by the degenerate-segment branch of SegmentIntersect.
+func pointOnSegment(p, a, b geom.XY) bool { return onSegment(p, a, b) }
+
+// SegmentIntersect is the package-level convenience that calls
+// Kernel{}.SegmentIntersect; useful for the noders, which already wire
+// to planar primitives directly rather than through the Kernel interface.
+func SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersectionResult {
+	return Kernel{}.SegmentIntersect(a1, a2, b1, b2)
 }
 
 // SegmentDistance returns the shortest distance from p to segment [a,b].

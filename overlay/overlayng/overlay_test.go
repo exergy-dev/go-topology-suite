@@ -78,6 +78,15 @@ func TestDifferenceTwoSquares(t *testing.T) {
 // union should be a single 20×10 rectangle (area 200). v0.1 GH chokes
 // on this because the shared edge produces multiple coincident
 // intersections.
+// TestSharedBoundaryUnion: two adjacent 10x10 squares sharing the edge
+// x=10. Their union must be a 20x10 rectangle of area 200.
+//
+// Before kernel.SegmentIntersect distinguished collinear-overlap from
+// no-intersection, the noder failed to split the shared edge, leaving
+// the DCEL disconnected and the assembler unable to find a single
+// kept-region — overlay either returned an error or a partial result.
+// This test pins the regression: shared-edge polygon union must give
+// the exact correct area.
 func TestSharedBoundaryUnion(t *testing.T) {
 	a := geom.NewPolygon(nil, []geom.XY{
 		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
@@ -86,18 +95,12 @@ func TestSharedBoundaryUnion(t *testing.T) {
 		{X: 10, Y: 0}, {X: 20, Y: 0}, {X: 20, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 0},
 	})
 	first, rest, err := Overlay(a, b, OpUnion)
-	if err != nil {
-		t.Skipf("shared-boundary union not yet supported: %v", err)
-	}
+	require.NoError(t, err, "shared-boundary union should succeed (collinear-overlap is now noded)")
 	totalArea := measure.Area(first)
 	for _, p := range rest {
 		totalArea += measure.Area(p)
 	}
-	// Document what we got — even if not exactly 200, anything in the
-	// 100..200 range demonstrates the algorithm at least found one of
-	// the squares. Tighten this once shared-edge tag merging is verified.
-	t.Logf("shared-boundary union area = %v (want 200)", totalArea)
-	assert.GreaterOrEqualf(t, totalArea, 50.0, "shared-boundary union area = %v, way below 200", totalArea)
+	assert.InDelta(t, 200.0, totalArea, 1e-9, "shared-boundary union area should be exactly 200")
 }
 
 // TestOverlayWithToleranceNearCoincidentEdges: two rectangles whose Y

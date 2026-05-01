@@ -1,6 +1,7 @@
 package geom
 
 import (
+	"fmt"
 	"sync/atomic"
 
 	"github.com/terra-geo/terra/crs"
@@ -44,14 +45,33 @@ type MultiLineString struct {
 
 // NewMultiLineString constructs from a slice of LineStrings. CRS and layout
 // are taken from the first member; mismatched layouts/CRSes among members
-// are not checked at construction time (callers requiring strict input
-// should validate).
+// are not checked at construction time. This silently drops Z/M from any
+// child whose layout differs from the first — prefer NewMultiLineStringStrict
+// for input from external or heterogeneous sources.
 func NewMultiLineString(c *crs.CRS, parts ...*LineString) *MultiLineString {
 	layout := LayoutXY
 	if len(parts) > 0 {
 		layout = parts[0].Layout()
 	}
 	return &MultiLineString{layout: layout, crs: c, parts: parts}
+}
+
+// NewMultiLineStringStrict is NewMultiLineString that validates every
+// child has the same Layout as the first. Returns an error on mismatch
+// instead of silently coercing to the first child's layout.
+func NewMultiLineStringStrict(c *crs.CRS, parts ...*LineString) (*MultiLineString, error) {
+	if len(parts) == 0 {
+		return &MultiLineString{layout: LayoutXY, crs: c}, nil
+	}
+	layout := parts[0].Layout()
+	for i := 1; i < len(parts); i++ {
+		if parts[i].Layout() != layout {
+			return nil, fmt.Errorf(
+				"geom: MultiLineString child %d has layout %v, expected %v",
+				i, parts[i].Layout(), layout)
+		}
+	}
+	return &MultiLineString{layout: layout, crs: c, parts: parts}, nil
 }
 
 func (m *MultiLineString) isGeometry()      {}
@@ -83,13 +103,33 @@ type MultiPolygon struct {
 	env    atomic.Pointer[Envelope]
 }
 
-// NewMultiPolygon constructs from a slice of Polygons.
+// NewMultiPolygon constructs from a slice of Polygons. Layout is taken
+// from the first member without validating the rest; this silently drops
+// Z/M from any child whose layout differs. Prefer NewMultiPolygonStrict
+// for input from external or heterogeneous sources.
 func NewMultiPolygon(c *crs.CRS, parts ...*Polygon) *MultiPolygon {
 	layout := LayoutXY
 	if len(parts) > 0 {
 		layout = parts[0].Layout()
 	}
 	return &MultiPolygon{layout: layout, crs: c, parts: parts}
+}
+
+// NewMultiPolygonStrict is NewMultiPolygon that validates every child has
+// the same Layout as the first. Returns an error on mismatch.
+func NewMultiPolygonStrict(c *crs.CRS, parts ...*Polygon) (*MultiPolygon, error) {
+	if len(parts) == 0 {
+		return &MultiPolygon{layout: LayoutXY, crs: c}, nil
+	}
+	layout := parts[0].Layout()
+	for i := 1; i < len(parts); i++ {
+		if parts[i].Layout() != layout {
+			return nil, fmt.Errorf(
+				"geom: MultiPolygon child %d has layout %v, expected %v",
+				i, parts[i].Layout(), layout)
+		}
+	}
+	return &MultiPolygon{layout: layout, crs: c, parts: parts}, nil
 }
 
 func (m *MultiPolygon) isGeometry()      {}
@@ -119,12 +159,34 @@ type GeometryCollection struct {
 }
 
 // NewGeometryCollection constructs from a slice of arbitrary geometries.
+// Layout is taken from the first member without validating the rest;
+// this silently drops Z/M from any child whose layout differs. Prefer
+// NewGeometryCollectionStrict for input from external or heterogeneous
+// sources.
 func NewGeometryCollection(c *crs.CRS, parts ...Geometry) *GeometryCollection {
 	layout := LayoutXY
 	if len(parts) > 0 {
 		layout = parts[0].Layout()
 	}
 	return &GeometryCollection{layout: layout, crs: c, parts: parts}
+}
+
+// NewGeometryCollectionStrict is NewGeometryCollection that validates
+// every child has the same Layout as the first. Returns an error on
+// mismatch.
+func NewGeometryCollectionStrict(c *crs.CRS, parts ...Geometry) (*GeometryCollection, error) {
+	if len(parts) == 0 {
+		return &GeometryCollection{layout: LayoutXY, crs: c}, nil
+	}
+	layout := parts[0].Layout()
+	for i := 1; i < len(parts); i++ {
+		if parts[i].Layout() != layout {
+			return nil, fmt.Errorf(
+				"geom: GeometryCollection child %d has layout %v, expected %v",
+				i, parts[i].Layout(), layout)
+		}
+	}
+	return &GeometryCollection{layout: layout, crs: c, parts: parts}, nil
 }
 
 func (g *GeometryCollection) isGeometry()      {}

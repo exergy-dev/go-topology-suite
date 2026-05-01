@@ -140,23 +140,82 @@ func dumpCoords(out []*SegmentString) [][]geom.XY {
 	return r
 }
 
-// TestSimpleNoder_CoincidentSegments documents the collinear-overlap
-// limitation: SegmentIntersection returns ok=false for parallel/
-// collinear inputs, so the noder cannot detect overlap. The two input
-// strings pass through unchanged. This test pins that behaviour so the
-// limitation is visible in CI; when overlay adds explicit overlap
-// handling, this test should be updated.
+// TestSimpleNoder_CoincidentSegments: two strings sharing the entire
+// segment. The noder detects collinear overlap, but both shared
+// endpoints are already vertices of each input string, so the output
+// is two unchanged strings — they're already mutually-noded.
 func TestSimpleNoder_CoincidentSegments(t *testing.T) {
 	ssA := &SegmentString{Coords: []geom.XY{xy(0, 0), xy(2, 0)}, Tag: 1}
 	ssB := &SegmentString{Coords: []geom.XY{xy(0, 0), xy(2, 0)}, Tag: 2}
 
 	out := SimpleNoder{}.Node([]*SegmentString{ssA, ssB})
 	require.Equal(t, 2, len(out),
-		"expected 2 unchanged strings (collinear-overlap is a known limitation)")
+		"fully-identical strings round-trip unchanged (already noded)")
 	for _, s := range out {
 		assert.True(t, stringHas(s, xy(0, 0), xy(2, 0)),
 			"expected unchanged collinear string, got %v", s.Coords)
 	}
+}
+
+// TestSimpleNoder_PartialCollinearOverlap: two collinear segments with
+// a partial overlap [(2,0), (4,0)]. The noder must split each input at
+// the overlap endpoint that's interior to it: A=(0,0)→(4,0) is split
+// at (2,0) (which is A's interior, B's start) and B=(2,0)→(6,0) is
+// split at (4,0) (B's interior, A's end). The output is 4 sub-strings
+// covering [0,2], [2,4], [2,4], [4,6] — each with its source Tag.
+//
+// Before the SegmentIntersect-based noder this case produced two
+// unchanged strings, leaving the DCEL disconnected at the shared
+// interior boundary — the silent-wrong-overlay regression for adjacent
+// polygons with shared edges.
+func TestSimpleNoder_PartialCollinearOverlap(t *testing.T) {
+	ssA := &SegmentString{Coords: []geom.XY{xy(0, 0), xy(4, 0)}, Tag: 1}
+	ssB := &SegmentString{Coords: []geom.XY{xy(2, 0), xy(6, 0)}, Tag: 2}
+
+	for _, n := range []struct {
+		name  string
+		noder Noder
+	}{
+		{"SimpleNoder", SimpleNoder{}},
+		{"IndexedNoder", IndexedNoder{}},
+	} {
+		t.Run(n.name, func(t *testing.T) {
+			testCollinearOverlapNoding(t, n.noder, ssA, ssB)
+		})
+	}
+}
+
+func testCollinearOverlapNoding(t *testing.T, noder Noder, ssA, ssB *SegmentString) {
+	out := noder.Node([]*SegmentString{ssA, ssB})
+	require.Equal(t, 4, len(out),
+		"expected 4 noded sub-strings (A split at (2,0); B split at (4,0))")
+
+	pieces := map[int][][2]geom.XY{}
+	for _, s := range out {
+		require.Len(t, s.Coords, 2, "each piece should be a single segment")
+		pieces[s.Tag] = append(pieces[s.Tag], [2]geom.XY{s.Coords[0], s.Coords[1]})
+	}
+
+	// A: (0,0)→(2,0) and (2,0)→(4,0)
+	assert.Len(t, pieces[1], 2, "A should split into 2 pieces")
+	// B: (2,0)→(4,0) and (4,0)→(6,0)
+	assert.Len(t, pieces[2], 2, "B should split into 2 pieces")
+
+	// Sanity-check the split points on A and B both produced (2,0) and
+	// (4,0) as shared vertices — without this the DCEL classifier can't
+	// see the shared boundary.
+	hasVertex := func(segs [][2]geom.XY, p geom.XY) bool {
+		for _, s := range segs {
+			if s[0].Equal(p) || s[1].Equal(p) {
+				return true
+			}
+		}
+		return false
+	}
+	assert.True(t, hasVertex(pieces[1], xy(2, 0)), "A pieces should include (2,0) as a vertex")
+	assert.True(t, hasVertex(pieces[1], xy(4, 0)), "A pieces should include (4,0) as a vertex")
+	assert.True(t, hasVertex(pieces[2], xy(2, 0)), "B pieces should include (2,0) as a vertex")
+	assert.True(t, hasVertex(pieces[2], xy(4, 0)), "B pieces should include (4,0) as a vertex")
 }
 
 func TestSimpleNoder_EmptyInput(t *testing.T) {

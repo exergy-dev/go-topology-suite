@@ -5,6 +5,7 @@ import (
 
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/index"
+	"github.com/terra-geo/terra/kernel"
 	"github.com/terra-geo/terra/kernel/planar"
 )
 
@@ -105,14 +106,19 @@ func (IndexedNoder) Node(input []*SegmentString) []*SegmentString {
 				}
 				ss2 := input[i2]
 				b1, b2 := ss2.Segment(j2)
-				p, ok := planar.Default.SegmentIntersection(a1, a2, b1, b2)
-				if !ok {
+				res := planar.SegmentIntersect(a1, a2, b1, b2)
+				switch res.Kind {
+				case kernel.NoIntersection:
 					return true
+				case kernel.PointIntersection:
+					add(i1, j1, segmentParam(a1, a2, res.P), res.P)
+					add(i2, j2, segmentParam(b1, b2, res.P), res.P)
+				case kernel.CollinearOverlap:
+					for _, pt := range [2]geom.XY{res.P, res.Q} {
+						add(i1, j1, segmentParam(a1, a2, pt), pt)
+						add(i2, j2, segmentParam(b1, b2, pt), pt)
+					}
 				}
-				t1 := segmentParam(a1, a2, p)
-				t2 := segmentParam(b1, b2, p)
-				add(i1, j1, t1, p)
-				add(i2, j2, t2, p)
 				return true
 			})
 		}

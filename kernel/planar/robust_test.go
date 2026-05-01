@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 )
@@ -69,6 +70,26 @@ func TestExactFallbackFires(t *testing.T) {
 	got := k.Orient(a, b, c)
 	// b lies above the line a-c, so the turn a→b→c bends CW (right turn).
 	assert.Equal(t, kernel.Clockwise, got, "exact fallback")
+}
+
+// TestOrientAntiSymmetric_SubnormalPin pins the specific extreme-
+// subnormal triple discovered by `rapid` in 2026-04-30. The original
+// 256-bit big.Float exactOrient silently lost the sign-determining
+// contribution because the input magnitudes (1e-275 vs 1e+2) span
+// more than 256 / log2(10) ≈ 77 decimal digits. After switching
+// exactOrient to math/big.Rat the antisymmetry property holds.
+func TestOrientAntiSymmetric_SubnormalPin(t *testing.T) {
+	a := geom.XY{X: -3.610388751729659e-275, Y: 2.1779444972942644e-128}
+	b := geom.XY{X: 3.2450443788723138e-198, Y: -1.0516619270626474e-255}
+	c := geom.XY{X: -76.66047675974914, Y: 27.325974860092174}
+
+	k := Kernel{}
+	o1 := k.Orient(a, b, c)
+	o2 := k.Orient(c, b, a)
+
+	require.NotEqual(t, kernel.Collinear, o1, "Orient(a,b,c) should not be Collinear for the pinned triple")
+	require.NotEqual(t, kernel.Collinear, o2, "Orient(c,b,a) should not be Collinear for the pinned triple")
+	assert.Equal(t, -o2, o1, "antisymmetry: Orient(a,b,c) must equal -Orient(c,b,a)")
 }
 
 // TestNonCollinearWellConditioned: the filter path should be taken

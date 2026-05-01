@@ -38,13 +38,30 @@ func (c XYZ) AsXY() XY  { return XY{c.X, c.Y} }
 func (c XYM) AsXY() XY  { return XY{c.X, c.Y} }
 func (c XYZM) AsXY() XY { return XY{c.X, c.Y} }
 
-// Equal compares two XY values exactly. It does not handle NaN; for that
-// use EqualOrBothNaN.
-func (a XY) Equal(b XY) bool { return a.X == b.X && a.Y == b.Y }
+// Equal reports whether two XY values are equal. NaN ordinates compare
+// equal to NaN ordinates so that absent-data markers (e.g. NaN inserted
+// by a parser to flag a missing coordinate) round-trip consistently
+// through dedup, snap, and ring-closure checks. For exact bit-pattern
+// comparison use EqualBitwise.
+func (a XY) Equal(b XY) bool {
+	return equalOrNaN(a.X, b.X) && equalOrNaN(a.Y, b.Y)
+}
 
-// EqualOrBothNaN compares two XY values treating NaN==NaN as true.
-// Use this when XY values may originate from missing-data markers.
-func (a XY) EqualOrBothNaN(b XY) bool {
-	return (a.X == b.X || (math.IsNaN(a.X) && math.IsNaN(b.X))) &&
-		(a.Y == b.Y || (math.IsNaN(a.Y) && math.IsNaN(b.Y)))
+// EqualBitwise reports whether two XY values are equal under the raw
+// IEEE-754 == operator. NaN compares unequal to everything including
+// itself. This matches Go's struct-equality semantics and is the right
+// choice when XY is being used as a map key (where the runtime applies
+// raw ==) or as a fingerprint.
+func (a XY) EqualBitwise(b XY) bool { return a.X == b.X && a.Y == b.Y }
+
+// EqualOrBothNaN is a synonym for Equal kept for backwards compatibility.
+//
+// Deprecated: prefer Equal — its NaN behaviour is now identical.
+func (a XY) EqualOrBothNaN(b XY) bool { return a.Equal(b) }
+
+func equalOrNaN(x, y float64) bool {
+	if x == y {
+		return true
+	}
+	return math.IsNaN(x) && math.IsNaN(y)
 }

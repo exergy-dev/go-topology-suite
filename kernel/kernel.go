@@ -33,6 +33,35 @@ const (
 	Inside
 )
 
+// SegmentIntersectionKind classifies the relationship between two segments
+// returned by structured intersection predicates such as
+// planar.Kernel.SegmentIntersect.
+type SegmentIntersectionKind uint8
+
+const (
+	// NoIntersection: the segments are disjoint (parallel and offset, or
+	// skew but not crossing within their parameterised ranges).
+	NoIntersection SegmentIntersectionKind = iota
+
+	// PointIntersection: the segments meet at exactly one point.
+	PointIntersection
+
+	// CollinearOverlap: the segments are collinear and share a non-empty
+	// sub-segment with two distinct endpoints.
+	CollinearOverlap
+)
+
+// SegmentIntersectionResult carries the structured result of a segment
+// intersection test. P and Q are populated as follows:
+//
+//   - NoIntersection: both zero-valued.
+//   - PointIntersection: P is the shared point; Q is zero-valued.
+//   - CollinearOverlap: [P, Q] is the shared sub-segment.
+type SegmentIntersectionResult struct {
+	Kind SegmentIntersectionKind
+	P, Q geom.XY
+}
+
 // Kernel is the strategy interface implemented by planar, spherical, and
 // geodesic kernels. Every higher-level Terra operation that needs a
 // geometric primitive — overlay, predicates, measurements — calls through

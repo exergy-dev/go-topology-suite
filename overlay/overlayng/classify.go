@@ -23,6 +23,43 @@ func classifyFaces(d *dcel, subjRing, clipRing []geom.XY) {
 	classifyFacesPolygons(d, [][]geom.XY{subjRing}, [][]geom.XY{clipRing})
 }
 
+// classifyFacesByPolygons is the multi-aware classifier: it tags each
+// non-outer face with whether its interior lies inside any subj polygon
+// (resp. any clip polygon). subjPerPoly partitions subjRings into
+// per-polygon ring lists ([outer, holes...]); same for clip.
+func classifyFacesByPolygons(d *dcel,
+	subjRings [][]geom.XY, subjPerPoly []int,
+	clipRings [][]geom.XY, clipPerPoly []int,
+) {
+	for _, f := range d.faces {
+		if f.isOuter {
+			continue
+		}
+		ip := interiorPoint(f)
+		f.inSubj = pointInAnyPolygon(ip, subjRings, subjPerPoly)
+		f.inClip = pointInAnyPolygon(ip, clipRings, clipPerPoly)
+	}
+}
+
+// pointInAnyPolygon iterates over the per-polygon partitions and
+// returns true iff p is inside any of them. Each partition is one
+// polygon's ring list ([outer, holes...]); pointInPolygonRings handles
+// the per-polygon "inside outer AND not inside any hole" semantics.
+func pointInAnyPolygon(p geom.XY, rings [][]geom.XY, perPoly []int) bool {
+	off := 0
+	for _, n := range perPoly {
+		if n == 0 || off+n > len(rings) {
+			off += n
+			continue
+		}
+		if pointInPolygonRings(p, rings[off:off+n]) {
+			return true
+		}
+		off += n
+	}
+	return false
+}
+
 func pointInPolygonRings(p geom.XY, rings [][]geom.XY) bool {
 	if len(rings) == 0 {
 		return false

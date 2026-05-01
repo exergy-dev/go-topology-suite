@@ -32,26 +32,34 @@
 // A reasonable tolerance for unit-scale Cartesian inputs is 1e-9; for
 // lon/lat inputs ~1e-7 (≈ 1 cm at the equator) is conservative.
 //
-// # v1.0 limitations
+// # Hot-pixel snap rounding (Goodrich–Guibas)
 //
-// This package implements grid-snap rounding, not the full Goodrich-Guibas-
-// Hershberger-Tanenbaum (1997) "Snap Rounding Line Segments Efficiently in
-// Two and Three Dimensions" algorithm.
+// In addition to per-vertex grid snapping (Rounder.SnapVertex /
+// SnapRing / SnapPolygon), the package implements the Goodrich-Guibas-
+// Hershberger-Tanenbaum hot-pixel pipeline via:
 //
-// Specifically, the v1.0 implementation:
-//   - Rounds every vertex to the nearest grid point and removes consecutive
-//     duplicates.
-//   - Does NOT detect or split a segment that passes through a hot pixel
-//     belonging to some other input vertex without already terminating
-//     there. A true Goodrich-style implementation would insert a vertex at
-//     the hot-pixel center; we currently rely on the caller to have noded
-//     intersections separately (see package noding, planned).
+//   - HotPixelSet: a deduplicated, R-tree-indexed collection of hot
+//     pixels (grid cells that contain at least one snapped vertex).
+//   - HotPixelSet.NodeRing: split a ring's segments at every hot
+//     pixel whose centre the segment passes within tolerance/2 of.
+//   - Rounder.SnapRoundRings: full pipeline — snap all vertices, build
+//     the hot-pixel set, node every ring against it.
 //
-// This is correct for non-pathological inputs — real-world cadastral and
-// hydrography data — but it can leave coincident-edge degeneracies if the
-// input contains a segment that passes within tolerance of an unrelated
-// vertex without crossing any segment incident to that vertex. The full
-// algorithm will arrive in a later gate together with the noder port.
+// OverlayNG drives the cross-input case directly: it builds a single
+// HotPixelSet from both subj and clip rings so a vertex from one input
+// triggers a split in the other's segments. Without this, two
+// near-coincident segments could end up with one's endpoint sitting in
+// the interior of the other's path — and downstream noding would not
+// detect the coincidence, leaving the topology graph disconnected.
+//
+// # Known divergence from JTS
+//
+// JTS's hot-pixel implementation has special tie-break rules for
+// segments that graze a pixel corner or edge. v1 uses a strict
+// "distance to centre < tolerance/2" test, which treats grazing-edge
+// cases as non-splits. For the inputs the conformance harness exercises
+// this is invisible; document any user-surfaced divergence in
+// KNOWN-DIVERGENCES.md as it appears.
 //
 // The package is internal: only Terra packages can import it.
 package snap

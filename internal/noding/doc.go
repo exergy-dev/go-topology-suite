@@ -22,15 +22,22 @@
 //     and returns a topologically equivalent noded set.
 //
 //   - SimpleNoder: a brute-force O(n^2) pairwise noder. Correct on all
-//     inputs, suitable for small-to-medium polygons. The follow-up
-//     optimisation is a monotone-chain index (cf. JTS MCIndexNoder).
+//     supported inputs and suitable for small-to-medium polygons.
 //
-// Limitations:
+//   - IndexedNoder: an R-tree-indexed equivalent of SimpleNoder
+//     (O((n+m) log n)) for larger inputs. Output is byte-for-byte
+//     identical to SimpleNoder.
 //
-//   - Collinear-overlap is not handled: when two segments lie on the
-//     same line and partially overlap, the underlying segment-
-//     intersection primitive returns no intersection, so the overlap
-//     passes through as-is. This matches the behaviour of
-//     kernel/planar.SegmentIntersection and is documented as a known
-//     gap until the overlay package adds explicit overlap handling.
+// Both noders use planar.SegmentIntersect, which distinguishes
+// PointIntersection from CollinearOverlap, so segments that share a
+// non-trivial sub-segment are split at the overlap endpoints — the
+// adjacent-polygon-shared-edge case that previously left the DCEL
+// disconnected.
+//
+// Remaining limitations:
+//
+//   - Snap-rounding integration (Goodrich-Guibas hot-pixel detection)
+//     is implemented in package internal/snap as a pre-processing pass
+//     and is not yet complete; for adversarial inputs with vertices
+//     near other segments' interiors, pre-node externally.
 package noding

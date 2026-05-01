@@ -140,15 +140,22 @@ func polygonArea(p *geom.Polygon, k kernel.Kernel) float64 {
 // Centroid returns the geometric centroid as a Point in the same CRS.
 // For points: the point itself. For lines: length-weighted midpoint of
 // segments. For polygons: signed-area centroid (Bashein-Detmer).
-func Centroid(g geom.Geometry) *geom.Point {
+//
+// The kernel selects how segment lengths and ring areas are computed,
+// which affects the relative weights of sub-geometries on a
+// MultiLineString / MultiPolygon and the length-weighting of segments
+// on a LineString. The per-polygon centroid is the planar shoelace
+// regardless of kernel; see the package doc.
+func Centroid(g geom.Geometry, opts ...Option) *geom.Point {
 	if g.IsEmpty() {
 		return geom.NewEmptyPoint(g.CRS(), geom.LayoutXY)
 	}
+	c := resolve(g, opts)
 	switch v := g.(type) {
 	case *geom.Point:
 		return geom.NewPoint(v.CRS(), v.XY())
 	case *geom.LineString:
-		return lineStringCentroid(v)
+		return lineStringCentroid(v, c.kernel)
 	case *geom.Polygon:
 		return polygonCentroid(v)
 	case *geom.MultiPoint:
@@ -161,14 +168,14 @@ func Centroid(g geom.Geometry) *geom.Point {
 		}
 		return geom.NewPoint(v.CRS(), geom.XY{X: sx / float64(n), Y: sy / float64(n)})
 	case *geom.MultiLineString:
-		return multiLineCentroid(v)
+		return multiLineCentroid(v, c.kernel)
 	case *geom.MultiPolygon:
-		return multiPolygonCentroid(v)
+		return multiPolygonCentroid(v, c.kernel)
 	}
 	return geom.NewEmptyPoint(g.CRS(), geom.LayoutXY)
 }
 
-func lineStringCentroid(ls *geom.LineString) *geom.Point {
+func lineStringCentroid(ls *geom.LineString, k kernel.Kernel) *geom.Point {
 	n := ls.NumPoints()
 	if n == 0 {
 		return geom.NewEmptyPoint(ls.CRS(), geom.LayoutXY)
@@ -179,10 +186,11 @@ func lineStringCentroid(ls *geom.LineString) *geom.Point {
 	var totalLen, cx, cy float64
 	for i := 0; i+1 < n; i++ {
 		a, b := ls.PointAt(i), ls.PointAt(i+1)
-		segLen := math.Hypot(b.X-a.X, b.Y-a.Y)
+		segLen := k.Distance(a, b)
+		mid := k.Midpoint(a, b)
 		totalLen += segLen
-		cx += (a.X + b.X) / 2 * segLen
-		cy += (a.Y + b.Y) / 2 * segLen
+		cx += mid.X * segLen
+		cy += mid.Y * segLen
 	}
 	if totalLen == 0 {
 		return geom.NewPoint(ls.CRS(), ls.PointAt(0))
@@ -236,15 +244,15 @@ func ringCentroidContribution(ring []geom.XY) (cxNum, cyNum, areaSum float64) {
 	return cxNum / 3, cyNum / 3, areaSum
 }
 
-func multiLineCentroid(m *geom.MultiLineString) *geom.Point {
+func multiLineCentroid(m *geom.MultiLineString, k kernel.Kernel) *geom.Point {
 	var sx, sy, totalLen float64
 	for i := 0; i < m.NumGeometries(); i++ {
 		ls := m.LineStringAt(i)
-		c := lineStringCentroid(ls)
+		c := lineStringCentroid(ls, k)
 		var segLen float64
 		for j := 0; j+1 < ls.NumPoints(); j++ {
 			a, b := ls.PointAt(j), ls.PointAt(j+1)
-			segLen += math.Hypot(b.X-a.X, b.Y-a.Y)
+			segLen += k.Distance(a, b)
 		}
 		sx += c.XY().X * segLen
 		sy += c.XY().Y * segLen
@@ -256,12 +264,12 @@ func multiLineCentroid(m *geom.MultiLineString) *geom.Point {
 	return geom.NewPoint(m.CRS(), geom.XY{X: sx / totalLen, Y: sy / totalLen})
 }
 
-func multiPolygonCentroid(m *geom.MultiPolygon) *geom.Point {
+func multiPolygonCentroid(m *geom.MultiPolygon, k kernel.Kernel) *geom.Point {
 	var sx, sy, totalArea float64
 	for i := 0; i < m.NumGeometries(); i++ {
 		p := m.PolygonAt(i)
 		c := polygonCentroid(p)
-		a := polygonArea(p, planar.Default)
+		a := polygonArea(p, k)
 		sx += c.XY().X * a
 		sy += c.XY().Y * a
 		totalArea += a
