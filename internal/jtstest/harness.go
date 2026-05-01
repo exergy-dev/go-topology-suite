@@ -29,9 +29,23 @@ import (
 
 // run is the top-level <run> element in a JTS XML test file.
 type run struct {
-	XMLName xml.Name  `xml:"run"`
-	Desc    string    `xml:"desc"`
-	Cases   []xmlCase `xml:"case"`
+	XMLName        xml.Name        `xml:"run"`
+	Desc           string          `xml:"desc"`
+	PrecisionModel *precisionModel `xml:"precisionModel"`
+	Cases          []xmlCase       `xml:"case"`
+}
+
+// precisionModel mirrors JTS's <precisionModel> element. When scale is
+// set and > 0, the test file's overlay operations are run against a
+// fixed precision grid of spacing 1/scale — operands are pre-snapped
+// and the overlay is dispatched with the corresponding tolerance.
+// JTS's precisionModel may also carry offset terms; those are unused
+// in the corpus we ship and ignored here.
+type precisionModel struct {
+	Type    string  `xml:"type,attr"`
+	Scale   float64 `xml:"scale,attr"`
+	OffsetX float64 `xml:"offsetx,attr"`
+	OffsetY float64 `xml:"offsety,attr"`
 }
 
 // xmlCase is one <case>: shared operands and one or more tests.
@@ -229,25 +243,27 @@ func compareApproxGeometry(opName string, got geom.Geometry, op xmlOp) dispatchR
 }
 
 // runOp dispatches an op to the appropriate terra function and compares
-// the result against the expected XML payload.
-func runOp(c *xmlCase, op xmlOp) dispatchResult {
+// the result against the expected XML payload. tolerance, when > 0,
+// is the file-level <precisionModel> grid spacing applied to overlay
+// ops (mirroring JTS's fixed-precision overlay path).
+func runOp(c *xmlCase, op xmlOp, tolerance float64) dispatchResult {
 	name := strings.ToLower(strings.TrimSpace(op.Name))
 
 	switch name {
 	case "intersection", "union", "difference", "symdifference":
-		return runOverlayOp(c, op, name)
+		return runOverlayOp(c, op, name, tolerance)
 
 	// NG-suffixed ops are JTS's overlay-NG path. Terra always uses
 	// overlay-NG for polygonal overlays, so map these to the same
 	// implementation as their non-suffixed counterparts.
 	case "intersectionng":
-		return runOverlayOp(c, op, "intersection")
+		return runOverlayOp(c, op, "intersection", tolerance)
 	case "unionng":
-		return runOverlayOp(c, op, "union")
+		return runOverlayOp(c, op, "union", tolerance)
 	case "differenceng":
-		return runOverlayOp(c, op, "difference")
+		return runOverlayOp(c, op, "difference", tolerance)
 	case "symdifferenceng":
-		return runOverlayOp(c, op, "symdifference")
+		return runOverlayOp(c, op, "symdifference", tolerance)
 
 	// SR-suffixed ops are JTS's snap-rounding overlay. Terra has no
 	// snap-rounding noder, but we approximate by snapping each
@@ -570,7 +586,7 @@ func runSimplify(c *xmlCase, op xmlOp, fn func(geom.Geometry, float64) geom.Geom
 func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
 	scale, perr := strconv.ParseFloat(strings.TrimSpace(op.Arg3), 64)
 	if perr != nil || scale == 0 {
-		return runOverlayOp(c, op, name)
+		return runOverlayOp(c, op, name, 0)
 	}
 	a, res, ok := parseOperand(c, op, "arg1", op.Arg1)
 	if !ok {
@@ -654,7 +670,7 @@ func unwrapPolygonal(g geom.Geometry) ([]*geom.Polygon, bool) {
 	return nil, false
 }
 
-func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {
+func runOverlayOp(c *xmlCase, op xmlOp, name string, tolerance float64) dispatchResult {
 	a, res, ok := parseOperand(c, op, "arg1", op.Arg1)
 	if !ok {
 		return res
@@ -683,6 +699,22 @@ func runOverlayOp(c *xmlCase, op xmlOp, name string) dispatchResult {
 	b, res, ok := parseOperand(c, op, "arg2", op.Arg2)
 	if !ok {
 		return res
+	}
+
+	// Fixed-precision path: when the test file declares a
+	// precisionModel, snap operands to the grid and dispatch through
+	// overlayng's tolerance-aware entry point so the snap-rounding
+	// noder participates. This mirrors runOverlayOpSR but driven by
+	// the file-level precisionModel rather than per-op arg3.
+	if tolerance > 0 {
+		scale := 1.0 / tolerance
+		a = reducePrecision(a, scale)
+		b = reducePrecision(b, scale)
+		got, err := overlayWithTolerance(a, b, name, tolerance)
+		if err != nil {
+			return dispatchResult{Detail: name + ": " + err.Error()}
+		}
+		return compareApproxGeometry("", got, op)
 	}
 
 	var got geom.Geometry

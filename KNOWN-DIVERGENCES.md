@@ -28,9 +28,10 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream H part 4 (Hausdorff-based fallback for topologically
-equivalent geometries with different ring layouts) the corpus stands
-at **97.1% pass rate** (8689/8951 passing, 232 failures, 30 skipped).
+After Stream H part 5 (file-level <precisionModel> parsing in the JTS
+harness drives overlay ops through the tolerance-aware overlay-NG
+entry point) the corpus stands at **97.4% pass rate** (8719/8951
+passing, 202 failures, 30 skipped).
 Phase 1 of the closure plan unblocked one buffer case; the SR-suffixed
 overlay residuals were not affected because the JTS harness pre-snaps
 operands to the precision grid before dispatching, so the failure

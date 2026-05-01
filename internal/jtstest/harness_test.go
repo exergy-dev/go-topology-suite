@@ -39,10 +39,17 @@ func TestJTSConformance(t *testing.T) {
 			continue
 		}
 		rel, _ := filepath.Rel("testdata", path)
+		// Per-run precision model: when set, applies a fixed-precision
+		// grid to all overlay operations in the file (mirroring JTS's
+		// PrecisionModel-aware overlay path). Tolerance = 1/scale.
+		tolerance := 0.0
+		if rn.PrecisionModel != nil && rn.PrecisionModel.Scale > 0 {
+			tolerance = 1.0 / rn.PrecisionModel.Scale
+		}
 		for ci, c := range rn.Cases {
 			for ti, tc := range c.Tests {
 				total++
-				res := runOp(&c, tc.Op)
+				res := runOp(&c, tc.Op, tolerance)
 				label := makeLabel(rel, ci, ti, c.Desc, tc.Desc, tc.Op.Name)
 				switch {
 				case res.Skipped:
