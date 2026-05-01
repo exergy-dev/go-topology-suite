@@ -9,22 +9,18 @@ import (
 
 // tryOverlayNG runs the overlay-NG path on polygonal inputs (single
 // polygon or multipolygon, supplied as polygon slices). Returns ok=true
-// when the result is usable. With A1 + Item 8 fully landed, polygons
-// with holes and multi-polygons are handled directly; the function
-// only returns false on errors the caller should fall through.
+// when the result is usable.
+//
+// Uses the mixed-dimension entry point so polygon-polygon overlays
+// that yield lineal or pointal results (shared boundary segments,
+// vertex touches) are returned correctly as GeometryCollection
+// rather than collapsed to an empty polygon.
 func tryOverlayNG(subj, clip []*geom.Polygon, op overlayng.Op, c *crs.CRS) (geom.Geometry, bool) {
-	first, rest, err := overlayng.OverlayPolygonal(subj, clip, op)
-	if err != nil {
+	g, err := overlayng.OverlayPolygonalMixedDim(subj, clip, op, 0)
+	if err != nil || g == nil {
 		return nil, false
 	}
-	if first.IsEmpty() && len(rest) == 0 {
-		return geom.NewEmptyPolygon(c, geom.LayoutXY), true
-	}
-	if len(rest) == 0 {
-		return first, true
-	}
-	all := append([]*geom.Polygon{first}, rest...)
-	return geom.NewMultiPolygon(c, all...), true
+	return g, true
 }
 
 func requireSameCRS(a, b geom.Geometry) error {

@@ -28,10 +28,10 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream F (simplify DP envelope-collapse rule) the corpus
-stands at **95.9% pass rate** (8584/8951 passing, 337 failures, 30
-skipped). The remaining buckets are tracked here as known
-divergences pending deeper engine work.
+After Stream B (mixed-dim overlay extraction for polygon-polygon
+intersection) the corpus stands at **96.0% pass rate** (8595/8951
+passing, 326 failures, 30 skipped). The remaining buckets are
+tracked here as known divergences pending deeper engine work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding

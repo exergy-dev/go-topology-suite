@@ -190,6 +190,174 @@ func overlayCore(c *crs.CRS, subjRings, clipRings [][]geom.XY, op Op) (*geom.Pol
 	)
 }
 
+// OverlayPolygonalMixedDim is the polygonal-input entry point that
+// returns a generic Geometry — possibly a GeometryCollection if the
+// overlay produces mixed-dimension output (e.g., polygon ∩ polygon
+// where the polygons share a boundary segment yields a LineString,
+// or where they touch at a single vertex yields a Point).
+//
+// Returns nil and a non-nil error only on unrecoverable failures;
+// successful empty results return an empty geometry of the
+// appropriate dimension.
+func OverlayPolygonalMixedDim(subj, clip []*geom.Polygon, op Op, tolerance float64) (geom.Geometry, error) {
+	c, err := commonCRS(subj, clip)
+	if err != nil {
+		return nil, err
+	}
+	subjRings, subjPerPoly := snapAndPartition(subj, tolerance)
+	clipRings, clipPerPoly := snapAndPartition(clip, tolerance)
+	if len(subjRings) == 0 || len(clipRings) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
+	}
+	if tolerance > 0 {
+		subjRings, clipRings = hotPixelRoundCombined(subjRings, clipRings, tolerance)
+		if len(subjRings) == 0 || len(clipRings) == 0 {
+			return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
+		}
+	}
+	return overlayCorePolygonalMixed(c, subjRings, subjPerPoly, clipRings, clipPerPoly, op)
+}
+
+// overlayCorePolygonalMixed is the variant of overlayCorePolygonal
+// that retains the DCEL after polygon extraction, then extracts
+// lineal and pointal results. The combined geometry is wrapped in a
+// GeometryCollection iff multiple dimensional classes survive.
+func overlayCorePolygonalMixed(
+	c *crs.CRS,
+	subjRings [][]geom.XY, subjPerPoly []int,
+	clipRings [][]geom.XY, clipPerPoly []int,
+	op Op,
+) (geom.Geometry, error) {
+	segs := make([]*noding.SegmentString, 0, len(subjRings)+len(clipRings))
+	for _, r := range subjRings {
+		segs = append(segs, &noding.SegmentString{Coords: append([]geom.XY(nil), r...), Tag: 1})
+	}
+	for _, r := range clipRings {
+		segs = append(segs, &noding.SegmentString{Coords: append([]geom.XY(nil), r...), Tag: 2})
+	}
+	noded := nodeAdaptive(segs)
+	taggedSegs := flattenNoded(noded)
+	d := buildDCEL(taggedSegs)
+	d.traceFaces()
+
+	if !d.isConnected() {
+		// Fall back to disjoint helper for polygons; no shared
+		// boundary so no lineal/pointal output expected.
+		first, rest, err := overlayDisjointPolygonal(c,
+			rebuildPolygons(c, subjRings, subjPerPoly),
+			rebuildPolygons(c, clipRings, clipPerPoly),
+			op,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return wrapPolygonResult(c, first, rest), nil
+	}
+
+	classifyFacesByPolygons(d, subjRings, subjPerPoly, clipRings, clipPerPoly)
+	applyOp(d, op)
+	rings := extractResultRings(d)
+	first, rest, polyErr := assembleOutputPolygons(c, rings)
+	if polyErr != nil {
+		return nil, polyErr
+	}
+	lines := extractResultLines(d, op)
+	points := extractResultPoints(d, op, lines, rings)
+
+	return assembleMixedDim(c, first, rest, lines, points), nil
+}
+
+// wrapPolygonResult turns the legacy (first, rest) polygon return
+// into a single geometry.
+func wrapPolygonResult(c *crs.CRS, first *geom.Polygon, rest []*geom.Polygon) geom.Geometry {
+	if first == nil || first.IsEmpty() {
+		if len(rest) == 0 {
+			return geom.NewEmptyPolygon(c, geom.LayoutXY)
+		}
+	}
+	if len(rest) == 0 {
+		return first
+	}
+	parts := make([]*geom.Polygon, 0, 1+len(rest))
+	if first != nil && !first.IsEmpty() {
+		parts = append(parts, first)
+	}
+	parts = append(parts, rest...)
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return geom.NewMultiPolygon(c, parts...)
+}
+
+// assembleMixedDim packs polygon, lineal, and pointal results into a
+// single geometry. Single-dimension results return their natural
+// type; mixed results return a GeometryCollection.
+func assembleMixedDim(c *crs.CRS, first *geom.Polygon, rest []*geom.Polygon, lines [][]geom.XY, points []geom.XY) geom.Geometry {
+	hasPoly := first != nil && !first.IsEmpty()
+	hasMulti := len(rest) > 0
+	hasLines := len(lines) > 0
+	hasPoints := len(points) > 0
+
+	classes := 0
+	if hasPoly || hasMulti {
+		classes++
+	}
+	if hasLines {
+		classes++
+	}
+	if hasPoints {
+		classes++
+	}
+	if classes == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY)
+	}
+	if classes == 1 {
+		if hasPoly || hasMulti {
+			return wrapPolygonResult(c, first, rest)
+		}
+		if hasLines {
+			return wrapLinesResult(c, lines)
+		}
+		return wrapPointsResult(c, points)
+	}
+	// Mixed: build a GeometryCollection.
+	var members []geom.Geometry
+	if poly := wrapPolygonResult(c, first, rest); poly != nil && !poly.IsEmpty() {
+		members = append(members, poly)
+	}
+	if hasLines {
+		members = append(members, wrapLinesResult(c, lines))
+	}
+	if hasPoints {
+		members = append(members, wrapPointsResult(c, points))
+	}
+	return geom.NewGeometryCollection(c, members...)
+}
+
+func wrapLinesResult(c *crs.CRS, lines [][]geom.XY) geom.Geometry {
+	if len(lines) == 0 {
+		return geom.NewLineString(c, nil)
+	}
+	if len(lines) == 1 {
+		return geom.NewLineString(c, lines[0])
+	}
+	parts := make([]*geom.LineString, len(lines))
+	for i, l := range lines {
+		parts[i] = geom.NewLineString(c, l)
+	}
+	return geom.NewMultiLineString(c, parts...)
+}
+
+func wrapPointsResult(c *crs.CRS, points []geom.XY) geom.Geometry {
+	if len(points) == 0 {
+		return geom.NewEmptyPoint(c, geom.LayoutXY)
+	}
+	if len(points) == 1 {
+		return geom.NewPoint(c, points[0])
+	}
+	return geom.NewMultiPoint(c, points)
+}
+
 // overlayCorePolygonal is the multi-aware shared body. ringsSubj is
 // the flat ring list across all subj polygons; subjPerPoly[i] is the
 // number of rings (outer + holes) belonging to subj polygon i. Same
