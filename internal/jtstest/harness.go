@@ -680,21 +680,7 @@ func runOverlayOp(c *xmlCase, op xmlOp, name string, tolerance float64) dispatch
 	// input unchanged for deduplicated pointal inputs.
 	if name == "union" && strings.TrimSpace(resolveOperand(c, op.Arg2)) == "" {
 		got := unaryUnion(a)
-		expected, res, ok := parseExpectedGeometry(op)
-		if !ok {
-			return res
-		}
-		eq, eerr := predicate.Equals(got, expected)
-		if eerr != nil {
-			return dispatchResult{Detail: "equals: " + eerr.Error()}
-		}
-		if !eq {
-			return dispatchResult{
-				Detail: fmt.Sprintf("unaryUnion: expected %s got %s",
-					op.Expected, geomString(got)),
-			}
-		}
-		return dispatchResult{Pass: true}
+		return compareApproxGeometry("unaryUnion", got, op)
 	}
 	b, res, ok := parseOperand(c, op, "arg2", op.Arg2)
 	if !ok {
