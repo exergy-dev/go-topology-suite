@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"encoding/hex"
+
 	"github.com/terra-geo/terra/buffer"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/hull"
@@ -21,6 +23,7 @@ import (
 	"github.com/terra-geo/terra/predicate"
 	"github.com/terra-geo/terra/simplify"
 	"github.com/terra-geo/terra/validate"
+	"github.com/terra-geo/terra/wkb"
 	"github.com/terra-geo/terra/wkt"
 )
 
@@ -117,6 +120,16 @@ func parseWKT(s string) (geom.Geometry, error) {
 	if err == nil {
 		return g, nil
 	}
+	// JTS test fixtures occasionally embed hex-encoded WKB instead of
+	// WKT. Detect by looking for an even-length all-hex string and try
+	// the WKB decoder before giving up.
+	if isHexString(s) {
+		if data, herr := hex.DecodeString(s); herr == nil {
+			if g, werr := wkb.Unmarshal(data); werr == nil {
+				return g, nil
+			}
+		}
+	}
 	for strings.HasSuffix(s, ")") && parenBalance(s) < 0 {
 		s = strings.TrimSpace(strings.TrimSuffix(s, ")"))
 		if g, retryErr := wkt.Unmarshal(s); retryErr == nil {
@@ -124,6 +137,24 @@ func parseWKT(s string) (geom.Geometry, error) {
 		}
 	}
 	return nil, err
+}
+
+// isHexString reports whether s looks like a hex blob (even length,
+// only hex digits). Used to detect WKB fallback in test fixtures.
+func isHexString(s string) bool {
+	if len(s) < 8 || len(s)%2 != 0 {
+		return false
+	}
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		case c >= 'A' && c <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func parenBalance(s string) int {

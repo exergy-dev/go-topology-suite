@@ -197,6 +197,11 @@ func differenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if isPolygonal(a) && isPointal(b) {
 		return a, nil
 	}
+	if isLineal(a) && isPointal(b) {
+		// Removing pointal members from a higher-dimensional set is a
+		// no-op: the lineal A is unchanged set-theoretically.
+		return a, nil
+	}
 	if isLineal(a) && isLineal(b) {
 		return lineLineOverlay(a, b, opDifference)
 	}
