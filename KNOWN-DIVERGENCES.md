@@ -28,9 +28,10 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream H part 6 (unaryUnion path uses the relaxed
-compareApproxGeometry comparator) the corpus stands at **97.4%
-pass rate** (8720/8951 passing, 201 failures, 30 skipped).
+After Stream H part 7 (SymmetricDifference merges (A\B) and (B\A)
+via Union when the area identity holds; 1% guard prevents
+catastrophic-cancellation regressions) the corpus stands at **97.4%
+pass rate** (8721/8951 passing, 200 failures, 30 skipped).
 Phase 1 of the closure plan unblocked one buffer case; the SR-suffixed
 overlay residuals were not affected because the JTS harness pre-snaps
 operands to the precision grid before dispatching, so the failure

@@ -1,9 +1,12 @@
 package overlay
 
 import (
+	"math"
+
 	terra "github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/measure"
 	"github.com/terra-geo/terra/overlay/overlayng"
 )
 
@@ -197,6 +200,27 @@ func SymmetricDifference(a, b geom.Geometry) (geom.Geometry, error) {
 	}
 	if d2.IsEmpty() {
 		return d1, nil
+	}
+	// (A\B) and (B\A) are interior-disjoint. When both are polygonal,
+	// route through Union to merge any touching boundary into the
+	// canonical single-polygon-with-extra-holes form (matching
+	// JTS's symdiff representation). The Union path can occasionally
+	// drop area on numerically pathological inputs (catastrophic
+	// cancellation in the overlay-NG noding step); fall back to the
+	// MultiPolygon assembly when the area drops noticeably below the
+	// disjoint-sum expectation.
+	if isPolygonal(d1) && isPolygonal(d2) {
+		expectedArea := measure.Area(d1) + measure.Area(d2)
+		if u, err := Union(d1, d2); err == nil && !u.IsEmpty() {
+			gotArea := measure.Area(u)
+			// 1% tolerance: tight enough to reject the
+			// catastrophic-cancellation cases that fail the area
+			// identity property test, loose enough to accept ordinary
+			// rounding noise from the overlay-NG noding step.
+			if math.Abs(gotArea-expectedArea) <= 0.01*math.Max(1, math.Abs(expectedArea)) {
+				return u, nil
+			}
+		}
 	}
 	return collectAsMultiPolygon(a.CRS(), d1, d2), nil
 }
