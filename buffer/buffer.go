@@ -8,6 +8,8 @@ import (
 	"github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/terra-geo/terra/overlay"
 )
 
 // errGeometryCollectionNotImplemented is returned for GeometryCollection
@@ -65,6 +67,15 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 	case *geom.LineString:
 		if v.IsEmpty() {
 			return geom.NewEmptyPolygon(v.CRS(), v.Layout()), nil
+		}
+		// A closed LineString (LinearRing-style) at positive distance is
+		// buffered as an annulus: dilate the enclosed polygon by d and
+		// subtract its inset by d. This matches JTS's
+		// CLOSED_LINEAR_RING handling.
+		if isClosedLine(v) {
+			if poly, ok := bufferClosedLineAnnulus(v, distance, cfg); ok {
+				return poly, nil
+			}
 		}
 		return bufferLineString(v, distance, cfg)
 
@@ -263,6 +274,57 @@ func bufferLineString(ls *geom.LineString, distance float64, cfg config) (*geom.
 // "left" of a→b is the "right" of b→a).
 func reverseSegment(s segment) segment {
 	return segment{a: s.b, b: s.a, nx: -s.nx, ny: -s.ny}
+}
+
+// isClosedLine reports whether ls is a closed polyline (first vertex
+// equals last) with at least 4 vertices.
+func isClosedLine(ls *geom.LineString) bool {
+	n := ls.NumPoints()
+	if n < 4 {
+		return false
+	}
+	return ls.PointAt(0) == ls.PointAt(n-1)
+}
+
+// bufferClosedLineAnnulus returns the buffer of a closed LineString
+// at positive distance: an annulus equal to (interior dilated by d) ∖
+// (interior eroded by d). Returns ok=false if the wrapped polygon is
+// degenerate.
+func bufferClosedLineAnnulus(ls *geom.LineString, distance float64, cfg config) (geom.Geometry, bool) {
+	if distance <= 0 {
+		return nil, false
+	}
+	pts := dedupedPoints(ls)
+	if len(pts) < 4 {
+		return nil, false
+	}
+	// Wrap the closed line as a polygon; orient it CCW so bufferPolygon's
+	// dilation/inset logic applies correctly.
+	poly := geom.NewPolygon(ls.CRS(), pts)
+	if planar.Default.RingArea(poly.Ring(0)) < 0 {
+		// Reverse to CCW.
+		reversed := make([]geom.XY, len(pts))
+		for i, p := range pts {
+			reversed[len(pts)-1-i] = p
+		}
+		poly = geom.NewPolygon(ls.CRS(), reversed)
+	}
+	dilated, err := bufferPolygon(poly, distance, cfg)
+	if err != nil {
+		return nil, false
+	}
+	eroded, err := bufferPolygon(poly, -distance, cfg)
+	if err != nil {
+		return nil, false
+	}
+	if eroded == nil || eroded.IsEmpty() {
+		return dilated, true
+	}
+	annulus, err := overlay.Difference(dilated, eroded)
+	if err != nil {
+		return dilated, true
+	}
+	return annulus, true
 }
 
 // dedupedPoints extracts XY vertices from ls, dropping consecutive
