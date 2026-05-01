@@ -28,11 +28,11 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream A (snap-rounding tolerance threaded through SR ops +
-node-and-snap iteration in overlay-NG) the corpus stands at
-**96.1% pass rate** (8601/8951 passing, 320 failures, 30 skipped).
-The remaining buckets are tracked here as known divergences pending
-deeper engine work.
+After Stream G (within-on-polygon-with-hole + line-with-endpoints-
+on-boundary fixes) the corpus stands at **96.1% pass rate**
+(8604/8951 passing, 317 failures, 30 skipped). The remaining
+buckets are tracked here as known divergences pending deeper engine
+work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding

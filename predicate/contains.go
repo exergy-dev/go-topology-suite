@@ -464,8 +464,22 @@ func polygonContains(a *geom.Polygon, b geom.Geometry, k kernel.Kernel) (bool, e
 			if polygonHasEquivalentHole(vb, hole) {
 				continue
 			}
+			// A's hole reduces a's interior. b is contained in a only if
+			// no part of b's interior lies in the hole's interior.
+			// Sample b at a representative interior point against the
+			// hole; if Inside, b's interior overlaps the hole and b is
+			// not contained.
+			holePoly := geom.NewPolygon(a.CRS(), hole)
+			rep := samplePoint(vb)
+			if rep != (geom.XY{}) && pointInPolygon(rep, holePoly, k) == kernel.Inside {
+				return false, nil
+			}
+			// Vertex-level secondary check: any hole vertex strictly
+			// inside b means b crosses the hole. (Hole vertices on
+			// b's boundary are fine — that's the "boundary touches
+			// inner boundary" case.)
 			for i := 0; i+1 < len(hole); i++ {
-				if pointInPolygon(hole[i], vb, k) != kernel.Outside {
+				if pointInPolygon(hole[i], vb, k) == kernel.Inside {
 					return false, nil
 				}
 			}
@@ -608,6 +622,23 @@ func polygonLineInClosure(a *geom.Polygon, line *geom.LineString, k kernel.Kerne
 				if ip != p1 && ip != p2 && ip != ring[j] && ip != ring[j+1] {
 					return false, false
 				}
+			}
+		}
+	}
+	// Segment-midpoint sampling: a line whose endpoints lie on a's
+	// boundary still has its interior inside the polygon as long as
+	// the midpoint of each segment is strictly inside. This catches
+	// the "line both ends on boundary, body inside polygon" case.
+	if !interior {
+		for i := 0; i+1 < n; i++ {
+			p1, p2 := line.PointAt(i), line.PointAt(i+1)
+			if p1 == p2 {
+				continue
+			}
+			mid := geom.XY{X: (p1.X + p2.X) / 2, Y: (p1.Y + p2.Y) / 2}
+			if pointInPolygon(mid, a, k) == kernel.Inside {
+				interior = true
+				break
 			}
 		}
 	}
