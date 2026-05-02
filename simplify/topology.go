@@ -10,230 +10,270 @@ import (
 // not to introduce self-intersections (the simplified geometry remains
 // simple if the input was simple).
 //
-// Vertices are removed in increasing order of their Visvalingam-Whyatt
-// effective triangle area. A vertex is removed only if (a) its area is
-// below tolerance² AND (b) the replacement segment does not cross any
-// other live segment in the chain or in a sibling ring of the same
-// polygon. Vertices that fail the safety check are kept.
+// The implementation follows JTS's TopologyPreservingSimplifier: it runs
+// Douglas-Peucker on every tagged line (LineString and each polygon
+// ring), but when DP would replace a sub-chain pts[lo..hi] with the
+// single segment (pts[lo], pts[hi]) we additionally verify that the new
+// segment does not cross any other tagged segment (including segments
+// of the same line that fall outside [lo..hi]) AND does not "jump"
+// over any sibling vertex (sidedness-flip check). If either constraint
+// would be violated the chain is split at the farthest vertex
+// regardless of its perpendicular distance.
 //
+// Endpoints of open lines and the closing vertex of rings are pinned.
 // A tolerance ≤ 0 returns g unchanged.
 func TopologyPreserving(g geom.Geometry, tolerance float64) geom.Geometry {
 	if tolerance <= 0 || g.IsEmpty() {
 		return g
 	}
-	switch v := g.(type) {
-	case *geom.Point:
-		return v
-	case *geom.LineString:
-		return tpsLineString(v, tolerance)
-	case *geom.LinearRing:
-		return tpsLineString(v.AsLineString(), tolerance)
-	case *geom.Polygon:
-		return tpsPolygon(v, tolerance)
-	case *geom.MultiPoint:
-		return v
-	case *geom.MultiLineString:
-		parts := make([]*geom.LineString, 0, v.NumGeometries())
-		for i := 0; i < v.NumGeometries(); i++ {
-			part := tpsLineString(v.LineStringAt(i), tolerance)
-			if !part.IsEmpty() {
-				parts = append(parts, part)
-			}
-		}
-		return geom.NewMultiLineString(v.CRS(), parts...)
-	case *geom.MultiPolygon:
-		parts := make([]*geom.Polygon, 0, v.NumGeometries())
-		for i := 0; i < v.NumGeometries(); i++ {
-			part := tpsPolygon(v.PolygonAt(i), tolerance)
-			if !part.IsEmpty() {
-				parts = append(parts, part)
-			}
-		}
-		return geom.NewMultiPolygon(v.CRS(), parts...)
-	case *geom.GeometryCollection:
-		parts := make([]geom.Geometry, 0, v.NumGeometries())
-		for i := 0; i < v.NumGeometries(); i++ {
-			parts = append(parts, TopologyPreserving(v.GeometryAt(i), tolerance))
-		}
-		return geom.NewGeometryCollection(v.CRS(), parts...)
-	}
-	return g
+	chains := collectChains(g)
+	results := simplifyChains(chains, tolerance)
+	return rebuildGeometry(g, results)
 }
 
-func tpsLineString(ls *geom.LineString, tol float64) *geom.LineString {
-	pts := lineToXY(ls)
-	out := visvalingamSimplify(pts, tol*tol, false /*closed*/, nil)
-	return geom.NewLineString(ls.CRS(), out)
+// chain captures one tagged line: its raw vertices and whether it is
+// closed (first == last). For closed rings the simplifier may rotate
+// the vertex sequence so DP can see the ring as an open polyline; the
+// rotated form replaces the chain's pts in place.
+type chain struct {
+	pts    []geom.XY
+	closed bool
 }
 
-func tpsPolygon(p *geom.Polygon, tol float64) *geom.Polygon {
-	threshold := tol * tol
-	rings := make([][]geom.XY, 0, p.NumRings())
-	for r := 0; r < p.NumRings(); r++ {
-		var constraints [][]geom.XY
-		for s := 0; s < p.NumRings(); s++ {
-			if s == r {
-				continue
-			}
-			constraints = append(constraints, p.Ring(s))
-		}
-		simplified := visvalingamSimplify(p.Ring(r), threshold, true, constraints)
-		if len(simplified) >= 4 {
-			rings = append(rings, simplified)
-		} else if r == 0 {
-			return p // refuse to over-simplify the outer ring
-		}
-	}
-	return geom.NewPolygon(p.CRS(), rings...)
-}
-
-// visvalingamSimplify removes vertices in order of smallest effective
-// area, skipping any whose removal would introduce a segment crossing
-// in the chain or against `constraints`. The algorithm is greedy O(n²);
-// adequate for v1.0 scope.
-func visvalingamSimplify(pts []geom.XY, threshold float64, closed bool, constraints [][]geom.XY) []geom.XY {
-	if len(pts) <= 2 {
-		return append([]geom.XY(nil), pts...)
-	}
-	// Closed rings come in with first == last. Drop the closing
-	// duplicate; we'll restore it at the end.
-	closing := false
-	if closed && pts[0] == pts[len(pts)-1] {
-		pts = pts[:len(pts)-1]
-		closing = true
-	}
-
-	n := len(pts)
-	prev := make([]int, n)
-	next := make([]int, n)
-	alive := make([]bool, n)
-	frozen := make([]bool, n)
-	for i := 0; i < n; i++ {
-		prev[i] = (i - 1 + n) % n
-		next[i] = (i + 1) % n
-		alive[i] = true
-	}
-	if !closed {
-		prev[0] = -1
-		next[n-1] = -1
-	}
-	count := n
-	minLive := 3
-	if !closed {
-		minLive = 2
-	}
-
-	for count > minLive {
-		minArea := math.Inf(1)
-		minIdx := -1
-		for i := 0; i < n; i++ {
-			if !alive[i] || frozen[i] {
-				continue
-			}
-			if !closed && (prev[i] < 0 || next[i] < 0) {
-				continue // endpoints of open lines are pinned
-			}
-			a := pts[prev[i]]
-			b := pts[i]
-			c := pts[next[i]]
-			area := triangleArea2(a, b, c)
-			if area < minArea {
-				minArea = area
-				minIdx = i
-			}
-		}
-		if minIdx < 0 || minArea > threshold {
-			break
-		}
-		a := pts[prev[minIdx]]
-		c := pts[next[minIdx]]
-		if !safeReplace(a, c, prev[minIdx], next[minIdx], pts, prev, next, alive, closed, constraints) {
-			frozen[minIdx] = true
-			continue
-		}
-		alive[minIdx] = false
-		count--
-		next[prev[minIdx]] = next[minIdx]
-		prev[next[minIdx]] = prev[minIdx]
-	}
-
-	out := make([]geom.XY, 0, count+1)
-	if closed {
-		start := -1
-		for i := 0; i < n; i++ {
-			if alive[i] {
-				start = i
-				break
-			}
-		}
-		if start < 0 {
-			return nil
-		}
-		i := start
-		for {
-			out = append(out, pts[i])
-			i = next[i]
-			if i == start {
-				break
-			}
-		}
-		if closing {
-			out = append(out, out[0])
-		}
-	} else {
-		i := 0
-		for i >= 0 {
-			if alive[i] {
-				out = append(out, pts[i])
-			}
-			i = next[i]
-		}
-	}
+// collectChains walks g and emits a chain for each LineString and for
+// each ring of each polygon. The order is significant: rebuildGeometry
+// consumes the result list in the same order.
+func collectChains(g geom.Geometry) []chain {
+	var out []chain
+	collectChainsInto(&out, g)
 	return out
 }
 
-// triangleArea2 returns 2× the absolute area of the triangle (a, b, c).
-// Comparing 2A is sufficient since we only need ordering and a
-// threshold; multiplying once at the call site avoids per-vertex
-// halving.
-func triangleArea2(a, b, c geom.XY) float64 {
-	return math.Abs((b.X-a.X)*(c.Y-a.Y) - (b.Y-a.Y)*(c.X-a.X))
+func collectChainsInto(out *[]chain, g geom.Geometry) {
+	switch v := g.(type) {
+	case *geom.LineString:
+		*out = append(*out, chain{pts: lineToXY(v), closed: false})
+	case *geom.LinearRing:
+		*out = append(*out, chain{pts: lineToXY(v.AsLineString()), closed: true})
+	case *geom.Polygon:
+		for r := 0; r < v.NumRings(); r++ {
+			*out = append(*out, chain{pts: append([]geom.XY(nil), v.Ring(r)...), closed: true})
+		}
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			*out = append(*out, chain{pts: lineToXY(v.LineStringAt(i)), closed: false})
+		}
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			collectChainsInto(out, v.PolygonAt(i))
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			collectChainsInto(out, v.GeometryAt(i))
+		}
+	}
 }
 
-// safeReplace reports whether replacing the segments
-// (a → pts[mid] → c) with the single segment (a → c) introduces any
-// crossing with another live segment in the chain or any segment in
-// the constraints rings.
+// simplifyChains runs DP-with-topology on every chain, using the union
+// of all chains as the constraint set. Returns the simplified chains in
+// the same order as the input.
+func simplifyChains(chains []chain, tol float64) [][]geom.XY {
+	results := make([][]geom.XY, len(chains))
+	keeps := make([][]bool, len(chains))
+	for i, c := range chains {
+		k := make([]bool, len(c.pts))
+		if len(k) > 0 {
+			k[0] = true
+			k[len(k)-1] = true
+		}
+		// For tiny rings keep all vertices.
+		if c.closed && len(c.pts) <= 4 {
+			for j := range k {
+				k[j] = true
+			}
+		}
+		keeps[i] = k
+	}
+
+	for i, c := range chains {
+		if len(c.pts) < 3 {
+			continue
+		}
+		if c.closed && len(c.pts) <= 4 {
+			continue
+		}
+		if c.closed {
+			// JTS-style: keep every vertex initially, then walk DP and
+			// flatten sub-chains while tracking the running result size
+			// to enforce the polygon-ring minimum (4 array points = 3
+			// distinct + closing).
+			ringKeep := keeps[i]
+			for j := range ringKeep {
+				ringKeep[j] = true
+			}
+			minSize := 4
+			size := len(c.pts)
+			flattenSection(c.pts, 0, len(c.pts)-1, tol, ringKeep, &size, minSize, i, chains)
+			keeps[i] = ringKeep
+		} else {
+			dpTopologyRecurse(c.pts, 0, len(c.pts)-1, tol, keeps[i], i, chains, keeps)
+		}
+	}
+
+	for i, c := range chains {
+		out := make([]geom.XY, 0, len(c.pts))
+		for j, p := range c.pts {
+			if keeps[i][j] {
+				out = append(out, p)
+			}
+		}
+		if c.closed && len(out) > 0 && out[0] != out[len(out)-1] {
+			out = append(out, out[0])
+		}
+		results[i] = out
+	}
+	return results
+}
+
+// flattenSection mirrors JTS's TaggedLineStringSimplifier.simplifySection
+// for closed rings: every vertex is initially kept, and DP recurses
+// from (lo, hi) marking interior vertices as flattened only when the
+// resulting size would still satisfy minSize.
+func flattenSection(pts []geom.XY, lo, hi int, tol float64, keep []bool, size *int, minSize, chainIdx int, all []chain) {
+	if hi-lo < 2 {
+		return
+	}
+	a, b := pts[lo], pts[hi]
+	maxD := -1.0
+	maxI := -1
+	for i := lo + 1; i < hi; i++ {
+		if !keep[i] {
+			continue
+		}
+		d := perpDistance(pts[i], a, b)
+		if d > maxD {
+			maxD = d
+			maxI = i
+		}
+	}
+	if maxI < 0 {
+		return
+	}
+	if maxD > tol {
+		flattenSection(pts, lo, maxI, tol, keep, size, minSize, chainIdx, all)
+		flattenSection(pts, maxI, hi, tol, keep, size, minSize, chainIdx, all)
+		return
+	}
+	// Candidate flatten: count vertices in [lo+1..hi-1] currently kept.
+	worstCase := 0
+	for i := lo + 1; i < hi; i++ {
+		if keep[i] {
+			worstCase++
+		}
+	}
+	if *size-worstCase < minSize {
+		// Cannot flatten without dropping below minimum. Recurse to
+		// try smaller sub-sections.
+		flattenSection(pts, lo, maxI, tol, keep, size, minSize, chainIdx, all)
+		flattenSection(pts, maxI, hi, tol, keep, size, minSize, chainIdx, all)
+		return
+	}
+	if !shortcutSafe(a, b, lo, hi, chainIdx, all) {
+		flattenSection(pts, lo, maxI, tol, keep, size, minSize, chainIdx, all)
+		flattenSection(pts, maxI, hi, tol, keep, size, minSize, chainIdx, all)
+		return
+	}
+	for i := lo + 1; i < hi; i++ {
+		if keep[i] {
+			keep[i] = false
+			*size--
+		}
+	}
+}
+
+// dpTopologyRecurse mirrors the classic DP recursion but, before
+// accepting a "flatten this run" decision, checks that the candidate
+// shortcut segment does not cross any other live segment in the global
+// tagged-line set and does not pass on the wrong side of any sibling
+// vertex. If it would, the farthest vertex is forcibly kept regardless
+// of its perpendicular distance and the recursion descends into both
+// halves.
+func dpTopologyRecurse(pts []geom.XY, lo, hi int, tol float64, keep []bool, chainIdx int, all []chain, allKeeps [][]bool) {
+	if hi-lo < 2 {
+		return
+	}
+	a, b := pts[lo], pts[hi]
+	maxD := -1.0
+	maxI := -1
+	for i := lo + 1; i < hi; i++ {
+		d := perpDistance(pts[i], a, b)
+		if d > maxD {
+			maxD = d
+			maxI = i
+		}
+	}
+	if maxI < 0 {
+		return
+	}
+	if maxD > tol {
+		keep[maxI] = true
+		dpTopologyRecurse(pts, lo, maxI, tol, keep, chainIdx, all, allKeeps)
+		dpTopologyRecurse(pts, maxI, hi, tol, keep, chainIdx, all, allKeeps)
+		return
+	}
+	if shortcutSafe(a, b, lo, hi, chainIdx, all) {
+		return // accept shortcut: leave interior vertices unmarked
+	}
+	keep[maxI] = true
+	dpTopologyRecurse(pts, lo, maxI, tol, keep, chainIdx, all, allKeeps)
+	dpTopologyRecurse(pts, maxI, hi, tol, keep, chainIdx, all, allKeeps)
+}
+
+// shortcutSafe reports whether replacing pts[lo..hi] with a single
+// segment (pts[lo], pts[hi]) is topology-safe.
 //
-// pIdx and nIdx are the prev/next indices of the vertex about to be
-// removed; a == pts[pIdx], c == pts[nIdx]. We must skip those two
-// adjacency segments when scanning the chain (they're the segments
-// being replaced and the ones immediately preceding/following).
-func safeReplace(a, c geom.XY, pIdx, nIdx int, pts []geom.XY, prev, next []int, alive []bool, closed bool, constraints [][]geom.XY) bool {
-	// Test against every live chain segment except those incident to
-	// pIdx or nIdx.
-	n := len(pts)
-	for i := 0; i < n; i++ {
-		if !alive[i] {
+// Two checks must pass:
+//
+//  1. Crossing test — the shortcut must not cross any other live
+//     segment from any chain (including the same chain outside
+//     [lo..hi]).
+//
+//  2. Jump test — no sibling vertex may have non-zero winding number
+//     w.r.t. the closed loop pts[lo..hi] + (pts[hi] -> pts[lo]).
+//     A non-zero winding indicates the vertex sat between the original
+//     polyline and the shortcut, so simplification would flip its
+//     sidedness.
+func shortcutSafe(a, b geom.XY, lo, hi, chainIdx int, all []chain) bool {
+	self := all[chainIdx].pts
+	for k := 0; k+1 < len(self); k++ {
+		if k >= lo && k+1 <= hi {
 			continue
 		}
-		j := next[i]
-		if j < 0 || !alive[j] {
-			continue
-		}
-		// Segment (pts[i] → pts[j]). Skip if it's the segment incident
-		// to pIdx or nIdx.
-		if i == pIdx || j == pIdx || i == nIdx || j == nIdx {
-			continue
-		}
-		if segmentsProperlyCross(a, c, pts[i], pts[j]) {
+		if segmentsProperlyCross(a, b, self[k], self[k+1]) {
 			return false
 		}
 	}
-	// Test against constraints.
-	for _, ring := range constraints {
-		for k := 0; k+1 < len(ring); k++ {
-			if segmentsProperlyCross(a, c, ring[k], ring[k+1]) {
+	for c, ch := range all {
+		if c == chainIdx {
+			continue
+		}
+		for k := 0; k+1 < len(ch.pts); k++ {
+			if segmentsProperlyCross(a, b, ch.pts[k], ch.pts[k+1]) {
+				return false
+			}
+		}
+	}
+	loop := make([]geom.XY, 0, hi-lo+2)
+	for k := lo; k <= hi; k++ {
+		loop = append(loop, self[k])
+	}
+	loop = append(loop, self[lo])
+	for c, ch := range all {
+		for k, p := range ch.pts {
+			if c == chainIdx && k >= lo && k <= hi {
+				continue
+			}
+			if pointStrictlyInLoop(p, loop) {
 				return false
 			}
 		}
@@ -241,25 +281,157 @@ func safeReplace(a, c geom.XY, pIdx, nIdx int, pts []geom.XY, prev, next []int, 
 	return true
 }
 
+// pointStrictlyInLoop returns true if p has non-zero winding number
+// w.r.t. the closed (possibly self-intersecting) polyline `loop`
+// (loop[0] == loop[len-1]). Boundary points return false.
+func pointStrictlyInLoop(p geom.XY, loop []geom.XY) bool {
+	for _, q := range loop {
+		if p == q {
+			return false
+		}
+	}
+	w := 0
+	n := len(loop) - 1
+	for i := 0; i < n; i++ {
+		a := loop[i]
+		b := loop[i+1]
+		if onSegment(p, a, b) {
+			return false
+		}
+		if a.Y <= p.Y {
+			if b.Y > p.Y && orient(a, b, p) > 0 {
+				w++
+			}
+		} else {
+			if b.Y <= p.Y && orient(a, b, p) < 0 {
+				w--
+			}
+		}
+	}
+	return w != 0
+}
+
+// onSegment reports whether p lies on segment (a, b).
+func onSegment(p, a, b geom.XY) bool {
+	if orient(a, b, p) != 0 {
+		return false
+	}
+	if p.X < math.Min(a.X, b.X) || p.X > math.Max(a.X, b.X) {
+		return false
+	}
+	if p.Y < math.Min(a.Y, b.Y) || p.Y > math.Max(a.Y, b.Y) {
+		return false
+	}
+	return true
+}
+
+// rebuildGeometry reconstructs the input geometry's shape using the
+// simplified chains. The traversal must mirror collectChains exactly.
+func rebuildGeometry(g geom.Geometry, results [][]geom.XY) geom.Geometry {
+	idx := 0
+	out, _ := rebuild(g, results, &idx)
+	return out
+}
+
+func rebuild(g geom.Geometry, results [][]geom.XY, idx *int) (geom.Geometry, bool) {
+	switch v := g.(type) {
+	case *geom.Point, *geom.MultiPoint:
+		return v, true
+	case *geom.LineString:
+		pts := results[*idx]
+		*idx++
+		if len(pts) < 2 {
+			return geom.NewLineString(v.CRS(), nil), false
+		}
+		return geom.NewLineString(v.CRS(), pts), true
+	case *geom.LinearRing:
+		pts := results[*idx]
+		*idx++
+		if len(pts) < 4 {
+			return v, false
+		}
+		return geom.NewLineString(v.CRS(), pts), true
+	case *geom.Polygon:
+		rings := make([][]geom.XY, 0, v.NumRings())
+		outerOK := true
+		for r := 0; r < v.NumRings(); r++ {
+			pts := results[*idx]
+			*idx++
+			if len(pts) < 4 || math.Abs(ringArea2(pts)) == 0 {
+				if r == 0 {
+					outerOK = false
+				}
+				continue
+			}
+			rings = append(rings, pts)
+		}
+		if !outerOK || len(rings) == 0 {
+			return v, false // refuse to over-simplify
+		}
+		return geom.NewPolygon(v.CRS(), rings...), true
+	case *geom.MultiLineString:
+		parts := make([]*geom.LineString, 0, v.NumGeometries())
+		for i := 0; i < v.NumGeometries(); i++ {
+			pts := results[*idx]
+			*idx++
+			if len(pts) < 2 {
+				continue
+			}
+			parts = append(parts, geom.NewLineString(v.CRS(), pts))
+		}
+		return geom.NewMultiLineString(v.CRS(), parts...), true
+	case *geom.MultiPolygon:
+		parts := make([]*geom.Polygon, 0, v.NumGeometries())
+		for i := 0; i < v.NumGeometries(); i++ {
+			poly, ok := rebuild(v.PolygonAt(i), results, idx)
+			if !ok {
+				continue
+			}
+			parts = append(parts, poly.(*geom.Polygon))
+		}
+		return geom.NewMultiPolygon(v.CRS(), parts...), true
+	case *geom.GeometryCollection:
+		parts := make([]geom.Geometry, 0, v.NumGeometries())
+		for i := 0; i < v.NumGeometries(); i++ {
+			child, _ := rebuild(v.GeometryAt(i), results, idx)
+			parts = append(parts, child)
+		}
+		return geom.NewGeometryCollection(v.CRS(), parts...), true
+	}
+	return g, true
+}
+
 // segmentsProperlyCross reports whether segments (a,b) and (c,d) cross
-// in their interiors. Endpoint-touch is allowed (returns false).
+// in their interiors. T-junctions (an endpoint of one segment landing
+// strictly inside the other) count as crossings. Shared endpoints
+// (a == c, etc.) are allowed and return false.
 func segmentsProperlyCross(a, b, c, d geom.XY) bool {
-	// Standard orientation test.
+	if a == c || a == d || b == c || b == d {
+		return false
+	}
 	o1 := orient(a, b, c)
 	o2 := orient(a, b, d)
 	o3 := orient(c, d, a)
 	o4 := orient(c, d, b)
 	if o1 != o2 && o3 != o4 {
-		// Endpoint-touch case: if any endpoint coincides, treat as
-		// non-crossing (boundary contact is OK).
-		if a == c || a == d || b == c || b == d {
-			return false
+		// T-junction: a zero orientation means an endpoint lies on the
+		// other segment's line. Confirm it's actually on the segment
+		// (not the extended line).
+		if o1 == 0 && onSegment(c, a, b) {
+			return true
 		}
-		// Strict inequalities: only "proper" sign disagreements count.
-		if o1 == 0 || o2 == 0 || o3 == 0 || o4 == 0 {
-			return false
+		if o2 == 0 && onSegment(d, a, b) {
+			return true
 		}
-		return true
+		if o3 == 0 && onSegment(a, c, d) {
+			return true
+		}
+		if o4 == 0 && onSegment(b, c, d) {
+			return true
+		}
+		if o1 != 0 && o2 != 0 && o3 != 0 && o4 != 0 {
+			return true
+		}
 	}
 	return false
 }

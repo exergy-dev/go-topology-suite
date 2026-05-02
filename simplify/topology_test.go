@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/validate"
 	"github.com/terra-geo/terra/wkt"
@@ -53,4 +54,34 @@ func TestTopologyPreservingMultiLineString(t *testing.T) {
 			"part %d: expected 2 points after collinear simplification, got %d",
 			i, out.LineStringAt(i).NumPoints())
 	}
+}
+
+// TestTopologyPreservingTouchingHoleRetainsTopology covers JTS
+// TestSimplify case#12: simplifying a polygon hole that *touches* the
+// outer ring must be allowed to flatten the touch vertex when topology
+// is preserved (the resulting hole stays inside the outer ring and the
+// outer/inner boundaries no longer share a vertex).
+func TestTopologyPreservingTouchingHoleRetainsTopology(t *testing.T) {
+	g, _ := wkt.Unmarshal(`POLYGON ((10 10, 10 90, 90 90, 90 10, 10 10), (80 20, 20 20, 20 80, 50 90, 80 80, 80 20))`)
+	out := TopologyPreserving(g, 10).(*geom.Polygon)
+	require.Equal(t, 2, out.NumRings(), "expected outer + 1 hole")
+	// Outer ring: 4 distinct vertices + closing.
+	assert.Equal(t, 5, len(out.Ring(0)))
+	// Hole simplified from 6 vertices to 5 (drops the (50 90) touch).
+	assert.Equal(t, 5, len(out.Ring(1)))
+}
+
+// TestTopologyPreservingMultiLineConstrained covers JTS TestSimplify
+// case#5: a multi-linestring whose first line cannot be simplified
+// because the resulting shortcut would "jump" over neighbouring line
+// vertices, while a parallel line in the same multi can be fully
+// simplified.
+func TestTopologyPreservingMultiLineConstrained(t *testing.T) {
+	g, _ := wkt.Unmarshal(`MULTILINESTRING ((10 60, 39 50, 70 60, 90 50), (35 55, 46 55), (65 55, 75 55), (10 40, 40 30, 70 40, 90 30))`)
+	out := TopologyPreserving(g, 10).(*geom.MultiLineString)
+	require.Equal(t, 4, out.NumGeometries())
+	assert.Equal(t, 4, out.LineStringAt(0).NumPoints(),
+		"line 0 should be preserved (jump-over check)")
+	assert.Equal(t, 2, out.LineStringAt(3).NumPoints(),
+		"line 3 should fully simplify (no constraints)")
 }

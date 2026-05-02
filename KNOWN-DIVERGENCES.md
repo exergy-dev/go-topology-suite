@@ -46,8 +46,12 @@ The remaining 104 failures concentrate in:
   TestNGOverlayLPrec, etc.). Sliver dimensional collapse cases that
   Pillar 3's spur-edge / figure-8 work caught the easy ones; tight
   near-collinear segments still fail.
-- **7 TestSimplify**: Douglas-Peucker / topology-preserving edge cases.
-  Out of scope for the engine plan.
+- **4 TestSimplify**: Douglas-Peucker / topology-preserving edge cases.
+  See "TestSimplify residuals (2026-05-01)" below for case-by-case
+  detail. The remaining failures all need either polygon-repair after
+  edge collapse (DP cases 10, 13) or matching JTS's exact corner-
+  selection heuristic on tiny rings, which the test expectations seem
+  to capture from a non-current JTS version.
 - **5 TestReducePrecisionFailure** + 3 TestOverlayNGFailure + 2
   TestBufferFailure + 1 TestBigNastyBuffer: documented JTS-known-fail
   cases ("Result provided is approximately correct").
@@ -108,6 +112,47 @@ The remaining 104 failures concentrate in:
   subtract holes when computing intersection of polygon-with-hole
   vs polygon. Needs targeted fixes in
   `overlay/overlayng/result.go`.
+
+### TestSimplify residuals (2026-05-01)
+
+The Pillar 12 simplifier rewrite (DP-with-topology + jump check, JTS-
+style minimum-size guard for rings) closes 4 of the original 7
+failures (cases 5, 9, 12, 17) and resolves a regression that emerged
+during the rewrite (case 10 TP). Four failures remain:
+
+- **case 10 simplifyDP** — `POLYGON ((40 240, 160 241, 280 240,
+  280 160, 160 240, 40 140, 40 240))`. Vertex `(160 241)` collapses
+  onto the line `(40 240)→(280 240)`, and the simplified polygon
+  self-touches at `(160 240)`. JTS detects the touch and **splits
+  the result into a MultiPolygon**; we emit the self-touching
+  polygon. Implementing the split requires a polygon-repair pass
+  (decompose at self-touches, re-emit as separate components).
+  Tracked: out of scope for the simplify rewrite.
+
+- **case 13 simplifyDP** — `POLYGON ((10 10, 10 80, 50 90, 90 80, 90
+  10, 10 10), (80 20, 20 20, 50 90, 80 20))`. The inner hole's apex
+  `(50 90)` lies on the outer ring's edge after simplification; JTS
+  **merges** the hole boundary into the outer ring at the touch,
+  producing a single more-complex outer ring with no hole. Same
+  polygon-repair requirement as case 10.
+
+- **case 15 simplifyTP** — `MULTIPOLYGON (((10 90, 10 10, 90 10,
+  50 60, 10 90)), ...)`. Inner vertex `(50 60)` has perpendicular
+  distance ≈ 7.07 ≤ tol = 10 from the chord `(90 10)→(10 90)`. By
+  textbook DP it should be flattened, and our analysis of JTS's
+  `TaggedLineStringSimplifier` agrees. The expected output keeps the
+  vertex anyway, suggesting the test fixture captures an older JTS
+  variant or a Visvalingam-style area pre-pass we have not been able
+  to identify.
+
+- **case 16 simplifyTP** — second polygon `((90 90, 90 85, 85 85,
+  85 90, 90 90))`. Both our simplifier and JTS drop one corner of
+  the small square; we drop `(90 85)`, the fixture expects `(90 90)`
+  dropped. Different valid simplifications of the same input.
+
+Closing the remaining four would require either a polygon-repair pass
+(cases 10/13) or replicating JTS's exact tie-breaker on
+already-minimal rings (cases 15/16). Both are deferred.
 
 ### `length` on polygonal geometries — terra vs simplefeatures
 
