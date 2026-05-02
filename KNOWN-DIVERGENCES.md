@@ -28,12 +28,15 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Pillar work (DCEL pinch-point fixes; multi-component face
+After parallel-pillar work (DCEL pinch-point + multi-component face
 classification; planar.SegmentIntersect endpoint snapping; negative-
 buffer overshoot guards; multi-polygon overlap-via-centroid; precision-
-result snapping) the corpus stands at **98.1% pass rate** (8779/8951
-passing, 142 failures, 30 skipped). The remaining buckets are tracked
-here as known divergences pending deeper engine work.
+result snapping; spur-edge lineal extraction + figure-8 ring split;
+buffer hole-erosion via recursion + multi-line union; LinearRing type
+with isValid self-intersection check; GC line-endpoint Mod2 boundary
+rule) the corpus stands at **98.4% pass rate** (8806/8951 passing, 115
+failures, 30 skipped). The remaining buckets are tracked here as known
+divergences pending deeper engine work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
