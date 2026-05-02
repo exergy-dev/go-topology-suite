@@ -84,20 +84,17 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		return got, nil
 
 	case distance < 0:
-		// 1. Inset the outer ring toward its interior.
+		// Negative buffer still uses the legacy offset+overshoot-guard
+		// pipeline. The polygonize path produces spurious self-touching
+		// lobes when the input is a buffered convex polygon (mitre-cap
+		// corners create ULP-different vertex pairs that defeat exact
+		// spike removal). Pillar 4 P2 follow-up: tolerance-based spike
+		// removal + JTS-style depth-determination via subgraph finder.
 		d := -distance
-		// Bounding-box overshoot guard: if the polygon's bounding box
-		// has a side smaller than 2d, no point in the polygon can be at
-		// distance ≥ d from every boundary segment, so the inset is
-		// empty. This is a sufficient (not necessary) condition derived
-		// from the inscribed-circle bound — large enough polygons fall
-		// through to the offset path. Cheap O(n) check that catches the
-		// "skinny strip" failure mode without requiring true polygon-
-		// inscribed-circle computation.
 		if bboxTooThinForInset(outer, d) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		shrunkOuter, ok := offsetClosedRing(outer, d, !outerCCW /*interior*/, cfg)
+		shrunkOuter, ok := offsetClosedRing(outer, d, !outerCCW, cfg)
 		if !ok {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
@@ -108,35 +105,20 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		if (outerSigned > 0) != (shrunkSigned > 0) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		// Centroid-probe overshoot: when the inset ring's centroid is
-		// strictly outside the original polygon, the offset has wandered
-		// out of the polygon entirely. The bbox guard above catches the
-		// trivially-thin cases; this catches the non-trivial overshoots
-		// where the bbox is thick but the polygon's interior throat
-		// still chokes the inset.
 		if cx, cy, ok := ringCentroid(shrunkOuter); ok {
 			if !pointInRingBuf(geom.XY{X: cx, Y: cy}, outer) {
 				return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 			}
 		}
-		// Inscribed-distance overshoot: every vertex of the inset ring
-		// must lie at perpendicular distance ≥ d (within tolerance)
-		// from every original-boundary segment. Vertices closer than
-		// d signal that the inset has "rolled" past a feature it
-		// could not reach — the polygon's local thickness is below
-		// 2d and the inset is empty in that neighbourhood. We sample
-		// the inset's vertices and require all of them to satisfy
-		// the bound; one violation collapses the result.
 		if insetOvershoot(shrunkOuter, outer, d) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
 		var result geom.Geometry = geom.NewPolygon(p.CRS(), shrunkOuter)
-		// 2. Grow each hole and subtract from the shrunk outer.
 		for r := 1; r < p.NumRings(); r++ {
 			hole := p.Ring(r)
 			holeSigned := planar.Default.RingArea(hole)
 			holeCCW := holeSigned > 0
-			grown, ok := offsetClosedRing(hole, d, holeCCW /*exterior*/, cfg)
+			grown, ok := offsetClosedRing(hole, d, holeCCW, cfg)
 			if !ok {
 				continue
 			}
@@ -145,7 +127,6 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 			}
 			grownSigned := planar.Default.RingArea(grown)
 			if (holeSigned > 0) != (grownSigned > 0) {
-				// Grown hole inverted — pathological; skip.
 				continue
 			}
 			next, err := overlay.Difference(result, geom.NewPolygon(p.CRS(), grown))

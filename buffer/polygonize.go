@@ -99,6 +99,15 @@ func emitPolygonOffsetSegments(p *geom.Polygon, distance float64, cfg config) []
 		if !ok {
 			continue
 		}
+		// Spike removal: when offsetClosedRing emits a corner with a
+		// mitre overshoot that immediately returns (vertex sequence
+		// a→b→a), the two segments cancel topologically — they trace
+		// no boundary. Skip them so the noder doesn't see the spike
+		// as a real planar feature. Repeat until no more spikes.
+		offset = removeSpikes(offset)
+		if len(offset) < 4 {
+			continue
+		}
 		// Orient so buffer-interior is on the LEFT of every emitted
 		// segment direction (depthDelta=+1 invariant of the
 		// polygonizer). Working through the four cases of {ring
@@ -147,6 +156,53 @@ func emitPolygonOffsetSegments(p *geom.Polygon, distance float64, cfg config) []
 			out = append(out, offsetSegment{p0: a, p1: b, depthDelta: 1})
 		}
 	}
+	return out
+}
+
+// removeSpikes scans a closed ring for "a→b→a" or "a→a" patterns and
+// removes the spike vertex. Repeats until no more spikes are found.
+// Returns a closed ring (last == first) on success.
+func removeSpikes(ring []geom.XY) []geom.XY {
+	if len(ring) < 4 {
+		return ring
+	}
+	// Drop the closing duplicate; we'll re-close at the end.
+	if ring[0] == ring[len(ring)-1] {
+		ring = ring[:len(ring)-1]
+	}
+	for {
+		removed := false
+		out := ring[:0]
+		n := len(ring)
+		for i := 0; i < n; i++ {
+			prev := ring[(i-1+n)%n]
+			cur := ring[i]
+			next := ring[(i+1)%n]
+			// Spike: prev == next means cur is the tip of a back-and-forth.
+			if prev == next {
+				removed = true
+				continue
+			}
+			// Zero-length: cur == next; skip cur, the next vertex
+			// will be considered.
+			if cur == next {
+				removed = true
+				continue
+			}
+			out = append(out, cur)
+		}
+		ring = out
+		if !removed || len(ring) < 3 {
+			break
+		}
+	}
+	if len(ring) < 3 {
+		return nil
+	}
+	// Re-close the ring.
+	out := make([]geom.XY, len(ring)+1)
+	copy(out, ring)
+	out[len(ring)] = ring[0]
 	return out
 }
 
@@ -281,8 +337,48 @@ func snapRoundOffsets(segs []offsetSegment, tolerance float64) ([]offsetSegment,
 
 // flattenChains turns SegmentStrings back into individual offsetSegments,
 // recovering depthDelta from the Tag (which was tag = depthDelta+128).
+//
+// Coincident-segment cancellation: segments that traverse the SAME
+// edge in OPPOSITE directions (a common artefact of mitre-join
+// overshoots in dense offset rings — the offset goes out to a mitre
+// point and immediately returns) cancel out completely. Their
+// depthDeltas sum to zero on every half-edge, so they contribute
+// nothing to face depth, but as DCEL spur-edges they corrupt face
+// tracing. Drop them at this stage.
 func flattenChains(strings []*noding.SegmentString) []offsetSegment {
-	var out []offsetSegment
+	type canonKey struct {
+		ax, ay, bx, by uint64
+	}
+	canon := func(p0, p1 geom.XY) (canonKey, int8) {
+		ka := pgMakeKey(p0)
+		kb := pgMakeKey(p1)
+		// Order endpoints so {a, b} canonical key is direction-
+		// independent, but track sign for reverse vs forward.
+		if ka.x < kb.x || (ka.x == kb.x && ka.y < kb.y) {
+			return canonKey{ka.x, ka.y, kb.x, kb.y}, +1
+		}
+		return canonKey{kb.x, kb.y, ka.x, ka.y}, -1
+	}
+	type accum struct {
+		p0, p1 geom.XY
+		net    int    // sum of (depthDelta * sign) across all coincident occurrences
+	}
+	by := map[canonKey]*accum{}
+	add := func(p0, p1 geom.XY, delta int8) {
+		k, sign := canon(p0, p1)
+		if a, ok := by[k]; ok {
+			a.net += int(sign) * int(delta)
+			return
+		}
+		// Store the segment in its CANONICAL direction (forward in
+		// canonKey ordering). sign flips delta accordingly.
+		switch sign {
+		case +1:
+			by[k] = &accum{p0: p0, p1: p1, net: int(delta)}
+		default:
+			by[k] = &accum{p0: p1, p1: p0, net: -int(delta)}
+		}
+	}
 	for _, s := range strings {
 		if len(s.Coords) < 2 {
 			continue
@@ -293,8 +389,15 @@ func flattenChains(strings []*noding.SegmentString) []offsetSegment {
 			if a == b {
 				continue
 			}
-			out = append(out, offsetSegment{p0: a, p1: b, depthDelta: delta})
+			add(a, b, delta)
 		}
+	}
+	out := make([]offsetSegment, 0, len(by))
+	for _, a := range by {
+		if a.net == 0 {
+			continue
+		}
+		out = append(out, offsetSegment{p0: a.p0, p1: a.p1, depthDelta: int8(a.net)})
 	}
 	return out
 }
@@ -445,12 +548,78 @@ func buildPolygonizeDCEL(segs []offsetSegment) *pgGraph {
 	return g
 }
 
-// labelFaceDepths computes each face's depth via ray-casting against
-// the noded offset segments. The face's representative interior point
-// is the midpoint of its longest edge nudged perpendicular to the LEFT
-// (which is the face-interior side under the CCW convention).
+// labelFaceDepths computes each face's depth via BFS propagation
+// from the outermost face (depth 0). Crossing a half-edge into the
+// adjacent face changes the depth by ±depthDelta of that edge,
+// where the sign reflects the direction crossed.
+//
+// Depth propagation is more robust than independent ray-casting
+// against the input segments because it derives differences from the
+// noded DCEL's actual edge structure: spurious self-intersection
+// "lobes" of the offset don't accumulate winding-number errors —
+// they connect back to the outer face via the same edge sequence
+// they spawned from.
 func labelFaceDepths(g *pgGraph, segs []offsetSegment) {
+	if len(g.faces) == 0 {
+		return
+	}
+	// Identify the outermost face: the one whose representative
+	// interior point has the LARGEST x-coordinate (extreme on the
+	// convex hull is guaranteed to be in the outer infinite face of
+	// the planar subdivision).
+	var outer *pgFace
+	var outerX float64 = math.Inf(-1)
 	for _, f := range g.faces {
+		ip, ok := faceRepresentativePoint(f)
+		if !ok {
+			continue
+		}
+		if ip.X > outerX {
+			outerX = ip.X
+			outer = f
+		}
+	}
+	if outer == nil {
+		return
+	}
+	// Anchor the outer face at depth 0 plus its actual ray-cast
+	// winding (which may be non-zero if the outermost segments form
+	// a closed CW curve enclosing it). The ray cast from the outer
+	// face's interior point to +∞ gives the absolute depth offset.
+	if ip, ok := faceRepresentativePoint(outer); ok {
+		outer.depth = rayCastDepth(ip, segs)
+	}
+	outer.keep = outer.depth >= 1
+	// BFS: visit every face by crossing each half-edge into its twin's
+	// face. depth(F') = depth(F) + edgeDelta where edgeDelta accounts
+	// for which side of the edge F lies on.
+	queue := []*pgFace{outer}
+	visited := map[*pgFace]bool{outer: true}
+	for len(queue) > 0 {
+		f := queue[0]
+		queue = queue[1:]
+		for _, e := range f.edges {
+			twin := e.twin
+			if twin == nil || twin.face == nil || visited[twin.face] {
+				continue
+			}
+			// Crossing FROM e.face (LEFT of e) INTO e.twin.face (RIGHT
+			// of e, i.e., LEFT of e.twin). depthDelta on e represents
+			// the depth gained going RIGHT-to-LEFT across e (i.e., into
+			// e.face). Going the OTHER way (e.face → e.twin.face) we
+			// LOSE depthDelta.
+			twin.face.depth = f.depth - int(e.depthDelta)
+			twin.face.keep = twin.face.depth >= 1
+			visited[twin.face] = true
+			queue = append(queue, twin.face)
+		}
+	}
+	// Any face not reached by BFS (disconnected component) gets a
+	// fallback ray-cast depth.
+	for _, f := range g.faces {
+		if visited[f] {
+			continue
+		}
 		ip, ok := faceRepresentativePoint(f)
 		if !ok {
 			continue
