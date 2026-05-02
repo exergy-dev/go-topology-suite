@@ -337,6 +337,15 @@ func linePolygonOverlay(a, b geom.Geometry, op overlayOp) (geom.Geometry, error)
 	outsideLines := []canonicalEdge{}
 	boundaryLines := []canonicalEdge{}
 	seen := map[canonicalEdge]struct{}{}
+	// Per-vertex tag mask across ALL noded segments (1=line, 2=poly).
+	// Used to detect isolated touch points (vertex carries both 1 and
+	// 2 tags but no kept line edge incidence).
+	vertexTags := make(map[geom.XY]int)
+	for _, ss := range noded {
+		for _, v := range ss.Coords {
+			vertexTags[v] |= ss.Tag
+		}
+	}
 	for _, ss := range noded {
 		if ss.Tag != 1 {
 			continue
@@ -412,7 +421,60 @@ func linePolygonOverlay(a, b geom.Geometry, op overlayOp) (geom.Geometry, error)
 	}
 
 	lines := stitchEdges(kept, c)
-	return assembleLinealResult(c, lines, nil, op), nil
+
+	// For intersection, surface isolated touch points: vertices where
+	// the line meets the polygon boundary at a single point (line
+	// vertex coinciding with polygon vertex/edge but no incident line
+	// edge classified as inside/boundary).
+	var extraPoints []geom.XY
+	if op == opIntersection {
+		covered := map[geom.XY]struct{}{}
+		for _, ce := range kept {
+			covered[ce.p1] = struct{}{}
+			covered[ce.p2] = struct{}{}
+		}
+		// Stable order: track first-seen vertex order from line-tagged
+		// segments, then deduplicate.
+		order := make(map[geom.XY]int)
+		nextOrder := 0
+		for _, ss := range noded {
+			if ss.Tag != 1 {
+				continue
+			}
+			for _, v := range ss.Coords {
+				if _, ok := order[v]; !ok {
+					order[v] = nextOrder
+					nextOrder++
+				}
+			}
+		}
+		emitted := map[geom.XY]struct{}{}
+		for v, mask := range vertexTags {
+			if mask != 3 { // Need both line and polygon-boundary incidence.
+				continue
+			}
+			if _, on := covered[v]; on {
+				continue
+			}
+			// Confirm via point-in-polygon that the touch point is on
+			// the boundary (it must be — polygon-boundary tag implies
+			// it's a vertex on a polygon ring or a noded crossing).
+			cont := classifyAgainstPolygonal(v, polySide, k)
+			if cont != kernel.OnBoundary {
+				continue
+			}
+			if _, dup := emitted[v]; dup {
+				continue
+			}
+			emitted[v] = struct{}{}
+			extraPoints = append(extraPoints, v)
+		}
+		slices.SortFunc(extraPoints, func(a, b geom.XY) int {
+			return cmp.Compare(order[a], order[b])
+		})
+	}
+
+	return assembleLinealResult(c, lines, extraPoints, op), nil
 }
 
 // polygonalSegments converts a Polygon or MultiPolygon to a list of
