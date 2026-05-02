@@ -32,6 +32,15 @@ import (
 // (1e-6) tolerance.
 func tryOverlayNG(subj, clip []*geom.Polygon, op overlayng.Op, c *crs.CRS) (geom.Geometry, bool) {
 	g, err := overlayng.OverlayPolygonalMixedDim(subj, clip, op, 0)
+	if err == nil && g != nil {
+		// Drop noder-failure phantom holes (slivers between near-
+		// coincident input boundaries) before evaluating acceptance.
+		// JTS uses snap-rounding to suppress these; we post-filter
+		// at floating precision.
+		if op == overlayng.OpUnion {
+			g = dropPhantomSliverHoles(g, subj, clip)
+		}
+	}
 	if err == nil && g != nil && overlayResultIsAcceptable(g, op, subj, clip) {
 		return g, true
 	}
@@ -44,6 +53,9 @@ func tryOverlayNG(subj, clip []*geom.Polygon, op overlayng.Op, c *crs.CRS) (geom
 		retry, retryErr := overlayng.OverlayPolygonalMixedDim(subj, clip, op, tol)
 		if retryErr != nil || retry == nil {
 			continue
+		}
+		if op == overlayng.OpUnion {
+			retry = dropPhantomSliverHoles(retry, subj, clip)
 		}
 		if !overlayResultIsAcceptable(retry, op, subj, clip) {
 			continue
@@ -92,6 +104,141 @@ func overlayResultIsAcceptable(g geom.Geometry, op overlayng.Op, subj, clip []*g
 		}
 	}
 	return true
+}
+
+// dropPhantomSliverHoles removes "noder-failure" holes from a Union
+// result: small holes whose every vertex sits in a grid cell scaled
+// to `mag * 1e-9` shared with two or more distinct input outer rings.
+// Such holes are closed boundary loops that snake between two near-
+// coincident input outer boundaries — JTS's OverlayNGRobust suppresses
+// them via snap-rounding; we post-filter at floating precision.
+//
+// Conservative: only drops holes whose area is below `outerArea * 1e-6`
+// AND whose every vertex traces to ≥2 distinct input outer rings.
+// Legitimate input holes have vertices traceable to a single source
+// ring (the input hole vertex set), so they survive the filter.
+func dropPhantomSliverHoles(g geom.Geometry, subj, clip []*geom.Polygon) geom.Geometry {
+	mag := maxCoordMagnitude(subj)
+	if m := maxCoordMagnitude(clip); m > mag {
+		mag = m
+	}
+	if mag <= 0 {
+		return g
+	}
+	tol := mag * 1e-9
+	if tol < 1e-9 {
+		tol = 1e-9
+	}
+	scale := 1 / tol
+	type cell struct{ x, y int64 }
+	hashCell := func(p geom.XY) cell {
+		return cell{int64(math.Floor(p.X * scale)), int64(math.Floor(p.Y * scale))}
+	}
+	outerCells := make(map[cell]map[int]struct{})
+	addOuter := func(idx int, ring []geom.XY) {
+		for _, v := range ring {
+			c := hashCell(v)
+			if outerCells[c] == nil {
+				outerCells[c] = map[int]struct{}{}
+			}
+			outerCells[c][idx] = struct{}{}
+		}
+	}
+	idx := 0
+	for _, pp := range subj {
+		if pp == nil || pp.IsEmpty() {
+			continue
+		}
+		addOuter(idx, pp.Ring(0))
+		idx++
+	}
+	for _, pp := range clip {
+		if pp == nil || pp.IsEmpty() {
+			continue
+		}
+		addOuter(idx, pp.Ring(0))
+		idx++
+	}
+	if idx < 2 {
+		return g
+	}
+	isPhantomHole := func(ring []geom.XY, smallFrac float64) bool {
+		// Small-hole gate: only inspect holes below the threshold.
+		signedA2 := 0.0
+		for j := 0; j+1 < len(ring); j++ {
+			signedA2 += ring[j].X*ring[j+1].Y - ring[j+1].X*ring[j].Y
+		}
+		holeArea := math.Abs(signedA2 / 2)
+		if holeArea > smallFrac {
+			return false
+		}
+		polysSeen := map[int]struct{}{}
+		for _, v := range ring {
+			c := hashCell(v)
+			owners, ok := outerCells[c]
+			if !ok {
+				for ddx := int64(-1); ddx <= 1 && !ok; ddx++ {
+					for ddy := int64(-1); ddy <= 1 && !ok; ddy++ {
+						owners, ok = outerCells[cell{c.x + ddx, c.y + ddy}]
+					}
+				}
+			}
+			if !ok {
+				return false
+			}
+			for k := range owners {
+				polysSeen[k] = struct{}{}
+			}
+		}
+		return len(polysSeen) >= 2
+	}
+	cleanPolygon := func(poly *geom.Polygon) *geom.Polygon {
+		if poly == nil || poly.IsEmpty() {
+			return poly
+		}
+		nr := poly.NumRings()
+		if nr < 2 {
+			return poly
+		}
+		outer := poly.Ring(0)
+		// Compute outer area for threshold.
+		signedA2 := 0.0
+		for j := 0; j+1 < len(outer); j++ {
+			signedA2 += outer[j].X*outer[j+1].Y - outer[j+1].X*outer[j].Y
+		}
+		outerArea := math.Abs(signedA2 / 2)
+		if outerArea <= 0 {
+			return poly
+		}
+		// 1e-6 of outer area: catches phantom slivers up to a square ~1mm×1m
+		// in 1km × 1km polygons; legitimate holes are typically larger.
+		smallFrac := outerArea * 1e-6
+		kept := [][]geom.XY{outer}
+		dropped := false
+		for r := 1; r < nr; r++ {
+			ring := poly.Ring(r)
+			if isPhantomHole(ring, smallFrac) {
+				dropped = true
+				continue
+			}
+			kept = append(kept, ring)
+		}
+		if !dropped {
+			return poly
+		}
+		return geom.NewPolygon(poly.CRS(), kept...)
+	}
+	switch v := g.(type) {
+	case *geom.Polygon:
+		return cleanPolygon(v)
+	case *geom.MultiPolygon:
+		parts := make([]*geom.Polygon, 0, v.NumGeometries())
+		for i := 0; i < v.NumGeometries(); i++ {
+			parts = append(parts, cleanPolygon(v.PolygonAt(i)))
+		}
+		return geom.NewMultiPolygon(v.CRS(), parts...)
+	}
+	return g
 }
 
 // overlayAreaIsConserved reports whether the overlay result's area is
