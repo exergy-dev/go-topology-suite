@@ -34,9 +34,11 @@ buffer overshoot guards; multi-polygon overlap-via-centroid; precision-
 result snapping; spur-edge lineal extraction + figure-8 ring split;
 buffer hole-erosion via recursion + multi-line union; LinearRing type
 with isValid self-intersection check; GC line-endpoint Mod2 boundary
-rule) the corpus stands at **98.4% pass rate** (8806/8951 passing, 115
-failures, 30 skipped). The remaining buckets are tracked here as known
-divergences pending deeper engine work.
+rule + incident-ring-edge probe) the corpus stands at **98.4% pass
+rate** (8807/8951 passing, 114 failures, 30 skipped). The remaining
+buckets are tracked here as known divergences pending deeper engine
+work — the principled fix is JTS's full snap-rounding noder + DCEL
+face-depth classifier; the patches here have exhausted the half-measures.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
