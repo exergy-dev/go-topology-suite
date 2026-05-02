@@ -81,7 +81,7 @@ func structuralEqual(a, b geom.Geometry) bool {
 			return false
 		}
 		for i := 0; i < va.NumRings(); i++ {
-			if !ringEqualXY(va.Ring(i), vb.Ring(i)) {
+			if !ringMatchAnyRotationOrReverse(va.Ring(i), vb.Ring(i)) {
 				return false
 			}
 		}
@@ -104,8 +104,33 @@ func structuralEqual(a, b geom.Geometry) bool {
 		if va.NumGeometries() != vb.NumGeometries() {
 			return false
 		}
+		// Direct order match.
+		direct := true
 		for i := 0; i < va.NumGeometries(); i++ {
 			if !structuralEqual(va.PolygonAt(i), vb.PolygonAt(i)) {
+				direct = false
+				break
+			}
+		}
+		if direct {
+			return true
+		}
+		// Members may be enumerated in different orders; try matching as
+		// an unordered multiset. Each b polygon may match at most once.
+		used := make([]bool, vb.NumGeometries())
+		for i := 0; i < va.NumGeometries(); i++ {
+			matched := false
+			for j := 0; j < vb.NumGeometries(); j++ {
+				if used[j] {
+					continue
+				}
+				if structuralEqual(va.PolygonAt(i), vb.PolygonAt(j)) {
+					used[j] = true
+					matched = true
+					break
+				}
+			}
+			if !matched {
 				return false
 			}
 		}
@@ -147,4 +172,107 @@ func ringEqualXY(a, b []geom.XY) bool {
 		}
 	}
 	return true
+}
+
+// ringMatchAnyRotationOrReverse reports whether closed rings a and b
+// describe the same vertex sequence up to cyclic rotation and direction
+// reversal. Both rings are assumed closed (first == last); the closing
+// duplicate is dropped before comparison.
+//
+// A small absolute tolerance (~1e-12 at unit scale, 1e-12·max at
+// larger scale) is allowed per coordinate so that algorithms whose
+// output suffers last-bit rounding (Douglas-Peucker computing a
+// rational expression two different ways) still match a vertex-
+// equivalent reference. The tolerance is tighter than any test
+// corpus's `equalsExact` API, so this only affects the structural
+// fast path of `Equals`.
+//
+// Used as a fast-path equality test for polygons whose source geometry
+// has been operated on by an algorithm (Simplify, ConvexHull, …) that
+// may emit an equivalent ring with a different starting vertex or
+// opposite orientation. Topologically equivalent under DE-9IM, but not
+// vertex-equal.
+func ringMatchAnyRotationOrReverse(a, b []geom.XY) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	// Drop the closing duplicate when comparing cyclic content.
+	la, lb := len(a), len(b)
+	if la > 0 && a[0] == a[la-1] {
+		la--
+	}
+	if lb > 0 && b[0] == b[lb-1] {
+		lb--
+	}
+	if la != lb {
+		return false
+	}
+	if la == 0 {
+		return true
+	}
+	// Forward rotations.
+	for off := 0; off < lb; off++ {
+		match := true
+		for i := 0; i < la; i++ {
+			if !xyApproxEqualULP(a[i], b[(i+off)%lb]) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	// Reverse rotations: walk b backwards from each starting index.
+	for off := 0; off < lb; off++ {
+		match := true
+		for i := 0; i < la; i++ {
+			j := ((off-i)%lb + lb) % lb
+			if !xyApproxEqualULP(a[i], b[j]) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// xyApproxEqualULP returns true if a and b agree to ~1e-12 under
+// scale-aware tolerance. Equivalent to exact equality for coordinates
+// up to unit magnitude; scales with magnitude beyond that.
+func xyApproxEqualULP(a, b geom.XY) bool {
+	if a == b {
+		return true
+	}
+	const ulp = 1e-12
+	scaleX := absF(a.X)
+	if absF(b.X) > scaleX {
+		scaleX = absF(b.X)
+	}
+	scaleY := absF(a.Y)
+	if absF(b.Y) > scaleY {
+		scaleY = absF(b.Y)
+	}
+	tolX := ulp
+	if scaleX > 1 {
+		tolX = ulp * scaleX
+	}
+	tolY := ulp
+	if scaleY > 1 {
+		tolY = ulp * scaleY
+	}
+	return absF(a.X-b.X) <= tolX && absF(a.Y-b.Y) <= tolY
+}
+
+func absF(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
