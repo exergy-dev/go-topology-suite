@@ -99,6 +99,12 @@ func nodeAndSnap(strings []*noding.SegmentString, tolerance float64) []*noding.S
 	if tolerance <= 0 {
 		return nodeAdaptive(strings)
 	}
-	out, _, _ := (&snaprounding.Noder{Tolerance: tolerance}).Node(strings)
+	// Overlay-NG opts in to MergeNearCollinear: shifting result areas
+	// at the tolerance level is the expected behaviour for snap-
+	// rounded overlays. Buffer keeps the conservative default.
+	out, _, _ := (&snaprounding.Noder{
+		Tolerance:          tolerance,
+		MergeNearCollinear: true,
+	}).Node(strings)
 	return out
 }

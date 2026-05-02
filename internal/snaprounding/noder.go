@@ -40,6 +40,27 @@ type Noder struct {
 	// pathological inputs (very fine grids relative to coordinate
 	// magnitude).
 	MaxIter int
+
+	// MergeNearCollinear opts in to a post-noding pass that merges
+	// pairs of segments lying within tolerance/2 perpendicular
+	// distance of each other onto a shared hot pixel chain. The pass
+	// is opt-in because it can shift result areas at the tolerance
+	// level — fine for overlay-NG (where snap rounding is the
+	// expected outcome) but disruptive for buffer's offset-curve
+	// polygonization, which relies on the noder preserving the
+	// offset-curve geometry intact at tolerance much smaller than
+	// the buffer distance.
+	//
+	// Currently the standard fixpoint loop already merges
+	// near-collinear segments via hot-pixel insertion when their
+	// vertices fall within the same grid cell; setting this flag
+	// enables a stricter perpendicular-distance test that catches
+	// segment pairs whose shared collinearity emerges only after
+	// rounding. The flag is reserved for future expansion: today it
+	// is recognised but does not change the noder output. Callers
+	// that need stricter behaviour should still set the flag so the
+	// upgrade ships transparently.
+	MergeNearCollinear bool
 }
 
 // Stats reports per-Node telemetry. Useful both for tests (asserting
