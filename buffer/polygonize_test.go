@@ -328,6 +328,67 @@ func TestPolygonize_FaceValidatorRejectsOutsideRings(t *testing.T) {
 		"only positive-X square kept")
 }
 
+// TestInscribedCircleRep_SquareReturnsCentre: the inscribed-circle of a
+// 10×10 square is its geometric centre (5,5) at distance 5 from each
+// side. The polylabel approximation should converge to within
+// min(width,height) / (8 * 2^4) = 10/128 ≈ 0.08.
+func TestInscribedCircleRep_SquareReturnsCentre(t *testing.T) {
+	ring := []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	}
+	rep := inscribedCircleRep(ring)
+	assert.InDelta(t, 5.0, rep.X, 0.1, "X near centre")
+	assert.InDelta(t, 5.0, rep.Y, 0.1, "Y near centre")
+	// Critical property: distance to nearest segment ≥ inradius - tolerance.
+	d := signedDistToRing(rep, ring)
+	assert.GreaterOrEqual(t, d, 4.5, "rep is far inside (distance >= 4.5 of inradius=5)")
+}
+
+// TestInscribedCircleRep_LShape: an L-shaped polygon's inscribed circle
+// should land in the wider arm, not in the corner. Tests that the grid
+// search prefers points with maximum minimum-distance.
+func TestInscribedCircleRep_LShape(t *testing.T) {
+	// L-shape: 10×10 square with a 6×6 notch removed from the upper-right.
+	//   (0,0)-(10,0)-(10,4)-(4,4)-(4,10)-(0,10)
+	ring := []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 4},
+		{X: 4, Y: 4}, {X: 4, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	}
+	rep := inscribedCircleRep(ring)
+	// The two arms are each 4 wide and ~10 long. The largest inscribed
+	// circle has radius 2 (centred at (2,5) in the vertical arm or (5,2)
+	// in the horizontal arm). Either solution is acceptable.
+	d := signedDistToRing(rep, ring)
+	assert.Greater(t, d, 1.5, "rep is at least 1.5 inside (radius ~ 2)")
+	// Check rep is inside the L-shape.
+	assert.True(t, pointInRingPG(rep, ring), "rep is inside L-shape")
+}
+
+// TestSignedDistToRing_BasicCases verifies signed distance sign and
+// magnitude on a simple square.
+func TestSignedDistToRing_BasicCases(t *testing.T) {
+	ring := []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	}
+	cases := []struct {
+		name string
+		p    geom.XY
+		want float64
+	}{
+		{"centre", geom.XY{X: 5, Y: 5}, 5.0},
+		{"near left edge", geom.XY{X: 1, Y: 5}, 1.0},
+		{"on edge", geom.XY{X: 0, Y: 5}, 0.0},
+		{"outside left", geom.XY{X: -3, Y: 5}, -3.0},
+		{"outside corner", geom.XY{X: -3, Y: -4}, -5.0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := signedDistToRing(c.p, ring)
+			assert.InDelta(t, c.want, got, 1e-9)
+		})
+	}
+}
+
 // TestFaceValidator_PointInPolygonAndDistance: faceValidatorFor's
 // composite predicate (point-in-poly AND ≥ d*frac from boundary).
 func TestFaceValidator_PointInPolygonAndDistance(t *testing.T) {

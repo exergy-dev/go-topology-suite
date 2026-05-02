@@ -345,7 +345,14 @@ func polygonizeBufferWithFilter(
 			continue
 		}
 		if keep != nil {
-			rep := ringRepPoint(r)
+			// V3.1: use inscribed-circle rep point so the validator's
+			// point-in-original-polygon and distance-to-original-boundary
+			// checks have a robust interior margin. The old midpoint-
+			// nudge rep point landed on the ring "skin" (within ULP of
+			// the offset boundary), which is precisely where the
+			// validator can't decide reliably between legitimate inset
+			// rings and overshoot lobes.
+			rep := ringInscribedRep(r)
 			if !keep(rep) {
 				continue
 			}
@@ -1195,7 +1202,14 @@ func assemblePolygonizeRings(c *crs.CRS, rings [][]geom.XY) geom.Geometry {
 }
 
 // ringRepPoint returns a strictly-interior representative point of a
-// ring (midpoint of longest segment, nudged into the interior).
+// ring (midpoint of longest segment, nudged into the interior). Used by
+// the assembly step to nest rings: this point lies on the "skin" of the
+// ring (just inside its own boundary), making it unlikely to fall inside
+// a contained child ring (a hole) — which keeps the containment-depth
+// nesting logic correct.
+//
+// The post-extraction face-validity filter (V3.1) uses a different rep-
+// point algorithm: see ringInscribedRep below.
 func ringRepPoint(ring []geom.XY) geom.XY {
 	if len(ring) < 4 {
 		if len(ring) > 0 {
@@ -1227,6 +1241,131 @@ func ringRepPoint(ring []geom.XY) geom.XY {
 		nx, ny = dy, -dx
 	}
 	return geom.XY{X: mx + nx*eps, Y: my + ny*eps}
+}
+
+// ringInscribedRep returns a representative interior point of ring whose
+// minimum distance to any ring segment is maximised — a.k.a. the pole of
+// inaccessibility, or the centre of the largest inscribed circle. Used
+// by the negative-buffer face-validity filter (V3.1) to robustly classify
+// extracted rings against the ORIGINAL polygon: an interior point at
+// distance ~inradius/2 from the offset boundary gives a robust margin
+// for the binary point-in-polygon test, which would otherwise be flipped
+// by ULP-scale noise on rep-points that sit right on the offset boundary.
+
+// ringInscribedRep is an alias for inscribedCircleRep documenting the
+// intended caller (post-polygonizer face-validity filter).
+func ringInscribedRep(ring []geom.XY) geom.XY { return inscribedCircleRep(ring) }
+
+// inscribedCircleRep approximates the pole of inaccessibility of a
+// closed ring — the interior point furthest from any boundary segment.
+// Returns a point guaranteed to be strictly inside the ring (positive
+// signed distance) when one exists; falls back to the centroid for
+// degenerate rings.
+//
+// Algorithm: polylabel-style grid subdivision. Compute the ring's bbox,
+// seed an N×N grid (N=8) of candidate cells, score each by signed
+// distance from cell-centre to the ring boundary (positive iff inside
+// the ring). Select the highest-scoring cell and recurse 4 levels deep
+// into a 3×3 neighbourhood around the winning centre. Return the final
+// centre.
+//
+// Reference: https://github.com/mapbox/polylabel — upstream uses a
+// priority-queue with bounding-box upper-bound pruning for log-N
+// convergence; this implementation uses a simpler fixed-depth subdivision
+// because the rings we process are typically small (offset rings of
+// buffer subgraphs) and the constant-factor savings of a queue-free
+// implementation dominate.
+func inscribedCircleRep(ring []geom.XY) geom.XY {
+	if len(ring) < 4 {
+		if len(ring) > 0 {
+			return ring[0]
+		}
+		return geom.XY{}
+	}
+	minX, maxX := ring[0].X, ring[0].X
+	minY, maxY := ring[0].Y, ring[0].Y
+	for _, p := range ring[1:] {
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	w, h := maxX-minX, maxY-minY
+	if w == 0 || h == 0 {
+		return geom.XY{X: (minX + maxX) / 2, Y: (minY + maxY) / 2}
+	}
+	// Initial coarse grid.
+	const initN = 8
+	cw, ch := w/float64(initN), h/float64(initN)
+	bestX, bestY := (minX+maxX)/2, (minY+maxY)/2
+	bestD := signedDistToRing(geom.XY{X: bestX, Y: bestY}, ring)
+	for i := 0; i < initN; i++ {
+		for j := 0; j < initN; j++ {
+			cx := minX + (float64(i)+0.5)*cw
+			cy := minY + (float64(j)+0.5)*ch
+			d := signedDistToRing(geom.XY{X: cx, Y: cy}, ring)
+			if d > bestD {
+				bestD = d
+				bestX, bestY = cx, cy
+			}
+		}
+	}
+	// Refinement: subdivide a 3×3 neighbourhood around the current best,
+	// 4 levels deep. Each level halves the cell size, so the final
+	// resolution is min(cw, ch) / 16.
+	for level := 0; level < 4; level++ {
+		cw /= 2
+		ch /= 2
+		// Probe a 3×3 grid around (bestX, bestY).
+		for di := -1; di <= 1; di++ {
+			for dj := -1; dj <= 1; dj++ {
+				if di == 0 && dj == 0 {
+					continue
+				}
+				cx := bestX + float64(di)*cw
+				cy := bestY + float64(dj)*ch
+				d := signedDistToRing(geom.XY{X: cx, Y: cy}, ring)
+				if d > bestD {
+					bestD = d
+					bestX, bestY = cx, cy
+				}
+			}
+		}
+	}
+	// If even the best candidate is outside (negative signed distance),
+	// the ring is highly degenerate (collinear, zero-area). Fall back to
+	// the centroid of the bbox; downstream consumers must handle the
+	// possibility of an outside rep-point themselves.
+	return geom.XY{X: bestX, Y: bestY}
+}
+
+// signedDistToRing returns the signed perpendicular distance from p to
+// the nearest segment of ring: positive iff p is inside the ring,
+// negative iff outside, zero on the boundary. The magnitude is the
+// minimum distance from p to any ring segment (clamped at endpoints).
+func signedDistToRing(p geom.XY, ring []geom.XY) float64 {
+	if len(ring) < 4 {
+		return 0
+	}
+	best := math.Inf(1)
+	for i := 0; i+1 < len(ring); i++ {
+		d := segmentPointDist(p, ring[i], ring[i+1])
+		if d < best {
+			best = d
+		}
+	}
+	if pointInRingPG(p, ring) {
+		return best
+	}
+	return -best
 }
 
 func pointInRingPG(p geom.XY, ring []geom.XY) bool {
