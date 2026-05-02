@@ -5,6 +5,45 @@ import (
 	"github.com/terra-geo/terra/geom"
 )
 
+// ringRepresentativePoint returns a point strictly inside ring's
+// interior. Picks the midpoint of the longest segment and nudges
+// perpendicular toward the ring's interior (left of edge direction
+// for CCW rings, right for CW).
+func ringRepresentativePoint(ring []geom.XY) geom.XY {
+	if len(ring) < 4 {
+		if len(ring) > 0 {
+			return ring[0]
+		}
+		return geom.XY{}
+	}
+	bestIdx := 0
+	var bestLen2 float64
+	for i := 0; i+1 < len(ring); i++ {
+		dx := ring[i+1].X - ring[i].X
+		dy := ring[i+1].Y - ring[i].Y
+		l2 := dx*dx + dy*dy
+		if l2 > bestLen2 {
+			bestLen2 = l2
+			bestIdx = i
+		}
+	}
+	a, b := ring[bestIdx], ring[bestIdx+1]
+	mx, my := (a.X+b.X)/2, (a.Y+b.Y)/2
+	dx, dy := b.X-a.X, b.Y-a.Y
+	// CCW rings: interior is on the LEFT of segment direction (perp +y/-x).
+	// CW rings: interior is on the RIGHT.
+	signedArea2 := 0.0
+	for i := 0; i+1 < len(ring); i++ {
+		signedArea2 += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
+	}
+	const eps = 1e-9
+	nx, ny := -dy, dx
+	if signedArea2 < 0 {
+		nx, ny = dy, -dx
+	}
+	return geom.XY{X: mx + nx*eps, Y: my + ny*eps}
+}
+
 // assembleOutputPolygons takes the boundary rings produced by
 // extractResultRings and groups them into Polygons by detecting
 // containment: a ring contained in exactly one other ring becomes a
@@ -31,13 +70,24 @@ func assembleOutputPolygons(c *crs.CRS, rings [][]geom.XY) (*geom.Polygon, []*ge
 		return geom.NewPolygon(c, rings[0]), nil, nil
 	}
 
+	// Depth is computed against an interior representative point per ring
+	// (midpoint of the first segment nudged perpendicular into the
+	// ring's interior). Using rings[i][0] makes the test sensitive to
+	// vertex-on-segment ambiguities — when ring i shares a vertex with
+	// ring j, the ray-cast classification of that shared vertex against
+	// ring j is undefined, which mis-attributes depth and lands a ring
+	// that should be a hole as a separate outer.
+	reps := make([]geom.XY, len(rings))
+	for i, ring := range rings {
+		reps[i] = ringRepresentativePoint(ring)
+	}
 	depths := make([]int, len(rings))
 	for i := range rings {
 		for j := range rings {
 			if i == j {
 				continue
 			}
-			if pointInRing(rings[i][0], rings[j]) {
+			if pointInRing(reps[i], rings[j]) {
 				depths[i]++
 			}
 		}
@@ -61,7 +111,7 @@ func assembleOutputPolygons(c *crs.CRS, rings [][]geom.XY) (*geom.Polygon, []*ge
 			if i == j || depths[j] != depths[i]+1 {
 				continue
 			}
-			if !pointInRing(rings[j][0], rings[i]) {
+			if !pointInRing(reps[j], rings[i]) {
 				continue
 			}
 			// Confirm this is the IMMEDIATE outer: no other even-depth
@@ -72,7 +122,7 @@ func assembleOutputPolygons(c *crs.CRS, rings [][]geom.XY) (*geom.Polygon, []*ge
 				if k == i || depths[k] >= depths[i]+1 {
 					continue
 				}
-				if !pointInRing(rings[j][0], rings[k]) {
+				if !pointInRing(reps[j], rings[k]) {
 					continue
 				}
 				if depths[k] > depths[i] {
