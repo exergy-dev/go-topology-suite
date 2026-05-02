@@ -36,7 +36,7 @@ retry for FLOATING-precision real-world ticket cases, Stream G
 for snap-rounded sliver faces (closes TestOverlayAAPrec#16
 union/symdifference), and isolated-touch-point emission for line-
 polygon intersection (closes TestOverlayLA cases#2,#3), the corpus
-stands at **98.9% pass rate** (8859/8951 passing, 62 failures,
+stands at **99.0% pass rate** (8860/8951 passing, 61 failures,
 30 skipped — 99.3% excluding skipped).
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
