@@ -389,6 +389,117 @@ func TestSignedDistToRing_BasicCases(t *testing.T) {
 	}
 }
 
+// TestWindingDepth_SquareInteriorIsPlusOne verifies the JTS-standard
+// winding-number depth: any point strictly inside a CCW outer ring has
+// winding == +1. Outside points have winding == 0.
+func TestWindingDepth_SquareInteriorIsPlusOne(t *testing.T) {
+	// CCW square 0..10.
+	outer := []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	}
+	cases := []struct {
+		name string
+		p    geom.XY
+		want int
+	}{
+		{"centre", geom.XY{X: 5, Y: 5}, 1},
+		{"near boundary inside", geom.XY{X: 0.5, Y: 5}, 1},
+		{"outside right", geom.XY{X: 20, Y: 5}, 0},
+		{"outside left", geom.XY{X: -5, Y: 5}, 0},
+		{"outside above", geom.XY{X: 5, Y: 20}, 0},
+		{"outside below", geom.XY{X: 5, Y: -5}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := windingDepth(c.p, [][]geom.XY{outer})
+			assert.Equal(t, c.want, got)
+		})
+	}
+}
+
+// TestWindingDepth_CWSquareIsAlsoPlusOne verifies that ring orientation
+// is correctly normalised: a CW outer ring (rare but legal in some
+// inputs) still yields winding +1 for points inside it. (The
+// orientation flip is internalised by windingDepth's signed-area check.)
+//
+// Wait — actually a CW outer is by convention a hole. The function
+// treats every input ring in its natural orientation. For a polygon
+// passed with naturally-CW outer (atypical but seen in some sources),
+// the winding around an interior point is -1. We document that.
+func TestWindingDepth_CWSquareIsMinusOne(t *testing.T) {
+	// CW square 0..10 (reversed of the previous test).
+	outer := []geom.XY{
+		{X: 0, Y: 0}, {X: 0, Y: 10}, {X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 0},
+	}
+	got := windingDepth(geom.XY{X: 5, Y: 5}, [][]geom.XY{outer})
+	assert.Equal(t, -1, got, "CW outer = -1 winding around interior")
+}
+
+// TestWindingDepth_PolygonWithHole: polygon-with-hole. Points inside
+// outer-not-in-hole have winding +1; points inside the hole have
+// winding 0 (the CCW outer ring contributes +1 and the CW hole ring
+// contributes -1); points outside outer have winding 0.
+func TestWindingDepth_PolygonWithHole(t *testing.T) {
+	outer := []geom.XY{
+		{X: 0, Y: 0}, {X: 20, Y: 0}, {X: 20, Y: 20}, {X: 0, Y: 20}, {X: 0, Y: 0},
+	}
+	// CW hole at (5..15).
+	hole := []geom.XY{
+		{X: 5, Y: 5}, {X: 5, Y: 15}, {X: 15, Y: 15}, {X: 15, Y: 5}, {X: 5, Y: 5},
+	}
+	rings := [][]geom.XY{outer, hole}
+	cases := []struct {
+		name string
+		p    geom.XY
+		want int
+	}{
+		{"polygon body", geom.XY{X: 2, Y: 2}, 1},
+		{"polygon body other side", geom.XY{X: 18, Y: 18}, 1},
+		{"in hole", geom.XY{X: 10, Y: 10}, 0},
+		{"outside outer", geom.XY{X: 25, Y: 10}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := windingDepth(c.p, rings)
+			assert.Equal(t, c.want, got)
+		})
+	}
+}
+
+// TestNegativeBufferWindingValidator_AcceptsInteriorRejectsOutside checks
+// the negative-buffer winding-validator: only points strictly inside
+// the original polygon are kept.
+func TestNegativeBufferWindingValidator_AcceptsInteriorRejectsOutside(t *testing.T) {
+	square := geom.NewPolygon(nil, []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	})
+	v := negativeBufferWindingValidator(square)
+	assert.True(t, v(geom.XY{X: 5, Y: 5}), "centre kept")
+	assert.True(t, v(geom.XY{X: 0.5, Y: 5}), "just inside kept")
+	assert.False(t, v(geom.XY{X: -5, Y: 5}), "outside rejected")
+	assert.False(t, v(geom.XY{X: 15, Y: 5}), "outside right rejected")
+}
+
+// TestPositiveBufferWindingValidator_KeepsValidWindings verifies the
+// positive-buffer winding-validator keeps points inside the polygon
+// (winding == +sign) and points outside the polygon (winding == 0).
+// Hole-interior points (winding == 0 for CCW-outer/CW-hole layout) are
+// also kept — the polygonizer's own depth labelling is responsible for
+// not generating face-rep points in hole interiors of dilated buffers.
+// What this validator catches is winding == -sign (topologically
+// inverted phantom subgraphs).
+func TestPositiveBufferWindingValidator_KeepsValidWindings(t *testing.T) {
+	// 20x20 polygon with a 10x10 CW hole centred at (10,10).
+	withHole := geom.NewPolygon(nil,
+		[]geom.XY{{X: 0, Y: 0}, {X: 20, Y: 0}, {X: 20, Y: 20}, {X: 0, Y: 20}, {X: 0, Y: 0}},
+		[]geom.XY{{X: 5, Y: 5}, {X: 5, Y: 15}, {X: 15, Y: 15}, {X: 15, Y: 5}, {X: 5, Y: 5}},
+	)
+	v := positiveBufferWindingValidator(withHole)
+	assert.True(t, v(geom.XY{X: 2, Y: 2}), "polygon body kept (winding +1)")
+	assert.True(t, v(geom.XY{X: 25, Y: 10}), "outside polygon kept (winding 0)")
+	assert.True(t, v(geom.XY{X: 10, Y: 10}), "hole interior accepted (winding 0)")
+}
+
 // TestFaceValidator_PointInPolygonAndDistance: faceValidatorFor's
 // composite predicate (point-in-poly AND ≥ d*frac from boundary).
 func TestFaceValidator_PointInPolygonAndDistance(t *testing.T) {

@@ -398,6 +398,177 @@ func faceValidatorFor(orig *geom.Polygon, d, frac float64) func(geom.XY) bool {
 	}
 }
 
+// windingDepth returns the integer winding number of the original
+// polygon's boundary (outer + holes) around the representative point
+// rep. It is the JTS-standard depth-against-original metric used to
+// decide whether a polygonizer-extracted face represents true buffer
+// interior or a phantom overshoot subgraph.
+//
+// Algorithm: cast a horizontal ray from rep to +∞. For every segment of
+// every original ring, if the segment crosses the ray on the right of
+// rep, contribute a signed count using the standard winding-number rule:
+//
+//	+1 when the segment runs UPWARD through the ray (b.Y > a.Y)
+//	-1 when the segment runs DOWNWARD through the ray (b.Y < a.Y)
+//
+// Note: this rule is the SAME for every ring regardless of orientation.
+// For a "polygon-with-hole" passed in the conventional JTS layout
+// (CCW outer, CW hole) the upward edges of the outer ring on the right
+// of an interior point contribute +1 and the hole's edges on the right
+// (which run downward by virtue of CW direction) contribute -1, summing
+// to 0 inside the hole and +1 inside the polygon body.
+//
+// Sum across all rings, for the conventional CCW-outer / CW-hole layout:
+//
+//	winding == 0   ⇒  rep is outside the polygon body OR inside a hole
+//	winding == +1  ⇒  rep is inside polygon (in outer, not in any hole)
+//
+// (For a CW outer ring, all signs are flipped: interior is winding -1.
+// Callers that need orientation-invariant "inside polygon" classification
+// should compare |winding| == 1 or normalise their input to JTS layout.)
+//
+// For a NEGATIVE buffer with conventional input orientation, kept faces
+// have winding == +1: their rep point lies strictly inside the original
+// polygon body. Phantom mitre-overshoot lobes whose rep landed outside
+// have winding == 0. Faces where rep landed inside a hole also have
+// winding == 0 — those are correctly rejected.
+//
+// For a POSITIVE buffer with conventional input orientation, kept faces
+// have winding >= 0: rep may be inside the original (winding +1) or
+// outside it (winding 0, but within d of the boundary since the
+// polygonizer's own depth-from-offset-curves has already flagged the
+// face as buffer interior). Faces where rep landed inside a hole are
+// also winding 0 and would be incorrectly admitted by `>= 0` — but the
+// polygonizer's depth machinery has already removed hole interiors
+// (subtractive depth labelling), so no actual face-rep ever lands there.
+//
+// originalRings is the list of rings (outer first, then holes) in their
+// natural orientation. The function does NOT normalise orientation; it
+// reports the topological winding number directly.
+//
+// Half-open ray-crossing convention: a vertex exactly at rep.Y is
+// counted on at most one of its incident edges (a.Y > rep.Y XOR
+// b.Y > rep.Y). Horizontal segments are skipped (they never strictly
+// cross a horizontal ray).
+func windingDepth(rep geom.XY, originalRings [][]geom.XY) int {
+	winding := 0
+	for _, ring := range originalRings {
+		if len(ring) < 4 {
+			continue
+		}
+		for i := 0; i+1 < len(ring); i++ {
+			a, b := ring[i], ring[i+1]
+			// Half-open Y-comparison: counts each edge crossing exactly once.
+			if (a.Y > rep.Y) == (b.Y > rep.Y) {
+				continue
+			}
+			// Compute X of the edge at y=rep.Y.
+			t := (rep.Y - a.Y) / (b.Y - a.Y)
+			xCross := a.X + t*(b.X-a.X)
+			if xCross <= rep.X {
+				continue
+			}
+			// Standard winding rule: up = +1, down = -1.
+			if b.Y > a.Y {
+				winding++
+			} else {
+				winding--
+			}
+		}
+	}
+	return winding
+}
+
+// originalRingsOf extracts every ring of orig as a [][]XY view (outer
+// first, then holes). Returns nil for empty/nil input.
+func originalRingsOf(orig *geom.Polygon) [][]geom.XY {
+	if orig == nil || orig.IsEmpty() || orig.NumRings() == 0 {
+		return nil
+	}
+	rings := make([][]geom.XY, orig.NumRings())
+	for i := 0; i < orig.NumRings(); i++ {
+		rings[i] = orig.Ring(i)
+	}
+	return rings
+}
+
+// outerOrientationSign returns +1 if the polygon's outer ring is CCW
+// (the JTS / OGC convention), -1 if CW, 0 if degenerate. Used to
+// normalise winding-depth comparisons so the predicate is orientation-
+// agnostic with respect to input ring direction.
+func outerOrientationSign(orig *geom.Polygon) int {
+	if orig == nil || orig.IsEmpty() || orig.NumRings() == 0 {
+		return 0
+	}
+	a := planar.Default.RingArea(orig.Ring(0))
+	if a > 0 {
+		return +1
+	}
+	if a < 0 {
+		return -1
+	}
+	return 0
+}
+
+// negativeBufferWindingValidator returns a face-validity predicate for
+// the negative-buffer (inset) polygonizer. A face's representative
+// interior point is kept iff its winding number against the original
+// polygon's rings has the same sign as the outer ring's natural
+// orientation — i.e. rep lies STRICTLY inside the original polygon
+// body. This is the principled JTS-style classifier that supersedes
+// the brittle distance-from-boundary test used by V3.1: it is robust
+// to ULP-scale rep-point noise because winding-number flips are global
+// topology changes (rep moves across an entire boundary), not local
+// boundary-skin proximity events.
+//
+// Phantom mitre-overshoot subgraphs whose rep lands outside the
+// original polygon have winding == 0 and are rejected. Subgraphs whose
+// rep lands inside a hole (winding == 0 in JTS's CCW-outer/CW-hole
+// layout) are also rejected — the inset buffer must not extend into
+// hole interior.
+//
+// orig is the original input polygon. The returned predicate captures a
+// snapshot of orig's rings at construction time.
+func negativeBufferWindingValidator(orig *geom.Polygon) func(geom.XY) bool {
+	rings := originalRingsOf(orig)
+	sign := outerOrientationSign(orig)
+	if len(rings) == 0 || sign == 0 {
+		return func(geom.XY) bool { return false }
+	}
+	return func(p geom.XY) bool {
+		return windingDepth(p, rings) == sign
+	}
+}
+
+// positiveBufferWindingValidator returns a face-validity predicate for
+// the positive-buffer (dilation) polygonizer. A face's representative
+// interior point is kept iff its winding number against the original
+// polygon's rings is in {0, sign(outer)} — i.e. rep is either inside
+// the polygon body (winding == sign) or outside it / inside a hole
+// (winding == 0, but the polygonizer's own face-depth has already
+// established this face is part of the buffer interior).
+//
+// Faces with winding strictly opposite to the outer ring's sign cannot
+// occur for legitimate buffer output; they would represent a topological
+// inversion (the polygonizer generated a face surrounding the polygon
+// in the wrong direction). Such faces are phantom self-intersection
+// lobes and are dropped.
+//
+// orig is the original input polygon. The returned predicate captures a
+// snapshot of orig's rings at construction time.
+func positiveBufferWindingValidator(orig *geom.Polygon) func(geom.XY) bool {
+	rings := originalRingsOf(orig)
+	sign := outerOrientationSign(orig)
+	if len(rings) == 0 || sign == 0 {
+		// No original to compare against — pass everything through.
+		return func(geom.XY) bool { return true }
+	}
+	return func(p geom.XY) bool {
+		w := windingDepth(p, rings)
+		return w == 0 || w == sign
+	}
+}
+
 // pointInPolygonRings reports whether p lies inside the polygon defined
 // by the given rings (rings[0] = outer, rings[1:] = holes). Standard
 // ray-cast: a point is inside iff it is inside the outer ring and not
