@@ -617,17 +617,36 @@ func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
 func overlayWithTolerance(a, b geom.Geometry, name string, tolerance float64) (geom.Geometry, error) {
 	subj, clip, ok := unwrapBothPolygonal(a, b)
 	if !ok {
+		// Non-polygonal operands: snap each operand to the precision
+		// grid first, then dispatch through the float overlay path,
+		// then snap the result so cut intersection vertices land on
+		// the grid (matching JTS's *Prec test expectations).
+		if tolerance > 0 {
+			scale := 1.0 / tolerance
+			a = reducePrecision(a, scale)
+			b = reducePrecision(b, scale)
+		}
+		var got geom.Geometry
+		var err error
 		switch name {
 		case "intersection":
-			return overlay.Intersection(a, b)
+			got, err = overlay.Intersection(a, b)
 		case "union":
-			return overlay.Union(a, b)
+			got, err = overlay.Union(a, b)
 		case "difference":
-			return overlay.Difference(a, b)
+			got, err = overlay.Difference(a, b)
 		case "symdifference":
-			return overlay.SymmetricDifference(a, b)
+			got, err = overlay.SymmetricDifference(a, b)
+		default:
+			return nil, fmt.Errorf("unknown op: %s", name)
 		}
-		return nil, fmt.Errorf("unknown op: %s", name)
+		if err != nil {
+			return nil, err
+		}
+		if tolerance > 0 {
+			got = reducePrecision(got, 1.0/tolerance)
+		}
+		return got, nil
 	}
 	var op overlayng.Op
 	switch name {
@@ -642,7 +661,14 @@ func overlayWithTolerance(a, b geom.Geometry, name string, tolerance float64) (g
 	default:
 		return nil, fmt.Errorf("unknown op: %s", name)
 	}
-	return overlayng.OverlayPolygonalMixedDim(subj, clip, op, tolerance)
+	got, err := overlayng.OverlayPolygonalMixedDim(subj, clip, op, tolerance)
+	if err != nil {
+		return nil, err
+	}
+	if tolerance > 0 {
+		got = reducePrecision(got, 1.0/tolerance)
+	}
+	return got, nil
 }
 
 // unwrapBothPolygonal returns the polygon slices for a pair of

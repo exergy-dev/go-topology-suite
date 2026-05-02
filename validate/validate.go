@@ -444,8 +444,68 @@ func (v *validator) checkMultiPolygon(mp *geom.MultiPolygon) {
 					fmt.Sprintf("multipolygon shells %d and %d overlap or nest", i, j), ar[0])
 				continue
 			}
+			// Vertex-only check misses nesting where every vertex of one
+			// polygon lies on the other's boundary (e.g., a triangle whose
+			// three vertices are all vertices of the surrounding shell).
+			// Probe the polygon's interior centroid as well.
+			if multiPolygonInteriorOverlap(a, b, k) {
+				v.add(DefectSelfIntersection,
+					fmt.Sprintf("multipolygon shells %d and %d overlap or nest", i, j), ar[0])
+				continue
+			}
 		}
 	}
+}
+
+// multiPolygonInteriorOverlap reports whether one polygon's centroid
+// lies inside the other's strict interior. Catches the "all vertices
+// touch" nesting case where polygonHasPointInInterior (which probes
+// only vertices) misses real overlap. Skipped when either ring has
+// degenerate (repeated-consecutive) vertices, since the ray-cast on
+// such rings is unreliable and can produce false positives.
+func multiPolygonInteriorOverlap(a, b *geom.Polygon, k kernel.Kernel) bool {
+	if hasRepeatedVertex(a.Ring(0)) || hasRepeatedVertex(b.Ring(0)) {
+		return false
+	}
+	if cx, cy, ok := ringCentroidV(a.Ring(0)); ok {
+		if polygonPointLocation(geom.XY{X: cx, Y: cy}, b, k) == kernel.Inside {
+			return true
+		}
+	}
+	if cx, cy, ok := ringCentroidV(b.Ring(0)); ok {
+		if polygonPointLocation(geom.XY{X: cx, Y: cy}, a, k) == kernel.Inside {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRepeatedVertex(ring []geom.XY) bool {
+	for i := 0; i+1 < len(ring); i++ {
+		if ring[i] == ring[i+1] {
+			return true
+		}
+	}
+	return false
+}
+
+func ringCentroidV(ring []geom.XY) (float64, float64, bool) {
+	if len(ring) < 4 {
+		return 0, 0, false
+	}
+	var sumA, sumX, sumY float64
+	for i := 0; i+1 < len(ring); i++ {
+		x0, y0 := ring[i].X, ring[i].Y
+		x1, y1 := ring[i+1].X, ring[i+1].Y
+		cross := x0*y1 - x1*y0
+		sumA += cross
+		sumX += (x0 + x1) * cross
+		sumY += (y0 + y1) * cross
+	}
+	if sumA == 0 {
+		return 0, 0, false
+	}
+	return sumX / (3 * sumA), sumY / (3 * sumA), true
 }
 
 func polygonHasPointInInterior(a, b *geom.Polygon, k kernel.Kernel) bool {
