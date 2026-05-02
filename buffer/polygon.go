@@ -138,6 +138,13 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		// than d to the original boundary. Snap-rounding noise on
 		// rep-points is well below d for the |d|*1e-9 tolerance, so
 		// no legitimate inset face is rejected.
+		//
+		// V3.2 attempts to relax this threshold (frac < 1) or replace
+		// it with own-inscribed-radius checks all degraded conformance:
+		// the rings rejected by the strict threshold are mostly
+		// phantom overshoot lobes whose detection by alternative
+		// metrics is brittle. The strict threshold is preserved as the
+		// best-known classifier for the residual buffer-failure modes.
 		validate := faceValidatorFor(p, d, 1.0)
 		// Minimum-area filter: drop snap-rounding micro-slivers whose
 		// area is negligible compared to d^2. A real inset face has
