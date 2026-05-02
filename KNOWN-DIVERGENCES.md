@@ -32,11 +32,12 @@ After Pillars 1, 2/3 (partial), 4 P1+P2 (buffer polygonization +
 tolerance-aware spike removal), 5, 6 P1 (line-on-polygon-boundary
 collinear overlap), 7, simplify rewrite, overlay auto-tolerance
 retry for FLOATING-precision real-world ticket cases, Stream G
-(snap-rounding lineal overlay), and centroid-based reclassification
+(snap-rounding lineal overlay), centroid-based reclassification
 for snap-rounded sliver faces (closes TestOverlayAAPrec#16
-union/symdifference), the corpus stands at **98.9% pass rate**
-(8857/8951 passing, 64 failures, 30 skipped — 99.3%
-excluding skipped).
+union/symdifference), and isolated-touch-point emission for line-
+polygon intersection (closes TestOverlayLA cases#2,#3), the corpus
+stands at **98.9% pass rate** (8859/8951 passing, 62 failures,
+30 skipped — 99.3% excluding skipped).
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
 `overlaps` / `equals` / `isValid` predicates pass on the JTS corpus
@@ -54,8 +55,8 @@ The remaining 85 failures break down as:
 | TestOverlayAAPrec | 1 | Polygon-difference-LineString case#14: B is a `LineString`, routed through float `overlay.Difference` (not snap-rounded NG). Hole reshaping under tolerance=1 unhandled by float path; deferred. |
 | TestNGOverlayAPrec | 2 | case#8 differenceSR/symDifferenceSR: JTS inserts `(4,1)` as a vertex on the `(2,1)→(4,2)` segment via an extended-cell hot-pixel test (perpendicular distance ≈0.894 > tolerance/2=0.5). Connectivity-restricted `MergeNearCollinear` pass attempted but introduced sliver-collapse regressions on case#2 (narrow wedge), case#4 (close shells), case#13 (outward-sliver hole). Deferred — needs JTS-style hot-pixel adjacency that doesn't merge legitimate narrow features. |
 | ~~TestNGOverlayPPrec~~ | 0 | Closed by Stream G (asymmetric Point/Line topology check against original geometry). |
-| TestOverlayLA | 2 | Multi-line × multi-area complex overlap; partial sliver miss. Polygon-vs-line snap-rounding requires hybrid-DCEL rewrite (deferred). |
-| TestOverlayLAPrec | 1 | Snap-rounded line-area precision residual. Polygon-vs-line dimensional collapse (sliver → line). Same hybrid-DCEL deferral as TestOverlayLA. |
+| ~~TestOverlayLA~~ | 0 | Closed by isolated-touch-point emission for line-polygon intersection (`overlay/line_overlay.go::linePolygonOverlay`). |
+| TestOverlayLAPrec | 1 | case#0 difference at scale=1: polygon `(95 9, 81 414, 87 414, 95 9)` is a sliver whose two long edges both round to `x=95` at `y≤13`, dimensionally collapsing the lower portion into a vertical line `(95 9, 95 13)`. JTS decomposes the snap-rounded polygon into Polygon+LineString; we currently return the polygon unchanged from the (poly\line) branch. Closing requires a polygon-snap-rounding decomposer that emits the collapsed sliver as a separate lineal component (hybrid-DCEL rewrite). Deferred. |
 | TestOverlayAA | 1 | Complex AA touching+overlapping; one residual not closed by Pillar 1 work. |
 | TestUnaryUnionFloating | 1 | Real-world MultiPoint union with closely-clustered coords. |
 | misc/TestOverlay #4 | 1 | GEOS ticket #737 — UTM-scale polygon pair with missing sliver under floating-precision; auto-tolerance retry produces structurally-valid 3-poly output but missing one component. Detecting "valid but incomplete" needs analytic area-conservation check; deferred. |
