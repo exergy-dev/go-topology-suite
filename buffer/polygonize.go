@@ -133,6 +133,17 @@ func emitPolygonOffsetSegments(p *geom.Polygon, distance float64, cfg config) []
 			if a == b {
 				continue
 			}
+			// Skip near-zero segments — these arise from mitre joins
+			// where a two adjacent corner vertices are within ULP
+			// distance of each other due to floating-point noise. They
+			// confuse the noder (the two endpoints become separate
+			// vertices in the DCEL) and produce spurious zero-area
+			// faces.
+			dx, dy := b.X-a.X, b.Y-a.Y
+			const minLen2 = 1e-20
+			if dx*dx+dy*dy < minLen2 {
+				continue
+			}
 			out = append(out, offsetSegment{p0: a, p1: b, depthDelta: 1})
 		}
 	}
