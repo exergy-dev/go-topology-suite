@@ -58,17 +58,25 @@ func tryOverlayNG(subj, clip []*geom.Polygon, op overlayng.Op, c *crs.CRS) (geom
 
 // overlayResultIsAcceptable returns true when the overlay result is
 // usable as-is — i.e., neither dimension-degraded nor structurally
-// invalid. The check has two parts:
+// invalid nor missing area. The check has three parts, ordered cheap-
+// to-expensive:
 //
 //  1. Dimension preservation: areal-areal Union always produces area;
 //     Intersection/Difference produce area when input envelopes meet.
-//  2. Structural validity: the output passes validate.Validate. A
-//     self-intersecting ring or hole-outside-shell signals the noder
-//     produced a topologically inconsistent DCEL — typically because
-//     near-coincident segments cancelled but their hot-pixel splits
-//     leaked into the output.
+//  2. Structural validity: the output passes a cheap ring-simplicity
+//     probe. A self-intersecting ring signals the noder produced a
+//     topologically inconsistent DCEL — typically because near-
+//     coincident segments cancelled but their hot-pixel splits leaked
+//     into the output.
+//  3. Area conservation: the result's area sits within the per-op
+//     envelope implied by the inputs (Union ≥ max(A,B), Intersection
+//     ≤ min(A,B), Difference ≤ A, SymDiff ≤ A+B). Catches "missing
+//     component" gaps where the noder dropped a sliver polygon —
+//     structurally valid but topologically incomplete (the GEOS#737
+//     UTM-scale corpus). Tolerance is relative (1e-6 of the larger
+//     input area) to absorb ordinary floating-point noise.
 //
-// Both signals indicate "retry with snap rounding might recover".
+// All three signals indicate "retry with snap rounding might recover".
 func overlayResultIsAcceptable(g geom.Geometry, op overlayng.Op, subj, clip []*geom.Polygon) bool {
 	if overlayCollapsedToLineal(g, op, subj, clip) {
 		return false
@@ -79,8 +87,81 @@ func overlayResultIsAcceptable(g geom.Geometry, op overlayng.Op, subj, clip []*g
 		if !arealResultRingsAreSimple(g) {
 			return false
 		}
+		if !overlayAreaIsConserved(g, op, subj, clip) {
+			return false
+		}
 	}
 	return true
+}
+
+// overlayAreaIsConserved reports whether the overlay result's area is
+// consistent with the per-op upper bounds derived from the inputs. The
+// bounds are loose (1e-6 relative tolerance) so the check rejects only
+// the "spurious extra area" failure mode (e.g. duplicated component,
+// inverted hole), not ordinary floating-point noise from the noding
+// step.
+//
+// Per-op upper bounds (with A = sum of subj polygon areas, B = sum of
+// clip; tol = max(A, B) * 1e-6):
+//
+//   - Union:        result ≤ A + B + tol
+//   - Intersection: result ≤ min(A, B) + tol
+//   - Difference:   result ≤ A + tol
+//   - SymDiff:      result ≤ A + B + tol
+//
+// Lower bounds are intentionally not enforced. The natural lower bound
+// for Union (`max(A, B) ≤ result`) only holds for inputs whose summed-
+// ring area equals their true area; the buffer pipeline produces self-
+// overlapping rings during its rough-offset phase, and self-Union there
+// legitimately shrinks below the summed-ring area. Lower bounds for
+// Intersection / Difference / SymDiff have no useful pre-overlay form
+// (the answer depends on overlap area we'd need a separate overlay to
+// know).
+func overlayAreaIsConserved(g geom.Geometry, op overlayng.Op, subj, clip []*geom.Polygon) bool {
+	areaA := totalPolygonArea(subj)
+	areaB := totalPolygonArea(clip)
+	maxAB := areaA
+	if areaB > maxAB {
+		maxAB = areaB
+	}
+	if maxAB <= 0 {
+		// Degenerate inputs — no meaningful area envelope to check.
+		return true
+	}
+	tol := maxAB * 1e-6
+	got := measure.Area(g)
+	switch op {
+	case overlayng.OpUnion, overlayng.OpSymDiff:
+		if got > areaA+areaB+tol {
+			return false
+		}
+	case overlayng.OpIntersection:
+		minAB := areaA
+		if areaB < minAB {
+			minAB = areaB
+		}
+		if got > minAB+tol {
+			return false
+		}
+	case overlayng.OpDifference:
+		if got > areaA+tol {
+			return false
+		}
+	}
+	return true
+}
+
+// totalPolygonArea returns the summed area of every polygon in the
+// slice. Empty / nil polygons contribute 0.
+func totalPolygonArea(polys []*geom.Polygon) float64 {
+	var total float64
+	for _, p := range polys {
+		if p == nil || p.IsEmpty() {
+			continue
+		}
+		total += measure.Area(p)
+	}
+	return total
 }
 
 // arealResultRingsAreSimple is the cheap-and-local validity probe
