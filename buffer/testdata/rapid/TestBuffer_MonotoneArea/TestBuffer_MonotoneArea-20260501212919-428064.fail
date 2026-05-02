@@ -1,0 +1,68 @@
+# 2026/05/01 21:29:19.622724 [TestBuffer_MonotoneArea] [rapid] draw g_x0: 2.1624914897295732e-131
+# 2026/05/01 21:29:19.622728 [TestBuffer_MonotoneArea] [rapid] draw g_y0: 6.836026902871219
+# 2026/05/01 21:29:19.622729 [TestBuffer_MonotoneArea] [rapid] draw g_r: 18.36962890625
+# 2026/05/01 21:29:19.622729 [TestBuffer_MonotoneArea] [rapid] draw g_rot: 1.0259351975436057e-05
+# 2026/05/01 21:29:19.622730 [TestBuffer_MonotoneArea] [rapid] draw g_n: 8
+# 2026/05/01 21:29:19.622731 [TestBuffer_MonotoneArea] [rapid] draw d1: 1
+# 2026/05/01 21:29:19.622732 [TestBuffer_MonotoneArea] [rapid] draw delta: 0.5278934715447599
+# 2026/05/01 21:29:19.622782 [TestBuffer_MonotoneArea] 
+# 	Error Trace:	/home/rkm/projects/go-topology-suite/buffer/property_test.go:94
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:371
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:380
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:205
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:120
+# 	            				/home/rkm/projects/go-topology-suite/buffer/property_test.go:72
+# 	Error:      	"125.33408762736249" is not greater than or equal to "954.4336870510424"
+# 	Test:       	TestBuffer_MonotoneArea
+# 	Messages:   	area(Buffer(g,d1))=115.78975075685207 < area(g)=954.4336870510424
+# 
+v0.4.8#5210685121315200328
+0x7960922f33feb
+0x1daa03ba9974c9
+0x132bb209b6b8a4
+0x1b2
+0x0
+0x3d
+0xeb2e9abd9a5d4
+0x3e1f90cdb5853
+0xb92b995f5446b
+0x43de13462e489
+0x2
+0x2
+0x3b
+0x358176fb9a1d9
+0xc692b641659ff
+0x12cc90c024e9fa
+0x1535c018077f82
+0x3
+0x2
+0x2
+0xb
+0x5eb1b20c7d51
+0xf5e65b8d825d7
+0x1e8d6ca338e652
+0x16b46a28cf75b7
+0x10
+0x0
+0x35
+0x583f2994b45ef
+0x7f23bc08f9a50
+0x1cb01a24274b45
+0x7
+0x7
+0x4
+0xea1476333198e
+0x10cfbd45f3a5c1
+0x383c4ddfa1e08
+0x0
+0x0
+0x0
+0x0
+0xcd3a16eb30aaf
+0x1a2c24cf3b5bd3
+0x1e0bc110ad0af3
+0x6
+0x1
+0x0
+0x33
+0xe480d981d015

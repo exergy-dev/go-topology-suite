@@ -8,9 +8,6 @@ import "github.com/terra-geo/terra/geom"
 // not inside any interior ring.
 func classifyFacesPolygons(d *dcel, subjRings, clipRings [][]geom.XY) {
 	for _, f := range d.faces {
-		if f.isOuter {
-			continue
-		}
 		ip := interiorPoint(f)
 		f.inSubj = pointInPolygonRings(ip, subjRings)
 		f.inClip = pointInPolygonRings(ip, clipRings)
@@ -32,9 +29,6 @@ func classifyFacesByPolygons(d *dcel,
 	clipRings [][]geom.XY, clipPerPoly []int,
 ) {
 	for _, f := range d.faces {
-		if f.isOuter {
-			continue
-		}
 		ip := interiorPoint(f)
 		f.inSubj = pointInAnyPolygon(ip, subjRings, subjPerPoly)
 		f.inClip = pointInAnyPolygon(ip, clipRings, clipPerPoly)

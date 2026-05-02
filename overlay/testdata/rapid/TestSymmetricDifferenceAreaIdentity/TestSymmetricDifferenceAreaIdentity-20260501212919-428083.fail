@@ -1,0 +1,76 @@
+# 2026/05/01 21:29:19.584961 [TestSymmetricDifferenceAreaIdentity] [rapid] draw a_x0: -2.341112121939659e-07
+# 2026/05/01 21:29:19.584965 [TestSymmetricDifferenceAreaIdentity] [rapid] draw a_y0: 0.899084697863698
+# 2026/05/01 21:29:19.584966 [TestSymmetricDifferenceAreaIdentity] [rapid] draw a_r: 20
+# 2026/05/01 21:29:19.584967 [TestSymmetricDifferenceAreaIdentity] [rapid] draw a_rot: 5.5165275821383375
+# 2026/05/01 21:29:19.584968 [TestSymmetricDifferenceAreaIdentity] [rapid] draw b_x0: 0.08651347333547009
+# 2026/05/01 21:29:19.584968 [TestSymmetricDifferenceAreaIdentity] [rapid] draw b_y0: -3.606632272572553e-130
+# 2026/05/01 21:29:19.584969 [TestSymmetricDifferenceAreaIdentity] [rapid] draw b_r: 8.519890207327999
+# 2026/05/01 21:29:19.584970 [TestSymmetricDifferenceAreaIdentity] [rapid] draw b_rot: 1.25
+# 2026/05/01 21:29:19.584996 [TestSymmetricDifferenceAreaIdentity] 
+# 	Error Trace:	/home/rkm/projects/go-topology-suite/overlay/property_test.go:142
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:371
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:380
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:205
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:120
+# 	            				/home/rkm/projects/go-topology-suite/overlay/property_test.go:115
+# 	Error:      	Max difference between 425.31997687638693 and 519.6152422706632 allowed is 30.69552538324698, but difference was -94.29526539427627
+# 	Test:       	TestSymmetricDifferenceAreaIdentity
+# 	Messages:   	symmetric-difference identity violated: S=519.6152422706632 expected=425.31997687638693 (A=519.6152422706632 B=94.29526539427633 I=94.29526539427633)
+# 
+v0.4.8#11422225754625152868
+0x1f34d32f442f34
+0x17462bfe666c21
+0xcc0e46eb2611a
+0x16
+0x0
+0xc
+0xf6c865db54cca
+0xb8bdf6b769eb
+0x17e7430d8d0312
+0x5471f3ae584c2
+0x0
+0x0
+0x3c
+0xcc54d45b51373
+0x1b252190c7d973
+0x14967594688ffd
+0x1dbc603701a8f1
+0x4
+0x4
+0x0
+0x0
+0x23422df11c609
+0x722617b5b7b70
+0xa421a5dc75e02
+0x2
+0x1
+0x2b
+0x210ec9b4310d7
+0x2bfcba646aec
+0x16be569628956d
+0x824a941aa8fc4
+0x3
+0x0
+0x3c
+0x625bf3aa3a367
+0x126f581caf3bb8
+0x1d9c10ee16a726
+0x142bc9bac5dd93
+0x1ad
+0x0
+0x0
+0x3741b9db2ee73
+0xf7c797a4f5440
+0x1d657d608eb012
+0x12dc6edaa367d6
+0x3
+0x0
+0x3f
+0x10a2f0c9bf805
+0x11ca4ab3815980
+0x92daa896b6c84
+0x18341448e3fa5a
+0x0
+0x0
+0x8
+0x40039ba0e4e42

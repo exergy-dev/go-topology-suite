@@ -1,0 +1,80 @@
+# 2026/05/01 21:29:19.579756 [TestStressInclusionExclusion] [rapid] draw cx1: 0.011420631999504929
+# 2026/05/01 21:29:19.579763 [TestStressInclusionExclusion] [rapid] draw cy1: 2
+# 2026/05/01 21:29:19.579764 [TestStressInclusionExclusion] [rapid] draw s1: 19.419450417160988
+# 2026/05/01 21:29:19.579765 [TestStressInclusionExclusion] [rapid] draw rot1: 2.8203767798841
+# 2026/05/01 21:29:19.579766 [TestStressInclusionExclusion] [rapid] draw cx2: 2.0651994165653065e-22
+# 2026/05/01 21:29:19.579768 [TestStressInclusionExclusion] [rapid] draw cy2: -0.6639762903703353
+# 2026/05/01 21:29:19.579768 [TestStressInclusionExclusion] [rapid] draw s2: 2.667952644620282
+# 2026/05/01 21:29:19.579769 [TestStressInclusionExclusion] [rapid] draw rot2: 2.5927079021930695
+# 2026/05/01 21:29:19.579815 [TestStressInclusionExclusion] 
+# 	Error Trace:	/home/rkm/projects/go-topology-suite/overlay/overlayng/stress_test.go:73
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:371
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:380
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:205
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:120
+# 	            				/home/rkm/projects/go-topology-suite/overlay/overlayng/stress_test.go:37
+# 	Error:      	Max difference between 384.2330258185105 and 377.1150545045741 allowed is 0.3842330258185105, but difference was 7.11797131393638
+# 	Test:       	TestStressInclusionExclusion
+# 	Messages:   	U+I=377.1150545045741 vs A+B=384.2330258185105 (Δ=7.11797131393638)
+# 
+v0.4.8#13365885684195148231
+0xf78f6ff0525ae
+0x121c7c1e53b373
+0x739364666f2c7
+0x6
+0x0
+0x35
+0x763b347800cfb
+0xf95273245270
+0x279eb1fe6e1ad
+0x89263e8f3a93c
+0x7
+0x1
+0x0
+0x5
+0x2feff73151a7
+0x1c85788b3d9fce
+0xa5239a27ed4f5
+0x19eadb5889b0aa
+0x4
+0x5
+0x3
+0x1b
+0x6b611a599d35
+0x17cfffe6b67519
+0x22cd6f409d92
+0x14d934aae9104f
+0x1
+0x0
+0x1d
+0x69021b383e019
+0xb2eeca39f4411
+0x19bde6a74a8176
+0x109b137260b874
+0x48
+0x0
+0x1a
+0xf355a7395846b
+0x15b00d726e4ee7
+0x1fedf777e57d88
+0x423cee29b9e8
+0x0
+0x0
+0x3f
+0x53f4b348eb83d
+0x179d64cc39300a
+0x889bb02c4e9d0
+0x7c02fd0b38bfc
+0x6
+0x7
+0x1
+0x0
+0x30
+0x557f78e5f5ddc
+0x13be8659e598f6
+0x5c3ef7390031c
+0x16049fe3804e86
+0x1
+0x0
+0x19
+0x4bddda7e72ff7

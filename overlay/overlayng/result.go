@@ -89,14 +89,15 @@ func nextBoundaryAtVertex(e *halfEdge, isBoundary func(*halfEdge) bool) *halfEdg
 	return nil
 }
 
-// applyOp tags each non-outer face with its keep flag for the given
-// operation.
+// applyOp tags each face with its keep flag for the given operation.
+// Every face — including the CW "outer" cycles — is classified by its
+// own representative interior point, so multi-component DCELs correctly
+// track that the CW twin of an inner component is geometrically inside
+// the surrounding outer face. The single TRUE outer face (covering the
+// unbounded universe) is naturally not kept because its interior point
+// lies outside both inputs.
 func applyOp(d *dcel, op Op) {
 	for _, f := range d.faces {
-		if f.isOuter {
-			f.keep = false
-			continue
-		}
 		switch op {
 		case OpIntersection:
 			f.keep = f.inSubj && f.inClip

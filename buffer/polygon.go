@@ -92,6 +92,17 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 	case distance < 0:
 		// 1. Inset the outer ring toward its interior.
 		d := -distance
+		// Bounding-box overshoot guard: if the polygon's bounding box
+		// has a side smaller than 2d, no point in the polygon can be at
+		// distance ≥ d from every boundary segment, so the inset is
+		// empty. This is a sufficient (not necessary) condition derived
+		// from the inscribed-circle bound — large enough polygons fall
+		// through to the offset path. Cheap O(n) check that catches the
+		// "skinny strip" failure mode without requiring true polygon-
+		// inscribed-circle computation.
+		if bboxTooThinForInset(outer, d) {
+			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+		}
 		shrunkOuter, ok := offsetClosedRing(outer, d, !outerCCW /*interior*/, cfg)
 		if !ok {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
@@ -102,6 +113,17 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		shrunkSigned := planar.Default.RingArea(shrunkOuter)
 		if (outerSigned > 0) != (shrunkSigned > 0) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+		}
+		// Centroid-probe overshoot: when the inset ring's centroid is
+		// strictly outside the original polygon, the offset has wandered
+		// out of the polygon entirely. The bbox guard above catches the
+		// trivially-thin cases; this catches the non-trivial overshoots
+		// where the bbox is thick but the polygon's interior throat
+		// still chokes the inset.
+		if cx, cy, ok := ringCentroid(shrunkOuter); ok {
+			if !pointInRingBuf(geom.XY{X: cx, Y: cy}, outer) {
+				return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+			}
 		}
 		var result geom.Geometry = geom.NewPolygon(p.CRS(), shrunkOuter)
 		// 2. Grow each hole and subtract from the shrunk outer.
@@ -384,6 +406,72 @@ func dedupeRing(ring []geom.XY) []geom.XY {
 		out = append(out, p)
 	}
 	return out
+}
+
+// ringCentroid returns the area-weighted centroid (cx, cy) of the
+// closed ring. Returns ok=false on degenerate rings (zero signed area).
+func ringCentroid(ring []geom.XY) (float64, float64, bool) {
+	if len(ring) < 4 {
+		return 0, 0, false
+	}
+	var sumA, sumX, sumY float64
+	for i := 0; i+1 < len(ring); i++ {
+		x0, y0 := ring[i].X, ring[i].Y
+		x1, y1 := ring[i+1].X, ring[i+1].Y
+		cross := x0*y1 - x1*y0
+		sumA += cross
+		sumX += (x0 + x1) * cross
+		sumY += (y0 + y1) * cross
+	}
+	if sumA == 0 {
+		return 0, 0, false
+	}
+	return sumX / (3 * sumA), sumY / (3 * sumA), true
+}
+
+// pointInRingBuf is the standard ray-cast test against a closed ring.
+func pointInRingBuf(p geom.XY, ring []geom.XY) bool {
+	if len(ring) < 4 {
+		return false
+	}
+	inside := false
+	for i := 0; i+1 < len(ring); i++ {
+		a, b := ring[i], ring[i+1]
+		if (a.Y > p.Y) != (b.Y > p.Y) {
+			xCross := a.X + (p.Y-a.Y)*(b.X-a.X)/(b.Y-a.Y)
+			if p.X < xCross {
+				inside = !inside
+			}
+		}
+	}
+	return inside
+}
+
+// bboxTooThinForInset reports whether the polygon's outer-ring bounding
+// box has a side smaller than 2d, in which case no point inside can be
+// at distance ≥ d from every boundary segment, so a negative buffer of
+// magnitude d collapses to empty.
+func bboxTooThinForInset(ring []geom.XY, d float64) bool {
+	if len(ring) == 0 {
+		return true
+	}
+	minX, maxX := ring[0].X, ring[0].X
+	minY, maxY := ring[0].Y, ring[0].Y
+	for _, p := range ring[1:] {
+		if p.X < minX {
+			minX = p.X
+		}
+		if p.X > maxX {
+			maxX = p.X
+		}
+		if p.Y < minY {
+			minY = p.Y
+		}
+		if p.Y > maxY {
+			maxY = p.Y
+		}
+	}
+	return (maxX-minX) < 2*d || (maxY-minY) < 2*d
 }
 
 // ringDegenerate reports whether ring has effectively zero area (bounding

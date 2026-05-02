@@ -1,0 +1,79 @@
+# 2026/05/01 21:29:19.580349 [TestUnionIntersectionAreaConservation] [rapid] draw a_x0: -0
+# 2026/05/01 21:29:19.580356 [TestUnionIntersectionAreaConservation] [rapid] draw a_y0: -0.0625
+# 2026/05/01 21:29:19.580358 [TestUnionIntersectionAreaConservation] [rapid] draw a_r: 7.953553477811511
+# 2026/05/01 21:29:19.580359 [TestUnionIntersectionAreaConservation] [rapid] draw a_rot: 4.69621657088328
+# 2026/05/01 21:29:19.580360 [TestUnionIntersectionAreaConservation] [rapid] draw b_x0: 7.764614700995253e-13
+# 2026/05/01 21:29:19.580361 [TestUnionIntersectionAreaConservation] [rapid] draw b_y0: 2.7919921875
+# 2026/05/01 21:29:19.580362 [TestUnionIntersectionAreaConservation] [rapid] draw b_r: 20
+# 2026/05/01 21:29:19.580362 [TestUnionIntersectionAreaConservation] [rapid] draw b_rot: 1.9990866223043042
+# 2026/05/01 21:29:19.580389 [TestUnionIntersectionAreaConservation] 
+# 	Error Trace:	/home/rkm/projects/go-topology-suite/overlay/property_test.go:68
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:371
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:380
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:205
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:120
+# 	            				/home/rkm/projects/go-topology-suite/overlay/property_test.go:45
+# 	Error:      	Max difference between 601.7911105869608 and 519.6152422706632 allowed is 30.089555529348043, but difference was 82.17586831629762
+# 	Test:       	TestUnionIntersectionAreaConservation
+# 	Messages:   	inclusion-exclusion violated: U=437.4393739543656 + I=82.17586831629765 = 519.6152422706632, A=82.17586831629765 + B=519.6152422706632 = 601.7911105869608
+# 
+v0.4.8#9187636017587881392
+0x1bbc1d53af1a74
+0x128b0a7447ac00
+0x1f508b5e7287b2
+0xffffffffffffffff
+0x0
+0x0
+0x0
+0x1eef31ebb98034
+0x1199484cf2b6c2
+0xab3e08e3ebf67
+0x3
+0x0
+0x0
+0x2ca4669a43d60
+0x4246cd2173a5c
+0x6da7d74a4055e
+0x1bca593031d6fe
+0x5
+0x2
+0x3
+0x26
+0x3d07052a8c2ae
+0x1067ad189b5dcd
+0x95cfafcb9ac42
+0x103a388f93f718
+0x2
+0x0
+0x29
+0x2c8ecff2b83eb
+0x31f4d706eca8b
+0x12873272f28734
+0xf20eeb364b066
+0x28
+0x0
+0x3a
+0xb51be40b467f4
+0x93913f4668f25
+0xba26fc2806f15
+0x15e3cc4535a55c
+0x6
+0x1
+0x0
+0xb
+0x6568eeab0761f
+0x92ae92e919c4f
+0x140bc7334a2f5a
+0x1dd91eb8dd6b27
+0x6
+0x4
+0x4
+0x0
+0x0
+0x114e58b0137cdc
+0x23de21fcc1ba
+0x1cb7bb6965a116
+0x0
+0x0
+0x30
+0xffc42410ab088

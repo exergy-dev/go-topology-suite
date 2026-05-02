@@ -122,36 +122,35 @@ func disjointIntersection(c *crs.CRS, subj, clip []*geom.Polygon) (*geom.Polygon
 }
 
 func disjointUnion(c *crs.CRS, subj, clip []*geom.Polygon) (*geom.Polygon, []*geom.Polygon, error) {
-	// A subj polygon contained in any clip polygon is absorbed.
-	// Same for clips contained in subjs.
-	subjAbsorbed := make([]bool, len(subj))
-	clipAbsorbed := make([]bool, len(clip))
-	for i, s := range subj {
-		for _, cl := range clip {
-			if polygonContainedIn(s, cl) {
-				subjAbsorbed[i] = true
-				break
-			}
-		}
-	}
-	for j, cl := range clip {
-		for _, s := range subj {
-			if polygonContainedIn(cl, s) {
-				clipAbsorbed[j] = true
-				break
-			}
-		}
-	}
+	// Absorption: a polygon is redundant iff it is fully contained in
+	// another polygon in the combined set. Walking the combined list in
+	// order with a "kept" prefix lets equal-or-equal polygons keep
+	// exactly one copy: the first occurrence survives, later equals are
+	// absorbed by it.
+	all := make([]*geom.Polygon, 0, len(subj)+len(clip))
+	all = append(all, subj...)
+	all = append(all, clip...)
 	var pieces []*geom.Polygon
-	for i, s := range subj {
-		if !subjAbsorbed[i] {
-			pieces = append(pieces, s)
+	for _, p := range all {
+		absorbed := false
+		for _, kept := range pieces {
+			if polygonContainedIn(p, kept) {
+				absorbed = true
+				break
+			}
 		}
-	}
-	for j, cl := range clip {
-		if !clipAbsorbed[j] {
-			pieces = append(pieces, cl)
+		if absorbed {
+			continue
 		}
+		// Drop any previously kept polygon strictly contained in p.
+		out := pieces[:0]
+		for _, kept := range pieces {
+			if polygonContainedIn(kept, p) && !polygonContainedIn(p, kept) {
+				continue
+			}
+			out = append(out, kept)
+		}
+		pieces = append(out, p)
 	}
 	return packPolygons(c, pieces)
 }

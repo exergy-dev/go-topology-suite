@@ -83,6 +83,22 @@ func (k Kernel) SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersect
 		if t < 0 || t > 1 || u < 0 || u > 1 {
 			return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
 		}
+		// Endpoint snapping: when an exact orient check makes one of the
+		// parameters vanish, the intersection coincides with that
+		// endpoint. Returning the parametric reconstruction would carry
+		// rounding error and break downstream noding (the same vertex
+		// re-emerges as two near-duplicate nodes, disconnecting the
+		// topology graph). Snap to the exact endpoint instead.
+		switch {
+		case tNum == 0:
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: a1}
+		case tNum == denom:
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: a2}
+		case uNum == 0:
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b1}
+		case uNum == denom:
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b2}
+		}
 		return kernel.SegmentIntersectionResult{
 			Kind: kernel.PointIntersection,
 			P:    geom.XY{X: a1.X + t*rx, Y: a1.Y + t*ry},
