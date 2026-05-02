@@ -196,6 +196,60 @@ func TestRemoveSpikes_ToleranceAware(t *testing.T) {
 	})
 }
 
+// TestFindSubgraphs_TwoDisjointSquares verifies that two
+// non-overlapping CCW squares produce two distinct connected subgraphs
+// after DCEL construction. With a single-component depth labeller this
+// would be incorrect (only one square's anchor face would be picked
+// and the other square's depths would be derived via fallback ray-
+// cast). With per-subgraph labeling each square is anchored at its
+// own topmost-rightmost vertex.
+func TestFindSubgraphs_TwoDisjointSquares(t *testing.T) {
+	segs := []offsetSegment{
+		// Square A: (0,0)-(2,0)-(2,2)-(0,2)
+		{p0: geom.XY{X: 0, Y: 0}, p1: geom.XY{X: 2, Y: 0}, depthDelta: 1},
+		{p0: geom.XY{X: 2, Y: 0}, p1: geom.XY{X: 2, Y: 2}, depthDelta: 1},
+		{p0: geom.XY{X: 2, Y: 2}, p1: geom.XY{X: 0, Y: 2}, depthDelta: 1},
+		{p0: geom.XY{X: 0, Y: 2}, p1: geom.XY{X: 0, Y: 0}, depthDelta: 1},
+		// Square B: (10,0)-(12,0)-(12,2)-(10,2)
+		{p0: geom.XY{X: 10, Y: 0}, p1: geom.XY{X: 12, Y: 0}, depthDelta: 1},
+		{p0: geom.XY{X: 12, Y: 0}, p1: geom.XY{X: 12, Y: 2}, depthDelta: 1},
+		{p0: geom.XY{X: 12, Y: 2}, p1: geom.XY{X: 10, Y: 2}, depthDelta: 1},
+		{p0: geom.XY{X: 10, Y: 2}, p1: geom.XY{X: 10, Y: 0}, depthDelta: 1},
+	}
+	g := buildPolygonizeDCEL(segs)
+	require.NotNil(t, g)
+	subs := findSubgraphs(g)
+	require.Len(t, subs, 2, "two disjoint components")
+	// Each subgraph should contain 8 half-edges (4 forward + 4 twin).
+	for _, sub := range subs {
+		assert.Len(t, sub, 8, "each square has 4 edges + 4 twins = 8 half-edges")
+	}
+	// End-to-end: polygonizeBuffer should yield BOTH squares' interiors.
+	got, err := polygonizeBuffer(nil, segs, 0)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	// Two disjoint 2x2 squares = total area 8.
+	assert.InDelta(t, 8.0, math.Abs(measure.Area(got)), 1e-9)
+}
+
+// TestTopmostRightmostVertex picks the (max-Y, max-X) vertex.
+func TestTopmostRightmostVertex(t *testing.T) {
+	// Build a tiny graph by hand: square with corners (0,0),(2,0),(2,2),(0,2).
+	v00 := &pgVertex{p: geom.XY{X: 0, Y: 0}}
+	v20 := &pgVertex{p: geom.XY{X: 2, Y: 0}}
+	v22 := &pgVertex{p: geom.XY{X: 2, Y: 2}}
+	v02 := &pgVertex{p: geom.XY{X: 0, Y: 2}}
+	edges := []*pgHalfEdge{
+		{origin: v00, target: v20},
+		{origin: v20, target: v22},
+		{origin: v22, target: v02},
+		{origin: v02, target: v00},
+	}
+	got := topmostRightmostVertex(edges)
+	require.NotNil(t, got)
+	assert.Equal(t, geom.XY{X: 2, Y: 2}, got.p, "max-Y, ties broken by max-X")
+}
+
 // TestPolygonize_SelfIntersectingOffset: a deliberately self-intersecting
 // "bowtie" offset curve (which arises from a concave reflex corner)
 // should resolve to two disjoint regions where depth >= 1, even though

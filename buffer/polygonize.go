@@ -269,27 +269,14 @@ func holeIsConsumed(ring []geom.XY, d float64) bool {
 // skip snap-rounding (the noder will still split segments at exact
 // intersections via its initial non-rounded pass).
 //
-// NEGATIVE BUFFER NOTE: this pipeline is currently used only for
-// distance > 0. Routing the negative-buffer (inset) path through here
-// has been investigated and shown to fail without further work:
-//
-//  1. Tolerance-aware spike removal (already applied below) is
-//     necessary so the round-trip property test passes — mitre-cap
-//     corners produce vertex pairs that differ by ULPs.
-//  2. Even with tolerance spike removal and a face-validity filter
-//     (interior point inside the original polygon AND ≥ d/2 from
-//     every original segment), the polygonize-based inset still
-//     regresses on (a) thin-parcel cases that produce spurious
-//     "overshoot lobe" faces with depth ≥ 1 and (b) fat-parcel
-//     cases that fragment into many micro-faces individually
-//     passing the filter but no longer assembling into the true
-//     inset multi-polygon.
-//
-// The principled fix needs JTS-style subgraph propagation in
-// labelFaceDepths: identify connected components of the noded offset
-// boundary, derive each component's depth from a path to a known-
-// zero-depth face, drop components whose net depth is invalid. This
-// is deferred — see the comment at the top of bufferPolygon.
+// NEGATIVE BUFFER NOTE: this pipeline is exposed via polygonizeBuffer
+// for both positive and negative offsets, but bufferPolygon currently
+// only routes positive buffers through it. Negative buffer (inset)
+// uses a separate offset+overshoot-guard pipeline (see polygon.go).
+// labelSubgraphDepths is the per-subgraph depth labeller that makes
+// disjoint-offset-component cases tractable; for negative buffer the
+// outstanding work is the inset-side face validity filter, which is
+// owned by the negative-buffer caller.
 func polygonizeBuffer(c *crs.CRS, segs []offsetSegment, tolerance float64) (geom.Geometry, error) {
 	if len(segs) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
@@ -308,7 +295,14 @@ func polygonizeBuffer(c *crs.CRS, segs []offsetSegment, tolerance float64) (geom
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
 	}
 
-	labelFaceDepths(g, noded)
+	// Per-subgraph depth labeling: partition the noded edge graph into
+	// connected components, anchor each subgraph's depth at its
+	// topmost-rightmost vertex's exterior face, then BFS within the
+	// subgraph. Subgraphs are labelled INDEPENDENTLY so an isolated
+	// "overshoot lobe" subgraph (where the offset curve self-intersects
+	// to enclose a region of the wrong topological depth) cannot
+	// contaminate the depth of unrelated faces in another subgraph.
+	labelSubgraphDepths(g, noded)
 	rings := extractKeptRings(g)
 	if len(rings) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
@@ -591,78 +585,245 @@ func buildPolygonizeDCEL(segs []offsetSegment) *pgGraph {
 	return g
 }
 
-// labelFaceDepths computes each face's depth via BFS propagation
-// from the outermost face (depth 0). Crossing a half-edge into the
-// adjacent face changes the depth by ±depthDelta of that edge,
-// where the sign reflects the direction crossed.
+// labelSubgraphDepths is the JTS-style depth labeller that scopes BFS
+// depth propagation to a single connected component ("subgraph") of
+// the noded edge graph. It supersedes the older single-component BFS
+// labeller (which used a single max-X "outermost" face for the whole
+// graph and could not handle disjoint offset components correctly).
 //
-// Depth propagation is more robust than independent ray-casting
-// against the input segments because it derives differences from the
-// noded DCEL's actual edge structure: spurious self-intersection
-// "lobes" of the offset don't accumulate winding-number errors —
-// they connect back to the outer face via the same edge sequence
-// they spawned from.
-func labelFaceDepths(g *pgGraph, segs []offsetSegment) {
+// JTS BufferOp partitions the noded offset boundary into subgraphs and
+// labels each subgraph's depth INDEPENDENTLY. This is critical when the
+// offset curves produce isolated overshoot lobes — small self-
+// intersecting sub-curves that, if treated as part of the same depth-
+// propagation tree as the main offset, contaminate face depths with
+// spurious +1 contributions and produce phantom kept faces.
+//
+// Algorithm per subgraph:
+//
+//  1. Find the topmost-rightmost vertex (max-Y, ties broken by max-X).
+//     For a closed boundary subgraph, this vertex is on the geometric
+//     "outside" of the subgraph.
+//  2. Pick its CCW-first outgoing half-edge. The face on the LEFT of
+//     that edge (i.e., e.face) is the subgraph's outermost face.
+//  3. Compute that face's absolute depth by ray-casting against ALL
+//     offset segments (the global winding number).
+//  4. If the anchor face's depth < 1, the entire subgraph is an
+//     overshoot lobe with no kept interior — mark every face in the
+//     subgraph as keep=false.
+//  5. Otherwise BFS from the anchor face within the subgraph,
+//     propagating depth via twin-edge crossings: depth(twin.face) =
+//     depth(e.face) - e.depthDelta. Mark face.keep = (depth >= 1).
+//
+// Subgraph identification uses Union-Find on edges by shared-vertex
+// adjacency, which is sufficient because the planar subdivision's DCEL
+// only links edges within the same connected component via twin/next
+// pointers. Edges sharing only the unbounded "outer face" geometrically
+// (but not a vertex) are correctly placed in different subgraphs.
+func labelSubgraphDepths(g *pgGraph, segs []offsetSegment) {
 	if len(g.faces) == 0 {
 		return
 	}
-	// Identify the outermost face: the one whose representative
-	// interior point has the LARGEST x-coordinate (extreme on the
-	// convex hull is guaranteed to be in the outer infinite face of
-	// the planar subdivision).
-	var outer *pgFace
-	var outerX float64 = math.Inf(-1)
-	for _, f := range g.faces {
-		ip, ok := faceRepresentativePoint(f)
-		if !ok {
-			continue
-		}
-		if ip.X > outerX {
-			outerX = ip.X
-			outer = f
-		}
-	}
-	if outer == nil {
+	subgraphs := findSubgraphs(g)
+	if len(subgraphs) == 0 {
 		return
 	}
-	// Anchor the outer face at depth 0 plus its actual ray-cast
-	// winding (which may be non-zero if the outermost segments form
-	// a closed CW curve enclosing it). The ray cast from the outer
-	// face's interior point to +∞ gives the absolute depth offset.
-	if ip, ok := faceRepresentativePoint(outer); ok {
-		outer.depth = rayCastDepth(ip, segs)
+	for _, sub := range subgraphs {
+		labelOneSubgraph(sub, segs)
 	}
-	outer.keep = outer.depth >= 1
-	// BFS: visit every face by crossing each half-edge into its twin's
-	// face. depth(F') = depth(F) + edgeDelta where edgeDelta accounts
-	// for which side of the edge F lies on.
-	queue := []*pgFace{outer}
-	visited := map[*pgFace]bool{outer: true}
+	// Faces not touched by any subgraph (degenerate / spur-only) keep
+	// their zero-init depth and keep=false.
+}
+
+// findSubgraphs partitions g.edges into connected components by
+// vertex-share adjacency. Two half-edges belong to the same subgraph
+// iff there is a path of edges (and twins) connecting them through
+// shared vertices. Returns each component as a slice of half-edges
+// (forward + twins both included).
+func findSubgraphs(g *pgGraph) [][]*pgHalfEdge {
+	if len(g.edges) == 0 {
+		return nil
+	}
+	// Union-Find over vertices: two vertices are merged when they are
+	// connected by an edge.
+	parent := map[*pgVertex]*pgVertex{}
+	var find func(v *pgVertex) *pgVertex
+	find = func(v *pgVertex) *pgVertex {
+		p, ok := parent[v]
+		if !ok {
+			parent[v] = v
+			return v
+		}
+		if p == v {
+			return v
+		}
+		root := find(p)
+		parent[v] = root
+		return root
+	}
+	union := func(a, b *pgVertex) {
+		ra, rb := find(a), find(b)
+		if ra != rb {
+			parent[ra] = rb
+		}
+	}
+	for _, e := range g.edges {
+		if e.origin == nil || e.target == nil {
+			continue
+		}
+		union(e.origin, e.target)
+	}
+	// Group edges by their root vertex.
+	groups := map[*pgVertex][]*pgHalfEdge{}
+	for _, e := range g.edges {
+		if e.origin == nil {
+			continue
+		}
+		root := find(e.origin)
+		groups[root] = append(groups[root], e)
+	}
+	out := make([][]*pgHalfEdge, 0, len(groups))
+	for _, edges := range groups {
+		out = append(out, edges)
+	}
+	return out
+}
+
+// topmostRightmostVertex returns the vertex with the maximum Y
+// coordinate among the endpoints of edges. Ties are broken by maximum
+// X. For a closed planar subgraph this vertex lies on the geometric
+// "outside" — its incident-face on the LEFT of the CCW-first outgoing
+// edge is the subgraph's exterior anchor face.
+func topmostRightmostVertex(edges []*pgHalfEdge) *pgVertex {
+	var best *pgVertex
+	for _, e := range edges {
+		for _, v := range []*pgVertex{e.origin, e.target} {
+			if v == nil {
+				continue
+			}
+			if best == nil ||
+				v.p.Y > best.p.Y ||
+				(v.p.Y == best.p.Y && v.p.X > best.p.X) {
+				best = v
+			}
+		}
+	}
+	return best
+}
+
+// labelOneSubgraph computes the anchor face of one subgraph, ray-casts
+// its absolute depth, and BFS-propagates depths within the subgraph.
+// Faces with depth >= 1 are marked keep=true.
+//
+// "Within the subgraph" means: BFS only crosses edges whose face is in
+// the subgraph's face set. This prevents depth from leaking through
+// the conceptually-shared outer face into other subgraphs.
+func labelOneSubgraph(edges []*pgHalfEdge, segs []offsetSegment) {
+	if len(edges) == 0 {
+		return
+	}
+	// Collect the subgraph's faces.
+	subFaces := map[*pgFace]bool{}
+	for _, e := range edges {
+		if e.face != nil {
+			subFaces[e.face] = true
+		}
+	}
+	if len(subFaces) == 0 {
+		return
+	}
+	// Find anchor: topmost-rightmost vertex's CCW-first outgoing edge.
+	anchorVertex := topmostRightmostVertex(edges)
+	if anchorVertex == nil || len(anchorVertex.out) == 0 {
+		// Defensive fallback: pick any face and ray-cast.
+		var any *pgFace
+		for f := range subFaces {
+			any = f
+			break
+		}
+		fallbackLabelSubgraph(subFaces, any, segs)
+		return
+	}
+	// CCW-first outgoing edge from the anchor vertex. v.out is sorted
+	// by edge angle (atan2) ascending. After ordering by atan2, the
+	// "first" CCW edge from a topmost vertex is the one with the
+	// smallest angle (most negative / pointing rightward-or-down).
+	//
+	// More importantly, for the topmost-rightmost vertex of a subgraph,
+	// the LEFT side of its CCW-first outgoing edge points INTO the
+	// subgraph's outermost face (the geometric exterior of that
+	// component). We use that face as the anchor.
+	var anchor *pgHalfEdge
+	for _, oe := range anchorVertex.out {
+		if oe.face != nil && subFaces[oe.face] {
+			anchor = oe
+			break
+		}
+	}
+	if anchor == nil {
+		var any *pgFace
+		for f := range subFaces {
+			any = f
+			break
+		}
+		fallbackLabelSubgraph(subFaces, any, segs)
+		return
+	}
+	anchorFace := anchor.face
+	// Ray-cast anchor face's depth against all offset segments.
+	ip, ok := faceRepresentativePoint(anchorFace)
+	if !ok {
+		fallbackLabelSubgraph(subFaces, anchorFace, segs)
+		return
+	}
+	anchorDepth := rayCastDepth(ip, segs)
+	anchorFace.depth = anchorDepth
+	anchorFace.keep = anchorDepth >= 1
+	// If the anchor face (the outermost / exterior face of this
+	// subgraph) has depth >= 1, the subgraph IS an interior of a
+	// larger buffer region — accept and propagate. If it has depth < 1,
+	// the subgraph is correctly recognised as exterior.
+	//
+	// Either way, BFS within the subgraph propagates depth differentials
+	// edge-by-edge so each interior face gets its correct absolute
+	// depth.
+	queue := []*pgFace{anchorFace}
+	visited := map[*pgFace]bool{anchorFace: true}
 	for len(queue) > 0 {
 		f := queue[0]
 		queue = queue[1:]
 		for _, e := range f.edges {
 			twin := e.twin
-			if twin == nil || twin.face == nil || visited[twin.face] {
+			if twin == nil || twin.face == nil {
 				continue
 			}
-			// Crossing FROM e.face (LEFT of e) INTO e.twin.face (RIGHT
-			// of e, i.e., LEFT of e.twin). depthDelta on e represents
-			// the depth gained going RIGHT-to-LEFT across e (i.e., into
-			// e.face). Going the OTHER way (e.face → e.twin.face) we
-			// LOSE depthDelta.
+			if !subFaces[twin.face] || visited[twin.face] {
+				continue
+			}
 			twin.face.depth = f.depth - int(e.depthDelta)
 			twin.face.keep = twin.face.depth >= 1
 			visited[twin.face] = true
 			queue = append(queue, twin.face)
 		}
 	}
-	// Any face not reached by BFS (disconnected component) gets a
-	// fallback ray-cast depth.
-	for _, f := range g.faces {
+	// Any subgraph face not reached (disconnected via twin/face links
+	// — possible with degenerate spur edges) gets a fallback ray-cast.
+	for f := range subFaces {
 		if visited[f] {
 			continue
 		}
+		ip, ok := faceRepresentativePoint(f)
+		if !ok {
+			continue
+		}
+		f.depth = rayCastDepth(ip, segs)
+		f.keep = f.depth >= 1
+	}
+}
+
+// fallbackLabelSubgraph ray-casts every face's depth independently.
+// Used when anchor selection fails (degenerate subgraph topology).
+func fallbackLabelSubgraph(subFaces map[*pgFace]bool, _ *pgFace, segs []offsetSegment) {
+	for f := range subFaces {
 		ip, ok := faceRepresentativePoint(f)
 		if !ok {
 			continue
