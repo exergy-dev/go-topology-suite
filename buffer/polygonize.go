@@ -492,6 +492,40 @@ func originalRingsOf(orig *geom.Polygon) [][]geom.XY {
 	return rings
 }
 
+// negativeBufferHybridValidator combines the winding-number depth check
+// (rep is topologically inside the original polygon body, winding ==
+// sign(outer)) with the distance-from-boundary clearance check (rep is
+// at least minDistance away from any original boundary segment).
+//
+// This is the V4 hybrid: winding gives a robust topological classifier
+// that correctly handles polygon-with-hole inputs (rep inside a hole
+// has winding 0 and is rejected, where the legacy pointInPolygonRings
+// already gave the same answer). Distance gives the load-bearing
+// "phantom overshoot" rejection: mitre-overshoot lobes can have
+// winding == +1 (rep happens to land inside the polygon) but their
+// rep is always within ULP of the original boundary, far below the
+// minDistance threshold of d (the inset radius). The conjunction is
+// strictly safer than either check alone.
+//
+// minDistance is the inset magnitude d (always positive). Pass 0 to
+// skip the distance check (winding-only).
+func negativeBufferHybridValidator(orig *geom.Polygon, minDistance float64) func(geom.XY) bool {
+	rings := originalRingsOf(orig)
+	sign := outerOrientationSign(orig)
+	if len(rings) == 0 || sign == 0 {
+		return func(geom.XY) bool { return false }
+	}
+	return func(p geom.XY) bool {
+		if windingDepth(p, rings) != sign {
+			return false
+		}
+		if minDistance > 0 && minDistToBoundary(p, rings) < minDistance {
+			return false
+		}
+		return true
+	}
+}
+
 // outerOrientationSign returns +1 if the polygon's outer ring is CCW
 // (the JTS / OGC convention), -1 if CW, 0 if degenerate. Used to
 // normalise winding-depth comparisons so the predicate is orientation-
