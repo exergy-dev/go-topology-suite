@@ -42,45 +42,62 @@ func extractResultLines(d *dcel, op Op) [][]geom.XY {
 //
 // Two flavours of lineal result are recognised:
 //
-//  1. Shared-boundary lines: edges where both adjacent faces are NOT
-//     in the polygonal result, but the edge itself was contributed
-//     by both inputs (tag = 0b11). Only emitted for Intersection —
-//     these are the segments where the polygons' boundaries touch
-//     without overlap area.
+//  1. Shared-boundary lines (Intersection only): edges between two
+//     non-kept faces that lie on both inputs' boundaries — the
+//     classic A∩B "shared seam" line.
 //
 //  2. Spur edges (e.face == e.twin.face): the edge is internal to a
-//     single face. This happens when snap-rounding collapses a thin
-//     sliver of one input to a line; the line sits inside the kept
-//     region (or outside it) but contributes a degenerate dimension-1
-//     piece to the result.
+//     single face, the geometric residue of a sliver that collapsed
+//     to a line under snap rounding. Spurs are recognised for every
+//     op: emit one iff the spur is in the appropriate input set per
+//     the op's truth table.
 //
-// A spur edge is "in the lineal result" when the segment belongs to
-// the appropriate inputs for the operation, where membership comes
-// from the surrounding face's inSubj/inClip flags ORed with the
-// edge's tag bits. (A tag bit alone is enough: it means the segment
-// lay on that input's boundary, hence is geometrically part of that
-// input's coverage.)
+// Membership for spur edges uses CLOSED-set semantics: a spur is "in
+// subj" if it lies on subj's boundary (tag bit 1 set) OR its
+// surrounding face's interior is in subj. Same for clip. Per-op
+// rules then read directly:
+//
+//	Intersection: in subj AND in clip
+//	Union:        in subj OR in clip
+//	Difference:   in subj AND NOT in clip
+//	SymDiff:      in subj XOR in clip
+//
+// Spurs whose surrounding face is kept (the spur lies inside a 2D
+// result region) are excluded — those points are already covered
+// by the polygon. Non-spur edges are emitted as lines only for
+// Intersection; other ops route those through extractResultRings.
 func lineEdgePredicate(op Op) func(*halfEdge) bool {
 	return func(e *halfEdge) bool {
 		if e.face == nil || e.twin == nil || e.twin.face == nil {
 			return false
 		}
-		// Spur edge: e.face == e.twin.face — the edge is interior to
-		// a single face, not a separator between two faces. Only
-		// recognised for Intersection (the signal that a collapsed
-		// sliver must surface as lineal output); other ops route
-		// such edges through the polygon-only pipeline.
+		// Spur edge: e.face == e.twin.face. The edge is interior to
+		// a single face. Compute closed-set membership from that
+		// face plus the edge's tag, then apply the per-op rule.
 		if e.face == e.twin.face {
-			if op != OpIntersection {
+			f := e.face
+			if f.keep {
 				return false
 			}
-			f := e.face
 			inSubj := f.inSubj || (e.tags&0b01 != 0)
 			inClip := f.inClip || (e.tags&0b10 != 0)
-			return inSubj && inClip
+			switch op {
+			case OpIntersection:
+				return inSubj && inClip
+			case OpUnion:
+				return inSubj || inClip
+			case OpDifference:
+				return inSubj && !inClip
+			case OpSymDiff:
+				return inSubj != inClip
+			}
+			return false
 		}
 		// Non-spur edge separating two distinct faces. Lineal lines
-		// arise only for Intersection.
+		// arise only for Intersection; other ops drop these (the
+		// kept-polygon boundary is harvested by extractResultRings,
+		// and edges between two non-kept faces aren't part of the
+		// result for Union/Difference/SymDiff in 2D-only outputs).
 		if op != OpIntersection {
 			return false
 		}

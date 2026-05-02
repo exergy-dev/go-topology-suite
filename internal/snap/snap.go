@@ -58,7 +58,15 @@ func snapScalar(x, invTol, tol float64) float64 {
 	if !isFinite(x) {
 		return x
 	}
-	return math.Round(x*invTol) * tol
+	r := math.Round(x*invTol) * tol
+	// Normalise IEEE-754 negative zero to positive zero so two vertices
+	// at the same grid cell have identical bit patterns. Without this,
+	// e.g. -0.2 rounds to -0 while 0.2 rounds to +0; downstream code
+	// keyed on math.Float64bits sees them as distinct vertices.
+	if r == 0 {
+		return 0
+	}
+	return r
 }
 
 func isFinite(x float64) bool { return !math.IsNaN(x) && !math.IsInf(x, 0) }
