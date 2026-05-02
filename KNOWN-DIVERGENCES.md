@@ -28,11 +28,13 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-02)
 
-After Pillar 1, 2/3 (partial), 4 P1 (positive buffer polygonization),
-5, 6 P1 (line-on-polygon-boundary collinear overlap), and 7 work, the
-corpus stands at **98.5% pass rate** (8817/8951 passing, 104 failures,
-30 skipped). All `relate` / `within` / `contains` / `touches` /
-`crosses` / `overlaps` / `equals` predicates pass on the JTS corpus.
+After Pillars 1, 2/3 (partial), 4 P1 (positive buffer polygonization),
+5, 6 P1 (line-on-polygon-boundary collinear overlap), 7, plus the
+overlay auto-tolerance retry for FLOATING-precision real-world
+ticket cases, the corpus stands at **98.7% pass rate**
+(8836/8951 passing, 85 failures, 30 skipped). All `relate` /
+`within` / `contains` / `touches` / `crosses` / `overlaps` /
+`equals` predicates pass on the JTS corpus.
 
 The remaining 104 failures concentrate in:
 
@@ -112,6 +114,25 @@ The remaining 104 failures concentrate in:
   subtract holes when computing intersection of polygon-with-hole
   vs polygon. Needs targeted fixes in
   `overlay/overlayng/result.go`.
+
+- **Op:** `union` on real-world high-magnitude polygon pairs
+- **Trigger:** `upstream/misc/TestOverlay.xml` case#4
+  (https://trac.osgeo.org/geos/ticket/737). Two polygons in UTM-scale
+  coordinates (~5e6 magnitude) with sliver overlaps; expected output
+  is a 4-component MultiPolygon, Terra emits a 3-component MultiPolygon
+  from the floating-precision path and the auto-tolerance retry's
+  output (1e-9 grid) is also valid 3-poly so the retry's
+  cheap-validity probe accepts it without noticing the missing sliver.
+- **Resolution:** The auto-tolerance fallback added for cases #0/#1/#3
+  (which collapse to LINESTRING or self-intersecting MultiPolygon
+  under raw float overlay) doesn't fire here because both candidates
+  are structurally valid. Distinguishing "valid but missing a
+  component" from "valid and complete" requires comparing the
+  result's area with an analytic upper bound (sum of input areas
+  minus pairwise-disjoint clip area), which is non-trivial for
+  multi-polygon inputs. Deferred until a JTS-style robust overlay
+  pipeline (snap-rounding noder + topology-collapse cleanup +
+  area-conservation check) is feasible.
 
 ### TestSimplify residuals (2026-05-01)
 
