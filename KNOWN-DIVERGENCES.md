@@ -30,14 +30,15 @@ Each entry should record:
 
 After Pillars 1–7 + Streams A–G + G1–G4 + post-G4 round (buffer-polygonize
 upper bound, polygon-vs-line touch-point emission, orientation-tolerant
-Polygon Equals, area-conservation upper-bound check), the corpus stands
-at **99.0% pass rate** (8860/8951 passing, 61 failures, 30 skipped —
-99.3% excluding skipped). Down from a 200-failure baseline.
+Polygon Equals, area-conservation upper-bound check, phantom-sliver-hole
+filter for floating-precision Union), the corpus stands at **99.0% pass
+rate** (8861/8951 passing, 60 failures, 30 skipped — 99.3% excluding
+skipped). Down from a 200-failure baseline.
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
 `overlaps` / `equals` / `isValid` predicates pass on the JTS corpus.
 
-The remaining 61 failures break down:
+The remaining 60 failures break down:
 
 | Bucket | Count | Resolution |
 |--------|------:|------------|
@@ -48,8 +49,7 @@ The remaining 61 failures break down:
 | TestBufferMitredJoin | 1 | Mitre-join with reflex corner; same root cause as TestBufferExternal2. |
 | TestOverlayAAPrec | 1 | Polygon-difference-LineString case#14: B is a `LineString`, routed through float `overlay.Difference` (not snap-rounded NG). Hole reshaping under tolerance=1 unhandled by float path. |
 | TestOverlayLAPrec | 1 | case#0 difference at scale=1: sliver polygon dimensionally collapses to a vertical line; JTS decomposes into Polygon+LineString, we return the polygon unchanged. Hybrid-DCEL polygon-snap-rounding decomposer needed. |
-| TestOverlayAA | 1 | Pillar 1 leftover. Complex AA touching+overlapping. |
-| TestUnaryUnionFloating | 1 | Real-world MultiPoint union with closely-clustered coords. |
+| TestOverlayAA | 1 | case#9 symdifference: mAmA inputs where A is a multipolygon with self-touching "fold-in" outer rings (notches) and B partially fills the notches. The DCEL classifier mis-keeps the unfilled notch face when both inputs are multi-polygon; root cause sits in `classifyFacesByPolygons` boundary-tag-aware nudging interaction with multi-polygon `inSubj/inClip` membership. SymmetricDifference's Union-of-(A\B,B\A) path inherits the bug. Deferred — needs face-classification rework for multi-polygon inputs with shared seams. |
 | misc/TestOverlay #4 | 1 | GEOS#737 — sliver under area threshold (3e-6 relative). Area-conservation check tightening below 1e-6 would force spurious retries on rounding noise. Closing requires per-input snap-rounding to coordinate-magnitude-relative grid, not retry-gating. |
 | misc/GEOSBuffer + geos-bug356-buffer | 2 | GEOS-tracked buffer pathologies. |
 | **JTS-known-fail** (`failure/` folder) | 9 | TestReducePrecisionFailure 5, TestOverlayNGFailure 2, TestBufferFailure 1, TestBigNastyBuffer 1. JTS headers these as "Result provided is approximately correct". |
