@@ -276,3 +276,72 @@ func TestPolygonize_SelfIntersectingOffset(t *testing.T) {
 	// Total kept area = 25 (one triangle, base 10, height 5).
 	assert.InDelta(t, 25.0, math.Abs(measure.Area(got)), 1e-9, "single triangle kept")
 }
+
+// TestPolygonize_FilterDropsTinyRings: the min-area filter should
+// reject snap-rounding sliver rings whose area is microscopic relative
+// to the buffer distance.
+func TestPolygonize_FilterDropsTinyRings(t *testing.T) {
+	// One legitimate 10×10 inset ring (area=100), plus a 0.001×0.001
+	// sliver (area=1e-6). With minArea = 1.0 (way above the sliver),
+	// only the big ring survives.
+	segs := []offsetSegment{
+		{p0: geom.XY{X: 0, Y: 0}, p1: geom.XY{X: 10, Y: 0}, depthDelta: 1},
+		{p0: geom.XY{X: 10, Y: 0}, p1: geom.XY{X: 10, Y: 10}, depthDelta: 1},
+		{p0: geom.XY{X: 10, Y: 10}, p1: geom.XY{X: 0, Y: 10}, depthDelta: 1},
+		{p0: geom.XY{X: 0, Y: 10}, p1: geom.XY{X: 0, Y: 0}, depthDelta: 1},
+		// Disjoint sliver far from the main square.
+		{p0: geom.XY{X: 100, Y: 100}, p1: geom.XY{X: 100.001, Y: 100}, depthDelta: 1},
+		{p0: geom.XY{X: 100.001, Y: 100}, p1: geom.XY{X: 100.001, Y: 100.001}, depthDelta: 1},
+		{p0: geom.XY{X: 100.001, Y: 100.001}, p1: geom.XY{X: 100, Y: 100.001}, depthDelta: 1},
+		{p0: geom.XY{X: 100, Y: 100.001}, p1: geom.XY{X: 100, Y: 100}, depthDelta: 1},
+	}
+	got, err := polygonizeBufferWithFilter(nil, segs, 0, nil, 1.0)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.InDelta(t, 100.0, measure.Area(got), 1e-9,
+		"sliver dropped by min-area filter; main ring kept")
+}
+
+// TestPolygonize_FaceValidatorRejectsOutsideRings: the keep predicate
+// can reject extracted rings whose representative point is "outside the
+// original" — modelled here as a predicate returning false for any
+// ring whose rep point's X coordinate is negative.
+func TestPolygonize_FaceValidatorRejectsOutsideRings(t *testing.T) {
+	// Two disjoint squares: one at (0..10) (rep X > 0, kept) and one
+	// at (-20..-10) (rep X < 0, rejected).
+	segs := []offsetSegment{
+		{p0: geom.XY{X: 0, Y: 0}, p1: geom.XY{X: 10, Y: 0}, depthDelta: 1},
+		{p0: geom.XY{X: 10, Y: 0}, p1: geom.XY{X: 10, Y: 10}, depthDelta: 1},
+		{p0: geom.XY{X: 10, Y: 10}, p1: geom.XY{X: 0, Y: 10}, depthDelta: 1},
+		{p0: geom.XY{X: 0, Y: 10}, p1: geom.XY{X: 0, Y: 0}, depthDelta: 1},
+
+		{p0: geom.XY{X: -20, Y: 0}, p1: geom.XY{X: -10, Y: 0}, depthDelta: 1},
+		{p0: geom.XY{X: -10, Y: 0}, p1: geom.XY{X: -10, Y: 10}, depthDelta: 1},
+		{p0: geom.XY{X: -10, Y: 10}, p1: geom.XY{X: -20, Y: 10}, depthDelta: 1},
+		{p0: geom.XY{X: -20, Y: 10}, p1: geom.XY{X: -20, Y: 0}, depthDelta: 1},
+	}
+	keep := func(rep geom.XY) bool { return rep.X > 0 }
+	got, err := polygonizeBufferWithFilter(nil, segs, 0, keep, 0)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.InDelta(t, 100.0, measure.Area(got), 1e-9,
+		"only positive-X square kept")
+}
+
+// TestFaceValidator_PointInPolygonAndDistance: faceValidatorFor's
+// composite predicate (point-in-poly AND ≥ d*frac from boundary).
+func TestFaceValidator_PointInPolygonAndDistance(t *testing.T) {
+	// 10×10 square, frac=0.5, d=2, so threshold = 1.0 from boundary.
+	square := geom.NewPolygon(nil, []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	})
+	v := faceValidatorFor(square, 2.0, 0.5)
+	// Centre is inside, 5 units from any boundary > 1.0 → keep.
+	assert.True(t, v(geom.XY{X: 5, Y: 5}), "centre kept")
+	// Near edge (0.5 from left boundary), threshold 1.0 → reject.
+	assert.False(t, v(geom.XY{X: 0.5, Y: 5}), "too close to boundary")
+	// Outside polygon → reject regardless of distance.
+	assert.False(t, v(geom.XY{X: -5, Y: 5}), "outside")
+	// Just inside boundary, > threshold → keep.
+	assert.True(t, v(geom.XY{X: 1.5, Y: 5}), "just inside, above threshold")
+}

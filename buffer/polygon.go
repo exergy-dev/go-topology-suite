@@ -86,78 +86,140 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		return got, nil
 
 	case distance < 0:
-		// Negative buffer keeps the legacy offset+overshoot-guard
-		// pipeline. The polygonize path subsumes positive buffer but
-		// for negative buffer it produces spurious "overshoot lobe"
-		// faces on thin/concave parcels: when the offset ring self-
-		// intersects across a thin throat, the resulting DCEL has
-		// faces with depth ≥ 1 that are outside the true inset
-		// region. A naive face-validity filter (representative point
-		// inside the original polygon AND ≥ d/2 from every original
-		// segment) closes some of these but causes net regressions
-		// because polygonize fragments fat-parcel insets into many
-		// micro-faces that the filter passes individually but no
-		// longer reassemble into the true inset multi-polygon.
+		// Negative buffer (inset). Two-phase strategy:
 		//
-		// The principled fix is JTS-style subgraph propagation in
-		// labelFaceDepths: identify connected components of the
-		// noded offset boundary, derive each component's depth from
-		// a path to a known-zero-depth face, and drop components
-		// whose net depth is invalid. This is deferred — see
-		// labelFaceDepths comments.
+		//  1. LEGACY PATH FIRST. The single-ring offset + overshoot
+		//     guards + per-hole overlay.Difference pipeline produces
+		//     clean ring outputs on the typical "convex / fat-parcel"
+		//     inputs the property tests exercise. Snap-rounding the
+		//     same inputs through the polygonizer can introduce
+		//     spurious mitre-cap micro-faces (degenerate slivers)
+		//     when the polygon has many near-collinear vertices from
+		//     a previous dilation.
+		//
+		//     If the legacy path returns a non-empty result, we
+		//     return it directly — preserving every currently-working
+		//     case.
+		//
+		//  2. POLYGONIZER FALLBACK when the legacy path collapses to
+		//     empty. Many real "thin parcel" inputs really do inset
+		//     to empty, but a residual minority should still produce
+		//     a non-empty inset ring (JTS's TestBufferExternal2,
+		//     TestBufferJagged, TestBufferMitredJoin all expose this).
+		//     The polygonizer's subgraph-aware depth labeller plus a
+		//     face-validity filter (representative point INSIDE the
+		//     original AND ≥ d from any original boundary segment)
+		//     recovers these cases without admitting overshoot lobes.
 		d := -distance
 		if bboxTooThinForInset(outer, d) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		shrunkOuter, ok := offsetClosedRing(outer, d, !outerCCW, cfg)
-		if !ok {
+		legacy, legacyErr := bufferPolygonNegativeLegacy(p, distance, cfg, outer, outerCCW, outerSigned)
+		if legacyErr != nil {
+			return nil, legacyErr
+		}
+		if legacy != nil && !legacy.IsEmpty() {
+			return legacy, nil
+		}
+		// Polygonizer fallback. Only reached when the legacy pipeline
+		// reports empty — exactly the regime where JTS conformance is
+		// currently weakest. The face-validity filter ensures we
+		// never invent inset faces that lie outside the original or
+		// straddle its boundary.
+		segs := emitPolygonOffsetSegments(p, distance, cfg)
+		if len(segs) == 0 {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		if ringDegenerate(shrunkOuter) {
+		tolerance := d * 1e-9
+		// Threshold: every TRUE inset interior point is at distance
+		// >= d from the original boundary by construction. Requiring
+		// the full d (frac=1.0) is the strictest possible filter — it
+		// rejects every overshoot lobe whose rep point sits closer
+		// than d to the original boundary. Snap-rounding noise on
+		// rep-points is well below d for the |d|*1e-9 tolerance, so
+		// no legitimate inset face is rejected.
+		validate := faceValidatorFor(p, d, 1.0)
+		// Minimum-area filter: drop snap-rounding micro-slivers whose
+		// area is negligible compared to d^2. A real inset face has
+		// area at least a few d^2; anything two orders of magnitude
+		// smaller is noise.
+		minArea := d * d * 0.01
+		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, minArea)
+		if err != nil {
+			return nil, fmt.Errorf("buffer: polygonize inset: %w", err)
+		}
+		if got == nil || got.IsEmpty() {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		shrunkSigned := planar.Default.RingArea(shrunkOuter)
-		if (outerSigned > 0) != (shrunkSigned > 0) {
-			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
-		}
-		if cx, cy, ok := ringCentroid(shrunkOuter); ok {
-			if !pointInRingBuf(geom.XY{X: cx, Y: cy}, outer) {
-				return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
-			}
-		}
-		if insetOvershoot(shrunkOuter, outer, d) {
-			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
-		}
-		var result geom.Geometry = geom.NewPolygon(p.CRS(), shrunkOuter)
-		for r := 1; r < p.NumRings(); r++ {
-			hole := p.Ring(r)
-			holeSigned := planar.Default.RingArea(hole)
-			holeCCW := holeSigned > 0
-			grown, ok := offsetClosedRing(hole, d, holeCCW, cfg)
-			if !ok {
-				continue
-			}
-			if ringDegenerate(grown) {
-				continue
-			}
-			grownSigned := planar.Default.RingArea(grown)
-			if (holeSigned > 0) != (grownSigned > 0) {
-				continue
-			}
-			next, err := overlay.Difference(result, geom.NewPolygon(p.CRS(), grown))
-			if err != nil {
-				return nil, fmt.Errorf("buffer: subtract grown hole %d: %w", r-1, err)
-			}
-			result = next
-			if result.IsEmpty() {
-				return result, nil
-			}
-		}
-		return result, nil
+		return got, nil
 	}
 
 	// distance == 0 unreachable; Buffer short-circuits earlier.
 	return p, nil
+}
+
+// bufferPolygonNegativeLegacy is the original pre-polygonize-fallback
+// negative-buffer pipeline: offset the outer ring inward, validate it
+// with overshoot guards, then subtract each grown hole via overlay.
+// Returns an empty polygon when any guard fires; the caller decides
+// whether to fall through to the polygonize-based fallback.
+//
+// Caller passes outerCCW / outerSigned / outer pre-computed so we can
+// reuse them.
+func bufferPolygonNegativeLegacy(
+	p *geom.Polygon,
+	distance float64,
+	cfg config,
+	outer []geom.XY,
+	outerCCW bool,
+	outerSigned float64,
+) (geom.Geometry, error) {
+	d := -distance
+	shrunkOuter, ok := offsetClosedRing(outer, d, !outerCCW, cfg)
+	if !ok {
+		return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+	}
+	if ringDegenerate(shrunkOuter) {
+		return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+	}
+	shrunkSigned := planar.Default.RingArea(shrunkOuter)
+	if (outerSigned > 0) != (shrunkSigned > 0) {
+		return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+	}
+	if cx, cy, ok := ringCentroid(shrunkOuter); ok {
+		if !pointInRingBuf(geom.XY{X: cx, Y: cy}, outer) {
+			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+		}
+	}
+	if insetOvershoot(shrunkOuter, outer, d) {
+		return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+	}
+	var result geom.Geometry = geom.NewPolygon(p.CRS(), shrunkOuter)
+	for r := 1; r < p.NumRings(); r++ {
+		hole := p.Ring(r)
+		holeSigned := planar.Default.RingArea(hole)
+		holeCCW := holeSigned > 0
+		grown, ok := offsetClosedRing(hole, d, holeCCW, cfg)
+		if !ok {
+			continue
+		}
+		if ringDegenerate(grown) {
+			continue
+		}
+		grownSigned := planar.Default.RingArea(grown)
+		if (holeSigned > 0) != (grownSigned > 0) {
+			continue
+		}
+		next, err := overlay.Difference(result, geom.NewPolygon(p.CRS(), grown))
+		if err != nil {
+			return nil, fmt.Errorf("buffer: subtract grown hole %d: %w", r-1, err)
+		}
+		result = next
+		if result.IsEmpty() {
+			return result, nil
+		}
+	}
+	return result, nil
 }
 
 // insetOvershoot reports whether the inset ring has any vertex too

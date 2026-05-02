@@ -270,31 +270,39 @@ func holeIsConsumed(ring []geom.XY, d float64) bool {
 // intersections via its initial non-rounded pass).
 //
 // NEGATIVE BUFFER NOTE: this pipeline is exposed via polygonizeBuffer
-// for both positive and negative offsets, but bufferPolygon currently
-// only routes positive buffers through it. Negative buffer (inset)
-// uses a separate offset+overshoot-guard pipeline (see polygon.go).
-// labelSubgraphDepths is the per-subgraph depth labeller that makes
-// disjoint-offset-component cases tractable; for negative buffer the
-// outstanding work is the inset-side face validity filter, which is
-// owned by the negative-buffer caller.
+// for both positive and negative offsets. bufferPolygon's negative branch
+// routes through polygonizeBufferWithFilter (below), which adds a face-
+// validity filter to drop "overshoot lobe" rings whose representative
+// point is outside the original polygon or too close to its boundary.
 func polygonizeBuffer(c *crs.CRS, segs []offsetSegment, tolerance float64) (geom.Geometry, error) {
-	if len(segs) == 0 {
+	rings, err := polygonizeBufferRings(segs, tolerance)
+	if err != nil {
+		return nil, err
+	}
+	if len(rings) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
 	}
+	return assemblePolygonizeRings(c, rings), nil
+}
 
+// polygonizeBufferRings runs the snap-rounding + DCEL + subgraph-depth
+// pipeline and returns the kept boundary rings. Shared between the
+// positive-buffer (no filter) and negative-buffer (filter) entry points.
+func polygonizeBufferRings(segs []offsetSegment, tolerance float64) ([][]geom.XY, error) {
+	if len(segs) == 0 {
+		return nil, nil
+	}
 	noded, err := snapRoundOffsets(segs, tolerance)
 	if err != nil {
 		return nil, err
 	}
 	if len(noded) == 0 {
-		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
+		return nil, nil
 	}
-
 	g := buildPolygonizeDCEL(noded)
 	if g == nil || len(g.faces) == 0 {
-		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
+		return nil, nil
 	}
-
 	// Per-subgraph depth labeling: partition the noded edge graph into
 	// connected components, anchor each subgraph's depth at its
 	// topmost-rightmost vertex's exterior face, then BFS within the
@@ -303,12 +311,138 @@ func polygonizeBuffer(c *crs.CRS, segs []offsetSegment, tolerance float64) (geom
 	// to enclose a region of the wrong topological depth) cannot
 	// contaminate the depth of unrelated faces in another subgraph.
 	labelSubgraphDepths(g, noded)
-	rings := extractKeptRings(g)
+	return extractKeptRings(g), nil
+}
+
+// polygonizeBufferWithFilter runs the buffer polygonizer and then drops
+// any kept ring whose representative interior point fails the supplied
+// face-validity test, or whose absolute area is below minArea. Used by
+// the negative-buffer caller to suppress "overshoot lobes" — phantom
+// faces produced when offset curves self-intersect on a thin throat —
+// and snap-rounding sliver artefacts whose area is microscopic relative
+// to the buffer distance.
+//
+// The filter is geometric and additive (point-in-poly + boundary
+// distance + min area), so it can only ever REMOVE polygonizer output —
+// never invent faces.
+func polygonizeBufferWithFilter(
+	c *crs.CRS,
+	segs []offsetSegment,
+	tolerance float64,
+	keep func(rep geom.XY) bool,
+	minArea float64,
+) (geom.Geometry, error) {
+	rings, err := polygonizeBufferRings(segs, tolerance)
+	if err != nil {
+		return nil, err
+	}
 	if len(rings) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
 	}
-
+	filtered := rings[:0]
+	for _, r := range rings {
+		if minArea > 0 && math.Abs(planar.Default.RingArea(r)) < minArea {
+			continue
+		}
+		if keep != nil {
+			rep := ringRepPoint(r)
+			if !keep(rep) {
+				continue
+			}
+		}
+		filtered = append(filtered, r)
+	}
+	rings = filtered
+	if len(rings) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
+	}
 	return assemblePolygonizeRings(c, rings), nil
+}
+
+// faceValidatorFor builds a "is this representative point a valid
+// inset-interior point" predicate against the original polygon. A point
+// is valid iff it lies inside the original polygon AND its perpendicular
+// distance to the nearest original boundary segment is at least d * frac.
+//
+// d is the inset magnitude (positive). frac controls how strict the
+// boundary-clearance check is; the JTS-style threshold is d/2 (frac=0.5),
+// which is conservative enough to drop mitre-overshoot lobes whose
+// representative points sit very close to the original boundary, while
+// keeping legitimate inset faces whose nearest-boundary distance is at
+// least d (every interior inset face has clearance ≥ d by construction,
+// modulo floating-point noise).
+func faceValidatorFor(orig *geom.Polygon, d, frac float64) func(geom.XY) bool {
+	if orig == nil || orig.IsEmpty() || orig.NumRings() == 0 {
+		return func(geom.XY) bool { return false }
+	}
+	rings := make([][]geom.XY, orig.NumRings())
+	for i := 0; i < orig.NumRings(); i++ {
+		rings[i] = orig.Ring(i)
+	}
+	threshold := d * frac
+	return func(p geom.XY) bool {
+		if !pointInPolygonRings(p, rings) {
+			return false
+		}
+		if minDistToBoundary(p, rings) < threshold {
+			return false
+		}
+		return true
+	}
+}
+
+// pointInPolygonRings reports whether p lies inside the polygon defined
+// by the given rings (rings[0] = outer, rings[1:] = holes). Standard
+// ray-cast: a point is inside iff it is inside the outer ring and not
+// inside any hole.
+func pointInPolygonRings(p geom.XY, rings [][]geom.XY) bool {
+	if len(rings) == 0 {
+		return false
+	}
+	if !pointInRingPG(p, rings[0]) {
+		return false
+	}
+	for i := 1; i < len(rings); i++ {
+		if pointInRingPG(p, rings[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// minDistToBoundary returns the minimum perpendicular distance from p
+// to any segment of any ring. Used by the inset face-validity filter
+// to reject rings whose interior representative is too close to the
+// original boundary (a hallmark of mitre-overshoot lobes).
+func minDistToBoundary(p geom.XY, rings [][]geom.XY) float64 {
+	best := math.Inf(1)
+	for _, ring := range rings {
+		for i := 0; i+1 < len(ring); i++ {
+			d := segmentPointDist(p, ring[i], ring[i+1])
+			if d < best {
+				best = d
+			}
+		}
+	}
+	return best
+}
+
+// segmentPointDist returns the perpendicular distance from p to the
+// segment a→b (clamped to the endpoints).
+func segmentPointDist(p, a, b geom.XY) float64 {
+	dx, dy := b.X-a.X, b.Y-a.Y
+	L2 := dx*dx + dy*dy
+	if L2 == 0 {
+		return math.Hypot(p.X-a.X, p.Y-a.Y)
+	}
+	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / L2
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+	cx, cy := a.X+t*dx, a.Y+t*dy
+	return math.Hypot(p.X-cx, p.Y-cy)
 }
 
 // snapRoundOffsets feeds the offset segments through the
