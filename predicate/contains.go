@@ -355,6 +355,9 @@ func collectionPointNeighborhoodCovered(a *geom.GeometryCollection, p geom.XY, k
 	if eps == 0 {
 		eps = 1e-9
 	}
+	// First sweep: check the standard 8 cardinal/diagonal directions —
+	// fast-path for the typical "vertex shared by adjacent fully-filled
+	// polygons" topology.
 	for _, d := range []geom.XY{
 		{X: eps}, {X: -eps}, {Y: eps}, {Y: -eps},
 		{X: eps, Y: eps}, {X: eps, Y: -eps}, {X: -eps, Y: eps}, {X: -eps, Y: -eps},
@@ -363,7 +366,63 @@ func collectionPointNeighborhoodCovered(a *geom.GeometryCollection, p geom.XY, k
 			return false
 		}
 	}
+	// Second sweep: probe along directions aimed at the angular bisector
+	// of every pair of polygon-ring edges incident at p. A hole wedge
+	// can be narrower than 45°, so the cardinal+diagonal sweep misses
+	// gaps that fall entirely between two of its samples; the per-edge
+	// bisector probe finds those.
+	for _, dir := range incidentEdgeDirections(a, p) {
+		probe := geom.XY{X: p.X + dir.X*eps, Y: p.Y + dir.Y*eps}
+		if !collectionPointCoveredOnly(a, probe, k) {
+			return false
+		}
+	}
 	return true
+}
+
+// incidentEdgeDirections returns unit vectors along every polygon-ring
+// edge incident at p across the collection. Each direction is the
+// (normalised) vector from p to the OTHER endpoint of an incident
+// segment. Holes contribute too — their edges define the boundaries
+// of the hole wedge, so probing along those directions exposes the
+// uncovered region.
+func incidentEdgeDirections(a *geom.GeometryCollection, p geom.XY) []geom.XY {
+	var dirs []geom.XY
+	add := func(other geom.XY) {
+		dx, dy := other.X-p.X, other.Y-p.Y
+		l := math.Hypot(dx, dy)
+		if l == 0 {
+			return
+		}
+		dirs = append(dirs, geom.XY{X: dx / l, Y: dy / l})
+	}
+	collectIncidentRingEdges(a, p, add)
+	return dirs
+}
+
+func collectIncidentRingEdges(g geom.Geometry, p geom.XY, add func(geom.XY)) {
+	switch v := g.(type) {
+	case *geom.Polygon:
+		for r := 0; r < v.NumRings(); r++ {
+			ring := v.Ring(r)
+			for i := 0; i+1 < len(ring); i++ {
+				if ring[i] == p {
+					add(ring[i+1])
+				}
+				if ring[i+1] == p {
+					add(ring[i])
+				}
+			}
+		}
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			collectIncidentRingEdges(v.PolygonAt(i), p, add)
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			collectIncidentRingEdges(v.GeometryAt(i), p, add)
+		}
+	}
 }
 
 func collectionPointCoveredOnly(a *geom.GeometryCollection, p geom.XY, k kernel.Kernel) bool {
