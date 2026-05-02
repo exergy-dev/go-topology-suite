@@ -596,8 +596,15 @@ func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
 	if !ok {
 		return res
 	}
-	a = reducePrecision(a, scale)
-	b = reducePrecision(b, scale)
+	// For lineal/pointal operands, the snap-rounding lineal entry
+	// point inside overlayWithTolerance does its own grid rounding —
+	// passing pre-rounded operands here would lose the original
+	// geometry needed for hot-pixel topology decisions. For polygonal
+	// operands, the existing pre-rounding remains.
+	if !isLinealOrPointal(a) || !isLinealOrPointal(b) {
+		a = reducePrecision(a, scale)
+		b = reducePrecision(b, scale)
+	}
 
 	// Tolerance for snap-rounding noder = grid cell width = 1/scale.
 	tolerance := 1.0
@@ -617,10 +624,34 @@ func runOverlayOpSR(c *xmlCase, op xmlOp, name string) dispatchResult {
 func overlayWithTolerance(a, b geom.Geometry, name string, tolerance float64) (geom.Geometry, error) {
 	subj, clip, ok := unwrapBothPolygonal(a, b)
 	if !ok {
-		// Non-polygonal operands: snap each operand to the precision
-		// grid first, then dispatch through the float overlay path,
-		// then snap the result so cut intersection vertices land on
-		// the grid (matching JTS's *Prec test expectations).
+		// Lineal/pointal operands at positive tolerance go through the
+		// snap-rounding lineal entry point so segment-segment
+		// intersections land on the precision grid as shared vertices
+		// (rather than on independently-rounded inputs whose ULP-level
+		// drift produces wrong topology).
+		if tolerance > 0 && isLinealOrPointal(a) && isLinealOrPointal(b) {
+			var op overlayng.Op
+			switch name {
+			case "intersection":
+				op = overlayng.OpIntersection
+			case "union":
+				op = overlayng.OpUnion
+			case "difference":
+				op = overlayng.OpDifference
+			case "symdifference":
+				op = overlayng.OpSymDiff
+			default:
+				return nil, fmt.Errorf("unknown op: %s", name)
+			}
+			got, err := overlayng.OverlayLinealWithTolerance(a, b, op, tolerance)
+			if err != nil {
+				return nil, err
+			}
+			return reducePrecision(got, 1.0/tolerance), nil
+		}
+		// Mixed lineal/polygonal or other combinations: snap each
+		// operand to the precision grid first, dispatch through the
+		// float overlay path, snap the result.
 		if tolerance > 0 {
 			scale := 1.0 / tolerance
 			a = reducePrecision(a, scale)
@@ -680,6 +711,17 @@ func unwrapBothPolygonal(a, b geom.Geometry) ([]*geom.Polygon, []*geom.Polygon, 
 		return nil, nil, false
 	}
 	return subj, clip, true
+}
+
+// isLinealOrPointal reports whether g is a Point, MultiPoint,
+// LineString, or MultiLineString (the operand classes the snap-
+// rounding lineal entry point accepts).
+func isLinealOrPointal(g geom.Geometry) bool {
+	switch g.(type) {
+	case *geom.Point, *geom.MultiPoint, *geom.LineString, *geom.MultiLineString:
+		return true
+	}
+	return false
 }
 
 func unwrapPolygonal(g geom.Geometry) ([]*geom.Polygon, bool) {
