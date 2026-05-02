@@ -38,29 +38,74 @@ func extractResultLines(d *dcel, op Op) [][]geom.XY {
 }
 
 // lineEdgePredicate returns the per-op predicate for "this edge is
-// part of the lineal result". An edge qualifies iff (a) the operation
-// includes its tag combination AND (b) no adjacent face is in the
-// polygonal result (otherwise the edge belongs to the polygon's
-// boundary, not the lineal output).
+// part of the lineal result".
 //
-// Currently only Intersection produces lineal results from
-// polygon-polygon overlay (shared boundary segments where neither
-// side is in both inputs). The other operations rarely produce
-// genuine lineal output for polygonal inputs and the edge-level
-// classification is brittle, so they're disabled to avoid
-// regressions.
+// Two flavours of lineal result are recognised:
+//
+//  1. Shared-boundary lines: edges where both adjacent faces are NOT
+//     in the polygonal result, but the edge itself was contributed
+//     by both inputs (tag = 0b11). Only emitted for Intersection —
+//     these are the segments where the polygons' boundaries touch
+//     without overlap area.
+//
+//  2. Spur edges (e.face == e.twin.face): the edge is internal to a
+//     single face. This happens when snap-rounding collapses a thin
+//     sliver of one input to a line; the line sits inside the kept
+//     region (or outside it) but contributes a degenerate dimension-1
+//     piece to the result.
+//
+// A spur edge is "in the lineal result" when the segment belongs to
+// the appropriate inputs for the operation, where membership comes
+// from the surrounding face's inSubj/inClip flags ORed with the
+// edge's tag bits. (A tag bit alone is enough: it means the segment
+// lay on that input's boundary, hence is geometrically part of that
+// input's coverage.)
 func lineEdgePredicate(op Op) func(*halfEdge) bool {
-	if op != OpIntersection {
-		return func(*halfEdge) bool { return false }
-	}
 	return func(e *halfEdge) bool {
 		if e.face == nil || e.twin == nil || e.twin.face == nil {
 			return false
 		}
+		// Spur edge: e.face == e.twin.face — the edge is interior to
+		// a single face, not a separator between two faces. Only
+		// recognised for Intersection (the signal that a collapsed
+		// sliver must surface as lineal output); other ops route
+		// such edges through the polygon-only pipeline.
+		if e.face == e.twin.face {
+			if op != OpIntersection {
+				return false
+			}
+			f := e.face
+			inSubj := f.inSubj || (e.tags&0b01 != 0)
+			inClip := f.inClip || (e.tags&0b10 != 0)
+			return inSubj && inClip
+		}
+		// Non-spur edge separating two distinct faces. Lineal lines
+		// arise only for Intersection.
+		if op != OpIntersection {
+			return false
+		}
+		// Skip edges that are part of a kept polygon's boundary.
 		if e.face.keep || e.twin.face.keep {
 			return false
 		}
-		return e.tags&0b11 == 0b11
+		// Both inputs contributed: shared boundary segment between
+		// two non-overlapping (in area) regions — classic A∩B line.
+		if e.tags&0b11 == 0b11 {
+			return true
+		}
+		// Collapsed-input case: the edge has only a subj tag, but
+		// both adjacent faces are inClip (the segment lies inside the
+		// clip polygon's interior); the segment is therefore in
+		// subj∩clip even though no face has area in both inputs.
+		if e.tags&0b01 != 0 && e.face.inClip && e.twin.face.inClip {
+			return true
+		}
+		// Symmetric: clip-only edge sandwiched between two inSubj
+		// faces.
+		if e.tags&0b10 != 0 && e.face.inSubj && e.twin.face.inSubj {
+			return true
+		}
+		return false
 	}
 }
 

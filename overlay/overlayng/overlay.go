@@ -459,9 +459,35 @@ func needsCanonicalize(first *geom.Polygon, rest []*geom.Polygon) bool {
 		if polygonHasTouchingHole(p) {
 			return true
 		}
+		if ringHasRepeatedInteriorVertex(p.Ring(0)) {
+			return true
+		}
 	}
 	if len(all) >= 2 && multiPolygonsTouch(all) {
 		return true
+	}
+	return false
+}
+
+// ringHasRepeatedInteriorVertex returns true when the closed ring
+// visits the same vertex twice in its interior (excluding the
+// closing duplicate). Such a ring is a figure-8 topology that JTS
+// canonicalises into two separate polygons that touch at the
+// repeated vertex.
+func ringHasRepeatedInteriorVertex(ring []geom.XY) bool {
+	if len(ring) < 5 {
+		return false
+	}
+	end := len(ring)
+	if ring[0] == ring[end-1] {
+		end--
+	}
+	seen := make(map[geom.XY]struct{}, end)
+	for i := 0; i < end; i++ {
+		if _, ok := seen[ring[i]]; ok {
+			return true
+		}
+		seen[ring[i]] = struct{}{}
 	}
 	return false
 }
@@ -622,15 +648,23 @@ func vertexSet(ring []geom.XY) map[geom.XY]struct{} {
 	return out
 }
 
-// canonicalizeTouchingRings re-runs the polygon set through
-// overlayCorePolygonal with op=Union (using the same set as both subj
-// and clip). The Union path nodes the touching rings together and
-// extracts the merged boundary as a single ring per kept face,
-// converting an "outer + touching hole" representation into the
-// equivalent simple polygon (an L-shape, U-shape, etc).
+// canonicalizeTouchingRings normalises results that contain rings
+// touching at a vertex (figure-8) or sharing a boundary segment
+// (outer-with-touching-hole, two polygons sharing a spine) into a
+// canonical representation matching JTS.
 //
-// This is a single canonicalisation pass; the result is returned even
-// if it still contains touching rings, to avoid any chance of
+// First pass: split self-touching figure-8 outer rings directly into
+// multiple simple rings. If any polygon was split, return the
+// expanded set without re-running through overlay (a self-Union
+// would just re-merge them). For inputs with shared-edge or
+// touching-hole topology (no figure-8), fall through to the
+// re-Union pass which nodes shared edges and extracts the merged
+// boundary as a single ring per kept face, converting an "outer +
+// touching hole" representation into the equivalent simple polygon
+// (L-shape, U-shape, etc).
+//
+// Either way, the result is returned even if some pathological
+// input still contains touching rings, to avoid any chance of
 // non-termination.
 func canonicalizeTouchingRings(c *crs.CRS, first *geom.Polygon, rest []*geom.Polygon) (*geom.Polygon, []*geom.Polygon, error) {
 	polys := make([]*geom.Polygon, 0, 1+len(rest))
@@ -641,11 +675,97 @@ func canonicalizeTouchingRings(c *crs.CRS, first *geom.Polygon, rest []*geom.Pol
 	if len(polys) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil, nil
 	}
+	// Split any figure-8 outer ring in place.
+	expanded := make([]*geom.Polygon, 0, len(polys))
+	splitAny := false
+	for _, p := range polys {
+		if p == nil || p.IsEmpty() {
+			continue
+		}
+		if !ringHasRepeatedInteriorVertex(p.Ring(0)) {
+			expanded = append(expanded, p)
+			continue
+		}
+		split := splitSelfTouchingRing(p.Ring(0))
+		if len(split) <= 1 {
+			expanded = append(expanded, p)
+			continue
+		}
+		splitAny = true
+		for _, ring := range split {
+			expanded = append(expanded, geom.NewPolygon(c, ring))
+		}
+		// Holes are dropped here: figure-8 outputs from overlay-NG
+		// don't carry holes (the figure-8 only occurs when two kept
+		// regions touch at a vertex, both being simple). If a future
+		// case violates this assumption, holes need to be re-attached
+		// to whichever split outer contains them.
+	}
+	if splitAny {
+		// Reassemble first/rest from expanded.
+		if len(expanded) == 0 {
+			return geom.NewEmptyPolygon(c, geom.LayoutXY), nil, nil
+		}
+		return expanded[0], expanded[1:], nil
+	}
 	rings, perPoly := snapAndPartition(polys, 0)
 	if len(rings) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil, nil
 	}
 	return overlayCorePolygonal(c, rings, perPoly, rings, perPoly, OpUnion)
+}
+
+// splitSelfTouchingRing breaks a figure-8 ring (one with a repeated
+// interior vertex) into the constituent simple rings. The algorithm:
+// walk the ring; when reaching a vertex already on the stack, pop
+// the loop from the stack into a new ring, then continue. The
+// remaining stack contents form the final ring.
+//
+// For rings with multiple repeats, the process recursively peels off
+// loops until none remain.
+func splitSelfTouchingRing(ring []geom.XY) [][]geom.XY {
+	if len(ring) < 5 {
+		return [][]geom.XY{ring}
+	}
+	end := len(ring)
+	if ring[0] == ring[end-1] {
+		end--
+	}
+	stack := make([]geom.XY, 0, end)
+	pos := map[geom.XY]int{}
+	var loops [][]geom.XY
+	for i := 0; i < end; i++ {
+		v := ring[i]
+		if idx, ok := pos[v]; ok {
+			// Pop the loop [idx..len(stack)-1] and close it.
+			loop := make([]geom.XY, 0, len(stack)-idx+1)
+			loop = append(loop, stack[idx:]...)
+			loop = append(loop, v)
+			if len(loop) >= 4 {
+				loops = append(loops, loop)
+			}
+			// Truncate stack and rebuild pos for what remains.
+			for k := idx; k < len(stack); k++ {
+				delete(pos, stack[k])
+			}
+			stack = stack[:idx]
+			pos[v] = len(stack)
+			stack = append(stack, v)
+			continue
+		}
+		pos[v] = len(stack)
+		stack = append(stack, v)
+	}
+	if len(stack) >= 3 {
+		closing := append(append([]geom.XY(nil), stack...), stack[0])
+		if len(closing) >= 4 {
+			loops = append(loops, closing)
+		}
+	}
+	if len(loops) == 0 {
+		return [][]geom.XY{ring}
+	}
+	return loops
 }
 
 // rebuildPolygons reconstructs the per-polygon slice from a flat ring
