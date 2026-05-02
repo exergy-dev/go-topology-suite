@@ -30,10 +30,11 @@ Each entry should record:
 
 After Pillars 1, 2/3 (partial), 4 P1+P2 (buffer polygonization +
 tolerance-aware spike removal), 5, 6 P1 (line-on-polygon-boundary
-collinear overlap), 7, simplify rewrite, and overlay auto-tolerance
-retry for FLOATING-precision real-world ticket cases, the corpus
-stands at **98.7% pass rate** (8836/8951 passing, 85 failures,
-30 skipped — 99.0% excluding skipped).
+collinear overlap), 7, simplify rewrite, overlay auto-tolerance
+retry for FLOATING-precision real-world ticket cases, and Stream G
+(snap-rounding lineal overlay), the corpus stands at **98.9% pass
+rate** (8855/8951 passing, 66 failures, 30 skipped — 99.3%
+excluding skipped).
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
 `overlaps` / `equals` / `isValid` predicates pass on the JTS corpus
@@ -45,14 +46,14 @@ The remaining 85 failures break down as:
 |--------|------:|------------|
 | TestBufferExternal2 (negative buffer of land parcels) | 31 | Needs JTS-style subgraph-finder for depth determination in `buffer/polygonize.go::labelFaceDepths`. Tolerance-aware spike removal landed (Pillar 4 P2 partial); subgraph propagation deferred. |
 | TestBufferJagged misc+robust | 16 | Same Pillar 4 P2 deferred work; sharp-corner offset overshoots produce spurious lobes that face-validity heuristics drop overaggressively. |
-| TestNGOverlayLPrec | 6 | LL-overlay precision; routes through float overlay path, not the polygonal SR pipeline that Pillar 3 enhanced. |
+| ~~TestNGOverlayLPrec~~ | 0 | Closed by Stream G (snap-rounding lineal overlay entry point in `overlay/overlayng/overlay_lineal.go`). |
 | TestSimplify | 4 | See "TestSimplify residuals" below. Needs polygon-repair pass for self-touches (cases 10/13), and corner tie-break to match an older JTS (cases 15/16). |
 | TestBufferMitredJoin | 4 | Mitre-join with reflex corners; same Pillar 4 P2 root cause. |
 | TestOverlayAAPrec | 3 | Float-precision sliver intersections beyond what snap-rounding can resolve. |
 | TestNGOverlayAPrec | 2 | Same as TestOverlayAAPrec. |
-| TestNGOverlayPPrec | 2 | PL-overlay precision; routes through float overlay path. |
-| TestOverlayLA | 2 | Multi-line × multi-area complex overlap; partial sliver miss. |
-| TestOverlayLAPrec | 1 | Snap-rounded line-area precision residual. |
+| ~~TestNGOverlayPPrec~~ | 0 | Closed by Stream G (asymmetric Point/Line topology check against original geometry). |
+| TestOverlayLA | 2 | Multi-line × multi-area complex overlap; partial sliver miss. Polygon-vs-line snap-rounding requires hybrid-DCEL rewrite (deferred). |
+| TestOverlayLAPrec | 1 | Snap-rounded line-area precision residual. Polygon-vs-line dimensional collapse (sliver → line). Same hybrid-DCEL deferral as TestOverlayLA. |
 | TestOverlayAA | 1 | Complex AA touching+overlapping; one residual not closed by Pillar 1 work. |
 | TestUnaryUnionFloating | 1 | Real-world MultiPoint union with closely-clustered coords. |
 | misc/TestOverlay #4 | 1 | GEOS ticket #737 — UTM-scale polygon pair with missing sliver under floating-precision; auto-tolerance retry produces structurally-valid 3-poly output but missing one component. Detecting "valid but incomplete" needs analytic area-conservation check; deferred. |
