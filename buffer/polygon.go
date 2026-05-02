@@ -69,27 +69,29 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 			// original polygon as the safest no-growth answer.
 			return geom.NewPolygon(p.CRS(), allRings(p)...), nil
 		}
-		got, err := polygonizeBuffer(p.CRS(), segs, 0)
+		// Snap-rounding tolerance: a fraction of the buffer distance,
+		// chosen so coordinate ULP noise from mitre-cap corner
+		// computation is clustered to the same grid cell, but real
+		// geometric features (segments separated by > tolerance) are
+		// preserved. JTS uses scale = max-input-coord-magnitude *
+		// 1e-12; we use distance * 1e-9 as a robust default.
+		tolerance := math.Abs(distance) * 1e-9
+		got, err := polygonizeBuffer(p.CRS(), segs, tolerance)
 		if err != nil {
 			return nil, fmt.Errorf("buffer: polygonize: %w", err)
 		}
 		if got == nil || got.IsEmpty() {
-			// Polygonization yielded empty (every face had depth 0).
-			// Defensive: fall back to the original polygon — the
-			// classic union-with-offset path is exact enough for the
-			// rare cases where polygonization can't establish a kept
-			// face (e.g., totally-degenerate inputs).
 			return geom.NewPolygon(p.CRS(), allRings(p)...), nil
 		}
 		return got, nil
 
 	case distance < 0:
-		// Negative buffer still uses the legacy offset+overshoot-guard
-		// pipeline. The polygonize path produces spurious self-touching
-		// lobes when the input is a buffered convex polygon (mitre-cap
-		// corners create ULP-different vertex pairs that defeat exact
-		// spike removal). Pillar 4 P2 follow-up: tolerance-based spike
-		// removal + JTS-style depth-determination via subgraph finder.
+		// Negative buffer keeps the legacy offset+overshoot-guard
+		// pipeline. The polygonize path sometimes produces spurious
+		// near-zero-area rings on convex-polygon insets due to ULP
+		// noise from mitre-cap corners; a future P2 will use
+		// tolerance-based spike removal + JTS-style depth
+		// determination.
 		d := -distance
 		if bboxTooThinForInset(outer, d) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
