@@ -26,19 +26,31 @@ Each entry should record:
 
 ## Current entries
 
-### JTS testxml conformance residuals (2026-05-01)
+### JTS testxml conformance residuals (2026-05-02)
 
-After parallel-pillar work (DCEL pinch-point + multi-component face
-classification; planar.SegmentIntersect endpoint snapping; negative-
-buffer overshoot guards; multi-polygon overlap-via-centroid; precision-
-result snapping; spur-edge lineal extraction + figure-8 ring split;
-buffer hole-erosion via recursion + multi-line union; LinearRing type
-with isValid self-intersection check; GC line-endpoint Mod2 boundary
-rule + incident-ring-edge probe) the corpus stands at **98.4% pass
-rate** (8807/8951 passing, 114 failures, 30 skipped). The remaining
-buckets are tracked here as known divergences pending deeper engine
-work — the principled fix is JTS's full snap-rounding noder + DCEL
-face-depth classifier; the patches here have exhausted the half-measures.
+After Pillar 1, 2/3 (partial), 4 P1 (positive buffer polygonization),
+5, 6 P1 (line-on-polygon-boundary collinear overlap), and 7 work, the
+corpus stands at **98.5% pass rate** (8817/8951 passing, 104 failures,
+30 skipped). All `relate` / `within` / `contains` / `touches` /
+`crosses` / `overlaps` / `equals` predicates pass on the JTS corpus.
+
+The remaining 104 failures concentrate in:
+
+- **55 buffer** (TestBufferExternal2: 31, TestBufferJagged misc+robust: 16,
+  TestBufferMitredJoin: 4, plus a handful in failure/ folder).
+  Negative-buffer cases need full Pillar 4 P2: tolerance-based spike
+  removal in offset emission + JTS-style depth-determination via
+  subgraph-finder. Half-measures (overshoot guards) catch only the
+  trivially-thin polygons.
+- **30 overlay-precision** (TestOverlayAAPrec, TestNGOverlayAPrec,
+  TestNGOverlayLPrec, etc.). Sliver dimensional collapse cases that
+  Pillar 3's spur-edge / figure-8 work caught the easy ones; tight
+  near-collinear segments still fail.
+- **7 TestSimplify**: Douglas-Peucker / topology-preserving edge cases.
+  Out of scope for the engine plan.
+- **5 TestReducePrecisionFailure** + 3 TestOverlayNGFailure + 2
+  TestBufferFailure + 1 TestBigNastyBuffer: documented JTS-known-fail
+  cases ("Result provided is approximately correct").
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
