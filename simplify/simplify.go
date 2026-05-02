@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/overlay/overlayng"
 )
 
 // Simplify returns a Douglas-Peucker simplification of g with the given
@@ -37,8 +38,18 @@ func Simplify(g geom.Geometry, tolerance float64) geom.Geometry {
 		parts := make([]*geom.Polygon, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
 			part := simplifyPolygon(v.PolygonAt(i), tolerance)
-			if !part.IsEmpty() {
-				parts = append(parts, part)
+			switch sp := part.(type) {
+			case *geom.Polygon:
+				if !sp.IsEmpty() {
+					parts = append(parts, sp)
+				}
+			case *geom.MultiPolygon:
+				for k := 0; k < sp.NumGeometries(); k++ {
+					p := sp.PolygonAt(k)
+					if !p.IsEmpty() {
+						parts = append(parts, p)
+					}
+				}
 			}
 		}
 		if len(parts) == 1 {
@@ -61,7 +72,7 @@ func simplifyLineString(ls *geom.LineString, tol float64) *geom.LineString {
 	return geom.NewLineString(ls.CRS(), out)
 }
 
-func simplifyPolygon(p *geom.Polygon, tol float64) *geom.Polygon {
+func simplifyPolygon(p *geom.Polygon, tol float64) geom.Geometry {
 	rings := make([][]geom.XY, 0, p.NumRings())
 	for r := 0; r < p.NumRings(); r++ {
 		ring := p.Ring(r)
@@ -81,7 +92,17 @@ func simplifyPolygon(p *geom.Polygon, tol float64) *geom.Polygon {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout())
 		}
 	}
-	return geom.NewPolygon(p.CRS(), rings...)
+	out := geom.NewPolygon(p.CRS(), rings...)
+	// Post-process: simplification may produce polygons whose outer
+	// ring revisits a vertex (figure-8) or whose hole now shares a
+	// boundary segment with the outer ring. JTS canonicalises these
+	// into MultiPolygon (figure-8 split) or merged outer (hole
+	// dissolved). Route through the shared overlay-NG canonicaliser.
+	repaired, err := overlayng.RepairSimplifiedPolygon(out)
+	if err != nil || repaired == nil {
+		return out
+	}
+	return repaired
 }
 
 // ringEnvelopeMinDim returns the smaller of the ring's bounding box

@@ -469,6 +469,135 @@ func needsCanonicalize(first *geom.Polygon, rest []*geom.Polygon) bool {
 	return false
 }
 
+// RepairSimplifiedPolygon repairs polygon-level invalidities introduced
+// by Douglas-Peucker style simplifiers: figure-8 outer rings (a vertex
+// landing on another segment of the same ring) and holes that have
+// poked outside the simplified outer (or now share a segment with it).
+//
+// Handling:
+//   - Figure-8 outer: split into multiple polygons (MultiPolygon).
+//   - Hole touches/crosses outer: replace the polygon with
+//     (outer DIFFERENCE merged-holes), which JTS produces by re-routing
+//     the boundary along the canonicalised intersection.
+//
+// Non-polygonal inputs and already-canonical polygons are returned
+// unchanged. MultiPolygon inputs have each constituent polygon repaired
+// independently.
+func RepairSimplifiedPolygon(g geom.Geometry) (geom.Geometry, error) {
+	if g == nil || g.IsEmpty() {
+		return g, nil
+	}
+	switch v := g.(type) {
+	case *geom.Polygon:
+		return repairOnePolygon(v)
+	case *geom.MultiPolygon:
+		var all []*geom.Polygon
+		for i := 0; i < v.NumGeometries(); i++ {
+			repaired, err := repairOnePolygon(v.PolygonAt(i))
+			if err != nil {
+				return g, err
+			}
+			switch r := repaired.(type) {
+			case *geom.Polygon:
+				if !r.IsEmpty() {
+					all = append(all, r)
+				}
+			case *geom.MultiPolygon:
+				for k := 0; k < r.NumGeometries(); k++ {
+					p := r.PolygonAt(k)
+					if !p.IsEmpty() {
+						all = append(all, p)
+					}
+				}
+			}
+		}
+		if len(all) == 0 {
+			return geom.NewEmptyPolygon(v.CRS(), geom.LayoutXY), nil
+		}
+		if len(all) == 1 {
+			return all[0], nil
+		}
+		return geom.NewMultiPolygon(v.CRS(), all...), nil
+	}
+	return g, nil
+}
+
+// repairOnePolygon applies the figure-8 split and hole-difference
+// repairs (in that order) to a single polygon.
+func repairOnePolygon(p *geom.Polygon) (geom.Geometry, error) {
+	if p == nil || p.IsEmpty() {
+		return p, nil
+	}
+	// Step 1: hole-crosses-outer repair. When a hole pokes outside the
+	// outer ring (or shares a segment), the polygon is invalid in a way
+	// that needs Outer DIFFERENCE Hole, not union. JTS's
+	// DouglasPeuckerSimplifier emits the canonical form by clipping the
+	// hole against the simplified outer.
+	if polygonHoleCrossesOuter(p) {
+		outerPolys := []*geom.Polygon{geom.NewPolygon(p.CRS(), p.Ring(0))}
+		// Each hole becomes a single-ring polygon; the slice is treated
+		// as the union of those polygons by OverlayPolygonal.
+		var holePolys []*geom.Polygon
+		for r := 1; r < p.NumRings(); r++ {
+			holePolys = append(holePolys, geom.NewPolygon(p.CRS(), p.Ring(r)))
+		}
+		first, rest, err := OverlayPolygonal(outerPolys, holePolys, OpDifference)
+		if err != nil {
+			return p, err
+		}
+		diffG := assemblePolygonResult(p.CRS(), first, rest)
+		if diffG == nil || diffG.IsEmpty() {
+			return diffG, nil
+		}
+		// Recurse on the result so any new figure-8 introduced by the
+		// difference is also repaired.
+		return CanonicalizeTouchingRings(diffG)
+	}
+	// Step 2: figure-8 / touching-hole canonicalisation.
+	return CanonicalizeTouchingRings(p)
+}
+
+// polygonHoleCrossesOuter returns true when a hole has at least one
+// segment that properly crosses an outer-ring segment, or has at least
+// one vertex strictly outside the outer ring's interior. This indicates
+// an invalidity introduced by upstream simplification (hole apex no
+// longer inside the simplified outer) that the canonicalization pass
+// must repair via self-union.
+func polygonHoleCrossesOuter(p *geom.Polygon) bool {
+	if p == nil || p.NumRings() < 2 {
+		return false
+	}
+	outer := p.Ring(0)
+	for r := 1; r < p.NumRings(); r++ {
+		hole := p.Ring(r)
+		// Crossing test.
+		for i := 0; i+1 < len(hole); i++ {
+			a, b := hole[i], hole[i+1]
+			for j := 0; j+1 < len(outer); j++ {
+				c, d := outer[j], outer[j+1]
+				if segmentsCrossProper2D(a, b, c, d) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// segmentsCrossProper2D reports whether segments (a,b) and (c,d) cross
+// strictly in their interiors (no shared endpoints, no T-junctions).
+func segmentsCrossProper2D(a, b, c, d geom.XY) bool {
+	o1 := orient2D(a, b, c)
+	o2 := orient2D(a, b, d)
+	o3 := orient2D(c, d, a)
+	o4 := orient2D(c, d, b)
+	return o1*o2 < 0 && o3*o4 < 0
+}
+
+func orient2D(a, b, c geom.XY) float64 {
+	return (b.X-a.X)*(c.Y-a.Y) - (b.Y-a.Y)*(c.X-a.X)
+}
+
 // ringHasRepeatedInteriorVertex returns true when the closed ring
 // visits the same vertex twice in its interior (excluding the
 // closing duplicate). Such a ring is a figure-8 topology that JTS
@@ -646,6 +775,157 @@ func vertexSet(ring []geom.XY) map[geom.XY]struct{} {
 		out[ring[i]] = struct{}{}
 	}
 	return out
+}
+
+// CanonicalizeTouchingRings is the public entry point for the
+// canonicalisation pass that turns "rings touching at a vertex"
+// (figure-8) and "rings sharing a boundary segment" (touching-hole or
+// shared-spine) representations into the canonical forms JTS produces.
+//
+// It accepts any geometry. Non-polygonal inputs are returned unchanged.
+// A *geom.Polygon may widen to a *geom.MultiPolygon when a figure-8
+// ring is split, or narrow to a *geom.Polygon when a touching hole is
+// merged into the outer ring. Empty inputs are returned as-is.
+//
+// Before invoking the figure-8 splitter, this entry point inserts any
+// implicit vertex-on-edge contacts within each polygon's outer ring,
+// converting "vertex sits on non-adjacent segment interior" into a
+// repeated-vertex configuration that splitSelfTouchingRing handles.
+// This is necessary for callers like the Douglas-Peucker simplifier
+// that can produce single-touch self-intersections from edge collapse.
+//
+// The function is idempotent on already-canonical inputs.
+func CanonicalizeTouchingRings(g geom.Geometry) (geom.Geometry, error) {
+	if g == nil || g.IsEmpty() {
+		return g, nil
+	}
+	switch v := g.(type) {
+	case *geom.Polygon:
+		repaired := injectVertexEdgeContacts(v)
+		if !needsCanonicalize(repaired, nil) {
+			return g, nil
+		}
+		first, rest, err := canonicalizeTouchingRings(v.CRS(), repaired, nil)
+		if err != nil {
+			return g, err
+		}
+		return assemblePolygonResult(v.CRS(), first, rest), nil
+	case *geom.MultiPolygon:
+		polys := make([]*geom.Polygon, 0, v.NumGeometries())
+		for i := 0; i < v.NumGeometries(); i++ {
+			polys = append(polys, injectVertexEdgeContacts(v.PolygonAt(i)))
+		}
+		if len(polys) == 0 {
+			return g, nil
+		}
+		if !needsCanonicalize(polys[0], polys[1:]) {
+			return g, nil
+		}
+		first, rest, err := canonicalizeTouchingRings(v.CRS(), polys[0], polys[1:])
+		if err != nil {
+			return g, err
+		}
+		return assemblePolygonResult(v.CRS(), first, rest), nil
+	}
+	return g, nil
+}
+
+// injectVertexEdgeContacts returns a copy of p where, for each ring,
+// any vertex that lies strictly on the interior of another segment in
+// the same ring (a "self-touch" with no repeated vertex) has been
+// inserted as an explicit vertex into that segment, producing a
+// repeated-vertex (figure-8) ring that splitSelfTouchingRing handles.
+//
+// Returns p unchanged when no contacts are found.
+func injectVertexEdgeContacts(p *geom.Polygon) *geom.Polygon {
+	if p == nil || p.IsEmpty() {
+		return p
+	}
+	changed := false
+	rings := make([][]geom.XY, 0, p.NumRings())
+	for r := 0; r < p.NumRings(); r++ {
+		ring := p.Ring(r)
+		repaired, didChange := injectRingSelfContacts(ring)
+		if didChange {
+			changed = true
+		}
+		rings = append(rings, repaired)
+	}
+	if !changed {
+		return p
+	}
+	return geom.NewPolygon(p.CRS(), rings...)
+}
+
+// injectRingSelfContacts walks each ring vertex and inserts a copy of
+// it into any non-adjacent segment whose interior it lies on. The
+// modified ring is returned along with a "changed" flag.
+func injectRingSelfContacts(ring []geom.XY) ([]geom.XY, bool) {
+	if len(ring) < 5 {
+		return ring, false
+	}
+	// Build a mutable copy.
+	out := append([]geom.XY(nil), ring...)
+	changed := false
+	// Repeat until stable: each insertion may create new contacts.
+	for pass := 0; pass < 8; pass++ {
+		passChanged := false
+		// For each vertex, find segments (not adjacent to it) whose
+		// interior it touches; insert into the first such segment.
+		for vi := 0; vi < len(out)-1; vi++ {
+			v := out[vi]
+			for si := 0; si+1 < len(out); si++ {
+				// Skip segments that include this vertex as an endpoint.
+				if si == vi || si == vi-1 || (vi == 0 && si == len(out)-2) {
+					continue
+				}
+				a, b := out[si], out[si+1]
+				if a == v || b == v {
+					continue
+				}
+				if !pointOnSegmentInterior(v, a, b) {
+					continue
+				}
+				// Insert v between si and si+1.
+				newRing := make([]geom.XY, 0, len(out)+1)
+				newRing = append(newRing, out[:si+1]...)
+				newRing = append(newRing, v)
+				newRing = append(newRing, out[si+1:]...)
+				out = newRing
+				passChanged = true
+				changed = true
+				break
+			}
+			if passChanged {
+				break
+			}
+		}
+		if !passChanged {
+			break
+		}
+	}
+	return out, changed
+}
+
+// assemblePolygonResult turns a (first, rest) pair into a single
+// geom.Geometry: empty -> empty Polygon, single -> *Polygon, multi -> *MultiPolygon.
+func assemblePolygonResult(c *crs.CRS, first *geom.Polygon, rest []*geom.Polygon) geom.Geometry {
+	all := make([]*geom.Polygon, 0, 1+len(rest))
+	if first != nil && !first.IsEmpty() {
+		all = append(all, first)
+	}
+	for _, p := range rest {
+		if p != nil && !p.IsEmpty() {
+			all = append(all, p)
+		}
+	}
+	if len(all) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY)
+	}
+	if len(all) == 1 {
+		return all[0]
+	}
+	return geom.NewMultiPolygon(c, all...)
 }
 
 // canonicalizeTouchingRings normalises results that contain rings

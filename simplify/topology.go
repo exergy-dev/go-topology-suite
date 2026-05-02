@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/overlay/overlayng"
 )
 
 // TopologyPreserving returns a simplified copy of g that is guaranteed
@@ -368,7 +369,14 @@ func rebuild(g geom.Geometry, results [][]geom.XY, idx *int) (geom.Geometry, boo
 		if !outerOK || len(rings) == 0 {
 			return v, false // refuse to over-simplify
 		}
-		return geom.NewPolygon(v.CRS(), rings...), true
+		out := geom.NewPolygon(v.CRS(), rings...)
+		// Repair figure-8 / touching-hole topology that the per-ring
+		// DP pass may have produced. Mirrors the DP simplifier hook.
+		repaired, err := overlayng.RepairSimplifiedPolygon(out)
+		if err != nil || repaired == nil {
+			return out, true
+		}
+		return repaired, true
 	case *geom.MultiLineString:
 		parts := make([]*geom.LineString, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {

@@ -47,3 +47,41 @@ func TestSimplifyPoint(t *testing.T) {
 	out := Simplify(g, 0.5)
 	assert.Equal(t, geom.PointType, out.Type(), "simplify of point should be point, got %v", out.Type())
 }
+
+// TestSimplifyDPSplitsFigure8 reproduces JTS TestSimplify case#10: when
+// DP collapses a vertex onto an interior edge, the resulting figure-8
+// outer ring must be split into two polygons (a MultiPolygon).
+func TestSimplifyDPSplitsFigure8(t *testing.T) {
+	g, err := wkt.Unmarshal(
+		"POLYGON ((40 240, 160 241, 280 240, 280 160, 160 240, 40 140, 40 240))")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	out := Simplify(g, 1)
+	mp, ok := out.(*geom.MultiPolygon)
+	if !ok {
+		t.Fatalf("expected MultiPolygon after figure-8 split, got %T: %v", out, out)
+	}
+	assert.Equal(t, 2, mp.NumGeometries(),
+		"figure-8 should yield exactly 2 polygons, got %d", mp.NumGeometries())
+}
+
+// TestSimplifyDPMergesTouchingHole reproduces JTS TestSimplify case#13:
+// a hole whose apex lands on the simplified outer edge must be merged
+// into the outer ring (forming a single polygon with a re-routed boundary).
+func TestSimplifyDPMergesTouchingHole(t *testing.T) {
+	g, err := wkt.Unmarshal(
+		"POLYGON ((10 10, 10 80, 50 90, 90 80, 90 10, 10 10), (80 20, 20 20, 50 90, 80 20))")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	out := Simplify(g, 10)
+	p, ok := out.(*geom.Polygon)
+	if !ok {
+		t.Fatalf("expected single Polygon after hole merge, got %T: %v", out, out)
+	}
+	// Hole must be dissolved: result is a single ring.
+	assert.Equal(t, 1, p.NumRings(),
+		"touching hole should be merged into outer, expected 1 ring, got %d",
+		p.NumRings())
+}
