@@ -56,60 +56,32 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 
 	switch {
 	case distance > 0:
-		// 1. Build the dilated outer: union of the original outer with the
-		//    exterior-offset of the outer. For convex shapes the offset
-		//    already contains the original; for concave shapes the union
-		//    fills in the reflex gaps.
-		offsetOuter, ok := offsetClosedRing(outer, distance, outerCCW /*exterior*/, cfg)
-		if !ok {
-			// Offsetting failed; preserve the original polygon (with holes)
-			// as the safest no-growth answer.
+		// JTS-style polygonization: emit offset curves for every ring
+		// (outer + holes) into a single segment set, snap-round, build
+		// a DCEL, and label each face with its winding-depth from the
+		// offset boundaries. Faces with depth ≥ 1 are inside the
+		// buffer. This subsumes the older "dilate outer ∪ then erode
+		// each hole separately" pipeline, which fragmented depth
+		// reasoning across multiple overlay passes.
+		segs := emitPolygonOffsetSegments(p, distance, cfg)
+		if len(segs) == 0 {
+			// Offset emission failed for every ring; preserve the
+			// original polygon as the safest no-growth answer.
 			return geom.NewPolygon(p.CRS(), allRings(p)...), nil
 		}
-		dilated, err := overlay.Union(
-			geom.NewPolygon(p.CRS(), outer),
-			geom.NewPolygon(p.CRS(), offsetOuter),
-		)
+		got, err := polygonizeBuffer(p.CRS(), segs, 0)
 		if err != nil {
-			return nil, fmt.Errorf("buffer: union outer and offset: %w", err)
+			return nil, fmt.Errorf("buffer: polygonize: %w", err)
 		}
-		// 2. Subtract each "eroded hole" from the dilated outer. The
-		//    erosion of a hole (treated as a positively-oriented filled
-		//    polygon) by distance d is the negative-buffer of that
-		//    polygon — a recursive bufferPolygon call. This sidesteps
-		//    self-intersecting offset rings that the direct
-		//    offsetClosedRing path produces for star-shaped or other
-		//    reflex-heavy holes.
-		for r := 1; r < p.NumRings(); r++ {
-			hole := p.Ring(r)
-			holeSigned := planar.Default.RingArea(hole)
-			// Build a polygon out of the hole, oriented so its area is
-			// positive (treated as "filled"). bufferPolygon's inset path
-			// handles arbitrary orientations.
-			holeRing := hole
-			if holeSigned < 0 {
-				holeRing = reverseRing(hole)
-			} else if holeSigned == 0 {
-				continue
-			}
-			holePoly := geom.NewPolygon(p.CRS(), holeRing)
-			if holePoly == nil || holePoly.IsEmpty() {
-				continue
-			}
-			eroded, eerr := bufferPolygon(holePoly, -distance, cfg)
-			if eerr != nil || eroded == nil || eroded.IsEmpty() {
-				// Hole fully consumed by the dilation; nothing to subtract.
-				continue
-			}
-			dilated, err = overlay.Difference(dilated, eroded)
-			if err != nil {
-				return nil, fmt.Errorf("buffer: subtract eroded hole %d: %w", r-1, err)
-			}
-			if dilated.IsEmpty() {
-				return dilated, nil
-			}
+		if got == nil || got.IsEmpty() {
+			// Polygonization yielded empty (every face had depth 0).
+			// Defensive: fall back to the original polygon — the
+			// classic union-with-offset path is exact enough for the
+			// rare cases where polygonization can't establish a kept
+			// face (e.g., totally-degenerate inputs).
+			return geom.NewPolygon(p.CRS(), allRings(p)...), nil
 		}
-		return dilated, nil
+		return got, nil
 
 	case distance < 0:
 		// 1. Inset the outer ring toward its interior.
