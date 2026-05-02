@@ -256,17 +256,32 @@ func relateMLStoPolygon(a *geom.MultiLineString, b *geom.Polygon, k kernel.Kerne
 			ts := []float64{0, 1}
 			dx, dy := p2.X-p1.X, p2.Y-p1.Y
 			denom2 := dx*dx + dy*dy
+			collinearOverlap := false
 			for r := 0; r < b.NumRings(); r++ {
 				ring := b.Ring(r)
 				for j := 0; j+1 < len(ring); j++ {
 					q1, q2 := ring[j], ring[j+1]
-					ip, ok := k.SegmentIntersection(p1, p2, q1, q2)
-					if !ok {
-						continue
-					}
-					t := ((ip.X-p1.X)*dx + (ip.Y-p1.Y)*dy) / denom2
-					if t > 1e-15 && t < 1-1e-15 {
-						ts = append(ts, t)
+					res := segmentIntersectStructured(p1, p2, q1, q2, k)
+					switch res.kind {
+					case segIntersectPoint:
+						t := ((res.p.X-p1.X)*dx + (res.p.Y-p1.Y)*dy) / denom2
+						if t > 1e-15 && t < 1-1e-15 {
+							ts = append(ts, t)
+						}
+					case segIntersectCollinearOverlap:
+						// A's segment runs along a polygon ring for a
+						// sub-length > 0. Mark the overlap as a 1-D
+						// IB/BB contribution; the per-sub-interval
+						// scan below also raises IB at dim 0 from the
+						// midpoint check, but dim 1 is what JTS
+						// expects here.
+						collinearOverlap = true
+						for _, ep := range [2]geom.XY{res.p, res.q} {
+							t := ((ep.X-p1.X)*dx + (ep.Y-p1.Y)*dy) / denom2
+							if t > 1e-15 && t < 1-1e-15 {
+								ts = append(ts, t)
+							}
+						}
 					}
 				}
 			}
@@ -305,7 +320,7 @@ func relateMLStoPolygon(a *geom.MultiLineString, b *geom.Polygon, k kernel.Kerne
 				m.raise(mIE, 1)
 				hasExterior = true
 			}
-			if allBoundarySeg {
+			if allBoundarySeg || collinearOverlap {
 				m.raise(mIB, 1)
 				hasBoundarySegment = true
 			}

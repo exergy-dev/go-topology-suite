@@ -3,7 +3,50 @@ package predicate
 import (
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
+	"github.com/terra-geo/terra/kernel/planar"
 )
+
+// segIntersectKind classifies the structured intersection result
+// independently of the kernel package's enum so this file can stay
+// pure-predicate.
+type segIntersectKind int
+
+const (
+	segIntersectNone segIntersectKind = iota
+	segIntersectPoint
+	segIntersectCollinearOverlap
+)
+
+type segIntersectResult struct {
+	kind segIntersectKind
+	p, q geom.XY
+}
+
+// segmentIntersectStructured wraps planar.SegmentIntersect and
+// projects its result into segIntersectResult. For non-planar
+// kernels (spherical/geodesic), this falls back to the kernel's
+// SegmentIntersection (point-only); collinear overlap is reported
+// as None there. Currently only the planar kernel exists, so the
+// fallback is not exercised.
+func segmentIntersectStructured(a1, a2, b1, b2 geom.XY, k kernel.Kernel) segIntersectResult {
+	if k == nil || k.Name() == "planar" {
+		r := planar.SegmentIntersect(a1, a2, b1, b2)
+		switch r.Kind {
+		case kernel.PointIntersection:
+			return segIntersectResult{kind: segIntersectPoint, p: r.P}
+		case kernel.CollinearOverlap:
+			if r.P == r.Q {
+				return segIntersectResult{kind: segIntersectPoint, p: r.P}
+			}
+			return segIntersectResult{kind: segIntersectCollinearOverlap, p: r.P, q: r.Q}
+		}
+		return segIntersectResult{kind: segIntersectNone}
+	}
+	if ip, ok := k.SegmentIntersection(a1, a2, b1, b2); ok {
+		return segIntersectResult{kind: segIntersectPoint, p: ip}
+	}
+	return segIntersectResult{kind: segIntersectNone}
+}
 
 // This file defines per-type-pair DE-9IM matrix builders. Each function
 // returns a complete 3×3 matrix using the conventions in relate.go:
@@ -380,6 +423,15 @@ func relateLinePolygon(ls *geom.LineString, poly *geom.Polygon, k kernel.Kernel)
 	// Edge crossings between line segments and ring segments contribute
 	// 0-D intersections in II/IB/BB/BI according to whether the crossing
 	// lies on the line's boundary endpoints.
+	//
+	// Collinear-overlap is also handled here: when a line segment runs
+	// along a ring segment for a non-trivial sub-length, the structured
+	// SegmentIntersect returns CollinearOverlap, which we promote to
+	// dim=1 in IB (line interior on polygon boundary). This closes
+	// JTS TestRelateLA case#55 and similar line-on-polygon-boundary
+	// cases that the 3-sample heuristic misses when one segment
+	// endpoint is in polygon interior and the other end of the
+	// overlap lies between samples.
 	lsBoundary := lineBoundary(ls)
 	ringBufP := borrowRingBuf()
 	defer releaseRingBuf(ringBufP)
@@ -390,14 +442,26 @@ func relateLinePolygon(ls *geom.LineString, poly *geom.Polygon, k kernel.Kernel)
 			b1, b2 := ring[j], ring[j+1]
 			for i := 0; i+1 < ls.NumPoints(); i++ {
 				a1, a2 := ls.PointAt(i), ls.PointAt(i+1)
-				ip, ok := k.SegmentIntersection(a1, a2, b1, b2)
-				if !ok {
-					continue
-				}
-				if pointInBoundarySet(ip, lsBoundary) {
-					m.raise(mBB, 0)
-				} else {
-					m.raise(mIB, 0)
+				res := segmentIntersectStructured(a1, a2, b1, b2, k)
+				switch res.kind {
+				case segIntersectPoint:
+					if pointInBoundarySet(res.p, lsBoundary) {
+						m.raise(mBB, 0)
+					} else {
+						m.raise(mIB, 0)
+					}
+				case segIntersectCollinearOverlap:
+					// Line interior overlaps polygon boundary along a
+					// sub-segment of length > 0 → dim=1 IB.
+					m.raise(mIB, 1)
+					// The endpoints of the overlap sub-segment are on
+					// the polygon boundary; classify them as IB or BB
+					// per their relation to the line's boundary set.
+					for _, ep := range [2]geom.XY{res.p, res.q} {
+						if pointInBoundarySet(ep, lsBoundary) {
+							m.raise(mBB, 0)
+						}
+					}
 				}
 			}
 		}
