@@ -103,3 +103,23 @@ func TestLinearRingNotClosed(t *testing.T) {
 	require.True(t, errors.As(err, &ve))
 	assert.Equal(t, DefectRingNotClosed, ve.Defects[0].Kind)
 }
+
+// TestValidPolygonNearlyParallelEdges exercises the JTS robustness
+// case from http://trac.osgeo.org/geos/ticket/588: a hexagonal shell
+// with two consecutive vertices that differ only in the last bit of
+// the mantissa. Without near-duplicate collapsing, the segment-
+// intersection predicate sees the resulting near-zero edge as a
+// self-intersection and rejects an otherwise valid polygon.
+func TestValidPolygonNearlyParallelEdges(t *testing.T) {
+	w := `POLYGON ((
+ -86.3958130146539250 114.3482370100377900,
+ 55.7321237336437390 -44.8146215164960250,
+ 87.9271046586986810 -10.5302909001479530,
+ 87.9271046586986810 -10.5302909001479570,
+ 138.3490775437400700 43.1639042523018260,
+ 64.7285128575111490 156.9678884302379600,
+ -86.3958130146539250 114.3482370100377900))`
+	g, err := wkt.Unmarshal(w)
+	require.NoError(t, err)
+	assert.NoError(t, Validate(g), "near-duplicate consecutive vertices must not trigger self-intersection")
+}

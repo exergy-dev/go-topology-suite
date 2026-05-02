@@ -774,7 +774,7 @@ func collapseConsecutiveDuplicates(ring []geom.XY) []geom.XY {
 	out := make([]geom.XY, 0, len(ring))
 	out = append(out, ring[0])
 	for i := 1; i < len(ring); i++ {
-		if ring[i] != out[len(out)-1] {
+		if !nearDuplicate(ring[i], out[len(out)-1]) {
 			out = append(out, ring[i])
 		}
 	}
@@ -785,4 +785,32 @@ func collapseConsecutiveDuplicates(ring []geom.XY) []geom.XY {
 		out = append(out, out[0])
 	}
 	return out
+}
+
+// nearDuplicate reports whether two consecutive ring vertices are
+// equal within a few ULPs of their magnitude. Inputs that differ
+// only in the last bit or two of the mantissa create degenerate
+// near-zero-length edges that confuse the segment-intersection
+// predicate (a neighbouring edge is reported as "touching" the
+// near-duplicate vertex even though no real self-intersection
+// exists). Treating such vertices as a single point matches what
+// JTS achieves with extended-precision orientation arithmetic.
+//
+// See JTS test "Robustness issue when validating polygon with
+// nearly parallel edges separated by small distance" /
+// http://trac.osgeo.org/geos/ticket/588.
+func nearDuplicate(a, b geom.XY) bool {
+	if a == b {
+		return true
+	}
+	// Relative tolerance ≈ 8 ULPs of the larger magnitude. This is
+	// tight enough that any geometrically meaningful edge survives,
+	// while collapsing pure floating-point noise from coordinate
+	// round-trips.
+	const rel = 8 * 1.1102230246251565e-16 // 8 * 2^-53
+	dx := math.Abs(a.X - b.X)
+	dy := math.Abs(a.Y - b.Y)
+	mx := math.Max(math.Abs(a.X), math.Abs(b.X))
+	my := math.Max(math.Abs(a.Y), math.Abs(b.Y))
+	return dx <= rel*mx && dy <= rel*my
 }
