@@ -50,7 +50,125 @@ func classifyFacesByPolygons(d *dcel,
 		// Sample for inClip: prefer an edge contributed by subj only.
 		ipClip := interiorPointPreferringTag(f, 1, 2)
 		f.inClip = pointInAnyPolygon(ipClip, clipRings, clipPerPoly)
+
+		// Centroid-based cross-check for narrow-sliver faces.
+		// When the edge-nudge sample point lands in a region where the
+		// snap-rounded face boundary differs from the original-ring
+		// boundary by more than 1e-9 perpendicular distance, the
+		// nudge can fall on the wrong side of the original ring and
+		// flip the inSubj/inClip flag incorrectly.
+		//
+		// The centroid (average of distinct boundary vertices) is
+		// strictly interior to convex faces and reliably interior to
+		// "wide" faces. We use it as a confirmation only when:
+		//
+		//   - the face is not the outer face (those are correctly
+		//     classified false on both inputs),
+		//   - the edge-nudge says NOT inSet, AND
+		//   - the face's boundary is composed only of edges tagged
+		//     with that input (so the face MUST be either inside the
+		//     input or inside one of its holes), AND
+		//   - the centroid lies strictly inside the face's own
+		//     boundary cycle (so we can trust it as a sample point).
+		//
+		// In that combination, we re-test the centroid against the
+		// original ring set: if the centroid agrees with the
+		// boundary-tag evidence (returns true), we flip the flag.
+		// This recovers face classification for cases like
+		// TestOverlayAAPrec#16 where the snap-rounded face boundary
+		// has migrated outside the original input ring.
+		if !f.isOuter {
+			if !f.inSubj && faceBoundaryAllOfTag(f, 1) {
+				ipC := faceCentroid(f)
+				if pointInFace(ipC, f) && pointInAnyPolygon(ipC, subjRings, subjPerPoly) {
+					f.inSubj = true
+				}
+			}
+			if !f.inClip && faceBoundaryAllOfTag(f, 2) {
+				ipC := faceCentroid(f)
+				if pointInFace(ipC, f) && pointInAnyPolygon(ipC, clipRings, clipPerPoly) {
+					f.inClip = true
+				}
+			}
+		}
 	}
+}
+
+// faceBoundaryAllOfTag returns true when every non-spur half-edge of
+// the face carries the given tag bit AND has no other input bit set.
+// This identifies faces whose boundary was contributed exclusively by
+// one input — signalling that the face is a "snap-rounded body of
+// that input" rather than an overlap region or hole shared with the
+// other input. Spur edges (e.face == e.twin.face) are excluded
+// because their tag direction is ambiguous.
+//
+// The "exclusively one input" test prevents false positives in
+// configurations like nested-hole overlays, where the face's
+// boundary is shared between subj's hole and clip's outer ring
+// (tags == both bits) — in those cases the original-ring test is
+// already reliable, so we should not override it.
+func faceBoundaryAllOfTag(f *face, tagBit uint8) bool {
+	if f.isOuter || len(f.edges) == 0 {
+		return false
+	}
+	otherBit := uint8(0b11) ^ tagBit
+	any := false
+	for _, e := range f.edges {
+		if e.twin != nil && e.twin.face == f {
+			continue
+		}
+		if e.tags&tagBit == 0 {
+			return false
+		}
+		if e.tags&otherBit != 0 {
+			return false
+		}
+		any = true
+	}
+	return any
+}
+
+// faceCentroid returns the average of the face's distinct boundary
+// vertices. For convex faces this is strictly interior. For concave
+// faces it may fall outside; callers must validate via pointInFace.
+func faceCentroid(f *face) geom.XY {
+	var cx, cy float64
+	var n int
+	seen := map[geom.XY]bool{}
+	for _, e := range f.edges {
+		if !seen[e.origin.p] {
+			cx += e.origin.p.X
+			cy += e.origin.p.Y
+			seen[e.origin.p] = true
+			n++
+		}
+	}
+	if n == 0 {
+		return interiorPoint(f)
+	}
+	return geom.XY{X: cx / float64(n), Y: cy / float64(n)}
+}
+
+// pointInFace returns true when p lies strictly interior to f's
+// boundary cycle (a simple ring). For non-simple boundaries (faces
+// containing spurs) the test still works in the parity sense — a spur
+// edge is traversed twice in opposite directions, contributing zero
+// net crossings to a horizontal ray.
+func pointInFace(p geom.XY, f *face) bool {
+	if len(f.edges) == 0 {
+		return false
+	}
+	inside := false
+	for _, e := range f.edges {
+		a, b := e.origin.p, e.target.p
+		if (a.Y > p.Y) != (b.Y > p.Y) {
+			xCross := a.X + (p.Y-a.Y)*(b.X-a.X)/(b.Y-a.Y)
+			if p.X < xCross {
+				inside = !inside
+			}
+		}
+	}
+	return inside
 }
 
 // interiorPointPreferringTag returns a face interior point computed
