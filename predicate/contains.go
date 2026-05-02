@@ -280,6 +280,7 @@ func collectionPolygonCoveredInterior(a *geom.GeometryCollection, poly *geom.Pol
 
 func collectionPointCoveredInterior(a *geom.GeometryCollection, p geom.XY, k kernel.Kernel) (covered bool, interior bool) {
 	polygonBoundaryHits := 0
+	lineBoundaryHits := 0
 	for i := 0; i < a.NumGeometries(); i++ {
 		g := a.GeometryAt(i)
 		if g.IsEmpty() {
@@ -291,11 +292,58 @@ func collectionPointCoveredInterior(a *geom.GeometryCollection, p geom.XY, k ker
 		if boundary {
 			polygonBoundaryHits++
 		}
+		if pointIsOnLineBoundary(g, p) {
+			lineBoundaryHits++
+		}
 	}
 	if polygonBoundaryHits >= 2 && collectionPointNeighborhoodCovered(a, p, k) {
 		interior = true
 	}
+	// Mod2 boundary rule for line members: when the point lands on an
+	// odd number of line endpoints across the collection, the point is
+	// on the GC's boundary — which takes precedence over any member's
+	// interior label (matches JTS BoundaryNodeRule.Mod2 + relate matrix
+	// rule that BOUNDARY > INTERIOR for a single sample point).
+	if lineBoundaryHits%2 == 1 {
+		interior = false
+	}
 	return covered, interior
+}
+
+// pointIsOnLineBoundary reports whether p coincides with a line endpoint
+// of any LineString or MultiLineString within g (recursing into nested
+// GeometryCollections). Used by the Mod2 boundary rule.
+func pointIsOnLineBoundary(g geom.Geometry, p geom.XY) bool {
+	switch v := g.(type) {
+	case *geom.LineString:
+		if v.IsEmpty() || v.NumPoints() < 2 {
+			return false
+		}
+		first := v.PointAt(0)
+		last := v.PointAt(v.NumPoints() - 1)
+		// Closed lines have empty boundary.
+		if first == last {
+			return false
+		}
+		return p == first || p == last
+	case *geom.MultiLineString:
+		count := 0
+		for i := 0; i < v.NumGeometries(); i++ {
+			if pointIsOnLineBoundary(v.LineStringAt(i), p) {
+				count++
+			}
+		}
+		return count%2 == 1
+	case *geom.GeometryCollection:
+		count := 0
+		for i := 0; i < v.NumGeometries(); i++ {
+			if pointIsOnLineBoundary(v.GeometryAt(i), p) {
+				count++
+			}
+		}
+		return count%2 == 1
+	}
+	return false
 }
 
 func collectionPointNeighborhoodCovered(a *geom.GeometryCollection, p geom.XY, k kernel.Kernel) bool {
