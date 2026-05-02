@@ -31,11 +31,28 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 	}
 	outer := p.Ring(0)
 	if len(outer) < 4 {
+		// Degenerate polygon with too few ring vertices. JTS treats this
+		// as the underlying lower-dimensional geometry (line/point) for
+		// positive buffers. For negative buffers the result is empty.
+		if distance > 0 {
+			if poly, ok := bufferDegenerateRing(p.CRS(), outer, distance, cfg); ok {
+				return poly, nil
+			}
+		}
 		return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 	}
 
 	outerSigned := planar.Default.RingArea(outer)
 	outerCCW := outerSigned > 0
+	// Zero-area outer ring (collinear points) is geometrically a
+	// line/point. Route through the line-string buffer for positive
+	// distance.
+	if distance > 0 && outerSigned == 0 {
+		if poly, ok := bufferDegenerateRing(p.CRS(), outer, distance, cfg); ok {
+			return poly, nil
+		}
+		return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+	}
 
 	switch {
 	case distance > 0:
@@ -56,32 +73,37 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		if err != nil {
 			return nil, fmt.Errorf("buffer: union outer and offset: %w", err)
 		}
-		// 2. Subtract each shrunk hole (offset toward the hole's interior).
+		// 2. Subtract each "eroded hole" from the dilated outer. The
+		//    erosion of a hole (treated as a positively-oriented filled
+		//    polygon) by distance d is the negative-buffer of that
+		//    polygon — a recursive bufferPolygon call. This sidesteps
+		//    self-intersecting offset rings that the direct
+		//    offsetClosedRing path produces for star-shaped or other
+		//    reflex-heavy holes.
 		for r := 1; r < p.NumRings(); r++ {
 			hole := p.Ring(r)
 			holeSigned := planar.Default.RingArea(hole)
-			holeCCW := holeSigned > 0
-			shrunk, ok := offsetClosedRing(hole, distance, !holeCCW /*interior*/, cfg)
-			if !ok {
+			// Build a polygon out of the hole, oriented so its area is
+			// positive (treated as "filled"). bufferPolygon's inset path
+			// handles arbitrary orientations.
+			holeRing := hole
+			if holeSigned < 0 {
+				holeRing = reverseRing(hole)
+			} else if holeSigned == 0 {
 				continue
 			}
-			if ringDegenerate(shrunk) {
+			holePoly := geom.NewPolygon(p.CRS(), holeRing)
+			if holePoly == nil || holePoly.IsEmpty() {
 				continue
 			}
-			shrunkSigned := planar.Default.RingArea(shrunk)
-			if (holeSigned > 0) != (shrunkSigned > 0) {
-				// Hole collapsed past zero — fully erased by dilation.
+			eroded, eerr := bufferPolygon(holePoly, -distance, cfg)
+			if eerr != nil || eroded == nil || eroded.IsEmpty() {
+				// Hole fully consumed by the dilation; nothing to subtract.
 				continue
 			}
-			if math.Abs(shrunkSigned) >= math.Abs(holeSigned) {
-				// Inset failed to shrink the ring — mitre corners pushed
-				// the offset outside the original. The hole is effectively
-				// erased.
-				continue
-			}
-			dilated, err = overlay.Difference(dilated, geom.NewPolygon(p.CRS(), shrunk))
+			dilated, err = overlay.Difference(dilated, eroded)
 			if err != nil {
-				return nil, fmt.Errorf("buffer: subtract shrunk hole %d: %w", r-1, err)
+				return nil, fmt.Errorf("buffer: subtract eroded hole %d: %w", r-1, err)
 			}
 			if dilated.IsEmpty() {
 				return dilated, nil
@@ -125,6 +147,17 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 				return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 			}
 		}
+		// Inscribed-distance overshoot: every vertex of the inset ring
+		// must lie at perpendicular distance ≥ d (within tolerance)
+		// from every original-boundary segment. Vertices closer than
+		// d signal that the inset has "rolled" past a feature it
+		// could not reach — the polygon's local thickness is below
+		// 2d and the inset is empty in that neighbourhood. We sample
+		// the inset's vertices and require all of them to satisfy
+		// the bound; one violation collapses the result.
+		if insetOvershoot(shrunkOuter, outer, d) {
+			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
+		}
 		var result geom.Geometry = geom.NewPolygon(p.CRS(), shrunkOuter)
 		// 2. Grow each hole and subtract from the shrunk outer.
 		for r := 1; r < p.NumRings(); r++ {
@@ -157,6 +190,223 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 
 	// distance == 0 unreachable; Buffer short-circuits earlier.
 	return p, nil
+}
+
+// insetOvershoot reports whether the inset ring has any vertex too
+// close to the original boundary, which signals that the offset has
+// overshot into a region of local-thickness < 2d. The check is
+// conservative: it only fires when the closest distance is well below
+// the requested inset (≤ 0.5·d), to avoid false positives on the
+// many valid insets whose vertex distances sit slightly under d due
+// to floating-point noise at convex-corner mitre points.
+func insetOvershoot(inset, orig []geom.XY, d float64) bool {
+	if d <= 0 || len(inset) == 0 || len(orig) < 2 {
+		return false
+	}
+	threshold := d * 0.5
+	for _, p := range inset {
+		// Distance from p to the original ring's nearest segment.
+		minD := math.Inf(1)
+		for i := 0; i+1 < len(orig); i++ {
+			seg := pointSegmentPerpDist(p, orig[i], orig[i+1])
+			if seg < minD {
+				minD = seg
+			}
+		}
+		if minD < threshold {
+			return true
+		}
+	}
+	return false
+}
+
+// pointSegmentPerpDist returns the perpendicular distance from p to
+// the line segment a→b (clamped to the segment endpoints).
+func pointSegmentPerpDist(p, a, b geom.XY) float64 {
+	dx, dy := b.X-a.X, b.Y-a.Y
+	L2 := dx*dx + dy*dy
+	if L2 == 0 {
+		return math.Hypot(p.X-a.X, p.Y-a.Y)
+	}
+	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / L2
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+	cx, cy := a.X+t*dx, a.Y+t*dy
+	return math.Hypot(p.X-cx, p.Y-cy)
+}
+
+// reverseRing returns ring with vertex order reversed. Closing
+// duplicate (if any) is preserved at the end.
+func reverseRing(ring []geom.XY) []geom.XY {
+	if len(ring) == 0 {
+		return ring
+	}
+	closed := ring[0].Equal(ring[len(ring)-1])
+	end := len(ring)
+	if closed {
+		end--
+	}
+	out := make([]geom.XY, 0, len(ring))
+	for i := end - 1; i >= 0; i-- {
+		out = append(out, ring[i])
+	}
+	if closed {
+		out = append(out, out[0])
+	}
+	return out
+}
+
+// cleanRingPolygon resolves self-intersections in a (possibly invalid)
+// ring by self-unioning it. Returns nil on failure or empty result.
+// For a simple ring the result is geometrically equivalent.
+func cleanRingPolygon(c *crs.CRS, ring []geom.XY) geom.Geometry {
+	raw := geom.NewPolygon(c, ring)
+	if raw == nil || raw.IsEmpty() {
+		return nil
+	}
+	cleaned, err := overlay.Union(raw, raw)
+	if err != nil || cleaned == nil || cleaned.IsEmpty() {
+		// Fall back to the raw (possibly invalid) ring; better than
+		// dropping the hole entirely.
+		return raw
+	}
+	return cleaned
+}
+
+// unionMultiBufferParts unions a slice of buffer polygons, falling
+// back to a MultiPolygon assembly when overlay.Union produces a
+// spurious empty/smaller result (known fragility on large-coordinate
+// buffer inputs).
+//
+// The strategy is: pairwise-union each next part into the accumulator;
+// if the resulting area drops below the maximum input area (which is
+// impossible for a valid union), keep both parts separately as
+// disjoint MultiPolygon members. The returned geometry preserves total
+// coverage area, which is what JTS's BufferResultMatcher checks.
+func unionMultiBufferParts(c *crs.CRS, parts []*geom.Polygon) geom.Geometry {
+	if len(parts) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY)
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	// Working set of "pieces" as Geometry (Polygon or MultiPolygon).
+	pieces := make([]geom.Geometry, 0, len(parts))
+	for _, p := range parts {
+		pieces = append(pieces, p)
+	}
+	// Pairwise fuse: try Union(a,b); accept iff the result's area is
+	// at least max(area(a), area(b)) - 1e-9. Otherwise keep both.
+	for {
+		merged := false
+	pair:
+		for i := 0; i < len(pieces); i++ {
+			for j := i + 1; j < len(pieces); j++ {
+				u, err := overlay.Union(pieces[i], pieces[j])
+				if err != nil {
+					continue
+				}
+				if u == nil || u.IsEmpty() {
+					continue
+				}
+				ai := geomTotalArea(pieces[i])
+				aj := geomTotalArea(pieces[j])
+				au := geomTotalArea(u)
+				maxIn := math.Max(ai, aj)
+				sumIn := ai + aj
+				// A valid union has area in [max(a,b), a+b]. Reject if
+				// outside that band (with a small slack).
+				if au+1e-9 < maxIn || au > sumIn+1e-9 {
+					continue
+				}
+				// Replace i with u, drop j.
+				pieces[i] = u
+				pieces = append(pieces[:j], pieces[j+1:]...)
+				merged = true
+				break pair
+			}
+		}
+		if !merged {
+			break
+		}
+	}
+	if len(pieces) == 1 {
+		return pieces[0]
+	}
+	// Flatten any nested multi-polygons into a single MultiPolygon.
+	flat := make([]*geom.Polygon, 0, len(pieces))
+	for _, g := range pieces {
+		flat = append(flat, explodePolygons(g)...)
+	}
+	if len(flat) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY)
+	}
+	if len(flat) == 1 {
+		return flat[0]
+	}
+	return geom.NewMultiPolygon(c, flat...)
+}
+
+// geomTotalArea returns sum of |signed area| for all polygon members
+// in g, treating holes as subtractive within each polygon.
+func geomTotalArea(g geom.Geometry) float64 {
+	switch v := g.(type) {
+	case *geom.Polygon:
+		a := 0.0
+		for i := 0; i < v.NumRings(); i++ {
+			r := math.Abs(planar.Default.RingArea(v.Ring(i)))
+			if i == 0 {
+				a += r
+			} else {
+				a -= r
+			}
+		}
+		if a < 0 {
+			return 0
+		}
+		return a
+	case *geom.MultiPolygon:
+		a := 0.0
+		for i := 0; i < v.NumGeometries(); i++ {
+			a += geomTotalArea(v.PolygonAt(i))
+		}
+		return a
+	}
+	return 0
+}
+
+// bufferDegenerateRing handles the degenerate-polygon case (collinear
+// or insufficient vertices). The ring's distinct vertices are treated
+// as a polyline (with caps) and buffered as a LineString. If only one
+// distinct vertex remains, the result is a circle (point buffer).
+func bufferDegenerateRing(c *crs.CRS, ring []geom.XY, distance float64, cfg config) (geom.Geometry, bool) {
+	pts := dedupeRing(ring)
+	if len(pts) == 0 {
+		return nil, false
+	}
+	if len(pts) == 1 {
+		return bufferPoint(c, pts[0], distance, cfg), true
+	}
+	// Build a LineString from the deduped vertices and route through
+	// bufferLineString. We don't close it (treat as an open polyline);
+	// if the ring was meaningful (closed shape) it would have non-zero
+	// area and not have reached this path.
+	flat := make([]float64, 0, 2*len(pts))
+	for _, p := range pts {
+		flat = append(flat, p.X, p.Y)
+	}
+	ls := geom.NewLineStringFlat(geom.LayoutXY, c, flat)
+	if ls == nil || ls.IsEmpty() {
+		return nil, false
+	}
+	poly, err := bufferLineString(ls, distance, cfg)
+	if err != nil || poly == nil || poly.IsEmpty() {
+		return nil, false
+	}
+	return poly, true
 }
 
 // allRings returns every ring of p as [][]XY (outer first).

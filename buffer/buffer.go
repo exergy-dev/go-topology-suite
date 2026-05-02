@@ -60,6 +60,27 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 		}
 	}
 	if distance == 0 {
+		// For polygon inputs, buffer(g, 0) is JTS's "polygonal cleanup"
+		// — degenerate / zero-area rings collapse to POLYGON EMPTY,
+		// otherwise the polygon is returned unchanged.
+		switch v := g.(type) {
+		case *geom.Polygon:
+			if isDegenerateAreal(v) {
+				return geom.NewEmptyPolygon(v.CRS(), v.Layout()), nil
+			}
+		case *geom.MultiPolygon:
+			parts := make([]*geom.Polygon, 0, v.NumGeometries())
+			for i := 0; i < v.NumGeometries(); i++ {
+				pp := v.PolygonAt(i)
+				if !isDegenerateAreal(pp) {
+					parts = append(parts, pp)
+				}
+			}
+			if len(parts) == 0 {
+				return geom.NewEmptyPolygon(v.CRS(), v.Layout()), nil
+			}
+			return geom.NewMultiPolygon(v.CRS(), parts...), nil
+		}
 		return g, nil
 	}
 
@@ -99,6 +120,10 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 		if v.IsEmpty() {
 			return geom.NewMultiPolygon(v.CRS()), nil
 		}
+		// Buffer each line, then union. Use unionMultiBufferParts which
+		// is robust to overlay.Union returning empty/spurious results
+		// (a known fragile area when buffer inputs sit at large
+		// coordinate magnitudes).
 		parts := make([]*geom.Polygon, 0, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
 			ls := v.LineStringAt(i)
@@ -109,9 +134,15 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 			if err != nil {
 				return nil, err
 			}
+			if poly == nil || poly.IsEmpty() {
+				continue
+			}
 			parts = append(parts, poly)
 		}
-		return geom.NewMultiPolygon(v.CRS(), parts...), nil
+		if len(parts) == 0 {
+			return geom.NewEmptyPolygon(v.CRS(), v.Layout()), nil
+		}
+		return unionMultiBufferParts(v.CRS(), parts), nil
 
 	case *geom.Polygon:
 		if v.IsEmpty() {
@@ -130,6 +161,21 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 	}
 
 	return nil, fmt.Errorf("buffer.Buffer: unsupported geometry type %T: %w", g, terra.ErrInvalidGeometry)
+}
+
+// isDegenerateAreal reports whether a polygon's outer ring is too
+// degenerate to represent any positive-area region: empty, fewer than
+// 4 vertices (no closed ring), or zero signed area (all vertices
+// collinear or coincident).
+func isDegenerateAreal(p *geom.Polygon) bool {
+	if p == nil || p.IsEmpty() || p.NumRings() == 0 {
+		return true
+	}
+	outer := p.Ring(0)
+	if len(outer) < 4 {
+		return true
+	}
+	return planar.Default.RingArea(outer) == 0
 }
 
 // bufferPoint produces a regular polygon approximating a circle of radius
