@@ -28,40 +28,31 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-02)
 
-After Pillars 1, 2/3 (partial), 4 P1+P2 (buffer polygonization +
-tolerance-aware spike removal), 5, 6 P1 (line-on-polygon-boundary
-collinear overlap), 7, simplify rewrite, overlay auto-tolerance
-retry for FLOATING-precision real-world ticket cases, Stream G
-(snap-rounding lineal overlay), centroid-based reclassification
-for snap-rounded sliver faces (closes TestOverlayAAPrec#16
-union/symdifference), and isolated-touch-point emission for line-
-polygon intersection (closes TestOverlayLA cases#2,#3), the corpus
-stands at **99.0% pass rate** (8860/8951 passing, 61 failures,
-30 skipped — 99.3% excluding skipped).
+After Pillars 1–7 + Streams A–G + G1–G4 + post-G4 round (buffer-polygonize
+upper bound, polygon-vs-line touch-point emission, orientation-tolerant
+Polygon Equals, area-conservation upper-bound check), the corpus stands
+at **99.0% pass rate** (8860/8951 passing, 61 failures, 30 skipped —
+99.3% excluding skipped). Down from a 200-failure baseline.
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
-`overlaps` / `equals` / `isValid` predicates pass on the JTS corpus
-(from a starting point of 200 failures).
+`overlaps` / `equals` / `isValid` predicates pass on the JTS corpus.
 
-The remaining 85 failures break down as:
+The remaining 61 failures break down:
 
 | Bucket | Count | Resolution |
 |--------|------:|------------|
-| TestBufferExternal2 (negative buffer of land parcels) | 31 | Needs JTS-style subgraph-finder for depth determination in `buffer/polygonize.go::labelFaceDepths`. Tolerance-aware spike removal landed (Pillar 4 P2 partial); subgraph propagation deferred. |
-| TestBufferJagged misc+robust | 16 | Same Pillar 4 P2 deferred work; sharp-corner offset overshoots produce spurious lobes that face-validity heuristics drop overaggressively. |
-| ~~TestNGOverlayLPrec~~ | 0 | Closed by Stream G (snap-rounding lineal overlay entry point in `overlay/overlayng/overlay_lineal.go`). |
-| TestSimplify | 4 | See "TestSimplify residuals" below. Needs polygon-repair pass for self-touches (cases 10/13), and corner tie-break to match an older JTS (cases 15/16). |
-| TestBufferMitredJoin | 4 | Mitre-join with reflex corners; same Pillar 4 P2 root cause. |
-| TestOverlayAAPrec | 1 | Polygon-difference-LineString case#14: B is a `LineString`, routed through float `overlay.Difference` (not snap-rounded NG). Hole reshaping under tolerance=1 unhandled by float path; deferred. |
-| TestNGOverlayAPrec | 2 | case#8 differenceSR/symDifferenceSR: JTS inserts `(4,1)` as a vertex on the `(2,1)→(4,2)` segment via an extended-cell hot-pixel test (perpendicular distance ≈0.894 > tolerance/2=0.5). Connectivity-restricted `MergeNearCollinear` pass attempted but introduced sliver-collapse regressions on case#2 (narrow wedge), case#4 (close shells), case#13 (outward-sliver hole). Deferred — needs JTS-style hot-pixel adjacency that doesn't merge legitimate narrow features. |
-| ~~TestNGOverlayPPrec~~ | 0 | Closed by Stream G (asymmetric Point/Line topology check against original geometry). |
-| ~~TestOverlayLA~~ | 0 | Closed by isolated-touch-point emission for line-polygon intersection (`overlay/line_overlay.go::linePolygonOverlay`). |
-| TestOverlayLAPrec | 1 | case#0 difference at scale=1: polygon `(95 9, 81 414, 87 414, 95 9)` is a sliver whose two long edges both round to `x=95` at `y≤13`, dimensionally collapsing the lower portion into a vertical line `(95 9, 95 13)`. JTS decomposes the snap-rounded polygon into Polygon+LineString; we currently return the polygon unchanged from the (poly\line) branch. Closing requires a polygon-snap-rounding decomposer that emits the collapsed sliver as a separate lineal component (hybrid-DCEL rewrite). Deferred. |
-| TestOverlayAA | 1 | Complex AA touching+overlapping; one residual not closed by Pillar 1 work. |
+| TestBufferExternal2 (negative buffer of land parcels) | 24 | Needs deeper buffer rework: better representative-point selection (inscribed-circle vs midpoint-of-longest-segment) + JTS-style winding-number depth-against-original (continuous quantity, not binary point-in-polygon). Phantom subgraph rep-points sit at distances 37–46 from the original boundary while legitimate inset rep-points sit at 1–15 due to ULP-noise on dense polygons; relaxing the validator threshold admits MORE phantoms (per agent A's empirical investigation). Deferred — requires medial-axis-style analysis to distinguish phantom from legitimate at this geometric resolution. |
+| TestBufferJagged misc+robust | 16 | Positive buffer on jagged polygons; routes through `polygonizeBuffer` without filter. Failures are vertex-sequence Hausdorff mismatches (shape mismatch), not face-count issues. Adding minArea filter is a no-op. Closing needs robust noding + JTS-style depth labelling that handles dense near-collinear vertices without snap-rounding artefacts (1–2 weeks of focused work). |
+| TestSimplify | 2 | cases 15, 16 simplifyTP — JTS version drift (older fixture vs current DP analysis). Out of scope. |
+| TestNGOverlayAPrec | 2 | case#8 differenceSR/symDifferenceSR: JTS inserts `(4,1)` as a vertex on the `(2,1)→(4,2)` segment via an extended-cell hot-pixel test (perpendicular distance ≈0.894 > tolerance/2=0.5). Connectivity-restricted `MergeNearCollinear` pass attempted but introduced sliver-collapse regressions; needs JTS-style hot-pixel adjacency rule that doesn't merge legitimate narrow features. |
+| TestBufferMitredJoin | 1 | Mitre-join with reflex corner; same root cause as TestBufferExternal2. |
+| TestOverlayAAPrec | 1 | Polygon-difference-LineString case#14: B is a `LineString`, routed through float `overlay.Difference` (not snap-rounded NG). Hole reshaping under tolerance=1 unhandled by float path. |
+| TestOverlayLAPrec | 1 | case#0 difference at scale=1: sliver polygon dimensionally collapses to a vertical line; JTS decomposes into Polygon+LineString, we return the polygon unchanged. Hybrid-DCEL polygon-snap-rounding decomposer needed. |
+| TestOverlayAA | 1 | Pillar 1 leftover. Complex AA touching+overlapping. |
 | TestUnaryUnionFloating | 1 | Real-world MultiPoint union with closely-clustered coords. |
-| misc/TestOverlay #4 | 1 | GEOS ticket #737 — UTM-scale polygon pair with missing sliver under floating-precision; auto-tolerance retry produces structurally-valid 3-poly output but missing one component. Detecting "valid but incomplete" needs analytic area-conservation check; deferred. |
+| misc/TestOverlay #4 | 1 | GEOS#737 — sliver under area threshold (3e-6 relative). Area-conservation check tightening below 1e-6 would force spurious retries on rounding noise. Closing requires per-input snap-rounding to coordinate-magnitude-relative grid, not retry-gating. |
 | misc/GEOSBuffer + geos-bug356-buffer | 2 | GEOS-tracked buffer pathologies. |
-| **JTS-known-fail** (`failure/` folder) | 11 | TestReducePrecisionFailure 5, TestOverlayNGFailure 2, TestBufferFailure 1, TestBigNastyBuffer 1, plus 2 distributed. JTS itself headers these as "Result provided is approximately correct". Opportunistic to close. |
+| **JTS-known-fail** (`failure/` folder) | 9 | TestReducePrecisionFailure 5, TestOverlayNGFailure 2, TestBufferFailure 1, TestBigNastyBuffer 1. JTS headers these as "Result provided is approximately correct". |
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
