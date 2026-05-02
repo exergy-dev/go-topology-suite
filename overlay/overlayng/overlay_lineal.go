@@ -240,9 +240,16 @@ func OverlayLinealWithTolerance(a, b geom.Geometry, op Op, tolerance float64) (g
 	case OpIntersection:
 		// A point survives iff it is present on BOTH A and B's vertex
 		// sets (mask == 3) and not already represented on any kept
-		// (intersection-tagged) line endpoint. The vertex can come
-		// from either a Point operand or from a line-line crossing
-		// realised via the noder.
+		// (intersection-tagged) line endpoint.
+		//
+		// Special case: when ONLY ONE side contributes the vertex via
+		// a Point operand and the OTHER side reaches it through a
+		// Line operand, JTS requires the point to lie on the
+		// ORIGINAL (unrounded) line — not just within the line's
+		// hot-pixel cell. That matches the "PL - disjoint" case
+		// where the rounded point coincides with the rounded line's
+		// endpoint but the original geometries are topologically
+		// disjoint.
 		for v, mask := range vertexTags {
 			if mask != 3 {
 				continue
@@ -250,9 +257,18 @@ func OverlayLinealWithTolerance(a, b geom.Geometry, op Op, tolerance float64) (g
 			if _, on := coveredByLine[v]; on {
 				continue
 			}
+			pt := pointTagPerInput[v]
+			if pt == 1 || pt == 2 {
+				// Asymmetric: vertex is a Point operand on one side
+				// (pt) and a Line vertex on the other (3-pt).
+				// Verify the original Point lies on the original
+				// line; otherwise treat as disjoint.
+				if !pointOnOriginalLine(v, pt, aPointsOrig, aSegsOrig, bPointsOrig, bSegsOrig, rd) {
+					continue
+				}
+			}
 			addResultPoint(v)
 		}
-		_ = pointTagPerInput
 	case OpUnion:
 		// All input Points survive, as long as they are not covered
 		// by a kept line.
@@ -268,15 +284,32 @@ func OverlayLinealWithTolerance(a, b geom.Geometry, op Op, tolerance float64) (g
 		emit(bPoints)
 	case OpDifference:
 		// Keep A's points whose mask is exactly 1 (B has no point or
-		// line vertex coincident).
+		// line vertex coincident). Or, when A is a Point and B is a
+		// Line whose hot pixel happens to overlap the rounded point
+		// but the original point is NOT on the original line — in
+		// which case the point survives the difference (the snap-
+		// rounding has falsely fused them).
 		for _, p := range aPoints {
-			if vertexTags[p] != 1 {
+			mask := vertexTags[p]
+			pt := pointTagPerInput[p]
+			if mask == 1 {
+				if _, on := coveredByLine[p]; on {
+					continue
+				}
+				addResultPoint(p)
 				continue
 			}
-			if _, on := coveredByLine[p]; on {
-				continue
+			if mask == 3 && pt == 1 {
+				// A contributed via Point, B reaches via a Line
+				// vertex (no Point operand on B at p). Keep iff the
+				// original point is NOT on B's original line.
+				if _, on := coveredByLine[p]; on {
+					continue
+				}
+				if !pointOnOriginalLine(p, 1, aPointsOrig, aSegsOrig, bPointsOrig, bSegsOrig, rd) {
+					addResultPoint(p)
+				}
 			}
-			addResultPoint(p)
 		}
 	case OpSymDiff:
 		for _, p := range aPoints {
@@ -633,6 +666,78 @@ func paramAlong(a, b, p geom.XY) float64 {
 		return 0
 	}
 	return (p.Y - a.Y) / dy
+}
+
+// pointOnOriginalLine reports whether the (rounded) vertex v's
+// originating Point operand lies on the OTHER input's original
+// (unrounded) line geometry. ptMask says which side contributed v
+// as a Point: 1 → A's Point operand, 2 → B's Point operand.
+//
+// We search the original Points list of side ptMask for a vertex
+// that snaps to v, then test whether that exact original-coord
+// vertex lies on any segment of the other side's lines.
+func pointOnOriginalLine(v geom.XY, ptMask int, aPts []geom.XY, aSegs []*noding.SegmentString,
+	bPts []geom.XY, bSegs []*noding.SegmentString, rd *snap.Rounder,
+) bool {
+	var origPts []geom.XY
+	var otherSegs []*noding.SegmentString
+	if ptMask == 1 {
+		origPts, otherSegs = aPts, bSegs
+	} else if ptMask == 2 {
+		origPts, otherSegs = bPts, aSegs
+	} else {
+		return false
+	}
+	// Find original Point(s) that snap to v.
+	for _, op := range origPts {
+		if rd.SnapVertex(op) != v {
+			continue
+		}
+		// Test against every original segment of the other side.
+		for _, ss := range otherSegs {
+			for j := 0; j+1 < len(ss.Coords); j++ {
+				if pointOnSegmentClosed(op, ss.Coords[j], ss.Coords[j+1]) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// pointOnSegmentClosed reports whether p lies on segment [a, b],
+// including endpoints, using a tolerant collinearity + parameter test.
+func pointOnSegmentClosed(p, a, b geom.XY) bool {
+	// Collinearity via cross product.
+	cross := (b.X-a.X)*(p.Y-a.Y) - (b.Y-a.Y)*(p.X-a.X)
+	// Tolerance for cross-zero: scaled by segment length so absolute
+	// floating noise on long segments doesn't fail collinearity.
+	const eps = 1e-12
+	if cross > eps || cross < -eps {
+		return false
+	}
+	// Parameter check.
+	dx, dy := b.X-a.X, b.Y-a.Y
+	var t float64
+	adx, ady := dx, dy
+	if adx < 0 {
+		adx = -adx
+	}
+	if ady < 0 {
+		ady = -ady
+	}
+	if adx >= ady {
+		if dx == 0 {
+			return p == a
+		}
+		t = (p.X - a.X) / dx
+	} else {
+		if dy == 0 {
+			return p == a
+		}
+		t = (p.Y - a.Y) / dy
+	}
+	return t >= -eps && t <= 1+eps
 }
 
 // popCount returns the number of set bits in a small tag mask.
