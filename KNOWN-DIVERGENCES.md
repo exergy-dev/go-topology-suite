@@ -28,92 +28,36 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-02)
 
-After Pillars 1, 2/3 (partial), 4 P1 (positive buffer polygonization),
-5, 6 P1 (line-on-polygon-boundary collinear overlap), 7, plus the
-overlay auto-tolerance retry for FLOATING-precision real-world
-ticket cases, the corpus stands at **98.7% pass rate**
-(8836/8951 passing, 85 failures, 30 skipped). All `relate` /
-`within` / `contains` / `touches` / `crosses` / `overlaps` /
-`equals` predicates pass on the JTS corpus.
+After Pillars 1, 2/3 (partial), 4 P1+P2 (buffer polygonization +
+tolerance-aware spike removal), 5, 6 P1 (line-on-polygon-boundary
+collinear overlap), 7, simplify rewrite, and overlay auto-tolerance
+retry for FLOATING-precision real-world ticket cases, the corpus
+stands at **98.7% pass rate** (8836/8951 passing, 85 failures,
+30 skipped — 99.0% excluding skipped).
 
-The remaining 104 failures concentrate in:
+All `relate` / `within` / `contains` / `touches` / `crosses` /
+`overlaps` / `equals` / `isValid` predicates pass on the JTS corpus
+(from a starting point of 200 failures).
 
-- **55 buffer** (TestBufferExternal2: 31, TestBufferJagged misc+robust: 16,
-  TestBufferMitredJoin: 4, plus a handful in failure/ folder).
-  Negative-buffer cases need full Pillar 4 P2: tolerance-based spike
-  removal in offset emission + JTS-style depth-determination via
-  subgraph-finder. Half-measures (overshoot guards) catch only the
-  trivially-thin polygons.
-- **30 overlay-precision** (TestOverlayAAPrec, TestNGOverlayAPrec,
-  TestNGOverlayLPrec, etc.). Sliver dimensional collapse cases that
-  Pillar 3's spur-edge / figure-8 work caught the easy ones; tight
-  near-collinear segments still fail.
-- **4 TestSimplify**: Douglas-Peucker / topology-preserving edge cases.
-  See "TestSimplify residuals (2026-05-01)" below for case-by-case
-  detail. The remaining failures all need either polygon-repair after
-  edge collapse (DP cases 10, 13) or matching JTS's exact corner-
-  selection heuristic on tiny rings, which the test expectations seem
-  to capture from a non-current JTS version.
-- **5 TestReducePrecisionFailure** + 3 TestOverlayNGFailure + 2
-  TestBufferFailure + 1 TestBigNastyBuffer: documented JTS-known-fail
-  cases ("Result provided is approximately correct").
+The remaining 85 failures break down as:
 
-- **Op:** `buffer` (~87 failures)
-- **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
-- **Trigger:** TestBuffer, TestBufferExternal2, TestBigNastyBuffer,
-  TestBufferFailure, TestBufferInsideNonEmpty.
-- **Resolution:** Terra's `buffer.Buffer` uses an offset-curve
-  generator without robust snap-rounding cleanup. Buffer correctness
-  for complex inputs (long zig-zag rings, sharp concavities, nearly-
-  parallel edges, exact JTS round-cap subdivision) requires a
-  snap-rounding noder + boundary-merge pass. Tracked.
-
-- **Op:** `relate` / cascading predicates on GeometryCollection /
-  overlapping multi cases (~150 across `relate`/`within`/`contains`/
-  `touches`)
-- **Trigger:** TestRelateGC, TestRelateLL (validate suite),
-  TestRelateLA, TestRelateAA-big (skinny-polygon precision).
-- **Resolution:** Terra's `predicate.Relate` flattens multi-geometries
-  and combines per-member matrices. Aggregate-boundary post-processing
-  (mod-2 for MLS, closed-line detection) is implemented in Phase 11,
-  but exact results for overlapping GC members + segment-level GC
-  boundary semantics need a global noded relate engine. Tracked.
-
-- **Op:** mixed-dimension overlay results
-- **Trigger:** TestOverlayAA case#3 (intersection that produces
-  P+L+A in a GeometryCollection), TestNGOverlayA precision sliver
-  cases.
-- **Resolution:** Terra's overlay-NG result extractor only emits
-  result polygons; result lines (overlay-shared edges that don't
-  bound result polygons) and result points (vertex-only intersections)
-  need additional DCEL traversal. Phase 12 in the followup plan
-  proposes this work but it has not yet landed.
-
-- **Op:** snap-rounding precision overlays (`*SR` arg3 ≠ 1, `*Prec`
-  test files ~120)
-- **Trigger:** TestOverlayAAPrec, TestNGOverlayAPrec, TestNGOverlayLPrec.
-- **Resolution:** Terra has no true snap-rounding noder. The harness
-  pre-snaps inputs to the precision scale before running overlay
-  (Phase 14), which handles the simpler cases; sliver-precision
-  overlays where snap-rounding is required during the noding step
-  itself still fail. A real `internal/snaprounding/noder.go` is the
-  proper fix.
-
-- **Op:** `isValid` on complex polygon validity
-- **Trigger:** TestValid case#74–86 (interior-disconnected via hole
-  chains), TestInvalidA (adjacent-hole chains, zero-width spikes
-  along boundary).
-- **Resolution:** These need a noded validation analysis (build
-  edge graph of all rings, check connectedness of polygon interior).
-  Single-ring + simple hole-pair checks are implemented in Phase 10.
-
-- **Op:** various AA real overlay correctness (~30)
-- **Trigger:** TestOverlayAA case#1 (polygon with hole intersecting
-  another polygon) and similar.
-- **Resolution:** Terra's overlay-NG doesn't always correctly
-  subtract holes when computing intersection of polygon-with-hole
-  vs polygon. Needs targeted fixes in
-  `overlay/overlayng/result.go`.
+| Bucket | Count | Resolution |
+|--------|------:|------------|
+| TestBufferExternal2 (negative buffer of land parcels) | 31 | Needs JTS-style subgraph-finder for depth determination in `buffer/polygonize.go::labelFaceDepths`. Tolerance-aware spike removal landed (Pillar 4 P2 partial); subgraph propagation deferred. |
+| TestBufferJagged misc+robust | 16 | Same Pillar 4 P2 deferred work; sharp-corner offset overshoots produce spurious lobes that face-validity heuristics drop overaggressively. |
+| TestNGOverlayLPrec | 6 | LL-overlay precision; routes through float overlay path, not the polygonal SR pipeline that Pillar 3 enhanced. |
+| TestSimplify | 4 | See "TestSimplify residuals" below. Needs polygon-repair pass for self-touches (cases 10/13), and corner tie-break to match an older JTS (cases 15/16). |
+| TestBufferMitredJoin | 4 | Mitre-join with reflex corners; same Pillar 4 P2 root cause. |
+| TestOverlayAAPrec | 3 | Float-precision sliver intersections beyond what snap-rounding can resolve. |
+| TestNGOverlayAPrec | 2 | Same as TestOverlayAAPrec. |
+| TestNGOverlayPPrec | 2 | PL-overlay precision; routes through float overlay path. |
+| TestOverlayLA | 2 | Multi-line × multi-area complex overlap; partial sliver miss. |
+| TestOverlayLAPrec | 1 | Snap-rounded line-area precision residual. |
+| TestOverlayAA | 1 | Complex AA touching+overlapping; one residual not closed by Pillar 1 work. |
+| TestUnaryUnionFloating | 1 | Real-world MultiPoint union with closely-clustered coords. |
+| misc/TestOverlay #4 | 1 | GEOS ticket #737 — UTM-scale polygon pair with missing sliver under floating-precision; auto-tolerance retry produces structurally-valid 3-poly output but missing one component. Detecting "valid but incomplete" needs analytic area-conservation check; deferred. |
+| misc/GEOSBuffer + geos-bug356-buffer | 2 | GEOS-tracked buffer pathologies. |
+| **JTS-known-fail** (`failure/` folder) | 11 | TestReducePrecisionFailure 5, TestOverlayNGFailure 2, TestBufferFailure 1, TestBigNastyBuffer 1, plus 2 distributed. JTS itself headers these as "Result provided is approximately correct". Opportunistic to close. |
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
