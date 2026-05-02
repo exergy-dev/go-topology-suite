@@ -27,6 +27,8 @@ func MakeValid(g geom.Geometry) (geom.Geometry, error) {
 		return x, nil
 	case *geom.LineString:
 		return makeValidLineString(x), nil
+	case *geom.LinearRing:
+		return makeValidLineString(x.AsLineString()), nil
 	case *geom.Polygon:
 		return makeValidPolygon(x), nil
 	case *geom.MultiPoint:

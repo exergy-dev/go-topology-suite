@@ -173,8 +173,10 @@ func (p *parser) parseGeometry() (geom.Geometry, error) {
 	switch w {
 	case "POINT":
 		return p.parsePoint()
-	case "LINESTRING", "LINEARRING":
+	case "LINESTRING":
 		return p.parseLineString()
+	case "LINEARRING":
+		return p.parseLinearRing()
 	case "POLYGON":
 		return p.parsePolygon()
 	case "MULTIPOINT":
@@ -312,6 +314,18 @@ func (p *parser) parseLineString() (geom.Geometry, error) {
 		return nil, err
 	}
 	return geom.NewLineStringFlatNoClone(layout, p.crs, flat), nil
+}
+
+func (p *parser) parseLinearRing() (geom.Geometry, error) {
+	layout, empty := p.parseEmptyOrLayout()
+	if empty {
+		return geom.NewLinearRingFlat(layout, p.crs, nil), nil
+	}
+	flat, err := p.readCoordSequence(layout.Stride())
+	if err != nil {
+		return nil, err
+	}
+	return geom.NewLinearRingFlatNoClone(layout, p.crs, flat), nil
 }
 
 func (p *parser) parsePolygon() (geom.Geometry, error) {

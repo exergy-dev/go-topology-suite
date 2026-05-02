@@ -38,6 +38,8 @@ func appendGeometry(b *strings.Builder, g geom.Geometry) error {
 		return appendPoint(b, v)
 	case *geom.LineString:
 		return appendLineString(b, v)
+	case *geom.LinearRing:
+		return appendLinearRing(b, v)
 	case *geom.Polygon:
 		return appendPolygon(b, v)
 	case *geom.MultiPoint:
@@ -118,6 +120,18 @@ func appendLineString(b *strings.Builder, ls *geom.LineString) error {
 	}
 	b.WriteByte(' ')
 	appendCoordSequence(b, ls.FlatCoords(), ls.Layout().Stride())
+	return nil
+}
+
+func appendLinearRing(b *strings.Builder, lr *geom.LinearRing) error {
+	b.WriteString("LINEARRING")
+	b.WriteString(layoutSuffix(lr.Layout()))
+	if lr.IsEmpty() {
+		b.WriteString(" EMPTY")
+		return nil
+	}
+	b.WriteByte(' ')
+	appendCoordSequence(b, lr.FlatCoords(), lr.Layout().Stride())
 	return nil
 }
 

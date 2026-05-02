@@ -79,3 +79,27 @@ func TestEmptyValid(t *testing.T) {
 	g, _ := wkt.Unmarshal("POLYGON EMPTY")
 	assert.NoError(t, Validate(g), "empty polygon should validate")
 }
+
+func TestLinearRingBowtieInvalid(t *testing.T) {
+	g, err := wkt.Unmarshal("LINEARRING(0 0, 100 100, 100 0, 0 100, 0 0)")
+	require.NoError(t, err)
+	err = Validate(g)
+	var ve *ValidationError
+	require.True(t, errors.As(err, &ve), "bowtie ring should be invalid")
+	assert.Equal(t, DefectSelfIntersection, ve.Defects[0].Kind)
+}
+
+func TestLinearRingValid(t *testing.T) {
+	g, err := wkt.Unmarshal("LINEARRING(0 0, 10 0, 10 10, 0 10, 0 0)")
+	require.NoError(t, err)
+	assert.NoError(t, Validate(g), "simple closed ring should validate")
+}
+
+func TestLinearRingNotClosed(t *testing.T) {
+	g, err := wkt.Unmarshal("LINEARRING(0 0, 10 0, 10 10, 0 10)")
+	require.NoError(t, err)
+	err = Validate(g)
+	var ve *ValidationError
+	require.True(t, errors.As(err, &ve))
+	assert.Equal(t, DefectRingNotClosed, ve.Defects[0].Kind)
+}

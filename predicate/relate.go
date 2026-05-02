@@ -88,9 +88,21 @@ func Relate(a, b geom.Geometry, opts ...Option) (DE9IM, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return "", terra.ErrCRSMismatch
 	}
+	a = unwrapLinearRing(a)
+	b = unwrapLinearRing(b)
 	cfg := resolve(a, opts)
 	m := computeMatrix(a, b, cfg.kernel)
 	return m.toDE9IM(), nil
+}
+
+// unwrapLinearRing routes a LinearRing through the LineString code paths.
+// LinearRing exists primarily for OGC validity (rejecting self-intersecting
+// closed rings); operationally relate/intersect/etc treat it as a 1-D curve.
+func unwrapLinearRing(g geom.Geometry) geom.Geometry {
+	if lr, ok := g.(*geom.LinearRing); ok {
+		return lr.AsLineString()
+	}
+	return g
 }
 
 // computeMatrix dispatches on the geometry types and returns the raw

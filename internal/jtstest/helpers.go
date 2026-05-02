@@ -216,6 +216,10 @@ func visitGeometrySegments(g geom.Geometry, fn func(a, b geom.XY)) {
 		for i := 0; i+1 < v.NumPoints(); i++ {
 			fn(v.PointAt(i), v.PointAt(i+1))
 		}
+	case *geom.LinearRing:
+		for i := 0; i+1 < v.NumPoints(); i++ {
+			fn(v.PointAt(i), v.PointAt(i+1))
+		}
 	case *geom.Polygon:
 		for r := 0; r < v.NumRings(); r++ {
 			ring := v.Ring(r)
@@ -273,6 +277,10 @@ func visitGeomVertices(g geom.Geometry, fn func(geom.XY)) {
 		for i := 0; i < v.NumPoints(); i++ {
 			fn(v.PointAt(i))
 		}
+	case *geom.LinearRing:
+		for i := 0; i < v.NumPoints(); i++ {
+			fn(v.PointAt(i))
+		}
 	case *geom.Polygon:
 		for r := 0; r < v.NumRings(); r++ {
 			for _, p := range v.Ring(r) {
@@ -313,6 +321,8 @@ func equalsExactStructural(a, b geom.Geometry, tol float64) bool {
 		return xyEqual(va.XY(), b.(*geom.Point).XY(), tol)
 	case *geom.LineString:
 		return ringXYEqual(lineXY(va), lineXY(b.(*geom.LineString)), tol)
+	case *geom.LinearRing:
+		return ringXYEqual(lineXY(va.AsLineString()), lineXY(b.(*geom.LinearRing).AsLineString()), tol)
 	case *geom.Polygon:
 		vb := b.(*geom.Polygon)
 		if va.NumRings() != vb.NumRings() {
@@ -412,6 +422,10 @@ func densifyGeometry(g geom.Geometry, tol float64) geom.Geometry {
 	case *geom.LineString:
 		return geom.NewLineStringFlatNoClone(v.Layout(), v.CRS(),
 			densifyFlat(lineXY(v), v.Layout().Stride(), tol))
+	case *geom.LinearRing:
+		ls := v.AsLineString()
+		return geom.NewLinearRingFlatNoClone(v.Layout(), v.CRS(),
+			densifyFlat(lineXY(ls), v.Layout().Stride(), tol))
 	case *geom.Polygon:
 		rings := make([][]geom.XY, v.NumRings())
 		for i := 0; i < v.NumRings(); i++ {
@@ -503,6 +517,16 @@ func reducePrecision(g geom.Geometry, scale float64) geom.Geometry {
 			flat = append(flat, p.X, p.Y)
 		}
 		return geom.NewLineStringFlatNoClone(geom.LayoutXY, v.CRS(), flat)
+	case *geom.LinearRing:
+		pts := lineXY(v.AsLineString())
+		for i := range pts {
+			pts[i] = snap(pts[i])
+		}
+		flat := make([]float64, 0, len(pts)*2)
+		for _, p := range pts {
+			flat = append(flat, p.X, p.Y)
+		}
+		return geom.NewLinearRingFlatNoClone(geom.LayoutXY, v.CRS(), flat)
 	case *geom.Polygon:
 		rings := make([][]geom.XY, v.NumRings())
 		for i := 0; i < v.NumRings(); i++ {
@@ -569,6 +593,8 @@ func isSimple(g geom.Geometry) bool {
 		return true
 	case *geom.LineString:
 		return lineStringIsSimple(v)
+	case *geom.LinearRing:
+		return lineStringIsSimple(v.AsLineString())
 	case *geom.MultiLineString:
 		// Each member must be simple, AND members must not share any
 		// non-endpoint point (per OGC SFA "simple" definition for
@@ -852,6 +878,9 @@ func geometryBoundary(g geom.Geometry) geom.Geometry {
 			return geom.NewMultiPoint(g.CRS(), nil)
 		}
 		return geom.NewMultiPoint(g.CRS(), []geom.XY{first, last})
+	case *geom.LinearRing:
+		// LinearRing is closed by definition; OGC boundary is empty.
+		return geom.NewMultiPoint(g.CRS(), nil)
 	case *geom.MultiLineString:
 		count := map[geom.XY]int{}
 		for i := 0; i < v.NumGeometries(); i++ {
@@ -1045,6 +1074,8 @@ func interiorPoint(g geom.Geometry) *geom.Point {
 		return interiorPointForPoints(v.CRS(), collectMultiPointXY(v))
 	case *geom.LineString:
 		return interiorPointForLines(v.CRS(), []*geom.LineString{v})
+	case *geom.LinearRing:
+		return interiorPointForLines(v.CRS(), []*geom.LineString{v.AsLineString()})
 	case *geom.MultiLineString:
 		lines := make([]*geom.LineString, v.NumGeometries())
 		for i := 0; i < v.NumGeometries(); i++ {
@@ -1066,7 +1097,7 @@ func interiorPoint(g geom.Geometry) *geom.Point {
 			switch m.(type) {
 			case *geom.Polygon, *geom.MultiPolygon:
 				polys = append(polys, m)
-			case *geom.LineString, *geom.MultiLineString:
+			case *geom.LineString, *geom.MultiLineString, *geom.LinearRing:
 				lines = append(lines, m)
 			default:
 				pts = append(pts, m)

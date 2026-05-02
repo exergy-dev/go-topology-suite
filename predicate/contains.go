@@ -21,6 +21,8 @@ func Contains(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return false, terra.ErrCRSMismatch
 	}
+	a = unwrapLinearRing(a)
+	b = unwrapLinearRing(b)
 	if a.IsEmpty() || b.IsEmpty() {
 		return false, nil
 	}

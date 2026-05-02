@@ -33,6 +33,15 @@ func requireSameCRS(a, b geom.Geometry) error {
 	return nil
 }
 
+// unwrapLinearRing routes a LinearRing through LineString code paths.
+// Overlay operations treat the closed ring as a 1-D curve.
+func unwrapLinearRing(g geom.Geometry) geom.Geometry {
+	if lr, ok := g.(*geom.LinearRing); ok {
+		return lr.AsLineString()
+	}
+	return g
+}
+
 // IntersectionGeneral returns subject ∩ clipper for arbitrary polygons
 // or multipolygons. Falls back to the v0.1 Greiner-Hormann path on
 // inputs the overlay-NG path can't handle (currently only single-polygon
@@ -41,6 +50,8 @@ func IntersectionGeneral(subject, clipper geom.Geometry) (geom.Geometry, error) 
 	if err := requireSameCRS(subject, clipper); err != nil {
 		return nil, err
 	}
+	subject = unwrapLinearRing(subject)
+	clipper = unwrapLinearRing(clipper)
 	if subject.IsEmpty() || clipper.IsEmpty() {
 		return emptyOfDim(subject.CRS(), minDim(subject, clipper)), nil
 	}
@@ -80,6 +91,8 @@ func Union(subject, other geom.Geometry) (geom.Geometry, error) {
 	if err := requireSameCRS(subject, other); err != nil {
 		return nil, err
 	}
+	subject = unwrapLinearRing(subject)
+	other = unwrapLinearRing(other)
 	if subject.IsEmpty() && other.IsEmpty() {
 		return emptyOfDim(subject.CRS(), maxDim(subject, other)), nil
 	}
@@ -129,6 +142,8 @@ func Difference(subject, other geom.Geometry) (geom.Geometry, error) {
 	if err := requireSameCRS(subject, other); err != nil {
 		return nil, err
 	}
+	subject = unwrapLinearRing(subject)
+	other = unwrapLinearRing(other)
 	if subject.IsEmpty() {
 		return emptyOfDim(subject.CRS(), dimensionOf(subject)), nil
 	}
@@ -175,6 +190,8 @@ func SymmetricDifference(a, b geom.Geometry) (geom.Geometry, error) {
 	if err := requireSameCRS(a, b); err != nil {
 		return nil, err
 	}
+	a = unwrapLinearRing(a)
+	b = unwrapLinearRing(b)
 	if a.IsEmpty() && b.IsEmpty() {
 		return emptyOfDim(a.CRS(), maxDim(a, b)), nil
 	}

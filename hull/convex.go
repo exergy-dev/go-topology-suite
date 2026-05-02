@@ -49,6 +49,10 @@ func visit(g geom.Geometry, fn func(geom.XY)) {
 		for i := 0; i < v.NumPoints(); i++ {
 			fn(v.PointAt(i))
 		}
+	case *geom.LinearRing:
+		for i := 0; i < v.NumPoints(); i++ {
+			fn(v.PointAt(i))
+		}
 	case *geom.Polygon:
 		for r := 0; r < v.NumRings(); r++ {
 			for _, p := range v.Ring(r) {

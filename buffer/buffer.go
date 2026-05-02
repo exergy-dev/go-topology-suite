@@ -42,6 +42,12 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 		o(&cfg)
 	}
 
+	// Treat a LinearRing as a LineString for buffering purposes: the
+	// distinct type exists only for OGC validity semantics.
+	if lr, ok := g.(*geom.LinearRing); ok {
+		g = lr.AsLineString()
+	}
+
 	// distance ≤ 0 on Point/Line geometries collapses the geometry to
 	// nothing (JTS semantics: buffer of a 0/1-dim with non-positive
 	// distance is POLYGON EMPTY). Polygon inputs handle distance == 0

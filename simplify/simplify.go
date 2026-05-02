@@ -18,6 +18,8 @@ func Simplify(g geom.Geometry, tolerance float64) geom.Geometry {
 		return v
 	case *geom.LineString:
 		return simplifyLineString(v, tolerance)
+	case *geom.LinearRing:
+		return simplifyLineString(v.AsLineString(), tolerance)
 	case *geom.Polygon:
 		return simplifyPolygon(v, tolerance)
 	case *geom.MultiPoint:

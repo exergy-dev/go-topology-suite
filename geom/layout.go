@@ -67,6 +67,7 @@ const (
 	MultiLineStringType
 	MultiPolygonType
 	GeometryCollectionType
+	LinearRingType
 )
 
 // String returns the canonical OGC name (POINT, LINESTRING, ...).
@@ -86,6 +87,8 @@ func (t Type) String() string {
 		return "MULTIPOLYGON"
 	case GeometryCollectionType:
 		return "GEOMETRYCOLLECTION"
+	case LinearRingType:
+		return "LINEARRING"
 	default:
 		return "UNKNOWN"
 	}

@@ -71,6 +71,9 @@ func baseCode(t geom.Type) (uint32, error) {
 		return codeMultiPolygon, nil
 	case geom.GeometryCollectionType:
 		return codeGeometryCollection, nil
+	case geom.LinearRingType:
+		// WKB has no LinearRing top-level type; encode as LineString.
+		return codeLineString, nil
 	default:
 		return 0, fmt.Errorf("wkb: unknown geometry type %v", t)
 	}
@@ -145,6 +148,8 @@ func appendGeometry(dst []byte, g geom.Geometry, c *config, atTop bool) ([]byte,
 		return appendPointBody(dst, v, c)
 	case *geom.LineString:
 		return appendLineStringBody(dst, v, c)
+	case *geom.LinearRing:
+		return appendLineStringBody(dst, v.AsLineString(), c)
 	case *geom.Polygon:
 		return appendPolygonBody(dst, v, c)
 	case *geom.MultiPoint:

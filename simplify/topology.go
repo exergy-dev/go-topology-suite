@@ -26,6 +26,8 @@ func TopologyPreserving(g geom.Geometry, tolerance float64) geom.Geometry {
 		return v
 	case *geom.LineString:
 		return tpsLineString(v, tolerance)
+	case *geom.LinearRing:
+		return tpsLineString(v.AsLineString(), tolerance)
 	case *geom.Polygon:
 		return tpsPolygon(v, tolerance)
 	case *geom.MultiPoint:

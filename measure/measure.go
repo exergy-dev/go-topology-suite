@@ -243,6 +243,8 @@ func Centroid(g geom.Geometry, opts ...Option) *geom.Point {
 		return geom.NewPoint(v.CRS(), v.XY())
 	case *geom.LineString:
 		return lineStringCentroid(v, c.kernel)
+	case *geom.LinearRing:
+		return lineStringCentroid(v.AsLineString(), c.kernel)
 	case *geom.Polygon:
 		return polygonCentroid(v)
 	case *geom.MultiPoint:
@@ -564,6 +566,10 @@ func visitVertices(g geom.Geometry, fn func(geom.XY)) {
 		for i := 0; i < v.NumPoints(); i++ {
 			fn(v.PointAt(i))
 		}
+	case *geom.LinearRing:
+		for i := 0; i < v.NumPoints(); i++ {
+			fn(v.PointAt(i))
+		}
 	case *geom.Polygon:
 		for r := 0; r < v.NumRings(); r++ {
 			for _, p := range v.Ring(r) {
@@ -594,6 +600,10 @@ func visitVertices(g geom.Geometry, fn func(geom.XY)) {
 func visitSegments(g geom.Geometry, fn func(a, b geom.XY)) {
 	switch v := g.(type) {
 	case *geom.LineString:
+		for i := 0; i+1 < v.NumPoints(); i++ {
+			fn(v.PointAt(i), v.PointAt(i+1))
+		}
+	case *geom.LinearRing:
 		for i := 0; i+1 < v.NumPoints(); i++ {
 			fn(v.PointAt(i), v.PointAt(i+1))
 		}

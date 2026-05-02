@@ -49,6 +49,8 @@ func TestRoundTripAllTypes(t *testing.T) {
 		"MULTIPOLYGON EMPTY",
 		"GEOMETRYCOLLECTION (POINT (1 2), LINESTRING (0 0, 1 1))",
 		"GEOMETRYCOLLECTION EMPTY",
+		"LINEARRING (0 0, 1 0, 1 1, 0 0)",
+		"LINEARRING EMPTY",
 	}
 	for _, in := range cases {
 		t.Run(in, func(t *testing.T) {

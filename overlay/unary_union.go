@@ -23,6 +23,7 @@ func UnaryUnion(g geom.Geometry) (geom.Geometry, error) {
 	if g == nil || g.IsEmpty() {
 		return g, nil
 	}
+	g = unwrapLinearRing(g)
 	switch v := g.(type) {
 	case *geom.Point, *geom.LineString, *geom.Polygon, *geom.MultiLineString:
 		return v, nil

@@ -77,6 +77,8 @@ func (v *validator) check(g geom.Geometry) {
 		// Empty or single coordinate; nothing further to validate.
 	case *geom.LineString:
 		v.checkLineString(x)
+	case *geom.LinearRing:
+		v.checkLinearRing(x)
 	case *geom.Polygon:
 		v.checkPolygon(x)
 	case *geom.MultiPoint:
@@ -114,6 +116,13 @@ func (v *validator) checkCoordinates(g geom.Geometry) {
 			report(x.XY())
 		}
 	case *geom.LineString:
+		for i := 0; i < x.NumPoints(); i++ {
+			if p := x.PointAt(i); bad(p) {
+				report(p)
+				return
+			}
+		}
+	case *geom.LinearRing:
 		for i := 0; i < x.NumPoints(); i++ {
 			if p := x.PointAt(i); bad(p) {
 				report(p)
@@ -180,6 +189,37 @@ func (v *validator) checkLineString(ls *geom.LineString) {
 	// OGC SFA — only its boundary endpoints are part of validity. WKT
 	// LINEARRING is currently decoded as LineString, so this loses one JTS
 	// distinction until geom grows a distinct LinearRing representation.
+}
+
+// checkLinearRing applies ring-validity rules: ≥4 vertices, closed, no
+// self-intersection. Distinct from checkLineString because OGC validity
+// for a LinearRing forbids self-crossings (a bowtie ring is invalid).
+func (v *validator) checkLinearRing(lr *geom.LinearRing) {
+	if lr.IsEmpty() {
+		return
+	}
+	ring := make([]geom.XY, lr.NumPoints())
+	for i := 0; i < lr.NumPoints(); i++ {
+		ring[i] = lr.PointAt(i)
+	}
+	if len(ring) < 4 {
+		loc := geom.XY{}
+		if len(ring) > 0 {
+			loc = ring[0]
+		}
+		v.add(DefectRingTooFewPoints,
+			fmt.Sprintf("linearring has %d vertices, need ≥4", len(ring)),
+			loc)
+		return
+	}
+	if ring[0] != ring[len(ring)-1] {
+		v.add(DefectRingNotClosed,
+			fmt.Sprintf("linearring not closed: first=%v last=%v", ring[0], ring[len(ring)-1]),
+			ring[0])
+	}
+	if loc, ok := ringSelfIntersection(ring); ok {
+		v.add(DefectSelfIntersection, "linearring self-intersects", loc)
+	}
 }
 
 func (v *validator) checkPolygon(p *geom.Polygon) {

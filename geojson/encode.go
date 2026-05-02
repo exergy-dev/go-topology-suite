@@ -25,6 +25,8 @@ func writeGeometry(b *strings.Builder, g geom.Geometry) error {
 		return writePoint(b, v)
 	case *geom.LineString:
 		return writeLineString(b, v)
+	case *geom.LinearRing:
+		return writeLineString(b, v.AsLineString())
 	case *geom.Polygon:
 		return writePolygon(b, v)
 	case *geom.MultiPoint:

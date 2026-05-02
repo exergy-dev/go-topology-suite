@@ -18,6 +18,8 @@ func Intersection(subject, clipper geom.Geometry) (geom.Geometry, error) {
 	if err := requireSameCRS(subject, clipper); err != nil {
 		return nil, err
 	}
+	subject = unwrapLinearRing(subject)
+	clipper = unwrapLinearRing(clipper)
 	if subject.IsEmpty() || clipper.IsEmpty() {
 		return emptyOfDim(subject.CRS(), minDim(subject, clipper)), nil
 	}
