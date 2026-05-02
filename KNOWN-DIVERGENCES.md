@@ -28,17 +28,12 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-01)
 
-After Stream H part 7 (SymmetricDifference merges (A\B) and (B\A)
-via Union when the area identity holds; 1% guard prevents
-catastrophic-cancellation regressions) the corpus stands at **97.4%
-pass rate** (8721/8951 passing, 200 failures, 30 skipped).
-Phase 1 of the closure plan unblocked one buffer case; the SR-suffixed
-overlay residuals were not affected because the JTS harness pre-snaps
-operands to the precision grid before dispatching, so the failure
-modes are dominated by downstream result-construction (mixed-dim
-extraction, hole subtraction, GC relate) rather than noding. The
-remaining buckets are tracked here as known divergences pending
-deeper engine work.
+After Pillar work (DCEL pinch-point fixes; multi-component face
+classification; planar.SegmentIntersect endpoint snapping; negative-
+buffer overshoot guards; multi-polygon overlap-via-centroid; precision-
+result snapping) the corpus stands at **98.1% pass rate** (8779/8951
+passing, 142 failures, 30 skipped). The remaining buckets are tracked
+here as known divergences pending deeper engine work.
 
 - **Op:** `buffer` (~87 failures)
 - **Other impl:** JTS / GEOS overlay-NG buffer with snap-rounding
