@@ -76,7 +76,15 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		// preserved. JTS uses scale = max-input-coord-magnitude *
 		// 1e-12; we use distance * 1e-9 as a robust default.
 		tolerance := math.Abs(distance) * 1e-9
-		got, err := polygonizeBuffer(p.CRS(), segs, tolerance)
+		// V4 positive-buffer validator: filter polygonizer output by
+		// winding-number depth-against-original. Phantom subgraphs
+		// whose rep has winding == -sign(outer) (topologically inverted
+		// against the input) are dropped. Faces inside the polygon body
+		// (winding == +sign) and faces outside the body (winding == 0,
+		// which the polygonizer's depth labelling has already
+		// classified as buffer interior) are kept.
+		validate := positiveBufferWindingValidator(p)
+		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, 0)
 		if err != nil {
 			return nil, fmt.Errorf("buffer: polygonize: %w", err)
 		}
