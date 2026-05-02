@@ -87,11 +87,24 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 
 	case distance < 0:
 		// Negative buffer keeps the legacy offset+overshoot-guard
-		// pipeline. The polygonize path sometimes produces spurious
-		// near-zero-area rings on convex-polygon insets due to ULP
-		// noise from mitre-cap corners; a future P2 will use
-		// tolerance-based spike removal + JTS-style depth
-		// determination.
+		// pipeline. The polygonize path subsumes positive buffer but
+		// for negative buffer it produces spurious "overshoot lobe"
+		// faces on thin/concave parcels: when the offset ring self-
+		// intersects across a thin throat, the resulting DCEL has
+		// faces with depth ≥ 1 that are outside the true inset
+		// region. A naive face-validity filter (representative point
+		// inside the original polygon AND ≥ d/2 from every original
+		// segment) closes some of these but causes net regressions
+		// because polygonize fragments fat-parcel insets into many
+		// micro-faces that the filter passes individually but no
+		// longer reassemble into the true inset multi-polygon.
+		//
+		// The principled fix is JTS-style subgraph propagation in
+		// labelFaceDepths: identify connected components of the
+		// noded offset boundary, derive each component's depth from
+		// a path to a known-zero-depth face, and drop components
+		// whose net depth is invalid. This is deferred — see
+		// labelFaceDepths comments.
 		d := -distance
 		if bboxTooThinForInset(outer, d) {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil

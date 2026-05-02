@@ -149,6 +149,53 @@ func TestPolygonize_PolygonWithHoleRoundTrip(t *testing.T) {
 	assert.InDelta(t, expected, measure.Area(got), 1e-9, "polygon-with-hole dilation")
 }
 
+// TestRemoveSpikes_ToleranceAware verifies that near-duplicate vertices
+// (within tol of an exact match) are collapsed by removeSpikes. The
+// case mirrors what mitre-cap corner computation produces: two vertex
+// pairs that should be identical but differ by ULP-scale floating
+// point noise.
+func TestRemoveSpikes_ToleranceAware(t *testing.T) {
+	const eps = 1e-12 // ULP-scale jitter that real mitre-cap noise can introduce
+	t.Run("exact spike at zero tolerance", func(t *testing.T) {
+		ring := []geom.XY{
+			{X: 0, Y: 0},
+			{X: 10, Y: 0},
+			{X: 5, Y: 5}, // spike apex
+			{X: 10, Y: 0},
+			{X: 10, Y: 10},
+			{X: 0, Y: 10},
+			{X: 0, Y: 0},
+		}
+		got := removeSpikes(ring, 0)
+		// Spike removal collapses the (10,0)→(5,5)→(10,0) sequence,
+		// producing a 4-vertex closed ring (square) plus the (10,0)→
+		// (10,0) degenerate which should also be collapsed.
+		require.NotNil(t, got)
+		assert.LessOrEqual(t, len(got), 5)
+	})
+	t.Run("near-duplicate spike at d*1e-6 tolerance", func(t *testing.T) {
+		// (10,0) and (10+eps,eps) are close enough to count as the
+		// "same" vertex when tol is set to 1.0 * 1e-6.
+		ring := []geom.XY{
+			{X: 0, Y: 0},
+			{X: 10, Y: 0},
+			{X: 5, Y: 5}, // spike apex
+			{X: 10 + eps, Y: eps},
+			{X: 10, Y: 10},
+			{X: 0, Y: 10},
+			{X: 0, Y: 0},
+		}
+		// At zero tolerance the spike isn't recognised — prev != next
+		// (they differ by eps).
+		exact := removeSpikes(ring, 0)
+		assert.Equal(t, len(ring), len(exact), "no spikes removed at zero tolerance")
+		// At 1e-6 tolerance the spike is recognised.
+		fuzzy := removeSpikes(ring, 1e-6)
+		require.NotNil(t, fuzzy)
+		assert.LessOrEqual(t, len(fuzzy), 6)
+	})
+}
+
 // TestPolygonize_SelfIntersectingOffset: a deliberately self-intersecting
 // "bowtie" offset curve (which arises from a concave reflex corner)
 // should resolve to two disjoint regions where depth >= 1, even though

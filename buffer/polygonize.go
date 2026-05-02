@@ -104,7 +104,15 @@ func emitPolygonOffsetSegments(p *geom.Polygon, distance float64, cfg config) []
 		// a→b→a), the two segments cancel topologically — they trace
 		// no boundary. Skip them so the noder doesn't see the spike
 		// as a real planar feature. Repeat until no more spikes.
-		offset = removeSpikes(offset)
+		//
+		// Tolerance: vertex coincidence is checked with a fuzzy
+		// proximity threshold of (d × 1e-6)² rather than exact equality
+		// because mitre-cap corner computation introduces ULP-scale
+		// noise that produces near-duplicate vertices. The threshold
+		// scales with d so geometric noise from larger buffers (whose
+		// mitre rays travel farther) still collapses correctly.
+		spikeTol := d * 1e-6
+		offset = removeSpikes(offset, spikeTol)
 		if len(offset) < 4 {
 			continue
 		}
@@ -159,15 +167,28 @@ func emitPolygonOffsetSegments(p *geom.Polygon, distance float64, cfg config) []
 	return out
 }
 
-// removeSpikes scans a closed ring for "a→b→a" or "a→a" patterns and
+// removeSpikes scans a closed ring for "a≈b≈a" or "a≈a" patterns and
 // removes the spike vertex. Repeats until no more spikes are found.
-// Returns a closed ring (last == first) on success.
-func removeSpikes(ring []geom.XY) []geom.XY {
+// Two points are considered coincident when their squared distance is
+// at most tol². Pass tol=0 to use exact equality. Returns a closed
+// ring (last == first) on success.
+func removeSpikes(ring []geom.XY, tol float64) []geom.XY {
 	if len(ring) < 4 {
 		return ring
 	}
+	tol2 := tol * tol
+	near := func(a, b geom.XY) bool {
+		if a == b {
+			return true
+		}
+		if tol2 == 0 {
+			return false
+		}
+		dx, dy := a.X-b.X, a.Y-b.Y
+		return dx*dx+dy*dy <= tol2
+	}
 	// Drop the closing duplicate; we'll re-close at the end.
-	if ring[0] == ring[len(ring)-1] {
+	if near(ring[0], ring[len(ring)-1]) {
 		ring = ring[:len(ring)-1]
 	}
 	for {
@@ -178,14 +199,14 @@ func removeSpikes(ring []geom.XY) []geom.XY {
 			prev := ring[(i-1+n)%n]
 			cur := ring[i]
 			next := ring[(i+1)%n]
-			// Spike: prev == next means cur is the tip of a back-and-forth.
-			if prev == next {
+			// Spike: prev ≈ next means cur is the tip of a back-and-forth.
+			if near(prev, next) {
 				removed = true
 				continue
 			}
-			// Zero-length: cur == next; skip cur, the next vertex
+			// Zero-length: cur ≈ next; skip cur, the next vertex
 			// will be considered.
-			if cur == next {
+			if near(cur, next) {
 				removed = true
 				continue
 			}
@@ -247,6 +268,28 @@ func holeIsConsumed(ring []geom.XY, d float64) bool {
 // tolerance is the snap-rounding grid spacing. Pass tolerance = 0 to
 // skip snap-rounding (the noder will still split segments at exact
 // intersections via its initial non-rounded pass).
+//
+// NEGATIVE BUFFER NOTE: this pipeline is currently used only for
+// distance > 0. Routing the negative-buffer (inset) path through here
+// has been investigated and shown to fail without further work:
+//
+//  1. Tolerance-aware spike removal (already applied below) is
+//     necessary so the round-trip property test passes — mitre-cap
+//     corners produce vertex pairs that differ by ULPs.
+//  2. Even with tolerance spike removal and a face-validity filter
+//     (interior point inside the original polygon AND ≥ d/2 from
+//     every original segment), the polygonize-based inset still
+//     regresses on (a) thin-parcel cases that produce spurious
+//     "overshoot lobe" faces with depth ≥ 1 and (b) fat-parcel
+//     cases that fragment into many micro-faces individually
+//     passing the filter but no longer assembling into the true
+//     inset multi-polygon.
+//
+// The principled fix needs JTS-style subgraph propagation in
+// labelFaceDepths: identify connected components of the noded offset
+// boundary, derive each component's depth from a path to a known-
+// zero-depth face, drop components whose net depth is invalid. This
+// is deferred — see the comment at the top of bufferPolygon.
 func polygonizeBuffer(c *crs.CRS, segs []offsetSegment, tolerance float64) (geom.Geometry, error) {
 	if len(segs) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
