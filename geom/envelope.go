@@ -211,24 +211,34 @@ func envelopeOfFlat(coords []float64, stride int) Envelope {
 	if len(coords) < stride {
 		return EmptyEnvelope()
 	}
-	minX := coords[0]
-	maxX := coords[0]
-	minY := coords[1]
-	maxY := coords[1]
-	for i := stride; i+1 < len(coords); i += stride {
+	// Defensive NaN screen: a single NaN ordinate would otherwise
+	// poison the whole envelope (NaN compared with < / > is always
+	// false, so the seeded min/max sticks at NaN forever). Skip any
+	// vertex that has a NaN X or Y so downstream spatial-index inserts
+	// see real numbers. If every vertex is NaN we fall through to the
+	// canonical empty envelope.
+	env := EmptyEnvelope()
+	for i := 0; i+1 < len(coords); i += stride {
 		x, y := coords[i], coords[i+1]
-		if x < minX {
-			minX = x
+		if math.IsNaN(x) || math.IsNaN(y) {
+			continue
 		}
-		if x > maxX {
-			maxX = x
+		if env.IsEmpty() {
+			env = Envelope{MinX: x, MinY: y, MaxX: x, MaxY: y}
+			continue
 		}
-		if y < minY {
-			minY = y
+		if x < env.MinX {
+			env.MinX = x
 		}
-		if y > maxY {
-			maxY = y
+		if x > env.MaxX {
+			env.MaxX = x
+		}
+		if y < env.MinY {
+			env.MinY = y
+		}
+		if y > env.MaxY {
+			env.MaxY = y
 		}
 	}
-	return Envelope{MinX: minX, MinY: minY, MaxX: maxX, MaxY: maxY}
+	return env
 }
