@@ -219,26 +219,33 @@ func minClearanceFromTree(tree *index.RTree[*facetSequence], seqs []*facetSequen
 
 	for _, fs := range seqs {
 		query := fs.envelope()
-		// Closure detects self-comparison and returns +Inf so the
-		// tree advances to the next candidate.
+		// Closure detects self-comparison (returns +Inf) and captures
+		// the witness pair so we don't have to recompute against the
+		// winning neighbour after tree.Nearest returns.
+		var queryBestPts [2]geom.XY
+		queryBestDist := math.Inf(+1)
 		dist := index.ItemDistanceFunc[*facetSequence](
 			func(_ geom.Envelope, item index.Item[*facetSequence]) float64 {
 				if item.Value == fs {
 					return math.Inf(+1)
 				}
 				var local [2]geom.XY
-				return minClearanceBetween(fs, item.Value, math.Inf(+1), &local)
+				d := minClearanceBetween(fs, item.Value, math.Inf(+1), &local)
+				if d < queryBestDist {
+					queryBestDist = d
+					queryBestPts = local
+				}
+				return d
 			},
 		)
 		neighbour, ok := tree.Nearest(query, dist)
 		if !ok {
 			continue
 		}
-		var localPts [2]geom.XY
-		d := minClearanceBetween(fs, neighbour.Value, math.Inf(+1), &localPts)
-		if d < best {
-			best = d
-			bestPts = localPts
+		_ = neighbour
+		if queryBestDist < best {
+			best = queryBestDist
+			bestPts = queryBestPts
 		}
 	}
 	return best, bestPts
