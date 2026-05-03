@@ -12,18 +12,12 @@ import (
 // An Option is a value type carrying a kernel choice and/or a prepared
 // handle. Callers construct Options via WithKernel / WithPrepared.
 //
-// The historic shape (a closure) caused config to escape to the heap on
-// every predicate call that used options; the value-type representation
-// keeps the per-call config struct on the stack.
+// The historic shape (a closure) caused the per-call config to escape to
+// the heap on every predicate call that used options; the value-type
+// representation keeps the per-call accumulator on the stack. Option
+// doubles as both the carrier produced by WithKernel/WithPrepared/etc.
+// and the merged accumulator returned by resolve.
 type Option struct {
-	kernel    kernel.Kernel
-	kernelSet bool
-	prepared  preparedHandle
-	bnr       BoundaryNodeRule
-	bnrSet    bool
-}
-
-type config struct {
 	kernel    kernel.Kernel
 	kernelSet bool
 	prepared  preparedHandle // optional cached prepared geometry for `a`
@@ -101,12 +95,12 @@ func WithBoundaryNodeRule(rule BoundaryNodeRule) Option {
 // passed WithKernel, that wins; otherwise we route by CRS kind.
 //
 // Fast path: when no options are passed (the by-far common case in hot
-// loops) the config stays on the stack.
-func resolve(g geom.Geometry, opts []Option) config {
+// loops) the accumulator stays on the stack.
+func resolve(g geom.Geometry, opts []Option) Option {
 	if len(opts) == 0 {
-		return config{kernel: defaultKernelFor(g)}
+		return Option{kernel: defaultKernelFor(g)}
 	}
-	c := config{}
+	c := Option{}
 	for _, o := range opts {
 		if o.kernelSet {
 			c.kernel = o.kernel
