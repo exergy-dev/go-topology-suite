@@ -87,20 +87,12 @@ func (r *RelateNG) Relate(b geom.Geometry) (DE9IM, error) {
 	return Relate(r.a, b, r.opts...)
 }
 
-// relateViaNG attempts to compute the DE-9IM matrix via the new
-// driver. Returns ok=false if the inputs require the not-yet-ported
-// edge-segment intersection pipeline; the caller then falls back to
-// the legacy path.
-//
-// "Edge-pipeline-required" is a conservative test: any pair where
-// both inputs have edges (lines or polygon rings) and their envelopes
-// interact may need edge crossings to resolve, so we defer to legacy.
-// This keeps the new driver opt-in and safe by default.
+// relateViaNG computes the DE-9IM matrix via the new driver. With the
+// edge-segment intersection pipeline now wired, the driver covers the
+// full DE-9IM space; ok is always true. The signature is kept for
+// caller compatibility (the legacy fallback used to depend on it).
 func relateViaNG(a, b geom.Geometry, rule BoundaryNodeRule) (DE9IM, bool) {
 	rng := relateng.NewRelateNG(a, adaptBNR(rule))
-	if rng.HasEdgeIntersection(b) {
-		return "", false
-	}
 	im := rng.EvaluateMatrix(b)
 	return DE9IM(im.String()), true
 }

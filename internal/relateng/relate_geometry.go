@@ -302,3 +302,122 @@ func Name(isA bool) string {
 	}
 	return "B"
 }
+
+// ExtractSegmentStrings builds the RelateSegmentString list for this
+// geometry. env is an optional clip envelope; components whose
+// envelope doesn't intersect env are skipped.
+//
+// Mirrors RelateGeometry.extractSegmentStrings.
+func (g *Geometry) ExtractSegmentStrings(isA bool, env geom.Envelope) []*RelateSegmentString {
+	if g == nil || g.geom == nil || g.isEmpty {
+		return nil
+	}
+	var out []*RelateSegmentString
+	id := 0
+	g.extractSegmentStrings(isA, env, g.geom, nil, &id, &out)
+	return out
+}
+
+func (g *Geometry) extractSegmentStrings(isA bool, env geom.Envelope, gg geom.Geometry, parentMP geom.Geometry, id *int, out *[]*RelateSegmentString) {
+	if gg == nil || gg.IsEmpty() {
+		return
+	}
+	switch v := gg.(type) {
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			g.extractAtomic(isA, env, v.PolygonAt(i), v, id, out)
+		}
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			g.extractAtomic(isA, env, v.LineStringAt(i), nil, id, out)
+		}
+	case *geom.MultiPoint:
+		// points contribute no edges
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			g.extractSegmentStrings(isA, env, v.GeometryAt(i), parentMP, id, out)
+		}
+	default:
+		g.extractAtomic(isA, env, gg, parentMP, id, out)
+	}
+}
+
+func (g *Geometry) extractAtomic(isA bool, env geom.Envelope, gg geom.Geometry, parentMP geom.Geometry, id *int, out *[]*RelateSegmentString) {
+	if gg == nil || gg.IsEmpty() {
+		return
+	}
+	if !env.IsEmpty() && !env.Intersects(gg.Envelope()) {
+		return
+	}
+	*id++
+	elementID := *id
+	switch v := gg.(type) {
+	case *geom.LineString:
+		pts := lineStringCoords(v)
+		if len(pts) >= 2 {
+			*out = append(*out, NewRelateLineString(pts, isA, elementID))
+		}
+	case *geom.LinearRing:
+		pts := lineStringCoords(v.AsLineString())
+		if len(pts) >= 2 {
+			*out = append(*out, NewRelateLineString(pts, isA, elementID))
+		}
+	case *geom.Polygon:
+		parent := parentMP
+		if parent == nil {
+			parent = v
+		}
+		// Shell (ring 0) needs CW orientation; holes need CCW.
+		shell := v.ExteriorRing()
+		if len(shell) >= 4 {
+			shell = orientRing(shell, true)
+			*out = append(*out, NewRelateRing(shell, isA, elementID, 0, parent))
+		}
+		for i, hole := range v.InteriorRings() {
+			if len(hole) < 4 {
+				continue
+			}
+			h := orientRing(hole, false)
+			*out = append(*out, NewRelateRing(h, isA, elementID, i+1, parent))
+		}
+	}
+}
+
+// lineStringCoords copies the coordinate sequence from a LineString
+// into a fresh slice.
+func lineStringCoords(ls *geom.LineString) []geom.XY {
+	n := ls.NumPoints()
+	out := make([]geom.XY, n)
+	for i := 0; i < n; i++ {
+		out[i] = ls.PointAt(i)
+	}
+	return out
+}
+
+// orientRing returns a copy of pts oriented CW (requireCW=true) or CCW.
+// Mirrors RelateGeometry.orient.
+func orientRing(pts []geom.XY, requireCW bool) []geom.XY {
+	if !needsReverse(pts, requireCW) {
+		return pts
+	}
+	out := make([]geom.XY, len(pts))
+	for i, p := range pts {
+		out[len(pts)-1-i] = p
+	}
+	return out
+}
+
+// needsReverse reports whether pts must be reversed to satisfy the
+// requireCW orientation. The shoelace sum is positive for CCW.
+func needsReverse(pts []geom.XY, requireCW bool) bool {
+	if len(pts) < 4 {
+		return false
+	}
+	var sum float64
+	for i := 0; i < len(pts)-1; i++ {
+		sum += pts[i].X*pts[i+1].Y - pts[i+1].X*pts[i].Y
+	}
+	isCCW := sum > 0
+	// requireCW means we want CW. Reverse iff isCCW == requireCW.
+	return requireCW == isCCW
+}
