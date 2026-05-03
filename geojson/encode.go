@@ -16,6 +16,9 @@ type config struct {
 	// precision: -1 means default ('g' shortest round-trip); >=0 selects
 	// strconv 'f' with that many decimal digits.
 	precision int
+	// forceCCW rewinds polygon rings to RFC 7946 orientation on output:
+	// outer ring CCW, holes CW.
+	forceCCW bool
 }
 
 func defaults() config { return config{precision: -1} }
@@ -33,6 +36,49 @@ func WithPrecision(decimals int) Option {
 		}
 		c.precision = decimals
 	}
+}
+
+// WithForceCCW rewinds polygon rings on output so that outer rings are
+// counter-clockwise and holes are clockwise, per RFC 7946 §3.1.6. The
+// stored geometry is not modified.
+//
+// JTS reference: GeoJsonWriter.setForceCCW
+// (org.locationtech.jts.io.geojson.GeoJsonWriter).
+func WithForceCCW() Option { return func(c *config) { c.forceCCW = true } }
+
+// ringSignedArea returns 2*signed area of a closed ring (last==first).
+// Positive => CCW, negative => CW. Local copy avoids depending on the
+// algorithm package from the io layer.
+func ringSignedArea(ring []geom.XY) float64 {
+	if len(ring) < 4 {
+		return 0
+	}
+	var sum float64
+	for i := 0; i+1 < len(ring); i++ {
+		sum += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
+	}
+	return sum
+}
+
+func reverseRing(ring []geom.XY) []geom.XY {
+	out := make([]geom.XY, len(ring))
+	for i, v := range ring {
+		out[len(ring)-1-i] = v
+	}
+	return out
+}
+
+// orientedRing returns ring rewound to the orientation required for ring
+// index r under RFC 7946 (outer CCW, holes CW). r==0 is the outer ring.
+// The original slice is returned unchanged when already correct.
+func orientedRing(ring []geom.XY, r int) []geom.XY {
+	area := ringSignedArea(ring)
+	wantCCW := r == 0
+	isCCW := area > 0
+	if isCCW == wantCCW {
+		return ring
+	}
+	return reverseRing(ring)
 }
 
 // Marshal returns the GeoJSON encoding of g. CRS is implicit WGS84 per
@@ -138,7 +184,11 @@ func writePolygon(b *strings.Builder, p *geom.Polygon, c *config) error {
 		if r > 0 {
 			b.WriteByte(',')
 		}
-		writeRing(b, p.Ring(r), c)
+		ring := p.Ring(r)
+		if c != nil && c.forceCCW {
+			ring = orientedRing(ring, r)
+		}
+		writeRing(b, ring, c)
 	}
 	b.WriteString("]}")
 	return nil
@@ -191,7 +241,11 @@ func writeMultiPolygon(b *strings.Builder, m *geom.MultiPolygon, c *config) erro
 			if r > 0 {
 				b.WriteByte(',')
 			}
-			writeRing(b, p.Ring(r), c)
+			ring := p.Ring(r)
+			if c != nil && c.forceCCW {
+				ring = orientedRing(ring, r)
+			}
+			writeRing(b, ring, c)
 		}
 		b.WriteByte(']')
 	}
