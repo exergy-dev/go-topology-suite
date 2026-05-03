@@ -59,6 +59,44 @@ func (a XY) EqualBitwise(b XY) bool { return a.X == b.X && a.Y == b.Y }
 // Deprecated: prefer Equal — its NaN behaviour is now identical.
 func (a XY) EqualOrBothNaN(b XY) bool { return a.Equal(b) }
 
+// Compare orders two XY values lexicographically: X-major, then Y. Returns
+// -1, 0, or +1 for a<b, a==b, a>b respectively. NaN ordinates are ordered
+// after every finite value (matching the convention used by JTS
+// Coordinate.compareTo, which delegates to Double.compare).
+//
+// JTS: Coordinate.compareTo(Object).
+func (a XY) Compare(b XY) int {
+	if c := compareFloat(a.X, b.X); c != 0 {
+		return c
+	}
+	return compareFloat(a.Y, b.Y)
+}
+
+// compareFloat applies Java's Double.compare ordering: NaN compares
+// greater than every other value (including +Inf), and +0.0 compares
+// greater than -0.0.
+func compareFloat(x, y float64) int {
+	if x < y {
+		return -1
+	}
+	if x > y {
+		return 1
+	}
+	// Handle NaN: any NaN sorts after non-NaN; two NaNs are equal.
+	xNaN := math.IsNaN(x)
+	yNaN := math.IsNaN(y)
+	if xNaN && yNaN {
+		return 0
+	}
+	if xNaN {
+		return 1
+	}
+	if yNaN {
+		return -1
+	}
+	return 0
+}
+
 func equalOrNaN(x, y float64) bool {
 	if x == y {
 		return true

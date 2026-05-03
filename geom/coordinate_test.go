@@ -39,6 +39,36 @@ func TestXYEqualBitwise(t *testing.T) {
 	assert.True(t, c.EqualBitwise(d))
 }
 
+func TestXYCompare(t *testing.T) {
+	cases := []struct {
+		a, b XY
+		want int
+	}{
+		{XY{0, 0}, XY{0, 0}, 0},
+		{XY{0, 0}, XY{1, 0}, -1},
+		{XY{1, 0}, XY{0, 0}, +1},
+		{XY{0, 0}, XY{0, 1}, -1},
+		{XY{0, 1}, XY{0, 0}, +1},
+		// X-major: lower X wins even if Y is larger.
+		{XY{0, 100}, XY{1, -100}, -1},
+		// Negative ordinates.
+		{XY{-1, 0}, XY{0, 0}, -1},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.want, c.a.Compare(c.b), "Compare(%v,%v)", c.a, c.b)
+	}
+}
+
+func TestXYCompareNaN(t *testing.T) {
+	nan := math.NaN()
+	// NaN > finite (matches Java Double.compare).
+	assert.Equal(t, 1, XY{nan, 0}.Compare(XY{1, 0}), "NaN X > finite X")
+	assert.Equal(t, -1, XY{1, 0}.Compare(XY{nan, 0}), "finite X < NaN X")
+	// Two NaN X ordinates compare equal at X; tie-break on Y.
+	assert.Equal(t, -1, XY{nan, 0}.Compare(XY{nan, 1}), "tie-break Y when X both NaN")
+	assert.Equal(t, 0, XY{nan, nan}.Compare(XY{nan, nan}), "all-NaN equal")
+}
+
 func TestLayoutStride(t *testing.T) {
 	assert.Equal(t, 2, LayoutXY.Stride())
 	assert.Equal(t, 3, LayoutXYZ.Stride())
