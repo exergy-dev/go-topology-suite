@@ -32,17 +32,37 @@ func NewIntersectionMatrix() *IntersectionMatrix {
 	return im
 }
 
+// patternOrder maps DE-9IM string positions [0..8] to (row, col)
+// pairs of the internal matrix. Patterns are written in OGC order
+// (II IB IE BI BB BE EI EB EE) but the matrix indexes by Location
+// constants (E=0, B=1, I=2). This table bridges the two.
+var patternOrder = [9][2]int{
+	{LocInterior, LocInterior}, // II
+	{LocInterior, LocBoundary}, // IB
+	{LocInterior, LocExterior}, // IE
+	{LocBoundary, LocInterior}, // BI
+	{LocBoundary, LocBoundary}, // BB
+	{LocBoundary, LocExterior}, // BE
+	{LocExterior, LocInterior}, // EI
+	{LocExterior, LocBoundary}, // EB
+	{LocExterior, LocExterior}, // EE
+}
+
 // NewPatternMatrix parses a 9-char DE-9IM pattern (e.g.
 // "T*F**FFF*") into a matrix populated with DimTrue / DimDontCare /
 // DimFalse / 0..2 cell values. Returns nil for malformed input.
+//
+// Pattern characters are written in OGC order
+// (II IB IE BI BB BE EI EB EE); the resulting cells are stored under
+// the matrix's Location-indexed layout (E=0, B=1, I=2).
 func NewPatternMatrix(pattern string) *IntersectionMatrix {
 	if len(pattern) != 9 {
 		return nil
 	}
 	im := &IntersectionMatrix{}
 	for k := 0; k < 9; k++ {
-		i := k / 3
-		j := k % 3
+		i := patternOrder[k][0]
+		j := patternOrder[k][1]
 		c := pattern[k]
 		switch c {
 		case '*':
@@ -86,13 +106,16 @@ func (im *IntersectionMatrix) SetAtLeast(locA, locB int, dim int) {
 // Matches reports whether im satisfies the supplied DE-9IM pattern.
 // Pattern characters: '*' wildcard, 'T' any non-F (>=0), 'F' must be
 // F, '0'/'1'/'2' exact match.
+//
+// Patterns are interpreted in OGC order (II IB IE BI BB BE EI EB EE);
+// see patternOrder.
 func (im *IntersectionMatrix) Matches(pattern string) bool {
 	if len(pattern) != 9 {
 		return false
 	}
 	for k := 0; k < 9; k++ {
-		i := k / 3
-		j := k % 3
+		i := patternOrder[k][0]
+		j := patternOrder[k][1]
 		c := im.cells[i][j]
 		p := pattern[k]
 		switch p {
@@ -118,11 +141,14 @@ func (im *IntersectionMatrix) Matches(pattern string) bool {
 }
 
 // String renders the matrix as a 9-char DE-9IM string.
+//
+// The string is in OGC order (II IB IE BI BB BE EI EB EE), the same
+// layout as predicate.DE9IM.
 func (im *IntersectionMatrix) String() string {
 	out := make([]byte, 9)
 	for k := 0; k < 9; k++ {
-		i := k / 3
-		j := k % 3
+		i := patternOrder[k][0]
+		j := patternOrder[k][1]
 		switch v := im.cells[i][j]; v {
 		case DimFalse:
 			out[k] = 'F'
