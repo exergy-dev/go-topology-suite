@@ -1063,6 +1063,55 @@ func topmostRightmostVertex(edges []*pgHalfEdge) *pgVertex {
 // "Within the subgraph" means: BFS only crosses edges whose face is in
 // the subgraph's face set. This prevents depth from leaking through
 // the conceptually-shared outer face into other subgraphs.
+//
+// Comparison to JTS BufferSubgraph + SubgraphDepthLocater
+// =======================================================
+//
+// JTS's pipeline (BufferSubgraph.computeDepth +
+// SubgraphDepthLocater.getDepth) anchors a subgraph's depth at its
+// rightmost-edge's right-side, where the "outside depth" is computed
+// by stabbing a horizontal ray rightward from the rightmost coord and
+// taking the lowest stabbed segment's leftDepth from OTHER subgraphs.
+// BFS then propagates Position.LEFT/RIGHT depth across the subgraph's
+// directed-edge graph.
+//
+// Our approach anchors at the topmost-rightmost VERTEX's outermost
+// face and ray-casts depth against the GLOBAL offset segment set.
+// Behavioural differences:
+//
+//  1. Anchor selection: rightmost edge (JTS) vs topmost-rightmost
+//     vertex (ours). Both pick a point on the geometric outside of
+//     the subgraph; for non-degenerate offsets they yield the same
+//     "outside" classification.
+//  2. Outside-depth source: lowest-stabbed-segment leftDepth from
+//     other subgraphs (JTS) vs global ray-cast over all segments
+//     (ours). JTS's narrower scope avoids self-counting the
+//     subgraph's own segments — useful when subgraphs are nested
+//     (a hole-in-hole-in-buffer scenario).
+//  3. Propagation: depth-per-side on directed edges (JTS) vs
+//     depth-per-face with depthDelta crossings (ours). Equivalent
+//     for a simple planar subdivision.
+//
+// Investigated for the two remaining algorithmic gaps
+// (TestBufferExternal2 #97, GEOSBuffer #2). Findings:
+//
+//   - Case #97 (tiny inset polygon) fails the area+Hausdorff matcher
+//     by ~0.1% area divergence, not a depth-labelling miss; our
+//     ray-cast anchor depth is already correct for the single
+//     subgraph the polygonizer produces. Porting JTS's
+//     rightmost-edge anchor would not change the kept-ring set.
+//
+//   - Case #2 (UTM-scale LineString d=1000) doesn't reach the
+//     polygonizer at all — it goes through bufferLineString ->
+//     cleanOffsetPolygon (overlay self-Union). BufferSubgraph would
+//     only help if we re-routed line buffer through the polygonizer
+//     pipeline (a Pillar B-scope rewrite, not a subtask here).
+//
+// Decision: do NOT port BufferSubgraph + SubgraphDepthLocater. Our
+// existing global-ray-cast anchor is functionally equivalent for
+// the cases we care about, and the JTS ports' larger DCEL/Position
+// surface (DirectedEdgeStar.computeDepths, Label.getLocation, etc.)
+// would expand scope without changing observable conformance.
 func labelOneSubgraph(edges []*pgHalfEdge, segs []offsetSegment) {
 	if len(edges) == 0 {
 		return
