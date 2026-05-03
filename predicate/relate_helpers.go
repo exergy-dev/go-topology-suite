@@ -3,6 +3,7 @@ package predicate
 import (
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
+	"github.com/terra-geo/terra/kernel/planar"
 )
 
 // Geometric helpers shared by Contains / Covers / Equals / short-circuit
@@ -100,20 +101,8 @@ func samplePoint(p *geom.Polygon) geom.XY {
 	const eps = 1e-9
 	// Signed area > 0 ⇒ CCW ⇒ left normal (-dy, dx) points inward.
 	// Signed area < 0 ⇒ CW  ⇒ right normal (dy, -dx) points inward.
-	if signedRingArea(ring) >= 0 {
+	if (planar.Kernel{}).RingArea(ring) >= 0 {
 		return geom.XY{X: mx - dy*eps, Y: my + dx*eps}
 	}
 	return geom.XY{X: mx + dy*eps, Y: my - dx*eps}
-}
-
-// signedRingArea computes the shoelace signed area of a closed ring.
-func signedRingArea(ring []geom.XY) float64 {
-	if len(ring) < 3 {
-		return 0
-	}
-	var sum float64
-	for i := 0; i+1 < len(ring); i++ {
-		sum += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
-	}
-	return sum / 2
 }
