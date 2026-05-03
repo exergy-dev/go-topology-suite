@@ -297,6 +297,33 @@ func (Kernel) AngleBetween(a, b, c geom.XY) float64 {
 	return math.Acos(cos)
 }
 
+// SinSnap returns sin(a) with values whose magnitude is below 5e-16 snapped
+// to exactly 0. At multiples of π this lets callers obtain a clean 0
+// instead of ~1e-16 noise — useful for buffer/offset construction where the
+// noise propagates into geometry coordinates.
+//
+// Mirrors JTS Angle.sinSnap (org.locationtech.jts.algorithm.Angle).
+func (Kernel) SinSnap(a float64) float64 {
+	res := math.Sin(a)
+	if math.Abs(res) < 5e-16 {
+		return 0
+	}
+	return res
+}
+
+// CosSnap returns cos(a) with values whose magnitude is below 5e-16 snapped
+// to exactly 0. At odd multiples of π/2 this lets callers obtain a clean 0
+// instead of ~6e-17 noise.
+//
+// Mirrors JTS Angle.cosSnap (org.locationtech.jts.algorithm.Angle).
+func (Kernel) CosSnap(a float64) float64 {
+	res := math.Cos(a)
+	if math.Abs(res) < 5e-16 {
+		return 0
+	}
+	return res
+}
+
 // AngleBetweenOriented returns the oriented (signed) smallest angle between
 // the two vectors (vertex -> tip0) and (vertex -> tip1), in radians, in the
 // range (-π, π].
