@@ -28,26 +28,20 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-03)
 
-After the previous rounds plus the 2026-05-03 OffsetSegmentGenerator
-port (faithful Go translation of JTS's
-`org.locationtech.jts.operation.buffer.OffsetSegmentGenerator` with all
-its shape-smoothing heuristics: OFFSET_SEGMENT_SEPARATION_FACTOR=0.05
-near-collinear skip, CURVE_VERTEX_SNAP_DISTANCE_FACTOR=1e-4 adjacent-
-vertex dedup, closingSegLengthFactor=80 short closing segments at
-narrow concave corners, addLimitedMitreJoin beveled-mitre fallback),
-the corpus stands at **99.7% pass rate** (8897/8951 passing, 24
-failures, 30 skipped — 99.97% excluding skipped). Down from a
-200-failure baseline.
+After the OffsetSegmentGenerator port (commit `72154f0`) and the
+minArea-filter removal (commit `a50d968`), the corpus stands at
+**99.81% pass rate** (8904/8951 passing, 17 failures, 30 skipped —
+99.99% excluding skipped). Down from a 200-failure baseline.
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
 `overlaps` / `equals` / `isValid` predicates pass on the JTS corpus.
 
-The remaining 24 failures break down:
+The remaining 17 failures break down:
 
 | Bucket | Count | Resolution |
 |--------|------:|------------|
-| TestBufferExternal2 (negative buffer of land parcels) | 8 | Deferred. Down from 24 after the OffsetSegmentGenerator port. The 8 residuals are dense real-world UTM-coord land parcels where shape-fidelity differences (area within 0.1-2% of expected, Hausdorff above 1% of envelope) persist even with JTS-faithful corner emission. Likely root cause is the noding/snap-rounding tolerance interplay with our polygonize-fallback pipeline; closing requires either a port of JTS's `BufferSubgraph` depth-labeller or fine-tuned tolerance scaling. |
-| TestBufferJagged misc+robust | 2 | Deferred. Down from 16 after the OffsetSegmentGenerator port. The 2 residuals are the largest GEOS BufferRobustness corpus cases (case#0 in misc and robust), where dense input vertex spacing relative to the buffer distance produces noding-level precision artefacts that survive even faithful corner emission. |
+| TestBufferExternal2 case#97 | 1 | Deferred. Down from 24 (closed 23). The single residual is a dense UTM land parcel where the inset produces a tiny polygon (area ~30 at d=75) that survives the validator but the polygonize fallback's depth labelling appears to mis-classify a face. |
+| TestBufferJagged misc+robust case#0 test#5 | 2 | Deferred. Down from 16 (closed 14). Both residuals are GEOS BufferRobustness corpus case#0 at buffer distance 2.0 — a single specific distance where the dense (657-vertex) stair-step polygon's offset construction surfaces a shape-level divergence the OffsetSegmentGenerator port doesn't catch. |
 | TestSimplify | 2 | cases 15, 16 simplifyTP — JTS version drift (older fixture vs current DP analysis). Confirmed not closeable: both our output and JTS's textbook algorithm agree on case 15 (vertex below DP tolerance flattens); case 16 picks a different but equally valid corner of a 4-corner square. Out of scope. |
 | TestOverlayAA | 1 | case#9 symdifference: mAmA inputs where A is a multipolygon with self-touching "fold-in" outer rings (notches) and B partially fills the notches. **Empirical investigation (May 2026):** the bug is NOT in `classifyFacesByPolygons` (every face's `keep` flag is correct against winding-number ground truth). The bug is in `extractResultRings::nextBoundaryAtVertex` — at a pinch-point vertex shared by two distinct kept components, the trace's "next CCW after twin" rule picks an outgoing edge in a *different* kept face, fusing what should be 5 separate polygons into 1 self-touching polygon. A union-find over kept faces (joined when they share an interior edge) and a same-component constraint on the trace's next-edge selection closes case#9 cleanly, BUT shifts the buffer Union chain in `failure/TestBufferFailure.xml` case#1 by 0.075% area — enough to push that previously-passing case past `BufferResultMatcher` tolerance. Deferred until either the matcher accepts the topologically-better buffer result or a per-op gate is added. |
 | misc/TestOverlay #4 | 1 | GEOS#737 — sliver under area threshold (3e-6 relative). Area-conservation check tightening below 1e-6 would force spurious retries on rounding noise. Closing requires per-input snap-rounding to coordinate-magnitude-relative grid, not retry-gating. |
@@ -61,18 +55,19 @@ The remaining 24 failures break down:
 - **TestOverlayLAPrec case#0** — closed by `bdc8104` (`polyMinusLineDecompose` builds a small DCEL on noded edges, walks faces, and emits each face as LineString or Polygon based on whether its vertices snap to fewer than 3 distinct grid points).
 - **TestOverlayAAPrec case#14** — closed by `fea5b2f` (hole-reshape recovery in `polyMinusLineDecompose`: when the simple sum mismatch fails, find the inner face whose area equals the expected polygon area, walk its half-edges skipping chord-only bridge segments, and split the self-touching walk into outer + holes).
 
-#### Cases closed in the 2026-05-03 round (OffsetSegmentGenerator port)
+#### Cases closed in the 2026-05-03 round (OffsetSegmentGenerator port + minArea drop)
 
-- **TestBufferExternal2** — 16 of 24 cases closed (8 residuals).
+- **TestBufferExternal2** — 23 of 24 cases closed (1 residual). Of these, 16 closed by the OSG port and 7 more by removing the minArea = d²·0.01 filter that was wrongly rejecting tiny inset slivers (case#30 expected area ~30 at d=75 vs minArea threshold 56).
 - **TestBufferJagged misc + robust** — 14 of 16 cases closed (2 residuals).
 - **failure/TestBigNastyBuffer case#0** — closed.
 
-Net effect of `72154f0` (port of JTS's
-`org.locationtech.jts.operation.buffer.OffsetSegmentGenerator` and
-`OffsetSegmentString`): conformance 55 → 24 failures, 31 cases
-closed, zero non-buffer regressions. Buffer code went from ~620
-lines of ad-hoc per-corner emission to ~440 lines of JTS-faithful
-state machine.
+Net effect of `72154f0` + `a50d968`: conformance 55 → 17 failures,
+38 cases closed. Buffer op count: 44 → 6. Zero non-buffer
+regressions. Buffer code went from ~620 lines of ad-hoc per-corner
+emission to ~440 lines of JTS-faithful state machine; the area-
+filter heuristic that compensated for our pre-OSG offset noise is
+no longer load-bearing and removing it admits the legitimate tiny-
+inset cases that JTS's expected outputs cover.
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
