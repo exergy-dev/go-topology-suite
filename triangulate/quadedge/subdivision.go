@@ -313,6 +313,37 @@ func (s *Subdivision) GetPrimaryEdges(includeFrame bool) []*QuadEdge {
 	return out
 }
 
+// VertexUniqueEdges returns one *QuadEdge per distinct vertex in the
+// subdivision (the edge's Orig is that vertex). If includeFrame is false,
+// frame vertices are excluded.
+//
+// Ported from QuadEdgeSubdivision.getVertexUniqueEdges.
+func (s *Subdivision) VertexUniqueEdges(includeFrame bool) []*QuadEdge {
+	visited := make(map[*Vertex]struct{}, 2*len(s.quadEdges))
+	out := make([]*QuadEdge, 0, len(s.quadEdges))
+	for _, qe := range s.quadEdges {
+		if !qe.IsLive() {
+			continue
+		}
+		v := qe.Orig()
+		if _, seen := visited[v]; !seen {
+			visited[v] = struct{}{}
+			if includeFrame || !s.IsFrameVertex(v) {
+				out = append(out, qe)
+			}
+		}
+		qd := qe.Sym()
+		vd := qd.Orig()
+		if _, seen := visited[vd]; !seen {
+			visited[vd] = struct{}{}
+			if includeFrame || !s.IsFrameVertex(vd) {
+				out = append(out, qd)
+			}
+		}
+	}
+	return out
+}
+
 // IsDelaunay reports whether the subdivision satisfies the Delaunay
 // empty-circumcircle condition for every internal (non-frame) edge.
 // Note that the frame triangulation may be non-Delaunay when convex
