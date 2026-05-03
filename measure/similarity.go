@@ -7,6 +7,24 @@ import (
 	"github.com/terra-geo/terra/geom"
 )
 
+// IntersectionFunc and UnionFunc are pluggable hooks used by
+// AreaSimilarity to compute geometric intersection and union without
+// pulling overlay into the measure package's dependency graph: overlay
+// already depends on measure (for Area / Centroid helpers), so a direct
+// import would form a cycle.
+//
+// Importing the github.com/terra-geo/terra/measure/match package wires
+// these hooks via that package's init(); blank-importing it from a
+// build is the simplest way to enable AreaSimilarity:
+//
+//	import _ "github.com/terra-geo/terra/measure/match"
+//
+// Callers that do not register the hooks see NaN from AreaSimilarity.
+var (
+	IntersectionFunc func(a, b geom.Geometry) (geom.Geometry, error)
+	UnionFunc        func(a, b geom.Geometry) (geom.Geometry, error)
+)
+
 // hausdorffSimilarityDensifyFraction is the relative segment-length
 // fraction used to densify both inputs before computing the discrete
 // Hausdorff distance (mirrors the JTS DENSIFY_FRACTION = 0.25 constant).
@@ -68,6 +86,55 @@ func HausdorffSimilarity(a, b geom.Geometry) float64 {
 		return 0
 	}
 	return 1 - dist/envSize
+}
+
+// AreaSimilarity returns a similarity score in [0, 1] between two
+// geometries based on the area of their intersection over the area of
+// their union: `area(a ∩ b) / area(a ∪ b)`. A score of 1 indicates
+// areas perfectly coincide; 0 means the geometries are areally
+// disjoint.
+//
+// Empty inputs: both empty returns 1; only one empty returns 0.
+//
+// Returns NaN if either input is nil, or if the overlay hook
+// (IntersectionFunc / UnionFunc) has not been registered. Importing
+// the github.com/terra-geo/terra/overlay package wires the hook
+// automatically; otherwise the caller must set IntersectionFunc and
+// UnionFunc explicitly.
+//
+// Port of org.locationtech.jts.algorithm.match.AreaSimilarityMeasure.
+func AreaSimilarity(a, b geom.Geometry) float64 {
+	if a == nil || b == nil {
+		return math.NaN()
+	}
+	aEmpty := a.IsEmpty()
+	bEmpty := b.IsEmpty()
+	if aEmpty && bEmpty {
+		return 1
+	}
+	if aEmpty || bEmpty {
+		return 0
+	}
+	if IntersectionFunc == nil || UnionFunc == nil {
+		return math.NaN()
+	}
+	inter, err := IntersectionFunc(a, b)
+	if err != nil {
+		return math.NaN()
+	}
+	un, err := UnionFunc(a, b)
+	if err != nil {
+		return math.NaN()
+	}
+	areaInter := Area(inter)
+	areaUnion := Area(un)
+	if areaUnion == 0 {
+		// Both inputs are non-areal (lines/points) or coincide on a
+		// measure-zero set. Treat as fully similar iff the union's
+		// area also vanishes (i.e., both reduce to the same set).
+		return 1
+	}
+	return areaInter / areaUnion
 }
 
 // envelopeDiagonal returns the length of the envelope's diagonal, or 0
