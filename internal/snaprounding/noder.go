@@ -122,6 +122,36 @@ func (n *Noder) Node(input []*noding.SegmentString) ([]*noding.SegmentString, St
 		stats.Splits += inserted
 
 		if inserted == 0 {
+			// Strict fixpoint converged. If MergeNearCollinear is set,
+			// run one additional relaxed-threshold pass to recover hot
+			// pixels that are near-collinear with a segment but lie
+			// just outside the strict half-cell band. This is the
+			// configuration that arises when an input ring has
+			// multiple snap-collapsed vertices on a near-tangent chord
+			// (e.g. JTS NGOverlayAPrec case#8).
+			if n.MergeNearCollinear {
+				next2, ins2 := nearCollinearPass(noded, n.Tolerance)
+				stats.Splits += ins2
+				_ = hp
+				if ins2 > 0 {
+					// Re-node and re-snap; then run another strict
+					// fixpoint pass to resolve any new intersections.
+					noded = adaptiveNode(next2)
+					snapAndDedupe(noded, rd)
+					hp2 := buildHotPixelSet(noded, n.Tolerance)
+					stats.HotPixels = hp2.Len()
+					_, ins3 := insertHotPixelSplits(noded, hp2)
+					stats.Splits += ins3
+					// Best-effort: if strict pass settled (no further
+					// inserts), declare convergence. Otherwise continue
+					// the outer loop.
+					if ins3 == 0 {
+						stats.Converged = true
+						return finalise(noded), stats, nil
+					}
+					continue
+				}
+			}
 			stats.Converged = true
 			return finalise(noded), stats, nil
 		}
@@ -143,6 +173,175 @@ func (n *Noder) Node(input []*noding.SegmentString) ([]*noding.SegmentString, St
 		return finalise(noded), stats, nil
 	}
 	return finalise(noded), stats, ErrNotConverged
+}
+
+// nearCollinearPass runs the relaxed (perpendicular-distance < tolerance)
+// hot-pixel split test in a SAME-INPUT-ONLY mode: for each string, the
+// hot-pixel set is built from THAT string's own vertices (plus any
+// strings sharing its Tag). This recovers near-collinear hot pixels
+// that arose from the same input ring's snap collapse — the
+// configuration in JTS NGOverlayAPrec case#8 — without bleeding the
+// relaxed test across input boundaries (which would over-split chords
+// that are merely close to a vertex of the OTHER input, causing
+// regressions in narrow-wedge / sliver cases like NGOverlayAPrec
+// case#0 and OverlayAAPrec case#2).
+//
+// We additionally restrict the pass to STRINGS WITH AT LEAST ONE
+// REPEATED INTERIOR VERTEX after snap rounding. This is the diagnostic
+// signal of a snap-collapse: when a chain returns to a previously-
+// visited vertex (other than the closing duplicate), the chain
+// originally walked a self-intersecting path now encoded as a
+// degenerate spike. JTS NGOverlayAPrec case#8 exhibits this signature
+// (multiple `(0,1)` and `(4,1)` repeats in A's bowtie); narrow-wedge
+// inputs with simple non-self-intersecting chains do not, so the
+// regression-causing relaxed splits are skipped on those.
+//
+// Used as a one-shot post-strict-fixpoint cleanup when
+// MergeNearCollinear is set.
+func nearCollinearPass(strs []*noding.SegmentString, tolerance float64) ([]*noding.SegmentString, int) {
+	// Group strings by Tag so all subj rings share one hot-pixel set
+	// and all clip rings share another. In overlay-NG, Tag=1 means
+	// subj (one polygon's outer + holes), Tag=2 means clip — so the
+	// same-tag set is exactly "same input geometry".
+	hpByTag := map[int]*snap.HotPixelSet{}
+	for _, s := range strs {
+		hp, ok := hpByTag[s.Tag]
+		if !ok {
+			hp = snap.NewHotPixelSet(tolerance)
+			hpByTag[s.Tag] = hp
+		}
+		for _, v := range s.Coords {
+			hp.Add(v)
+		}
+	}
+	out := make([]*noding.SegmentString, 0, len(strs))
+	totalIns := 0
+	for _, s := range strs {
+		if len(s.Coords) < 2 || !chainHasInteriorRepeat(s.Coords) {
+			out = append(out, s)
+			continue
+		}
+		hp := hpByTag[s.Tag]
+		if hp == nil {
+			out = append(out, s)
+			continue
+		}
+		newCoords, ins := insertSplitsRelaxedInto(s.Coords, hp)
+		totalIns += ins
+		out = append(out, &noding.SegmentString{Coords: newCoords, Tag: s.Tag})
+	}
+	return out, totalIns
+}
+
+// chainHasInteriorRepeat reports whether pts visits the same vertex
+// twice EXCLUDING the closing duplicate. Such repeats are the
+// diagnostic signature of a snap-collapsed self-intersecting chain and
+// gate the relaxed-threshold near-collinear pass.
+func chainHasInteriorRepeat(pts []geom.XY) bool {
+	if len(pts) < 4 {
+		return false
+	}
+	end := len(pts)
+	if pts[0] == pts[end-1] {
+		end--
+	}
+	seen := make(map[geom.XY]struct{}, end)
+	for i := 0; i < end; i++ {
+		if _, ok := seen[pts[i]]; ok {
+			return true
+		}
+		seen[pts[i]] = struct{}{}
+	}
+	return false
+}
+
+// insertSplitsRelaxedInto is insertSplitsInto with the relaxed
+// (perpendicular distance < tolerance) hot-pixel intersection test,
+// recovering near-collinear hot pixels that lie just outside the strict
+// half-cell band. Invoked only as a post-convergence cleanup pass when
+// MergeNearCollinear is set.
+//
+// Two filters constrain which hot pixels qualify:
+//
+//   - Chain-neighbour exclusion: hot pixels at positions i-1 or i+2
+//     in the chain are already directly connected to a or b by an
+//     existing chain edge, so a relaxed split would just redundantly
+//     repeat a near-collinear elbow corner.
+//
+//   - Interior-repeat-only filter: only hot pixels whose grid-snapped
+//     vertex appears at least TWICE in the chain (i.e., is itself an
+//     interior-repeated vertex of the bowtie/snap-collapsed self-
+//     intersection structure) qualify. This is the diagnostic
+//     signature that the chain has snap-collapsed multiple distinct
+//     pre-snap vertices onto the same hot pixel — exactly the case
+//     where JTS preserves the pixel as a corner of the simplified
+//     boundary (e.g. NGOverlayAPrec case#8's `(4,1)` reached from
+//     three distinct y-rows pre-snap). Hot pixels appearing only
+//     once in the chain are merely "near" the chord — their
+//     insertion creates a new self-touching point that breaks ring
+//     topology in cases like NGOverlayAPrec case#5 hole reshaping.
+func insertSplitsRelaxedInto(pts []geom.XY, hp *snap.HotPixelSet) ([]geom.XY, int) {
+	if len(pts) < 2 {
+		return pts, 0
+	}
+	// Build the per-chain occurrence count. Closing-duplicate vertex is
+	// not double-counted: we treat the chain as cyclic and count each
+	// distinct position once.
+	end := len(pts)
+	if pts[0] == pts[end-1] {
+		end--
+	}
+	occ := make(map[geom.XY]int, end)
+	for i := 0; i < end; i++ {
+		occ[pts[i]]++
+	}
+	out := make([]geom.XY, 0, len(pts))
+	out = append(out, pts[0])
+	inserted := 0
+	for i := 0; i+1 < len(pts); i++ {
+		a, b := pts[i], pts[i+1]
+		// Neighbour exclusion set: vertices already chain-adjacent to
+		// a or b. If pts[i-1] is a hot pixel candidate, it's part of
+		// A's existing chain and the relaxed split would just create
+		// a redundant near-collinear elbow. Same for pts[i+2].
+		var excludeBefore, excludeAfter geom.XY
+		hasExcludeBefore, hasExcludeAfter := false, false
+		if i > 0 {
+			excludeBefore = pts[i-1]
+			hasExcludeBefore = true
+		}
+		if i+2 < len(pts) {
+			excludeAfter = pts[i+2]
+			hasExcludeAfter = true
+		}
+		splits := hp.SegmentSplitsAtRelaxed(a, b)
+		for _, sp := range splits {
+			if sp == a || sp == b {
+				continue
+			}
+			if hasExcludeBefore && sp == excludeBefore {
+				continue
+			}
+			if hasExcludeAfter && sp == excludeAfter {
+				continue
+			}
+			// Interior-repeat-only filter: only insert if this hot
+			// pixel is already an interior-repeated vertex of the
+			// chain.
+			if occ[sp] < 2 {
+				continue
+			}
+			if n := len(out); n > 0 && out[n-1] == sp {
+				continue
+			}
+			out = append(out, sp)
+			inserted++
+		}
+		if n := len(out); n == 0 || out[n-1] != b {
+			out = append(out, b)
+		}
+	}
+	return out, inserted
 }
 
 // snapAndDedupe rounds every vertex of every string to the grid and

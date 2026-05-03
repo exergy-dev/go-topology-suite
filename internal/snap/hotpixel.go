@@ -136,6 +136,40 @@ func (s *HotPixelSet) QuerySegment(a, b geom.XY) []HotPixel {
 // segment, and consecutive duplicates (within a tolerance-relative eps)
 // are removed.
 func (s *HotPixelSet) SegmentSplitsAt(a, b geom.XY) []geom.XY {
+	return s.segmentSplits(a, b, s.half)
+}
+
+// SegmentSplitsAtRelaxed is SegmentSplitsAt with a wider perpendicular-
+// distance threshold (tolerance, not tolerance/2). Used by snap-rounding
+// to recover near-collinear hot pixels that should be inserted into a
+// segment but lie just outside the strict half-tolerance band — the
+// configuration that arises when an input ring has multiple snap-collapsed
+// vertices on the same precision row and the resulting segment chord is
+// near-tangent to a hot pixel that survived as an input vertex.
+//
+// The relaxed threshold is exactly tolerance, which corresponds to the
+// "scaled hot pixel" radius JTS uses for its near-collinear adjacency
+// rule. It is wider than the strict cell test but narrower than the
+// 3×3 extended cell (whose diagonal half-length is √2·tolerance/2).
+func (s *HotPixelSet) SegmentSplitsAtRelaxed(a, b geom.XY) []geom.XY {
+	return s.segmentSplits(a, b, s.tolerance)
+}
+
+// segmentSplits is the common implementation parameterised by the
+// perpendicular-distance threshold.
+//
+// useProjectedT controls how the parameter t along the segment is
+// computed:
+//
+//   - false: axis-projection (segmentParam) — exact when the hot pixel
+//     centre lies ON the line through a-b, which is the case at the
+//     strict half-tolerance threshold.
+//   - true:  true scalar-projection onto the segment — needed at the
+//     relaxed (full-tolerance) threshold, where the hot pixel centre
+//     can sit measurably off the line and axis-projection returns a t
+//     that incorrectly clips just past an endpoint.
+func (s *HotPixelSet) segmentSplits(a, b geom.XY, threshold float64) []geom.XY {
+	useProjectedT := threshold > s.half
 	candidates := s.QuerySegment(a, b)
 	if len(candidates) == 0 {
 		return nil
@@ -147,10 +181,15 @@ func (s *HotPixelSet) SegmentSplitsAt(a, b geom.XY) []geom.XY {
 			continue
 		}
 		d := planar.Default.SegmentDistance(hp.Centre, a, b)
-		if d >= s.half {
+		if d >= threshold {
 			continue
 		}
-		t := segmentParam(a, b, hp.Centre)
+		var t float64
+		if useProjectedT {
+			t = projectedSegmentParam(a, b, hp.Centre)
+		} else {
+			t = segmentParam(a, b, hp.Centre)
+		}
 		// Only count splits strictly interior to the segment.
 		if t <= 0 || t >= 1 {
 			continue
@@ -181,6 +220,20 @@ func (s *HotPixelSet) SegmentSplitsAt(a, b geom.XY) []geom.XY {
 type hotPixelSplit struct {
 	t      float64
 	centre geom.XY
+}
+
+// projectedSegmentParam returns the parameter t such that
+// a + t*(b-a) is the orthogonal projection of p onto the line through
+// a and b. Used at the relaxed splitting threshold, where p may sit
+// measurably off the line and axis-projection's t becomes inaccurate.
+func projectedSegmentParam(a, b, p geom.XY) float64 {
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+	denom := dx*dx + dy*dy
+	if denom == 0 {
+		return 0
+	}
+	return ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / denom
 }
 
 // segmentParam returns the parameter t in [0, 1] such that p ≈ a + t*(b-a).
