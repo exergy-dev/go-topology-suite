@@ -23,12 +23,19 @@ import (
 //
 // Mirrors org.locationtech.jts.precision.MinimumClearance.getDistance.
 //
-// The current implementation runs the SimpleMinimumClearance O(N^2)
-// scan; the indexed STRtree variant in JTS is a future optimisation.
+// Implementation: builds a FacetSequenceTreeBuilder-style STRtree of
+// facet chunks and runs an O(N log N) pair-wise nearest neighbour
+// search, matching JTS. SimpleMinimumClearance retains the brute-force
+// O(N^2) reference implementation for testing.
 func MinimumClearance(g geom.Geometry) (distance float64, segment [2]geom.XY) {
-	smc := NewSimpleMinimumClearance(g)
-	smc.compute()
-	return smc.minClearance, smc.minClearancePts
+	if g == nil || g.IsEmpty() {
+		return math.Inf(+1), [2]geom.XY{}
+	}
+	tree, seqs := buildFacetSequenceTree(g)
+	if tree == nil || len(seqs) == 0 {
+		return math.Inf(+1), [2]geom.XY{}
+	}
+	return minClearanceFromTree(tree, seqs)
 }
 
 // SimpleMinimumClearance is a port of
