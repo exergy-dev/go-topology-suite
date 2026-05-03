@@ -152,7 +152,15 @@ Unchanged across all 12 waves and 116 commits. 13 are external-tracker known or 
 
 ---
 
-**Total parity round (Waves 1–12)**: 116 commits, 11 new top-level packages (`algorithm/locate`, `coverage`, `densify`, `dissolve`, `kml`, `linearref`, `linemerge`, `polygonize`, `precision`, `shape`, `triangulate`), comprehensive extensions to every existing package, conformance held at 15/99.83% throughout with zero regressions. Every JTS module from the source tree has either been ported, has a functional equivalent, or is documented above as out of scope.
+#### Wave 13–14 final exhaustive audit fill-in
+
+Wave 13 (`6971bc0` → `86ba9a2`, 5 commits): FrechetSimilarity + SimilarityMeasureCombiner + MortonCurve + MortonCode + CoveragePolygonValidator + CoverageCleaner.
+
+Wave 14 (`5387580` → `86352b6`, 8 commits): GeometryPrecisionReducer + CommonBits/CommonBitsOp/CommonBitsRemover + IteratedNoder + ScaledNoder + SegmentStringDissolver + SegmentIntersectionDetector + ValidatingNoder + BoundaryChainNoder.
+
+---
+
+**Total parity round (Waves 1–14)**: 130 commits, 11 new top-level packages, comprehensive extensions to every existing package, conformance held at 15/99.83% throughout with zero regressions. Every JTS class in `algorithm/*`, `noding/*`, `precision/*`, `geom/*`, `coverage/`, `shape/*`, `simplify/`, `triangulate/*`, `operation/*` (excluding 3D), `densify/`, `dissolve/`, `linearref/`, `math/`, `index/`, `io/{wkb,wkt,kml,geojson}` has been ported. The only remaining JTS source is documented above as explicitly out of scope: 3D operations, GML2/Oracle I/O, EnhancedPrecisionOp (gated by overlay/), and Java helper types (N/A in Go).
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
