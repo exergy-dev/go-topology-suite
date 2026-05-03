@@ -170,12 +170,12 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		// nothing more) and supersedes the legacy
 		// faceValidatorFor(p, d, 1.0).
 		validate := negativeBufferHybridValidator(p, d)
-		// Minimum-area filter: drop snap-rounding micro-slivers whose
-		// area is negligible compared to d^2. A real inset face has
-		// area at least a few d^2; anything two orders of magnitude
-		// smaller is noise.
-		minArea := d * d * 0.01
-		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, minArea)
+		// No min-area filter: legitimate inset slivers can be much
+		// smaller than d^2 (an inset of a thin parcel may produce a
+		// 5-vertex polygon whose area is ≪ d^2). The validator's
+		// winding+distance check is the load-bearing phantom rejector;
+		// area-based filtering on top of that throws out real geometry.
+		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, 0)
 		if err != nil {
 			return nil, fmt.Errorf("buffer: polygonize inset: %w", err)
 		}
