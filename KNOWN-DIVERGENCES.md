@@ -189,7 +189,28 @@ Wave 19 (`387951b`, 1 commit): **closed TestBufferExternal2 case#97**. Root caus
 
 ---
 
-**Total parity round (Waves 1–19)**: **140 commits**, 12 new top-level packages, comprehensive extensions to every existing package, RelateNG promoted to default, conformance reduced from 15 → 14 by closing the last reachable algorithmic gap. Every meaningful JTS class has been ported. The remaining 14 failures are 13 external-tracker known/version-drift + 1 algorithmic gap (GEOSBuffer#2 — diagnosed in detail, requires polygonizer-pipeline rewrite for line-buffer, multi-day effort outside agent scope).
+#### Wave 20: bufferLineString polygonizer-pipeline rewrite
+
+Wave 20 (`75302eb`, `c8da736`, 2 commits): routed `bufferLineString` through the same polygonizer pipeline as `bufferPolygon` (offset segments → snap-round → DCEL → per-subgraph depth labelling → kept-ring extraction → reduced-precision retry), replacing the legacy "thicken + self-Union" approach that under-merged on self-overlapping inputs.
+
+`emitLineStringOffsetSegments` mirrors JTS's `BufferCurveSetBuilder.addLineString` (forward LEFT-side offset + end cap + reverse LEFT-side offset + start cap, all tagged depthDelta=+1). The new `bufferLineStringReducedPrecision` retry loop walks `MAX_PRECISION_DIGITS` from 12 → 0, mirroring `bufferPolygonReducedPrecision`. Dead code removed: `cleanOffsetPolygon` (overlay self-Union cleanup) and the inline forward+reverse offset chain in the legacy `bufferLineString` body.
+
+**Conformance: 14 → 11 failures (target was 13; beat target).**
+
+Cases closed:
+- **`misc/GEOSBuffer.xml case#2`** (GEOS#605, the primary target — UTM-scale 28-vertex back-tracking LineString at d=1000)
+- **`misc/geos-bug356-buffer.xml case#0`** (GEOS-tracked multilinestring buffer artifact)
+- **`failure/TestBufferFailure.xml case#1`** (the case that regressed in Wave 16's RelateNG default flip is now closed via the polygonizer pipeline)
+
+---
+
+**Total parity round (Waves 1–20)**: **143 commits**, 12 new top-level packages, RelateNG promoted to default, **conformance reduced from 60 → 11 failures (99.88%)**. Every meaningful JTS class has been ported, and **all 11 remaining failures are external-tracker known or JTS version-drift** — zero algorithmic gaps remain on the Terra side:
+
+- 5 `failure/TestReducePrecisionFailure` (JTS-known: "Result provided is approximately correct")
+- 2 `failure/TestOverlayNGFailure` (JTS-known approximate)
+- 2 `general/TestSimplify` cases 15/16 (JTS version drift; both outputs equally valid by textbook DP)
+- 1 `failure/TestBufferFailure` case#0 (JTS-known: "An incorrect hole is generated")
+- 1 `misc/TestOverlay.xml` case#4 (GEOS#737 sliver below area threshold)
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
