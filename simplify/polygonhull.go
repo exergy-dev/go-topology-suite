@@ -7,6 +7,7 @@ import (
 
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/index"
+	"github.com/terra-geo/terra/kernel/planar"
 )
 
 // PolygonHull computes a topology-preserving simplified hull of a polygonal
@@ -159,7 +160,7 @@ func (h *polygonHullSimplifier) createRingHull(ring []geom.XY, isOuter bool, are
 		target := int(math.Ceil(h.vertexNumFraction * float64(len(ring)-1)))
 		rh.targetVertexNum = target
 	} else if h.areaDeltaRatio >= 0 && areaTotal > 0 {
-		ringArea := math.Abs(ringSignedArea(ring))
+		ringArea := math.Abs((planar.Kernel{}).RingArea(ring))
 		ringWeight := ringArea / areaTotal
 		rh.targetAreaDelta = ringWeight * h.areaDeltaRatio * ringArea
 	}
@@ -603,25 +604,14 @@ func triSign(a, b, c geom.XY) int {
 // (Same numeric semantics as triSign, applied to (a,b,p).)
 func sideSign(a, b, p geom.XY) int { return triSign(a, b, p) }
 
-// ringSignedArea returns the closed-ring signed area (positive for CCW).
-func ringSignedArea(ring []geom.XY) float64 {
-	if len(ring) < 3 {
-		return 0
-	}
-	a := 0.0
-	for i := 0; i+1 < len(ring); i++ {
-		a += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
-	}
-	return a / 2
-}
-
 // polygonRingsArea returns the sum of the signed areas of all rings
 // (used for area-weighted target calculation; matches JTS Area.ofRing
 // summed across shell + holes).
 func polygonRingsArea(p *geom.Polygon) float64 {
 	a := 0.0
+	k := planar.Kernel{}
 	for r := 0; r < p.NumRings(); r++ {
-		a += math.Abs(ringSignedArea(p.Ring(r)))
+		a += math.Abs(k.RingArea(p.Ring(r)))
 	}
 	return a
 }
