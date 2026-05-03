@@ -31,28 +31,33 @@ Each entry should record:
 After Pillars 1–7 + Streams A–G + G1–G4 + post-G4 round (buffer-polygonize
 upper bound, polygon-vs-line touch-point emission, orientation-tolerant
 Polygon Equals, area-conservation upper-bound check, phantom-sliver-hole
-filter for floating-precision Union), the corpus stands at **99.0% pass
-rate** (8861/8951 passing, 60 failures, 30 skipped — 99.3% excluding
-skipped). Down from a 200-failure baseline.
+filter for floating-precision Union) plus the 2026-05-02 round (mitre-join
+collinear-corner skip, gated relaxed snap-rounding pass for bowtie
+collapses, polygon-minus-line decomposition + hole-reshape recovery), the
+corpus stands at **99.05% pass rate** (8866/8951 passing, 55 failures,
+30 skipped — 99.4% excluding skipped). Down from a 200-failure baseline.
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
 `overlaps` / `equals` / `isValid` predicates pass on the JTS corpus.
 
-The remaining 60 failures break down:
+The remaining 55 failures break down:
 
 | Bucket | Count | Resolution |
 |--------|------:|------------|
-| TestBufferExternal2 (negative buffer of land parcels) | 24 | Needs deeper buffer rework: better representative-point selection (inscribed-circle vs midpoint-of-longest-segment) + JTS-style winding-number depth-against-original (continuous quantity, not binary point-in-polygon). Phantom subgraph rep-points sit at distances 37–46 from the original boundary while legitimate inset rep-points sit at 1–15 due to ULP-noise on dense polygons; relaxing the validator threshold admits MORE phantoms (per agent A's empirical investigation). Deferred — requires medial-axis-style analysis to distinguish phantom from legitimate at this geometric resolution. |
-| TestBufferJagged misc+robust | 16 | Positive buffer on jagged polygons; routes through `polygonizeBuffer` without filter. Failures are vertex-sequence Hausdorff mismatches (shape mismatch), not face-count issues. Adding minArea filter is a no-op. Closing needs robust noding + JTS-style depth labelling that handles dense near-collinear vertices without snap-rounding artefacts (1–2 weeks of focused work). |
-| TestSimplify | 2 | cases 15, 16 simplifyTP — JTS version drift (older fixture vs current DP analysis). Out of scope. |
-| TestNGOverlayAPrec | 2 | case#8 differenceSR/symDifferenceSR: JTS inserts `(4,1)` as a vertex on the `(2,1)→(4,2)` segment via an extended-cell hot-pixel test (perpendicular distance ≈0.894 > tolerance/2=0.5). Connectivity-restricted `MergeNearCollinear` pass attempted but introduced sliver-collapse regressions; needs JTS-style hot-pixel adjacency rule that doesn't merge legitimate narrow features. |
-| TestBufferMitredJoin | 1 | Mitre-join with reflex corner; same root cause as TestBufferExternal2. |
-| TestOverlayAAPrec | 1 | Polygon-difference-LineString case#14: B is a `LineString`, routed through float `overlay.Difference` (not snap-rounded NG). Hole reshaping under tolerance=1 unhandled by float path. |
-| TestOverlayLAPrec | 1 | case#0 difference at scale=1: sliver polygon dimensionally collapses to a vertical line; JTS decomposes into Polygon+LineString, we return the polygon unchanged. Hybrid-DCEL polygon-snap-rounding decomposer needed. |
-| TestOverlayAA | 1 | case#9 symdifference: mAmA inputs where A is a multipolygon with self-touching "fold-in" outer rings (notches) and B partially fills the notches. The DCEL classifier mis-keeps the unfilled notch face when both inputs are multi-polygon; root cause sits in `classifyFacesByPolygons` boundary-tag-aware nudging interaction with multi-polygon `inSubj/inClip` membership. SymmetricDifference's Union-of-(A\B,B\A) path inherits the bug. Deferred — needs face-classification rework for multi-polygon inputs with shared seams. |
+| TestBufferExternal2 (negative buffer of land parcels) | 24 | Deferred. Failures are shape-fidelity gaps at the offset-corner emission level — area diffs of 0.1–2.25% and Hausdorff diffs above the harness's `bufferResultMatchesApprox` tolerance. Empirical investigation (May 2026): the rep-point validator is correctly retaining the legitimate face on every case inspected; the divergence is in the per-corner ULP-magnified numerical drift from JTS's offset construction on dense polygons. Closing requires JTS-faithful corner-emission conventions, not a filter tune. |
+| TestBufferJagged misc+robust | 16 | Deferred. Positive buffer on jagged polygons (GEOS BufferRobustness corpus). Empirical investigation (May 2026): the divergence is *shape-level smoothing*, not ULP noise — JTS produces ~158 vertices at d=5 vs our ~621 because of aggressive subgraph-aware depth labelling and offset-curve simplification. Per-vertex / per-corner approximations are insufficient; alternating convex-concave stair patterns block any per-vertex simplifier. Closing needs a real subgraph-aware depth labeller matching JTS's BufferSubgraph algorithm, or a JTS-equivalent input-line simplifier walking chains rather than vertices (1–2 weeks of focused work). |
+| TestSimplify | 2 | cases 15, 16 simplifyTP — JTS version drift (older fixture vs current DP analysis). Confirmed not closeable: both our output and JTS's textbook algorithm agree on case 15 (vertex below DP tolerance flattens); case 16 picks a different but equally valid corner of a 4-corner square. Out of scope. |
+| TestOverlayAA | 1 | case#9 symdifference: mAmA inputs where A is a multipolygon with self-touching "fold-in" outer rings (notches) and B partially fills the notches. **Empirical investigation (May 2026):** the bug is NOT in `classifyFacesByPolygons` (every face's `keep` flag is correct against winding-number ground truth). The bug is in `extractResultRings::nextBoundaryAtVertex` — at a pinch-point vertex shared by two distinct kept components, the trace's "next CCW after twin" rule picks an outgoing edge in a *different* kept face, fusing what should be 5 separate polygons into 1 self-touching polygon. A union-find over kept faces (joined when they share an interior edge) and a same-component constraint on the trace's next-edge selection closes case#9 cleanly, BUT shifts the buffer Union chain in `failure/TestBufferFailure.xml` case#1 by 0.075% area — enough to push that previously-passing case past `BufferResultMatcher` tolerance. Deferred until either the matcher accepts the topologically-better buffer result or a per-op gate is added. |
 | misc/TestOverlay #4 | 1 | GEOS#737 — sliver under area threshold (3e-6 relative). Area-conservation check tightening below 1e-6 would force spurious retries on rounding noise. Closing requires per-input snap-rounding to coordinate-magnitude-relative grid, not retry-gating. |
 | misc/GEOSBuffer + geos-bug356-buffer | 2 | GEOS-tracked buffer pathologies. |
 | **JTS-known-fail** (`failure/` folder) | 9 | TestReducePrecisionFailure 5, TestOverlayNGFailure 2, TestBufferFailure 1, TestBigNastyBuffer 1. JTS headers these as "Result provided is approximately correct". |
+
+#### Cases closed in the 2026-05-02 round
+
+- **TestBufferMitredJoin case#4** — closed by `e180013` (skip near-collinear corner-vertex emission when `|cross product| < 1e-5`, plus apply `cfg.mitreLimit` in the CROSS branch instead of `Inf`).
+- **TestNGOverlayAPrec case#8 differenceSR + symDifferenceSR** — closed by `36bb131` (gated relaxed-threshold snap-rounding pass after the strict fixpoint, with per-tag isolation, chain-with-interior-repeat gating, and hot-pixel-occurrence ≥ 2 filter to target bowtie collapse without regressing narrow features).
+- **TestOverlayLAPrec case#0** — closed by `bdc8104` (`polyMinusLineDecompose` builds a small DCEL on noded edges, walks faces, and emits each face as LineString or Polygon based on whether its vertices snap to fewer than 3 distinct grid points).
+- **TestOverlayAAPrec case#14** — closed by `fea5b2f` (hole-reshape recovery in `polyMinusLineDecompose`: when the simple sum mismatch fails, find the inner face whose area equals the expected polygon area, walk its half-edges skipping chord-only bridge segments, and split the self-touching walk into outer + holes).
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
