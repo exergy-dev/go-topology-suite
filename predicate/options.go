@@ -16,19 +16,23 @@ import (
 // every predicate call that used options; the value-type representation
 // keeps the per-call config struct on the stack.
 type Option struct {
-	kernel    kernel.Kernel
-	kernelSet bool
-	prepared  preparedHandle
-	bnr       BoundaryNodeRule
-	bnrSet    bool
+	kernel       kernel.Kernel
+	kernelSet    bool
+	prepared     preparedHandle
+	bnr          BoundaryNodeRule
+	bnrSet       bool
+	useRelateNG  bool
+	useRelateSet bool
 }
 
 type config struct {
-	kernel    kernel.Kernel
-	kernelSet bool
-	prepared  preparedHandle // optional cached prepared geometry for `a`
-	bnr       BoundaryNodeRule
-	bnrSet    bool
+	kernel       kernel.Kernel
+	kernelSet    bool
+	prepared     preparedHandle // optional cached prepared geometry for `a`
+	bnr          BoundaryNodeRule
+	bnrSet       bool
+	useRelateNG  bool
+	useRelateSet bool
 }
 
 // preparedHandle is a thin interface so this package doesn't directly
@@ -84,6 +88,20 @@ func WithPrepared(h preparedHandle) Option {
 	return Option{prepared: h}
 }
 
+// UseRelateNG opts the call into the experimental RelateNG topology
+// driver (internal/relateng). When set to true, Relate first attempts
+// to evaluate the predicate via the new path; if RelateNG cannot
+// produce a definitive answer (e.g. inputs whose answer depends on
+// non-vertex edge intersections, which are not yet ported), the call
+// falls back to the legacy DE-9IM computation in this package.
+//
+// The default is false (legacy path). The switch is intended for
+// equivalence testing during the RelateNG rollout — once the missing
+// edge-segment intersection pipeline lands, the default may flip.
+func UseRelateNG(use bool) Option {
+	return Option{useRelateNG: use, useRelateSet: true}
+}
+
 // WithBoundaryNodeRule selects a non-default rule for classifying
 // MultiLineString endpoint nodes as boundary or interior. The OGC
 // SFS default is Mod2BoundaryNodeRule; pass
@@ -118,6 +136,10 @@ func resolve(g geom.Geometry, opts []Option) config {
 		if o.bnrSet {
 			c.bnr = o.bnr
 			c.bnrSet = true
+		}
+		if o.useRelateSet {
+			c.useRelateNG = o.useRelateNG
+			c.useRelateSet = true
 		}
 	}
 	if !c.kernelSet {

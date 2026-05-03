@@ -95,6 +95,13 @@ func Relate(a, b geom.Geometry, opts ...Option) (DE9IM, error) {
 	if !cfg.bnrSet {
 		bnr = Mod2BoundaryNodeRule
 	}
+	if cfg.useRelateNG {
+		if im, ok := relateViaNG(a, b, bnr); ok {
+			return im, nil
+		}
+		// Fall through to legacy path on inputs the new driver can't
+		// definitively answer yet (edge-segment crossings).
+	}
 	m := computeMatrixWithRule(a, b, cfg.kernel, bnr)
 	return m.toDE9IM(), nil
 }

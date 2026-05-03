@@ -2,27 +2,22 @@ package predicate
 
 import (
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/internal/relateng"
 )
 
-// RelateNG is an Experimental skeleton port of JTS RelateNG
-// (`org.locationtech.jts.operation.relateng.RelateNG`). It exposes the
-// same predicate menu as RelateOp but routes each predicate through the
-// short-circuit fast-path layer (relate_short_circuit.go) before
-// falling back to the existing DE-9IM topology graph.
+// RelateNG is the public entry point for the experimental RelateNG
+// driver (port of org.locationtech.jts.operation.relateng.RelateNG).
 //
-// The full RelateNG architecture in JTS — incremental TopologyComputer,
-// per-predicate value tracking, lazy edge intersection — is a larger
-// port (≈2000 LOC) that has not yet landed in Terra. This type is the
-// public API hook that future work will fill out; today its predicate
-// methods are simple wrappers over the package-level functions, which
-// already incorporate the relevant envelope/dim short-circuits.
+// In Wave 8 the driver covers point-locator-only paths: P/P, P/L,
+// P/A, L/A line-end and area-vertex interactions. Inputs whose answer
+// depends on edge-segment crossings between vertices are still routed
+// through the legacy DE-9IM pipeline in this package — the
+// EdgeSegmentIntersector / EdgeSetIntersector / RelateNode pipeline
+// will land in a follow-up.
 //
-// The boundary node rule may be overridden via WithBoundaryNodeRule.
-// The kernel is selected automatically from the geometry's CRS unless
-// a non-default kernel is supplied via WithKernel.
-//
-// Experimental: API and behaviour may change. Prefer the package-level
-// predicate functions for stable code.
+// Most callers should prefer the package-level predicate functions
+// (Intersects, Contains, ...) and pass UseRelateNG(true) as an
+// Option to opt into the new driver.
 type RelateNG struct {
 	a    geom.Geometry
 	opts []Option
@@ -31,10 +26,6 @@ type RelateNG struct {
 // NewRelateNG constructs a RelateNG for geometry a. The other operand
 // is supplied per call. This mirrors JTS's `RelateNG.relate(g)` /
 // `RelateNG.evaluate(g, predicate)` pattern.
-//
-// When the same geometry will participate in many predicate calls
-// (e.g. one polygon vs many points), prefer also passing
-// `WithPrepared(prepare.Polygon(a))` via opts.
 func NewRelateNG(a geom.Geometry, opts ...Option) *RelateNG {
 	return &RelateNG{a: a, opts: opts}
 }
@@ -95,3 +86,35 @@ func (r *RelateNG) Equals(b geom.Geometry) (bool, error) {
 func (r *RelateNG) Relate(b geom.Geometry) (DE9IM, error) {
 	return Relate(r.a, b, r.opts...)
 }
+
+// relateViaNG attempts to compute the DE-9IM matrix via the new
+// driver. Returns ok=false if the inputs require the not-yet-ported
+// edge-segment intersection pipeline; the caller then falls back to
+// the legacy path.
+//
+// "Edge-pipeline-required" is a conservative test: any pair where
+// both inputs have edges (lines or polygon rings) and their envelopes
+// interact may need edge crossings to resolve, so we defer to legacy.
+// This keeps the new driver opt-in and safe by default.
+func relateViaNG(a, b geom.Geometry, rule BoundaryNodeRule) (DE9IM, bool) {
+	rng := relateng.NewRelateNG(a, adaptBNR(rule))
+	if rng.HasEdgeIntersection(b) {
+		return "", false
+	}
+	im := rng.EvaluateMatrix(b)
+	return DE9IM(im.String()), true
+}
+
+// adaptBNR converts a predicate.BoundaryNodeRule to the
+// internal/relateng equivalent. They share interface shape so this
+// is a no-op type adaptation through a tiny wrapper.
+func adaptBNR(r BoundaryNodeRule) relateng.BoundaryNodeRule {
+	if r == nil {
+		return relateng.OGCSFSBoundaryRule
+	}
+	return bnrAdapter{r}
+}
+
+type bnrAdapter struct{ inner BoundaryNodeRule }
+
+func (b bnrAdapter) IsInBoundary(c int) bool { return b.inner.IsInBoundary(c) }
