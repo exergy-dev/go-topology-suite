@@ -10,15 +10,21 @@ import (
 	"github.com/terra-geo/terra/kernel/planar"
 )
 
-// DefectKind classifies a structural defect.
+// DefectKind classifies a structural defect. Codes mirror JTS
+// org.locationtech.jts.operation.valid.TopologyValidationError so each
+// JTS error type has a one-to-one Go equivalent.
 type DefectKind string
 
 const (
-	DefectRingNotClosed     DefectKind = "ring-not-closed"
-	DefectRingTooFewPoints  DefectKind = "ring-too-few-points"
-	DefectLineTooFewPoints  DefectKind = "line-too-few-points"
-	DefectSelfIntersection  DefectKind = "self-intersection"
-	DefectHoleOutsideShell  DefectKind = "hole-outside-shell"
+	DefectRingNotClosed        DefectKind = "ring-not-closed"
+	DefectRingTooFewPoints     DefectKind = "ring-too-few-points"
+	DefectLineTooFewPoints     DefectKind = "line-too-few-points"
+	DefectSelfIntersection     DefectKind = "self-intersection"      // JTS SELF_INTERSECTION: two distinct rings of one polygon intersect
+	DefectRingSelfIntersection DefectKind = "ring-self-intersection" // JTS RING_SELF_INTERSECTION: a single ring self-touches or self-crosses
+	DefectNestedHoles          DefectKind = "nested-holes"           // JTS NESTED_HOLES: hole nested inside another hole of same polygon
+	DefectNestedShells         DefectKind = "nested-shells"          // JTS NESTED_SHELLS: one MultiPolygon component nests inside or overlaps another
+	DefectDuplicateRings       DefectKind = "duplicate-rings"        // JTS DUPLICATE_RINGS: two rings of a polygonal geometry are identical
+	DefectHoleOutsideShell     DefectKind = "hole-outside-shell"
 	DefectInvalidLayout        DefectKind = "invalid-layout"
 	DefectInvalidCoordinate    DefectKind = "invalid-coordinate"
 	DefectDisconnectedInterior DefectKind = "disconnected-interior"
@@ -218,7 +224,7 @@ func (v *validator) checkLinearRing(lr *geom.LinearRing) {
 			ring[0])
 	}
 	if loc, ok := ringSelfIntersection(ring); ok {
-		v.add(DefectSelfIntersection, "linearring self-intersects", loc)
+		v.add(DefectRingSelfIntersection, "linearring self-intersects", loc)
 	}
 }
 
@@ -376,7 +382,7 @@ func (v *validator) checkRing(ring []geom.XY, index int) bool {
 		return false
 	}
 	if ringSignedArea(ring) == 0 {
-		v.add(DefectSelfIntersection,
+		v.add(DefectRingSelfIntersection,
 			fmt.Sprintf("ring %d has zero area", index), ring[0])
 		return false
 	}
@@ -386,7 +392,7 @@ func (v *validator) checkRing(ring []geom.XY, index int) bool {
 			ring[0])
 	}
 	if loc, ok := ringSelfIntersection(ring); ok {
-		v.add(DefectSelfIntersection,
+		v.add(DefectRingSelfIntersection,
 			fmt.Sprintf("ring %d self-intersects", index), loc)
 	}
 	return true
@@ -418,7 +424,7 @@ func (v *validator) checkHoleAgainstShell(index int, hole, shell []geom.XY, k ke
 		return
 	}
 	if ringEquivalent(hole, shell) {
-		v.add(DefectSelfIntersection,
+		v.add(DefectDuplicateRings,
 			fmt.Sprintf("hole %d equals shell", index), hole[0])
 	}
 	if ringsShareCurve(hole, shell) {
@@ -432,13 +438,13 @@ func (v *validator) checkHoleAgainstShell(index int, hole, shell []geom.XY, k ke
 
 func (v *validator) checkHolePair(i, j int, a, b []geom.XY, k kernel.Kernel) {
 	if ringEquivalent(a, b) {
-		v.add(DefectSelfIntersection,
+		v.add(DefectDuplicateRings,
 			fmt.Sprintf("holes %d and %d are equal", i, j),
 			a[0])
 		return
 	}
 	if ringContainsRingVerts(a, b, k) || ringContainsRingVerts(b, a, k) {
-		v.add(DefectSelfIntersection,
+		v.add(DefectNestedHoles,
 			fmt.Sprintf("hole %d nested inside hole %d", i, j),
 			a[0])
 		return
@@ -470,7 +476,7 @@ func (v *validator) checkMultiPolygon(mp *geom.MultiPolygon) {
 			}
 			ar, br := a.Ring(0), b.Ring(0)
 			if ringEquivalent(ar, br) {
-				v.add(DefectSelfIntersection,
+				v.add(DefectDuplicateRings,
 					fmt.Sprintf("multipolygon shells %d and %d are equal", i, j), ar[0])
 				continue
 			}
@@ -480,7 +486,7 @@ func (v *validator) checkMultiPolygon(mp *geom.MultiPolygon) {
 				continue
 			}
 			if polygonHasPointInInterior(a, b, k) || polygonHasPointInInterior(b, a, k) {
-				v.add(DefectSelfIntersection,
+				v.add(DefectNestedShells,
 					fmt.Sprintf("multipolygon shells %d and %d overlap or nest", i, j), ar[0])
 				continue
 			}
@@ -489,7 +495,7 @@ func (v *validator) checkMultiPolygon(mp *geom.MultiPolygon) {
 			// three vertices are all vertices of the surrounding shell).
 			// Probe the polygon's interior centroid as well.
 			if multiPolygonInteriorOverlap(a, b, k) {
-				v.add(DefectSelfIntersection,
+				v.add(DefectNestedShells,
 					fmt.Sprintf("multipolygon shells %d and %d overlap or nest", i, j), ar[0])
 				continue
 			}

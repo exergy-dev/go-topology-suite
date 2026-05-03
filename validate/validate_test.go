@@ -41,7 +41,7 @@ func TestRingTooFewPoints(t *testing.T) {
 }
 
 func TestSelfIntersectingRing(t *testing.T) {
-	// Bowtie: edges cross.
+	// Bowtie: edges cross. JTS reports RING_SELF_INTERSECTION here.
 	p := geom.NewPolygon(nil, []geom.XY{
 		{X: 0, Y: 0}, {X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 10}, {X: 0, Y: 0},
 	})
@@ -50,11 +50,11 @@ func TestSelfIntersectingRing(t *testing.T) {
 	require.True(t, errors.As(err, &ve), "expected ValidationError")
 	found := false
 	for _, d := range ve.Defects {
-		if d.Kind == DefectSelfIntersection {
+		if d.Kind == DefectRingSelfIntersection {
 			found = true
 		}
 	}
-	assert.True(t, found, "expected self-intersection defect")
+	assert.True(t, found, "expected ring-self-intersection defect, got %v", ve.Defects)
 }
 
 func TestHoleOutsideShell(t *testing.T) {
@@ -86,7 +86,7 @@ func TestLinearRingBowtieInvalid(t *testing.T) {
 	err = Validate(g)
 	var ve *ValidationError
 	require.True(t, errors.As(err, &ve), "bowtie ring should be invalid")
-	assert.Equal(t, DefectSelfIntersection, ve.Defects[0].Kind)
+	assert.Equal(t, DefectRingSelfIntersection, ve.Defects[0].Kind)
 }
 
 func TestLinearRingValid(t *testing.T) {
@@ -122,4 +122,84 @@ func TestValidPolygonNearlyParallelEdges(t *testing.T) {
 	g, err := wkt.Unmarshal(w)
 	require.NoError(t, err)
 	assert.NoError(t, Validate(g), "near-duplicate consecutive vertices must not trigger self-intersection")
+}
+
+// hasDefect reports whether the validation error contains at least one
+// defect of the requested kind.
+func hasDefect(err error, kind DefectKind) bool {
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		return false
+	}
+	for _, d := range ve.Defects {
+		if d.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// TestDefectNestedHoles: a polygon with one hole strictly inside
+// another hole must report DefectNestedHoles (JTS NESTED_HOLES, code 3).
+func TestDefectNestedHoles(t *testing.T) {
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 0, Y: 100}, {X: 100, Y: 100}, {X: 100, Y: 0}, {X: 0, Y: 0}}
+	bigHole := []geom.XY{{X: 10, Y: 10}, {X: 10, Y: 90}, {X: 90, Y: 90}, {X: 90, Y: 10}, {X: 10, Y: 10}}
+	smallHole := []geom.XY{{X: 30, Y: 30}, {X: 30, Y: 70}, {X: 70, Y: 70}, {X: 70, Y: 30}, {X: 30, Y: 30}}
+	p := geom.NewPolygon(nil, shell, bigHole, smallHole)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.True(t, hasDefect(err, DefectNestedHoles), "expected nested-holes defect, got %v", err)
+}
+
+// TestDefectNestedShells: a MultiPolygon whose first component
+// strictly contains a smaller second component must report
+// DefectNestedShells (JTS NESTED_SHELLS, code 7).
+func TestDefectNestedShells(t *testing.T) {
+	big := geom.NewPolygon(nil, []geom.XY{
+		{X: 0, Y: 0}, {X: 0, Y: 100}, {X: 100, Y: 100}, {X: 100, Y: 0}, {X: 0, Y: 0},
+	})
+	small := geom.NewPolygon(nil, []geom.XY{
+		{X: 30, Y: 30}, {X: 30, Y: 70}, {X: 70, Y: 70}, {X: 70, Y: 30}, {X: 30, Y: 30},
+	})
+	mp := geom.NewMultiPolygon(nil, big, small)
+	err := Validate(mp)
+	require.Error(t, err)
+	assert.True(t, hasDefect(err, DefectNestedShells), "expected nested-shells defect, got %v", err)
+}
+
+// TestDefectDuplicateRings: two identical holes in a polygon must
+// report DefectDuplicateRings (JTS DUPLICATE_RINGS, code 8).
+func TestDefectDuplicateRings(t *testing.T) {
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 0, Y: 100}, {X: 100, Y: 100}, {X: 100, Y: 0}, {X: 0, Y: 0}}
+	hole := []geom.XY{{X: 10, Y: 10}, {X: 10, Y: 20}, {X: 20, Y: 20}, {X: 20, Y: 10}, {X: 10, Y: 10}}
+	dup := []geom.XY{{X: 10, Y: 10}, {X: 10, Y: 20}, {X: 20, Y: 20}, {X: 20, Y: 10}, {X: 10, Y: 10}}
+	p := geom.NewPolygon(nil, shell, hole, dup)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.True(t, hasDefect(err, DefectDuplicateRings), "expected duplicate-rings defect, got %v", err)
+}
+
+// TestDefectRingSelfIntersection: a single bowtie ring is the JTS
+// RING_SELF_INTERSECTION case (code 6), distinct from inter-ring
+// SELF_INTERSECTION.
+func TestDefectRingSelfIntersection(t *testing.T) {
+	p := geom.NewPolygon(nil, []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	})
+	err := Validate(p)
+	require.Error(t, err)
+	assert.True(t, hasDefect(err, DefectRingSelfIntersection), "expected ring-self-intersection defect, got %v", err)
+}
+
+// TestDefectSelfIntersectionInterRing: two distinct rings of one
+// polygon sharing a curve segment is the JTS SELF_INTERSECTION code
+// (5) — distinguishable from the ring-self case above.
+func TestDefectSelfIntersectionInterRing(t *testing.T) {
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 0, Y: 100}, {X: 100, Y: 100}, {X: 100, Y: 0}, {X: 0, Y: 0}}
+	// Hole that shares the bottom edge of the shell as a curve segment.
+	hole := []geom.XY{{X: 20, Y: 0}, {X: 20, Y: 30}, {X: 80, Y: 30}, {X: 80, Y: 0}, {X: 20, Y: 0}}
+	p := geom.NewPolygon(nil, shell, hole)
+	err := Validate(p)
+	require.Error(t, err)
+	assert.True(t, hasDefect(err, DefectSelfIntersection), "expected inter-ring self-intersection defect, got %v", err)
 }
