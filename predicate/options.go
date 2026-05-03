@@ -19,12 +19,16 @@ type Option struct {
 	kernel    kernel.Kernel
 	kernelSet bool
 	prepared  preparedHandle
+	bnr       BoundaryNodeRule
+	bnrSet    bool
 }
 
 type config struct {
 	kernel    kernel.Kernel
 	kernelSet bool
 	prepared  preparedHandle // optional cached prepared geometry for `a`
+	bnr       BoundaryNodeRule
+	bnrSet    bool
 }
 
 // preparedHandle is a thin interface so this package doesn't directly
@@ -80,6 +84,19 @@ func WithPrepared(h preparedHandle) Option {
 	return Option{prepared: h}
 }
 
+// WithBoundaryNodeRule selects a non-default rule for classifying
+// MultiLineString endpoint nodes as boundary or interior. The OGC
+// SFS default is Mod2BoundaryNodeRule; pass
+// EndpointBoundaryNodeRule (or one of the others) when modelling
+// linear-network topology where every endpoint is meaningful.
+//
+// Currently honoured by relate-driven predicates (Relate / Touches /
+// Crosses / Intersects against MultiLineStrings). Polygonal rules
+// are unaffected.
+func WithBoundaryNodeRule(rule BoundaryNodeRule) Option {
+	return Option{bnr: rule, bnrSet: true}
+}
+
 // resolve chooses a kernel given the operands. If the user explicitly
 // passed WithKernel, that wins; otherwise we route by CRS kind.
 //
@@ -97,6 +114,10 @@ func resolve(g geom.Geometry, opts []Option) config {
 		}
 		if o.prepared != nil {
 			c.prepared = o.prepared
+		}
+		if o.bnrSet {
+			c.bnr = o.bnr
+			c.bnrSet = true
 		}
 	}
 	if !c.kernelSet {

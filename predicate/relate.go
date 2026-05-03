@@ -91,8 +91,65 @@ func Relate(a, b geom.Geometry, opts ...Option) (DE9IM, error) {
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
 	cfg := resolve(a, opts)
-	m := computeMatrix(a, b, cfg.kernel)
+	bnr := cfg.bnr
+	if !cfg.bnrSet {
+		bnr = Mod2BoundaryNodeRule
+	}
+	m := computeMatrixWithRule(a, b, cfg.kernel, bnr)
 	return m.toDE9IM(), nil
+}
+
+// computeMatrixWithRule wraps computeMatrix, applying the custom
+// boundary-node rule by post-processing the boundary rows/columns.
+//
+// We call multiLineStringBoundaryRule with the chosen rule and use
+// its emptiness to decide whether to suppress the *B/B* rows/cols.
+// This is the narrowest correct integration: predicates that only
+// look at "is boundary empty?" (boundaryDim) get the rule's answer.
+func computeMatrixWithRule(a, b geom.Geometry, k kernel.Kernel, rule BoundaryNodeRule) matrix {
+	m := computeMatrix(a, b, k)
+	// If a non-default rule says the boundary IS empty, blank the
+	// boundary rows. If it says boundary is NOT empty (when default
+	// would say empty), promote the boundary rows to match the
+	// dimension of the lineal geometry.
+	applyBoundaryRule(&m, a, rule, true)
+	applyBoundaryRule(&m, b, rule, false)
+	return m
+}
+
+// applyBoundaryRule rewrites the matrix's *B / B* rows for a lineal
+// operand using the supplied BoundaryNodeRule. forA selects which
+// operand to act on (true => a's B-row, false => b's B-column).
+func applyBoundaryRule(m *matrix, g geom.Geometry, rule BoundaryNodeRule, forA bool) {
+	ml, ok := asMLSWrapped(g)
+	if !ok {
+		return
+	}
+	ruleEmpty := len(multiLineStringBoundaryRule(ml, rule)) == 0
+	defaultEmpty := len(multiLineStringBoundary(ml)) == 0
+	if ruleEmpty == defaultEmpty {
+		return
+	}
+	if ruleEmpty {
+		if forA {
+			m[mBI] = -1
+			m[mBB] = -1
+			m[mBE] = -1
+		} else {
+			m[mIB] = -1
+			m[mBB] = -1
+			m[mEB] = -1
+		}
+		return
+	}
+	// Rule says boundary non-empty but default said empty: at least
+	// the BE / EB cell should reflect dimension 0 (boundary is a
+	// 0-dimensional point set).
+	if forA {
+		m.raise(mBE, 0)
+	} else {
+		m.raise(mEB, 0)
+	}
 }
 
 // unwrapLinearRing routes a LinearRing through the LineString code paths.
@@ -348,28 +405,12 @@ func asMLSWrapped(g geom.Geometry) (*geom.MultiLineString, bool) {
 // multiLineStringBoundary returns the OGC mod-2 boundary point set of
 // a MultiLineString: endpoints appearing in an odd number of member
 // boundary endpoints. Closed members contribute nothing.
+//
+// Delegates to multiLineStringBoundaryRule with Mod2BoundaryRule for
+// the OGC default. Callers wanting a non-default rule should pass
+// the rule explicitly via WithBoundaryNodeRule.
 func multiLineStringBoundary(ml *geom.MultiLineString) []geom.XY {
-	count := map[geom.XY]int{}
-	for i := 0; i < ml.NumGeometries(); i++ {
-		ls := ml.LineStringAt(i)
-		if ls.IsEmpty() || ls.NumPoints() < 2 {
-			continue
-		}
-		first := ls.PointAt(0)
-		last := ls.PointAt(ls.NumPoints() - 1)
-		if first == last {
-			continue
-		}
-		count[first]++
-		count[last]++
-	}
-	var out []geom.XY
-	for p, c := range count {
-		if c%2 == 1 {
-			out = append(out, p)
-		}
-	}
-	return out
+	return multiLineStringBoundaryRule(ml, Mod2BoundaryNodeRule)
 }
 
 // isMulti reports whether g is a Multi* or GeometryCollection.
