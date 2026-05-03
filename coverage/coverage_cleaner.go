@@ -33,6 +33,7 @@ import (
 	"math"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel/planar"
 	"github.com/terra-geo/terra/precision"
 )
 
@@ -192,7 +193,7 @@ func snapPolygonToAnchors(p *geom.Polygon, anchors map[geom.XY]geom.XY, toleranc
 			continue
 		}
 		// Drop zero-area rings (all collinear).
-		if ringSignedArea(ring) == 0 {
+		if (planar.Kernel{}).RingArea(ring) == 0 {
 			if r == 0 {
 				return nil
 			}
@@ -220,18 +221,5 @@ func isAreaValidPolygon(p *geom.Polygon) bool {
 	for j := 0; j < n; j++ {
 		ring[j] = p.RingVertex(0, j)
 	}
-	return ringSignedArea(ring) != 0
-}
-
-// ringSignedArea uses the shoelace formula to compute a ring's signed
-// area. Positive for CCW, negative for CW, 0 for degenerate.
-func ringSignedArea(ring []geom.XY) float64 {
-	if len(ring) < 3 {
-		return 0
-	}
-	var s float64
-	for i := 0; i+1 < len(ring); i++ {
-		s += (ring[i+1].X - ring[i].X) * (ring[i+1].Y + ring[i].Y)
-	}
-	return s / 2
+	return (planar.Kernel{}).RingArea(ring) != 0
 }

@@ -16,6 +16,7 @@ package coverage
 import (
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel/planar"
 	"github.com/terra-geo/terra/overlay"
 )
 
@@ -190,7 +191,7 @@ func assembleCoverage(c *crs.CRS, rings [][]geom.XY) (*geom.MultiPolygon, error)
 	}
 	infos := make([]ringInfo, 0, len(rings))
 	for _, r := range rings {
-		a := signedArea(r)
+		a := (planar.Kernel{}).RingArea(r)
 		if a == 0 {
 			continue
 		}
@@ -247,19 +248,6 @@ type coverageError string
 func (e coverageError) Error() string { return string(e) }
 
 const errInvalidCoverage = coverageError("coverage: invalid coverage (boundary trace did not produce a valid ring nesting)")
-
-// signedArea returns the standard 2D shoelace area. Positive for CCW.
-func signedArea(ring []geom.XY) float64 {
-	n := len(ring)
-	if n < 3 {
-		return 0
-	}
-	var s float64
-	for i := 0; i+1 < n; i++ {
-		s += (ring[i+1].X - ring[i].X) * (ring[i+1].Y + ring[i].Y)
-	}
-	return -s / 2
-}
 
 // pointInRing is a standard ray-cast test, sufficient for ring-in-shell
 // classification at exact vertex coordinates.
