@@ -1,6 +1,8 @@
 package overlay
 
 import (
+	"sort"
+
 	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/predicate"
@@ -65,19 +67,66 @@ func dedupeMultiPoint(mp *geom.MultiPoint) geom.Geometry {
 	}
 }
 
+// unionAllAreal computes the union of a collection of polygonal
+// geometries using a JTS-style cascaded binary tree. Polygons are first
+// sorted by envelope center so spatially-close inputs are unioned
+// together near the leaves; the resulting work is roughly O(N log N)
+// pairwise unions instead of N-1 sequential ones, and the spatial
+// locality lets each union eliminate vertices early. This ports
+// org.locationtech.jts.operation.union.CascadedPolygonUnion.
 func unionAllAreal(c *crs.CRS, polys []geom.Geometry) (geom.Geometry, error) {
 	if len(polys) == 0 {
 		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
 	}
-	acc := polys[0]
-	for i := 1; i < len(polys); i++ {
-		next, err := Union(acc, polys[i])
+	if len(polys) == 1 {
+		return polys[0], nil
+	}
+	// Sort by envelope-center hilbert-ish ordering: sort by minX, then
+	// minY. JTS uses an STRtree to chunk the inputs into 2x2 tiles;
+	// sorting by min coordinates approximates this, since adjacent
+	// items in the sorted list are spatially adjacent.
+	sorted := make([]geom.Geometry, len(polys))
+	copy(sorted, polys)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		ei := sorted[i].Envelope()
+		ej := sorted[j].Envelope()
+		if ei.MinX != ej.MinX {
+			return ei.MinX < ej.MinX
+		}
+		return ei.MinY < ej.MinY
+	})
+	return cascadedBinaryUnion(sorted, 0, len(sorted))
+}
+
+// cascadedBinaryUnion unions a slice of polygonal geometries by
+// recursing on the two halves and unioning the results. This is the
+// "binary union tree" from JTS CascadedPolygonUnion.binaryUnion.
+func cascadedBinaryUnion(geoms []geom.Geometry, start, end int) (geom.Geometry, error) {
+	switch end - start {
+	case 0:
+		return nil, nil
+	case 1:
+		return geoms[start], nil
+	case 2:
+		return Union(geoms[start], geoms[start+1])
+	default:
+		mid := (start + end) / 2
+		g0, err := cascadedBinaryUnion(geoms, start, mid)
 		if err != nil {
 			return nil, err
 		}
-		acc = next
+		g1, err := cascadedBinaryUnion(geoms, mid, end)
+		if err != nil {
+			return nil, err
+		}
+		if g0 == nil {
+			return g1, nil
+		}
+		if g1 == nil {
+			return g0, nil
+		}
+		return Union(g0, g1)
 	}
-	return acc, nil
 }
 
 func unionGeometryCollection(gc *geom.GeometryCollection) (geom.Geometry, error) {
