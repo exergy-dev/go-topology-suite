@@ -106,17 +106,13 @@ func (r *RelateNG) computeAtEdges(geomB *Geometry, tc *TopologyComputer) {
 	}
 	es := NewEdgeSetIntersector(edgesA, edgesB, clipEnv)
 	intersector := NewEdgeSegmentIntersector(tc)
-	es.Process(intersector)
-
-	// Optionally process self-noding edges if the predicate demands it.
-	if tc.IsSelfNodingRequired() {
-		// Self-noding within A and within B is also driven by the JTS
-		// EdgeSetIntersector (it indexes both edge sets and tests
-		// every chain pair in id-order, which naturally covers
-		// A-vs-A and B-vs-B as long as both sets share the same
-		// index). The current driver already does this when
-		// edgesA and edgesB are both fed to the same index.
-	}
+	// requireSelfNoding controls whether the EdgeSetIntersector visits
+	// intra-input (A-vs-A, B-vs-B) chain pairs. JTS gates this on the
+	// active predicate via TopologyPredicate.RequireSelfNoding(); we
+	// route through TopologyComputer.IsSelfNodingRequired which adds
+	// the input-shape conditions (e.g. mixed line/area on the same
+	// operand) on top of the predicate's choice.
+	es.Process(intersector, tc.IsSelfNodingRequired())
 }
 
 func intersectEnv(a, b geom.Envelope) geom.Envelope {

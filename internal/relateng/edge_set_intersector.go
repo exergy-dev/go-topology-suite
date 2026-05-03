@@ -80,9 +80,30 @@ func (es *EdgeSetIntersector) addToIndex(ss *RelateSegmentString) {
 	}
 }
 
+// SegmentPairProcessor is the abstract sink for chain-pair dispatch
+// inside the EdgeSetIntersector. Production wiring uses
+// *EdgeSegmentIntersector; tests can supply a counter / fake.
+type SegmentPairProcessor interface {
+	ProcessIntersections(ss0 *RelateSegmentString, seg0 int, ss1 *RelateSegmentString, seg1 int)
+	IsDone() bool
+}
+
 // Process runs the segment-pair scan, calling intersector.ProcessIntersections
 // for every candidate pair. The scan stops early when intersector.IsDone.
-func (es *EdgeSetIntersector) Process(intersector *EdgeSegmentIntersector) {
+//
+// requireSelfNoding controls whether intra-input pairs (A-vs-A and
+// B-vs-B) participate. When false (the common case for predicates like
+// Intersects / Disjoint / Contains / Covers / Touches whose answer
+// does not depend on self-intersections of an individual operand) the
+// scan visits only A-vs-B candidate pairs, skipping work that the
+// predicate would discard anyway. When true (Relate matrix predicates,
+// or any predicate whose JTS counterpart returns
+// requireSelfNoding=true) every chain pair is tested as before.
+//
+// Mirrors the corresponding short-circuit in JTS RelateNG, where the
+// EdgeSetIntersector consults the active TopologyPredicate before
+// dispatching each chain pair.
+func (es *EdgeSetIntersector) Process(intersector SegmentPairProcessor, requireSelfNoding bool) {
 	for _, qc := range es.chains {
 		queryEnv := qc.mc.Envelope()
 		stop := false
@@ -92,6 +113,12 @@ func (es *EdgeSetIntersector) Process(intersector *EdgeSegmentIntersector) {
 			// (so each unordered chain pair is visited once and a chain
 			// is never tested against itself).
 			if tc.id <= qc.id {
+				return true
+			}
+			// Same-side guard: when self-noding isn't required, skip
+			// A-vs-A and B-vs-B chain pairs. The predicate only needs
+			// the AB interaction.
+			if !requireSelfNoding && tc.ss.IsA == qc.ss.IsA {
 				return true
 			}
 			tc.mc.ComputeOverlaps(qc.mc, 0, func(mc1 *noding.MonotoneChain, s1 int, mc2 *noding.MonotoneChain, s2 int) {
