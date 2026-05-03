@@ -56,8 +56,11 @@ func (e *ValidationError) Error() string {
 
 // Validate returns nil if g is a valid OGC geometry, or *ValidationError
 // listing every defect detected.
-func Validate(g geom.Geometry) error {
+func Validate(g geom.Geometry, opts ...Option) error {
 	v := &validator{}
+	for _, o := range opts {
+		o(&v.cfg)
+	}
 	v.check(g)
 	if len(v.defects) == 0 {
 		return nil
@@ -65,7 +68,29 @@ func Validate(g geom.Geometry) error {
 	return &ValidationError{Defects: v.defects}
 }
 
+// Option configures validation behaviour.
+type Option func(*validatorConfig)
+
+type validatorConfig struct {
+	// invertedRingValid: accept ring self-touch points that form a
+	// valid "inverted shell" / "exverted hole" pinch topology, per
+	// the ESRI SDE convention. Mirrors JTS
+	// IsValidOp.setSelfTouchingRingFormingHoleValid(true).
+	invertedRingValid bool
+}
+
+// WithInvertedRingValid relaxes ring-validity to accept self-touching
+// shell/hole rings whose touch forms the ESRI-SDE inverted-ring
+// topology: the touch is at a finite set of points, the four edges
+// meeting at each touch lie in the polygon exterior, and no chain of
+// touching rings forms a graph cycle. Default behaviour (strict OGC)
+// is unchanged.
+func WithInvertedRingValid() Option {
+	return func(c *validatorConfig) { c.invertedRingValid = true }
+}
+
 type validator struct {
+	cfg     validatorConfig
 	defects []Defect
 }
 
@@ -232,6 +257,7 @@ func (v *validator) checkPolygon(p *geom.Polygon) {
 	if p.IsEmpty() {
 		return
 	}
+	preCount := len(v.defects)
 	for r := 0; r < p.NumRings(); r++ {
 		if !v.checkRing(p.Ring(r), r) {
 			continue
@@ -242,6 +268,35 @@ func (v *validator) checkPolygon(p *geom.Polygon) {
 		v.checkPolygonHoles(p, k)
 		v.checkInteriorConnectivity(p, k)
 	}
+	// Inverted-ring relaxation (JTS PolygonRing): when enabled,
+	// suppress DefectRingSelfIntersection caused by point-only
+	// self-touches whose corner topology is valid (interior not
+	// disconnected) and replace it with the PolygonRing analysis
+	// outcome.
+	if v.cfg.invertedRingValid {
+		v.applyInvertedRingRelaxation(p, preCount)
+	}
+}
+
+// applyInvertedRingRelaxation rewrites self-intersection defects
+// added since `since` if the polygon's self-touches and inter-ring
+// touches form a valid inverted-ring topology.
+func (v *validator) applyInvertedRingRelaxation(p *geom.Polygon, since int) {
+	// Run PolygonRing analysis. If it returns a defect, leave the
+	// existing defect list as the strict-mode answer (the relaxed
+	// mode also flags this case). Otherwise drop self-intersection
+	// and disconnected-interior defects added by this polygon.
+	if _, _, bad := findInvertedRingDefect(p); bad {
+		return
+	}
+	out := v.defects[:since]
+	for _, d := range v.defects[since:] {
+		if d.Kind == DefectRingSelfIntersection || d.Kind == DefectDisconnectedInterior {
+			continue
+		}
+		out = append(out, d)
+	}
+	v.defects = out
 }
 
 // checkInteriorConnectivity reports a disconnected-interior defect
