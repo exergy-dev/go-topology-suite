@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel/planar"
 )
 
 func TestVoronoi_FourCorners(t *testing.T) {
@@ -25,7 +26,7 @@ func TestVoronoi_FourCorners(t *testing.T) {
 	totalArea := 0.0
 	for _, p := range cells {
 		ring := p.Ring(0)
-		a := math.Abs(signedRingArea(ring))
+		a := math.Abs((planar.Kernel{}).RingArea(ring))
 		if math.Abs(a-0.25) > 1e-9 {
 			t.Fatalf("cell area: want 0.25, got %v (%v)", a, ring)
 		}
@@ -69,7 +70,7 @@ func TestVoronoi_CellsCoverClipBox(t *testing.T) {
 	}
 	total := 0.0
 	for _, p := range cells {
-		total += math.Abs(signedRingArea(p.Ring(0)))
+		total += math.Abs((planar.Kernel{}).RingArea(p.Ring(0)))
 	}
 	want := clip.Width() * clip.Height()
 	if math.Abs(total-want) > 1e-6 {
@@ -77,20 +78,3 @@ func TestVoronoi_CellsCoverClipBox(t *testing.T) {
 	}
 }
 
-// signedRingArea returns the signed shoelace area of an XY ring (which
-// may or may not be explicitly closed).
-func signedRingArea(ring []geom.XY) float64 {
-	n := len(ring)
-	if n < 3 {
-		return 0
-	}
-	if ring[0] == ring[n-1] {
-		n--
-	}
-	var s float64
-	for i := 0; i < n; i++ {
-		j := (i + 1) % n
-		s += ring[i].X*ring[j].Y - ring[j].X*ring[i].Y
-	}
-	return s / 2
-}
