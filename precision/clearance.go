@@ -1,8 +1,3 @@
-// Package precision ports org.locationtech.jts.precision.
-//
-// Currently it provides MinimumClearance / SimpleMinimumClearance, which
-// quantify how much vertex perturbation a geometry can absorb before
-// becoming topologically invalid.
 package precision
 
 import (
