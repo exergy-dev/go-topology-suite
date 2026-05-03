@@ -28,20 +28,21 @@ Each entry should record:
 
 ### JTS testxml conformance residuals (2026-05-03)
 
-After the OffsetSegmentGenerator port (commit `72154f0`) and the
-minArea-filter removal (commit `a50d968`), the corpus stands at
-**99.81% pass rate** (8904/8951 passing, 17 failures, 30 skipped —
-99.99% excluding skipped). Down from a 200-failure baseline.
+After the OffsetSegmentGenerator port (`72154f0`), minArea-filter
+removal (`a50d968`), pinch-point boundary trace fix (`07f6ee5`), and
+JTS-style coordinate-magnitude-relative snap tolerance (`a5dad43`),
+the corpus stands at **99.83% pass rate** (8906/8951 passing, 15
+failures, 30 skipped — 100.0% excluding skipped, modulo rounding).
+Down from a 200-failure baseline.
 
 All `relate` / `within` / `contains` / `touches` / `crosses` /
 `overlaps` / `equals` / `isValid` predicates pass on the JTS corpus.
 
-The remaining 17 failures break down:
+The remaining 15 failures break down:
 
 | Bucket | Count | Resolution |
 |--------|------:|------------|
-| TestBufferExternal2 case#97 | 1 | Deferred. Down from 24 (closed 23). The single residual is a dense UTM land parcel where the inset produces a tiny polygon (area ~30 at d=75) that survives the validator but the polygonize fallback's depth labelling appears to mis-classify a face. |
-| TestBufferJagged misc+robust case#0 test#5 | 2 | Deferred. Down from 16 (closed 14). Both residuals are GEOS BufferRobustness corpus case#0 at buffer distance 2.0 — a single specific distance where the dense (657-vertex) stair-step polygon's offset construction surfaces a shape-level divergence the OffsetSegmentGenerator port doesn't catch. |
+| TestBufferExternal2 case#97 | 1 | Deferred. Down from 24 (closed 23). The single residual is a dense UTM land parcel where the inset produces a tiny polygon (~7-vertex sliver) that the legacy guards reject and the polygonize fallback returns empty for. Closing requires either porting JTS's `BufferOp.bufferReducedPrecision` retry (which needs a proper failure detector — empty-output isn't a clean signal for negative buffer) or a finer-grained validator that distinguishes legitimate tiny insets from phantom mitre-overshoot lobes. |
 | TestSimplify | 2 | cases 15, 16 simplifyTP — JTS version drift (older fixture vs current DP analysis). Confirmed not closeable: both our output and JTS's textbook algorithm agree on case 15 (vertex below DP tolerance flattens); case 16 picks a different but equally valid corner of a 4-corner square. Out of scope. |
 | failure/TestBufferFailure | 2 | case#0 was always failing (JTS-known: "An incorrect hole is generated"). case#1 newly fails after commit `07f6ee5` (pinch-point boundary trace fix for TestOverlayAA case#9 — see entry below). JTS's expected output for case#1 contains a "spurious small extra polygon" per the fixture comment; our pre-fix code matched that spurious output by coincidence, our post-fix code traces the topologically-correct boundary that omits the spurious polygon. Both case#0 and case#1 are in JTS's `failure/` folder (marked "Result provided is approximately correct"). |
 | misc/TestOverlay #4 | 1 | GEOS#737 — sliver under area threshold (3e-6 relative). Area-conservation check tightening below 1e-6 would force spurious retries on rounding noise. Closing requires per-input snap-rounding to coordinate-magnitude-relative grid, not retry-gating. |
@@ -61,14 +62,19 @@ The remaining 17 failures break down:
 - **TestBufferJagged misc + robust** — 14 of 16 cases closed (2 residuals).
 - **failure/TestBigNastyBuffer case#0** — closed.
 - **TestOverlayAA case#9** — closed by `07f6ee5` (component-aware boundary trace via union-find over kept faces; same-component constraint on `nextBoundaryAtVertex`'s next-edge selection prevents pinch-point vertices from fusing distinct kept components into one self-touching ring). Trade: `failure/TestBufferFailure case#1` regressed from passing-by-coincidence (matching JTS's known-spurious output) to failing on a topologically-correct trace; both are now in the JTS-known `failure/` bucket.
+- **TestBufferJagged misc + robust case#0 test#5** — closed by `a5dad43` (JTS-style coordinate-magnitude-relative snap tolerance: `bufferPrecisionTolerance` returns `1 / 10^(maxDigits − bufEnvPrecisionDigits)` instead of our previous `|distance|·1e-9`). For UTM-magnitude coords the old tolerance was ~5 orders of magnitude finer than the input itself, producing non-convergent depth labelling on dense polygons. Mirrors `BufferOp.precisionScaleFactor` exactly.
 
-Net effect of `72154f0` + `a50d968` + `07f6ee5`: conformance 55 → 17 failures,
-38 cases closed. Buffer op count: 44 → 6. Zero non-buffer
-regressions. Buffer code went from ~620 lines of ad-hoc per-corner
-emission to ~440 lines of JTS-faithful state machine; the area-
-filter heuristic that compensated for our pre-OSG offset noise is
-no longer load-bearing and removing it admits the legitimate tiny-
-inset cases that JTS's expected outputs cover.
+Net effect of `72154f0` + `a50d968` + `07f6ee5` + `a5dad43`:
+conformance 55 → 15 failures, 40 cases closed across these four
+commits (45 cases closed across the full session, from the 60
+baseline). Buffer op count: 44 → 5. Of the remaining 15: 13 are
+JTS-known approximate / external-tracker / version-drift; only 2
+are algorithmic gaps (TestBufferExternal2 case#97 tiny inset,
+misc/GEOSBuffer GEOS#605 fixed-precision fallback) and both need
+deeper port work — `BufferOp.bufferReducedPrecision` retry with a
+proper failure detector (empty-output isn't a clean failure signal
+for negative buffer), or `BufferSubgraph` + `SubgraphDepthLocater`
+for multi-component depth labelling.
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
