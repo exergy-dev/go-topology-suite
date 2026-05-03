@@ -19,7 +19,18 @@ const (
 	// at the longer segment's offset endpoint. Eliminates short fillet
 	// segments at near-collinear corners and is the principal
 	// shape-smoothing heuristic in JTS's offset construction.
-	offsetSegmentSeparationFactor = 0.05
+	//
+	// Pinned to 1e-3 (the pre-2023 JTS value): the JTS conformance
+	// expected outputs in misc/TestBufferExternal2.xml were generated
+	// with this value, and bumping to the modern JTS 0.05 (commit
+	// 1072978, "Reduce buffer curve short fillet segments") regresses
+	// case#97 (gid 2598). The narrow-concave reflex corners on that
+	// input have separation/distance ratios of ~0.03–0.05; suppressing
+	// their fillet emission flattens the inward notch the polygonizer
+	// expects, producing a 4-vertex sliver instead of the JTS 6-vertex
+	// shape. Reference: org.locationtech.jts.operation.buffer.
+	// OffsetSegmentGenerator.addOutsideTurn / addInsideTurn.
+	offsetSegmentSeparationFactor = 1.0E-3
 
 	// insideTurnVertexSnapDistanceFactor controls when the closing
 	// segment at an inside (concave) turn is suppressed because the
