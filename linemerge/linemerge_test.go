@@ -88,3 +88,58 @@ func TestMerge_MultiLineStringDecomposed(t *testing.T) {
 	out := Merge([]geom.Geometry{mls})
 	require.Len(t, out, 1, "two-segment MLS should merge to one")
 }
+
+// JTS LineMerger uses GeometryComponentFilter, so a Polygon's
+// boundary rings are extracted as constituent linework. The Go
+// port must do the same.
+func TestMerge_PolygonRingsExtracted(t *testing.T) {
+	p := mustParse(t, "POLYGON ((0 0, 1 0, 1 1, 0 1, 0 0))")
+	out := Merge([]geom.Geometry{p})
+	require.Len(t, out, 1, "polygon shell should appear as one closed line")
+	got := out[0]
+	assert.Equal(t, got.PointAt(0), got.PointAt(got.NumPoints()-1),
+		"polygon shell merged result must be closed")
+}
+
+func TestMerge_PolygonWithHoleExtracted(t *testing.T) {
+	p := mustParse(t,
+		"POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (3 3, 7 3, 7 7, 3 7, 3 3))")
+	out := Merge([]geom.Geometry{p})
+	require.Len(t, out, 2, "polygon shell + hole = two closed lines")
+}
+
+func TestMerge_MultiPolygonRingsExtracted(t *testing.T) {
+	mp := mustParse(t,
+		"MULTIPOLYGON (((0 0, 1 0, 1 1, 0 0)), ((10 10, 11 10, 11 11, 10 10)))")
+	out := Merge([]geom.Geometry{mp})
+	require.Len(t, out, 2, "two polygons => two boundary rings")
+}
+
+// JTS LineMerger.EdgeString reverses the merged coordinates if a
+// majority of contributing input edges run against their natural
+// direction. The Go port must match: when 3 of 4 inputs run
+// right-to-left the overall result must run right-to-left.
+func TestMerge_MajorityDirectionReversed(t *testing.T) {
+	a := mustParse(t, "LINESTRING (1 0, 0 0)")     // reversed (right-to-left)
+	b := mustParse(t, "LINESTRING (1 0, 2 0)")     // forward
+	c := mustParse(t, "LINESTRING (3 0, 2 0)")     // reversed
+	d := mustParse(t, "LINESTRING (4 0, 3 0)")     // reversed
+	out := Merge([]geom.Geometry{a, b, c, d})
+	require.Len(t, out, 1)
+	got := out[0]
+	assert.Equal(t, geom.XY{X: 4, Y: 0}, got.PointAt(0),
+		"majority-reversed inputs => merged result starts at the right (max-X) end")
+	assert.Equal(t, geom.XY{X: 0, Y: 0}, got.PointAt(got.NumPoints()-1))
+}
+
+func TestMerge_MajorityDirectionForward(t *testing.T) {
+	a := mustParse(t, "LINESTRING (0 0, 1 0)")
+	b := mustParse(t, "LINESTRING (1 0, 2 0)")
+	c := mustParse(t, "LINESTRING (2 0, 3 0)")
+	d := mustParse(t, "LINESTRING (4 0, 3 0)") // single reversed
+	out := Merge([]geom.Geometry{a, b, c, d})
+	require.Len(t, out, 1)
+	got := out[0]
+	assert.Equal(t, geom.XY{X: 0, Y: 0}, got.PointAt(0))
+	assert.Equal(t, geom.XY{X: 4, Y: 0}, got.PointAt(got.NumPoints()-1))
+}

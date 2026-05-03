@@ -40,7 +40,10 @@ func Merge(geoms []geom.Geometry) []*geom.LineString {
 
 // extractLines walks any geometry and reports each non-trivial
 // LineString component. Trivial inputs (empty, fewer than two
-// distinct vertices) are skipped.
+// distinct vertices) are skipped. Mirrors JTS's
+// GeometryComponentFilter behaviour: any dimension of geometry is
+// accepted, and each constituent linestring (including polygon
+// boundary rings) is extracted.
 func extractLines(g geom.Geometry, emit func(*geom.LineString)) {
 	switch v := g.(type) {
 	case *geom.LineString:
@@ -59,10 +62,35 @@ func extractLines(g geom.Geometry, emit func(*geom.LineString)) {
 			}
 			emit(ls)
 		}
+	case *geom.Polygon:
+		emitPolygonRings(v, emit)
+	case *geom.MultiPolygon:
+		for i := 0; i < v.NumGeometries(); i++ {
+			emitPolygonRings(v.PolygonAt(i), emit)
+		}
 	case *geom.GeometryCollection:
 		for i := 0; i < v.NumGeometries(); i++ {
 			extractLines(v.GeometryAt(i), emit)
 		}
+	}
+}
+
+// emitPolygonRings emits each ring of `p` as a closed LineString.
+// Skipped if the polygon is empty.
+func emitPolygonRings(p *geom.Polygon, emit func(*geom.LineString)) {
+	if p == nil || p.IsEmpty() {
+		return
+	}
+	for i := 0; i < p.NumRings(); i++ {
+		ring := p.Ring(i)
+		if len(ring) < 2 {
+			continue
+		}
+		ls := geom.NewLineString(p.CRS(), ring)
+		if isTrivialLine(ls) {
+			continue
+		}
+		emit(ls)
 	}
 }
 
@@ -200,6 +228,11 @@ func degree(n *node) int {
 // concatenating their edges' coordinates, and stops when it
 // reaches a non-degree-2 node, a marked edge, or returns to the
 // starting node (closed ring).
+//
+// To match JTS LineMerger.EdgeString direction semantics, the
+// resulting polyline is reversed if the contributing input
+// edges traversed against their natural direction outnumber
+// those traversed forward.
 func walkChain(e *edge, from *node) *geom.LineString {
 	if e.mark {
 		return nil
@@ -208,6 +241,7 @@ func walkChain(e *edge, from *node) *geom.LineString {
 	first := true
 	current := e
 	at := from
+	forward, reverse := 0, 0
 	for {
 		if current.mark {
 			break
@@ -217,6 +251,11 @@ func walkChain(e *edge, from *node) *geom.LineString {
 		// dictated by `at`: traverse `current.line` so it starts
 		// at `at`.
 		appendChainCoords(&coords, current, at, first)
+		if current.start == at {
+			forward++
+		} else {
+			reverse++
+		}
 		first = false
 		// next node = the other end of this edge.
 		var next *node
@@ -253,8 +292,22 @@ func walkChain(e *edge, from *node) *geom.LineString {
 	if len(coords) < 2 {
 		return nil
 	}
+	// JTS majority-direction rule: if more contributing edges
+	// were traversed against their natural direction than with
+	// it, reverse the merged polyline so its overall direction
+	// matches the majority of inputs.
+	if reverse > forward {
+		reverseXY(coords)
+	}
 	// CRS taken from first input edge.
 	return geom.NewLineString(e.line.CRS(), coords)
+}
+
+// reverseXY reverses a coordinate slice in place.
+func reverseXY(c []geom.XY) {
+	for i, j := 0, len(c)-1; i < j; i, j = i+1, j-1 {
+		c[i], c[j] = c[j], c[i]
+	}
 }
 
 // appendChainCoords copies the vertex sequence of `e.line` into
