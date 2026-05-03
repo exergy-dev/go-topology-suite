@@ -20,6 +20,8 @@ import (
 	"github.com/terra-geo/terra/measure"
 	"github.com/terra-geo/terra/overlay"
 	"github.com/terra-geo/terra/overlay/overlayng"
+	"github.com/terra-geo/terra/polygonize"
+	"github.com/terra-geo/terra/precision"
 	"github.com/terra-geo/terra/predicate"
 	"github.com/terra-geo/terra/simplify"
 	"github.com/terra-geo/terra/validate"
@@ -324,6 +326,12 @@ func runOp(c *xmlCase, op xmlOp, tolerance float64) dispatchResult {
 		return runGetBoundary(c, op)
 	case "getinteriorpoint":
 		return runGetInteriorPoint(c, op)
+	case "minclearance":
+		return runMinClearance(c, op)
+	case "minclearanceline":
+		return runMinClearanceLine(c, op)
+	case "polygonize":
+		return runPolygonize(c, op)
 	default:
 		return dispatchResult{Skipped: true, Reason: "unsupported op: " + op.Name}
 	}
@@ -1027,6 +1035,99 @@ func nearlyEqual(a, b, tol float64) bool {
 	}
 	scale := math.Max(math.Abs(a), math.Abs(b))
 	return d <= tol*scale
+}
+
+// JTS uses Double.MAX_VALUE as the "no minimum-clearance defined"
+// sentinel; precision.MinimumClearance returns +Inf for the same case.
+// Both signal "no pair of distinct features exists".
+const jtsMinClearanceUndefined = 1.7976931348623157e308
+
+func runMinClearance(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	got, _ := precision.MinimumClearance(a)
+	want, res, ok := parseFloatArg("expected float", op.Expected)
+	if !ok {
+		return res
+	}
+	gotUndefined := math.IsInf(got, +1) || got >= jtsMinClearanceUndefined
+	wantUndefined := want >= jtsMinClearanceUndefined
+	if gotUndefined && wantUndefined {
+		return dispatchResult{Pass: true}
+	}
+	if gotUndefined != wantUndefined {
+		return dispatchResult{
+			Detail: fmt.Sprintf("minClearance: want %g got %g", want, got),
+		}
+	}
+	if !nearlyEqual(got, want, 1e-9) {
+		return dispatchResult{
+			Detail: fmt.Sprintf("minClearance: want %g got %g", want, got),
+		}
+	}
+	return dispatchResult{Pass: true}
+}
+
+func runMinClearanceLine(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	dist, seg := precision.MinimumClearance(a)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	expectedLS, ok := expected.(*geom.LineString)
+	if !ok {
+		return dispatchResult{Detail: "expected LINESTRING, got " + expected.Type().String()}
+	}
+	gotEmpty := math.IsInf(dist, +1) || dist >= jtsMinClearanceUndefined
+	wantEmpty := expectedLS.IsEmpty()
+	if gotEmpty && wantEmpty {
+		return dispatchResult{Pass: true}
+	}
+	if gotEmpty != wantEmpty {
+		return dispatchResult{
+			Detail: fmt.Sprintf("minClearanceLine: want %s got empty=%v",
+				op.Expected, gotEmpty),
+		}
+	}
+	gotLS := geom.NewLineString(a.CRS(), []geom.XY{seg[0], seg[1]})
+	if equalsTopologicalApprox(gotLS, expectedLS) {
+		return dispatchResult{Pass: true}
+	}
+	// Witness pair is unordered: try the reversed segment.
+	gotRev := geom.NewLineString(a.CRS(), []geom.XY{seg[1], seg[0]})
+	if equalsTopologicalApprox(gotRev, expectedLS) {
+		return dispatchResult{Pass: true}
+	}
+	return dispatchResult{
+		Detail: fmt.Sprintf("minClearanceLine: want %s got %s",
+			op.Expected, geomString(gotLS)),
+	}
+}
+
+func runPolygonize(c *xmlCase, op xmlOp) dispatchResult {
+	a, err := parseWKT(resolveOperand(c, op.Arg1))
+	if err != nil {
+		return dispatchResult{Detail: "parse arg1: " + err.Error()}
+	}
+	polys, _, _, _ := polygonize.Polygonize([]geom.Geometry{a})
+	got := geom.NewGeometryCollection(a.CRS(), polys...)
+	expected, err := parseWKT(op.Expected)
+	if err != nil {
+		return dispatchResult{Detail: "parse expected: " + err.Error()}
+	}
+	if equalsTopologicalApprox(got, expected) {
+		return dispatchResult{Pass: true}
+	}
+	return dispatchResult{
+		Detail: fmt.Sprintf("polygonize: want %s got %s",
+			op.Expected, geomString(got)),
+	}
 }
 
 // geomString returns a best-effort textual form of g for failure messages.
