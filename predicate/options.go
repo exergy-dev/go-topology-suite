@@ -16,23 +16,19 @@ import (
 // every predicate call that used options; the value-type representation
 // keeps the per-call config struct on the stack.
 type Option struct {
-	kernel       kernel.Kernel
-	kernelSet    bool
-	prepared     preparedHandle
-	bnr          BoundaryNodeRule
-	bnrSet       bool
-	useRelateNG  bool
-	useRelateSet bool
+	kernel    kernel.Kernel
+	kernelSet bool
+	prepared  preparedHandle
+	bnr       BoundaryNodeRule
+	bnrSet    bool
 }
 
 type config struct {
-	kernel       kernel.Kernel
-	kernelSet    bool
-	prepared     preparedHandle // optional cached prepared geometry for `a`
-	bnr          BoundaryNodeRule
-	bnrSet       bool
-	useRelateNG  bool
-	useRelateSet bool
+	kernel    kernel.Kernel
+	kernelSet bool
+	prepared  preparedHandle // optional cached prepared geometry for `a`
+	bnr       BoundaryNodeRule
+	bnrSet    bool
 }
 
 // preparedHandle is a thin interface so this package doesn't directly
@@ -88,26 +84,6 @@ func WithPrepared(h preparedHandle) Option {
 	return Option{prepared: h}
 }
 
-// UseRelateNG selects the RelateNG topology driver
-// (internal/relateng) explicitly. RelateNG is the default; this
-// option remains available for callers that want to be explicit, or
-// to override a wrapper that called UseLegacyRelate.
-//
-// Pass UseRelateNG(false) (or UseLegacyRelate(true)) to force the
-// legacy DE-9IM pipeline — primarily a compatibility escape hatch.
-func UseRelateNG(use bool) Option {
-	return Option{useRelateNG: use, useRelateSet: true}
-}
-
-// UseLegacyRelate forces the call to use the pre-RelateNG DE-9IM
-// pipeline. This is a compatibility shim: as of the RelateNG
-// promotion the new driver is the default, but downstreams that
-// observed legacy-specific behaviour can opt back in until they
-// migrate. Equivalent to UseRelateNG(!use).
-func UseLegacyRelate(use bool) Option {
-	return Option{useRelateNG: !use, useRelateSet: true}
-}
-
 // WithBoundaryNodeRule selects a non-default rule for classifying
 // MultiLineString endpoint nodes as boundary or interior. The OGC
 // SFS default is Mod2BoundaryNodeRule; pass
@@ -142,10 +118,6 @@ func resolve(g geom.Geometry, opts []Option) config {
 		if o.bnrSet {
 			c.bnr = o.bnr
 			c.bnrSet = true
-		}
-		if o.useRelateSet {
-			c.useRelateNG = o.useRelateNG
-			c.useRelateSet = true
 		}
 	}
 	if !c.kernelSet {

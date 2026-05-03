@@ -5,19 +5,13 @@ import (
 	"github.com/terra-geo/terra/internal/relateng"
 )
 
-// RelateNG is the public entry point for the experimental RelateNG
+// RelateNG is the public entry point for the RelateNG topology
 // driver (port of org.locationtech.jts.operation.relateng.RelateNG).
 //
-// In Wave 8 the driver covers point-locator-only paths: P/P, P/L,
-// P/A, L/A line-end and area-vertex interactions. Inputs whose answer
-// depends on edge-segment crossings between vertices are still routed
-// through the legacy DE-9IM pipeline in this package — the
-// EdgeSegmentIntersector / EdgeSetIntersector / RelateNode pipeline
-// will land in a follow-up.
-//
-// Most callers should prefer the package-level predicate functions
-// (Intersects, Contains, ...) and pass UseRelateNG(true) as an
-// Option to opt into the new driver.
+// RelateNG is the default and only DE-9IM pipeline in this package
+// since Wave 16; this struct provides a convenience wrapper that
+// caches the first operand and lets callers ask successive
+// predicates against it.
 type RelateNG struct {
 	a    geom.Geometry
 	opts []Option
@@ -87,10 +81,10 @@ func (r *RelateNG) Relate(b geom.Geometry) (DE9IM, error) {
 	return Relate(r.a, b, r.opts...)
 }
 
-// relateViaNG computes the DE-9IM matrix via the new driver. With the
-// edge-segment intersection pipeline now wired, the driver covers the
-// full DE-9IM space; ok is always true. The signature is kept for
-// caller compatibility (the legacy fallback used to depend on it).
+// relateViaNG computes the DE-9IM matrix via the RelateNG driver.
+// The bool result is vestigial (always true) — kept so future
+// "delegate to legacy on degenerate inputs" hooks could be added
+// without a signature change.
 func relateViaNG(a, b geom.Geometry, rule BoundaryNodeRule) (DE9IM, bool) {
 	rng := relateng.NewRelateNG(a, adaptBNR(rule))
 	im := rng.EvaluateMatrix(b)
