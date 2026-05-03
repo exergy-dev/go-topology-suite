@@ -189,7 +189,7 @@ func (r *polygonRing) findInteriorSelfNode() (geom.XY, bool) {
 	}
 	// The interior is on the right of the ring iff the ring is a
 	// shell traversed CW or a hole traversed CCW.
-	isCCW := ringSignedArea(r.ring) > 0
+	isCCW := (planar.Kernel{}).RingArea(r.ring) > 0
 	interiorOnRight := r.isShell() != isCCW
 	for _, sn := range r.selfNodes {
 		if !selfNodeIsExterior(sn, interiorOnRight) {

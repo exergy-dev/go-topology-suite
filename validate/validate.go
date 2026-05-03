@@ -436,7 +436,7 @@ func (v *validator) checkRing(ring []geom.XY, index int) bool {
 			ring[0])
 		return false
 	}
-	if ringSignedArea(ring) == 0 {
+	if (planar.Kernel{}).RingArea(ring) == 0 {
 		v.add(DefectRingSelfIntersection,
 			fmt.Sprintf("ring %d has zero area", index), ring[0])
 		return false
@@ -727,17 +727,6 @@ func ringTouchPointCount(a, b []geom.XY) int {
 		}
 	}
 	return len(points)
-}
-
-func ringSignedArea(ring []geom.XY) float64 {
-	if len(ring) < 4 {
-		return 0
-	}
-	var sum float64
-	for i := 0; i+1 < len(ring); i++ {
-		sum += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
-	}
-	return sum / 2
 }
 
 func collinearShare(p1, p2, p3, p4 geom.XY) bool {
