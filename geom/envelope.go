@@ -117,6 +117,73 @@ func (e Envelope) Contains(o Envelope) bool {
 		o.MinY >= e.MinY && o.MaxY <= e.MaxY
 }
 
+// ExpandBy returns a copy of e enlarged by distance on every side. Empty
+// envelopes are returned unchanged. Mirrors JTS Envelope.expandBy(double).
+func (e Envelope) ExpandBy(distance float64) Envelope {
+	if e.IsEmpty() {
+		return e
+	}
+	e.MinX -= distance
+	e.MaxX += distance
+	e.MinY -= distance
+	e.MaxY += distance
+	// A negative distance can collapse the envelope; report it as empty.
+	if e.MinX > e.MaxX || e.MinY > e.MaxY {
+		return EmptyEnvelope()
+	}
+	return e
+}
+
+// Distance returns the Euclidean distance between e and o, or 0 if they
+// intersect. Empty envelopes return 0. Mirrors JTS Envelope.distance.
+func (e Envelope) Distance(o Envelope) float64 {
+	if e.IsEmpty() || o.IsEmpty() {
+		return 0
+	}
+	if e.Intersects(o) {
+		return 0
+	}
+	var dx, dy float64
+	if e.MaxX < o.MinX {
+		dx = o.MinX - e.MaxX
+	} else if e.MinX > o.MaxX {
+		dx = e.MinX - o.MaxX
+	}
+	if e.MaxY < o.MinY {
+		dy = o.MinY - e.MaxY
+	} else if e.MinY > o.MaxY {
+		dy = e.MinY - o.MaxY
+	}
+	if dx == 0 {
+		return dy
+	}
+	if dy == 0 {
+		return dx
+	}
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+// Disjoint reports whether e and o share no point. The negation of
+// Intersects, returning true when either envelope is empty (an empty
+// envelope is disjoint from everything). Mirrors JTS Envelope.disjoint.
+func (e Envelope) Disjoint(o Envelope) bool {
+	return !e.Intersects(o)
+}
+
+// Overlaps is a synonym for Intersects, kept for parity with JTS
+// Envelope.overlaps(Envelope).
+func (e Envelope) Overlaps(o Envelope) bool { return e.Intersects(o) }
+
+// ContainsProperly reports whether o lies strictly within e (boundaries
+// must not touch). Mirrors JTS Envelope.containsProperly.
+func (e Envelope) ContainsProperly(o Envelope) bool {
+	if e.IsEmpty() || o.IsEmpty() {
+		return false
+	}
+	return o.MinX > e.MinX && o.MaxX < e.MaxX &&
+		o.MinY > e.MinY && o.MaxY < e.MaxY
+}
+
 // SegmentEnvelope returns the axis-aligned bounding box of segment [a,b].
 // Used as the index payload bbox by the overlay-NG and noding spatial
 // indexes; both paths must produce the same envelope on insert and

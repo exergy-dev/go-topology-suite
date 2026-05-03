@@ -56,6 +56,73 @@ func TestEnvelopeContainsXY(t *testing.T) {
 	}
 }
 
+func TestEnvelopeExpandBy(t *testing.T) {
+	e := Envelope{1, 2, 3, 4}
+	r := e.ExpandBy(0.5)
+	assert.Equal(t, 0.5, r.MinX, "ExpandBy MinX")
+	assert.Equal(t, 1.5, r.MinY, "ExpandBy MinY")
+	assert.Equal(t, 3.5, r.MaxX, "ExpandBy MaxX")
+	assert.Equal(t, 4.5, r.MaxY, "ExpandBy MaxY")
+
+	// Empty envelope stays empty.
+	empty := EmptyEnvelope().ExpandBy(1)
+	assert.True(t, empty.IsEmpty(), "ExpandBy empty stays empty")
+
+	// Negative shrink that collapses to empty.
+	collapsed := Envelope{0, 0, 1, 1}.ExpandBy(-2)
+	assert.True(t, collapsed.IsEmpty(), "ExpandBy collapsing to empty")
+}
+
+func TestEnvelopeDistance(t *testing.T) {
+	a := Envelope{0, 0, 10, 10}
+	b := Envelope{20, 20, 30, 30}
+	assert.InDelta(t, 10*1.4142135623730951, a.Distance(b), 1e-9, "diagonal distance")
+
+	// Intersecting -> 0.
+	c := Envelope{5, 5, 15, 15}
+	assert.Equal(t, 0.0, a.Distance(c), "intersecting distance is 0")
+
+	// Disjoint along X only.
+	d := Envelope{20, 0, 30, 10}
+	assert.InDelta(t, 10.0, a.Distance(d), 1e-9, "x-only gap")
+
+	// Disjoint along Y only.
+	e2 := Envelope{0, 20, 10, 30}
+	assert.InDelta(t, 10.0, a.Distance(e2), 1e-9, "y-only gap")
+
+	// Empty envelope -> 0.
+	assert.Equal(t, 0.0, a.Distance(EmptyEnvelope()), "distance to empty")
+}
+
+func TestEnvelopeDisjoint(t *testing.T) {
+	a := Envelope{0, 0, 10, 10}
+	b := Envelope{5, 5, 15, 15}
+	c := Envelope{20, 20, 30, 30}
+	assert.False(t, a.Disjoint(b), "overlap not disjoint")
+	assert.True(t, a.Disjoint(c), "no overlap is disjoint")
+	assert.True(t, a.Disjoint(EmptyEnvelope()), "empty is always disjoint")
+}
+
+func TestEnvelopeOverlaps(t *testing.T) {
+	a := Envelope{0, 0, 10, 10}
+	b := Envelope{5, 5, 15, 15}
+	c := Envelope{20, 20, 30, 30}
+	assert.True(t, a.Overlaps(b), "overlapping envelopes")
+	assert.False(t, a.Overlaps(c), "non-overlapping envelopes")
+}
+
+func TestEnvelopeContainsProperly(t *testing.T) {
+	outer := Envelope{0, 0, 10, 10}
+	inner := Envelope{2, 2, 8, 8}
+	touching := Envelope{0, 0, 5, 5}
+
+	assert.True(t, outer.ContainsProperly(inner), "strictly inside")
+	assert.False(t, outer.ContainsProperly(touching), "touches boundary")
+	assert.False(t, outer.ContainsProperly(outer), "self does not contain properly")
+	assert.False(t, outer.ContainsProperly(EmptyEnvelope()), "empty inner not contained properly")
+	assert.False(t, EmptyEnvelope().ContainsProperly(inner), "empty outer contains nothing")
+}
+
 func TestEnvelopeOfFlat(t *testing.T) {
 	flat := []float64{1, 2, 3, 4, -1, 5}
 	e := envelopeOfFlat(flat, 2)
