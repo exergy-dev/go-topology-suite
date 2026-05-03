@@ -18,16 +18,10 @@ func Touches(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() || b.IsEmpty() {
-		return false, nil
-	}
-	// Two pure points cannot Touches (no boundaries).
-	if dimensionOf(a) == 0 && dimensionOf(b) == 0 && !isMulti(a) && !isMulti(b) {
-		return false, nil
-	}
 	c := resolve(a, opts)
-	if c.kernel.Name() == "planar" && !a.Envelope().Intersects(b.Envelope()) {
-		return false, nil
+	// RelateNG short-circuit: empty, P/P, envelope-disjoint all false.
+	if sc := scTouches(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	d, err := Relate(a, b, opts...)
 	if err != nil {

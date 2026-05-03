@@ -20,9 +20,6 @@ func Intersects(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() || b.IsEmpty() {
-		return false, nil
-	}
 	c := resolve(a, opts)
 	// Envelope-first short-circuit is only sound when the kernel agrees
 	// with lon/lat-space rectangles — i.e. for planar. Geographic
@@ -30,8 +27,12 @@ func Intersects(a, b geom.Geometry, opts ...Option) (bool, error) {
 	// envelope test even when the underlying spherical geometries
 	// intersect. Until terra/index grows a spherical-cap variant we
 	// simply skip the short-circuit for non-planar kernels.
-	if c.kernel.Name() == "planar" && !a.Envelope().Intersects(b.Envelope()) {
-		return false, nil
+	//
+	// Routed through the RelateNG short-circuit layer
+	// (relate_short_circuit.go) so all predicates share consistent
+	// envelope/dim fast paths.
+	if sc := scIntersects(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	// Prepared fast-path. Two tiers: (1) generic Intersects(g) when the
 	// prepared form supports it (PreparedPolygon, PreparedLineString),

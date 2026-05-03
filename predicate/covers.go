@@ -20,12 +20,11 @@ func Covers(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() || b.IsEmpty() {
-		return false, nil
-	}
 	c := resolve(a, opts)
-	if c.kernel.Name() == "planar" && !a.Envelope().Contains(b.Envelope()) {
-		return false, nil
+	// RelateNG short-circuit: empty/empty, dim(b) > dim(a), envelope
+	// non-coverage all resolve here without building a topology graph.
+	if sc := scCovers(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	// Prepared fast-path. PreparedPolygon implements Covers(g) directly;
 	// fall back to the per-point ContainsPoint loop for the minimal

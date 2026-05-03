@@ -21,18 +21,13 @@ func Overlaps(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() || b.IsEmpty() {
-		return false, nil
+	c := resolve(a, opts)
+	// RelateNG short-circuit: dim mismatch and envelope-disjoint cases
+	// resolve to false without building a topology graph.
+	if sc := scOverlaps(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	dA := dimensionOf(a)
-	dB := dimensionOf(b)
-	if dA != dB {
-		return false, nil
-	}
-	c := resolve(a, opts)
-	if c.kernel.Name() == "planar" && !a.Envelope().Intersects(b.Envelope()) {
-		return false, nil
-	}
 	d, err := Relate(a, b, opts...)
 	if err != nil {
 		return false, err

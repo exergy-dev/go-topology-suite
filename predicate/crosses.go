@@ -23,12 +23,11 @@ func Crosses(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() || b.IsEmpty() {
-		return false, nil
-	}
 	c := resolve(a, opts)
-	if c.kernel.Name() == "planar" && !a.Envelope().Intersects(b.Envelope()) {
-		return false, nil
+	// RelateNG short-circuit: P/P and A/A always false; envelope-disjoint
+	// resolves false too.
+	if sc := scCrosses(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	dA := dimensionOf(a)
 	dB := dimensionOf(b)

@@ -23,12 +23,12 @@ func Contains(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() || b.IsEmpty() {
-		return false, nil
-	}
 	c := resolve(a, opts)
-	if c.kernel.Name() == "planar" && !a.Envelope().Contains(b.Envelope()) {
-		return false, nil
+	// RelateNG short-circuit: empty/empty, dim(b) > dim(a) (e.g. a line
+	// can't contain a polygon), envelope non-coverage all resolve here
+	// without building a topology graph.
+	if sc := scContains(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	// Prepared fast-path for Polygon-contains-Point — the most common
 	// hot loop. Falls through to the generic path for other type pairs.

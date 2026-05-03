@@ -23,13 +23,12 @@ func Equals(a, b geom.Geometry, opts ...Option) (bool, error) {
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
-	if a.IsEmpty() && b.IsEmpty() {
-		// JTS semantics: any two empty geometries are equal regardless
-		// of advertised type.
-		return true, nil
-	}
-	if a.IsEmpty() != b.IsEmpty() {
-		return false, nil
+	// RelateNG short-circuit: empty=empty true; one-empty false;
+	// envelope mismatch false (planar only). Mirrors JTS `equalsTopo()`
+	// `init(envA, envB)`.
+	c := resolve(a, opts)
+	if sc := scEquals(a, b, c.kernel.Name() == "planar"); sc.resolved {
+		return sc.get(), nil
 	}
 	if a.Type() == b.Type() && a.Layout() == b.Layout() && structuralEqual(a, b) {
 		return true, nil
