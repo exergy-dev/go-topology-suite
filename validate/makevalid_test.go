@@ -168,11 +168,10 @@ func TestMakeValid_HolePreservedWhenInsideShell(t *testing.T) {
 	assert.NoError(t, Validate(out), "expected valid polygon-with-hole")
 }
 
-func TestMakeValid_HoleOutsideShellDropped(t *testing.T) {
-	// Hole vertices are entirely outside the shell — JTS would
-	// promote it to a shell via union; our v0.1 simply drops it,
-	// which still produces a valid polygon (no longer fires the
-	// hole-outside-shell defect).
+func TestMakeValid_HoleOutsideShellPromotedToShell(t *testing.T) {
+	// JTS GeometryFixer rule: holes outside the shell are converted
+	// into polygons (shells). The result must be a MultiPolygon
+	// with two members, one for each ring.
 	outer := []geom.XY{
 		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
 	}
@@ -182,10 +181,10 @@ func TestMakeValid_HoleOutsideShellDropped(t *testing.T) {
 	p := geom.NewPolygon(nil, outer, hole)
 	g, err := MakeValid(p)
 	require.NoError(t, err)
-	out, ok := g.(*geom.Polygon)
-	require.True(t, ok, "expected *Polygon, got %T", g)
-	assert.Equal(t, 1, out.NumRings(), "expected outside-shell hole dropped")
-	assert.NoError(t, Validate(out))
+	mp, ok := g.(*geom.MultiPolygon)
+	require.True(t, ok, "expected *MultiPolygon, got %T", g)
+	assert.Equal(t, 2, mp.NumGeometries(), "expected hole promoted to second shell")
+	assert.NoError(t, Validate(mp))
 }
 
 // TestMakeValid_NonFiniteVerticesRemoved exercises JTS GeometryFixer
@@ -205,6 +204,58 @@ func TestMakeValid_NonFiniteVerticesRemoved(t *testing.T) {
 	require.True(t, ok, "expected *LineString, got %T", g)
 	assert.Equal(t, 3, out.NumPoints(), "expected 3 finite vertices to survive")
 	assert.NoError(t, Validate(out))
+}
+
+// TestMakeValid_HoleOverlapsShellSubtracted exercises the JTS
+// GeometryFixer rule "Holes intersecting the shell are subtracted from
+// the shell". Result area must equal shell-minus-overlap.
+func TestMakeValid_HoleOverlapsShellSubtracted(t *testing.T) {
+	// 10x10 shell. Hole overlaps the shell on the right half.
+	outer := []geom.XY{
+		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
+	}
+	// Hole spans from x=5..15 (partly outside shell).
+	hole := []geom.XY{
+		{X: 5, Y: 2}, {X: 15, Y: 2}, {X: 15, Y: 8}, {X: 5, Y: 8}, {X: 5, Y: 2},
+	}
+	p := geom.NewPolygon(nil, outer, hole)
+	g, err := MakeValid(p)
+	require.NoError(t, err)
+	require.NotNil(t, g)
+	require.False(t, g.IsEmpty())
+	assert.NoError(t, Validate(g), "expected valid result after hole subtraction")
+	// The result must be smaller than the original shell (some area
+	// was carved out by the hole).
+	out, ok := g.(*geom.Polygon)
+	require.True(t, ok, "expected *Polygon, got %T", g)
+	shellArea := planar.Default.RingArea(outer)
+	resultArea := planar.Default.RingArea(out.ExteriorRing())
+	for i := 1; i < out.NumRings(); i++ {
+		resultArea += planar.Default.RingArea(out.Ring(i))
+	}
+	assert.Less(t, resultArea, shellArea, "expected overlap subtracted (result smaller than shell)")
+}
+
+// TestMakeValid_MultiPolygonOverlappingMembersUnioned exercises the
+// JTS GeometryFixer rule "MultiPolygon: each polygon is fixed, then
+// result made non-overlapping (via union)".
+func TestMakeValid_MultiPolygonOverlappingMembersUnioned(t *testing.T) {
+	a := geom.NewPolygon(nil, []geom.XY{
+		{X: 0, Y: 0}, {X: 6, Y: 0}, {X: 6, Y: 6}, {X: 0, Y: 6}, {X: 0, Y: 0},
+	})
+	b := geom.NewPolygon(nil, []geom.XY{
+		{X: 4, Y: 4}, {X: 10, Y: 4}, {X: 10, Y: 10}, {X: 4, Y: 10}, {X: 4, Y: 4},
+	})
+	mp := geom.NewMultiPolygon(nil, a, b)
+	g, err := MakeValid(mp)
+	require.NoError(t, err)
+	require.NotNil(t, g)
+	require.False(t, g.IsEmpty())
+	assert.NoError(t, Validate(g), "expected non-overlapping multipolygon after union")
+	// After union the two overlapping squares form a single polygon.
+	out, ok := g.(*geom.MultiPolygon)
+	require.True(t, ok, "expected *MultiPolygon, got %T", g)
+	assert.Equal(t, 1, out.NumGeometries(), "expected overlap merged into one member")
 }
 
 func TestMakeValid_GeometryCollectionRecurses(t *testing.T) {

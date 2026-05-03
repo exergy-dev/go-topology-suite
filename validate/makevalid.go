@@ -4,6 +4,7 @@ import (
 	"math"
 
 	terra "github.com/terra-geo/terra"
+	"github.com/terra-geo/terra/crs"
 	"github.com/terra-geo/terra/geom"
 	"github.com/terra-geo/terra/kernel"
 	"github.com/terra-geo/terra/kernel/planar"
@@ -123,19 +124,21 @@ func finiteXY(p geom.XY) bool {
 		!math.IsInf(p.X, 0) && !math.IsInf(p.Y, 0)
 }
 
-// makeValidPolygon corrects ring closure, orientation, and (if possible)
-// self-intersection in the outer ring.
+// makeValidPolygon ports JTS GeometryFixer.fixPolygonElement: closes
+// and reorients the shell, then classifies each hole into one of
+// three buckets and applies the matching fix:
 //
-// Hole handling tracks JTS GeometryFixer's "preserve as much extent
-// and as many vertices as possible" goal: a hole is kept iff after
-// the same closure / collapse / non-finite-vertex cleanup we apply
-// to the shell, every one of its vertices lies inside the cleaned
-// shell's closure (matching JTS classifyHoles's "intersects" test
-// without the full Union-difference machinery). Holes that fail
-// this test — too few vertices, partly-outside, or self-
-// intersecting — are dropped silently rather than promoted to
-// shells, since promoting requires an OverlayNG-style union that
-// the v0.1 pipeline cannot perform.
+//   - inside  : kept as a hole (CW orientation)
+//   - overlap : subtracted from the shell via overlay.Difference
+//     (JTS GeometryFixer rule "Holes intersecting the shell are
+//     subtracted from the shell")
+//   - outside : promoted to a separate shell and unioned with the
+//     polygon (JTS GeometryFixer rule "Holes outside the shell are
+//     converted into polygons")
+//
+// Self-intersecting outer rings are first cleaned via overlay.Union
+// (snap-rounding round-trip), then the same hole classification is
+// re-run on the cleaned result.
 func makeValidPolygon(p *geom.Polygon) geom.Geometry {
 	if p.NumRings() == 0 {
 		return geom.NewEmptyPolygon(p.CRS(), geom.LayoutXY)
@@ -146,43 +149,160 @@ func makeValidPolygon(p *geom.Polygon) geom.Geometry {
 	}
 	outer = orientCCW(outer)
 
-	// Try snap-rounding via Union(g, g) when the outer ring self-intersects.
-	// Self-intersection invalidates the simple hole-classification path
-	// below, so we forward to overlay first; holes are still dropped on
-	// that branch (matches the prior v0.1 behaviour).
+	// Self-intersecting shell: snap-round via Union(g, g) (JTS uses
+	// BufferOp.bufferByZero; that path is reserved for buffer/, so we
+	// substitute the OverlayNG round-trip already wired up). The
+	// cleaned result may itself be a Polygon or MultiPolygon. Holes
+	// are then attached on the cleaned shell(s).
 	if _, hit := ringSelfIntersection(outer); hit {
-		clean := geom.NewPolygon(p.CRS(), outer)
-		if cleaned, err := overlay.Union(clean, clean); err == nil && cleaned != nil && !cleaned.IsEmpty() {
-			return reorientResult(cleaned)
-		}
-		// Fall through with the structurally-corrected (closed, CCW) polygon
-		// but no intersection cleaning.
-		return geom.NewPolygon(p.CRS(), outer)
+		return repairSelfIntersectingPolygon(p, outer)
 	}
 
-	// Single-ring polygon: no holes to preserve.
+	// Single-ring polygon: no holes to classify.
 	if p.NumRings() == 1 {
 		return geom.NewPolygon(p.CRS(), outer)
 	}
 
-	// Preserve holes that survive cleanup AND lie inside the cleaned
-	// shell's closure. CCW shells require CW holes, so re-orient.
-	k := planar.Default
-	rings := [][]geom.XY{outer}
+	return classifyAndApplyHoles(p.CRS(), outer, collectFixedHoles(p))
+}
+
+// collectFixedHoles cleans every hole ring of p (closure + dedup +
+// self-intersection rejection) and returns the survivors.
+func collectFixedHoles(p *geom.Polygon) [][]geom.XY {
+	out := make([][]geom.XY, 0, p.NumRings()-1)
 	for r := 1; r < p.NumRings(); r++ {
 		hole := closeRing(p.Ring(r))
 		if len(hole) < 4 {
 			continue
 		}
-		if !holeInsideShell(hole, outer, k) {
-			continue
-		}
 		if _, hit := ringSelfIntersection(hole); hit {
 			continue
 		}
-		rings = append(rings, orientCW(hole))
+		out = append(out, hole)
 	}
-	return geom.NewPolygon(p.CRS(), rings...)
+	return out
+}
+
+// classifyAndApplyHoles runs JTS GeometryFixer.classifyHoles on the
+// fixed-shell + fixed-hole set and produces the resulting geometry
+// (Polygon or MultiPolygon). holes that lie inside become true holes;
+// holes that overlap the shell are subtracted via overlay.Difference;
+// holes that lie entirely outside become additional shells.
+func classifyAndApplyHoles(c *crs.CRS, outer []geom.XY, holes [][]geom.XY) geom.Geometry {
+	k := planar.Default
+	insideHoles := make([][]geom.XY, 0, len(holes))
+	overlapRings := make([][]geom.XY, 0)
+	outsideRings := make([][]geom.XY, 0)
+	for _, hole := range holes {
+		switch classifyHole(hole, outer, k) {
+		case holeInside:
+			insideHoles = append(insideHoles, orientCW(hole))
+		case holeOverlap:
+			overlapRings = append(overlapRings, hole)
+		case holeOutside:
+			outsideRings = append(outsideRings, hole)
+		}
+	}
+
+	// Build base polygon (shell + inside holes).
+	rings := append([][]geom.XY{outer}, insideHoles...)
+	base := geom.NewPolygon(c, rings...)
+	var result geom.Geometry = base
+
+	// Rule: holes overlapping the shell are subtracted.
+	for _, ring := range overlapRings {
+		holePoly := geom.NewPolygon(c, orientCCW(ring))
+		if diff, err := overlay.Difference(result, holePoly); err == nil && diff != nil && !diff.IsEmpty() {
+			result = diff
+		}
+		// On error keep current result; tracked as best-effort, matching
+		// JTS which returns the input on overlay failure.
+	}
+
+	// Rule: holes outside the shell are promoted to shells via union.
+	for _, ring := range outsideRings {
+		shell := geom.NewPolygon(c, orientCCW(ring))
+		if u, err := overlay.Union(result, shell); err == nil && u != nil && !u.IsEmpty() {
+			result = u
+		}
+	}
+
+	return reorientResult(result)
+}
+
+// repairSelfIntersectingPolygon handles a polygon whose outer ring
+// self-intersects. Cleans the shell via overlay.Union(g, g) and re-
+// applies hole classification to the result.
+func repairSelfIntersectingPolygon(p *geom.Polygon, outer []geom.XY) geom.Geometry {
+	clean := geom.NewPolygon(p.CRS(), outer)
+	cleaned, err := overlay.Union(clean, clean)
+	if err != nil || cleaned == nil || cleaned.IsEmpty() {
+		// Fall back to the structurally-corrected polygon without
+		// intersection cleaning.
+		return geom.NewPolygon(p.CRS(), outer)
+	}
+	if p.NumRings() == 1 {
+		return reorientResult(cleaned)
+	}
+	// Re-attach holes to the cleaned result by classification. We
+	// fold hole subtraction / promotion through classifyAndApplyHoles
+	// for each shell of the cleaned multi-polygon.
+	holes := collectFixedHoles(p)
+	if len(holes) == 0 {
+		return reorientResult(cleaned)
+	}
+	switch r := cleaned.(type) {
+	case *geom.Polygon:
+		shell := orientCCW(closeRing(r.ExteriorRing()))
+		return classifyAndApplyHoles(r.CRS(), shell, holes)
+	case *geom.MultiPolygon:
+		// Apply holes to each shell of the multi-polygon. This is a
+		// best-effort approximation: a hole that intersects two
+		// shells will be subtracted from each.
+		var result geom.Geometry = cleaned
+		for _, hole := range holes {
+			holePoly := geom.NewPolygon(r.CRS(), orientCCW(hole))
+			if diff, err := overlay.Difference(result, holePoly); err == nil && diff != nil && !diff.IsEmpty() {
+				result = diff
+			}
+		}
+		return reorientResult(result)
+	}
+	return reorientResult(cleaned)
+}
+
+// holeClassification is the JTS classifyHoles three-way bucket.
+type holeClassification int
+
+const (
+	holeInside  holeClassification = iota // every vertex strictly inside or on shell, no edge crosses
+	holeOverlap                            // some vertices inside, others outside (hole crosses shell boundary)
+	holeOutside                            // every vertex strictly outside shell
+)
+
+// classifyHole classifies a (cleaned) hole ring relative to a shell.
+func classifyHole(hole, shell []geom.XY, k kernel.Kernel) holeClassification {
+	insideCount := 0
+	outsideCount := 0
+	for i := 0; i+1 < len(hole); i++ {
+		switch k.PointInRing(hole[i], shell) {
+		case kernel.Inside:
+			insideCount++
+		case kernel.Outside:
+			outsideCount++
+		}
+	}
+	if outsideCount == 0 && insideCount > 0 {
+		return holeInside
+	}
+	if insideCount == 0 && outsideCount > 0 {
+		return holeOutside
+	}
+	if insideCount == 0 && outsideCount == 0 {
+		// All vertices on boundary — degenerate; treat as outside (drop).
+		return holeOutside
+	}
+	return holeOverlap
 }
 
 // orientCW returns ring as CW (negative shoelace area). Holes
@@ -192,24 +312,6 @@ func orientCW(ring []geom.XY) []geom.XY {
 		return reverseRing(ring)
 	}
 	return ring
-}
-
-// holeInsideShell reports whether every vertex of `hole` lies in
-// the closure of `shell` (interior or boundary). At least one
-// vertex must be strictly inside — a hole whose vertices all sit
-// on the shell boundary is degenerate and dropped.
-func holeInsideShell(hole, shell []geom.XY, k kernel.Kernel) bool {
-	insideCount := 0
-	for i := 0; i+1 < len(hole); i++ {
-		c := k.PointInRing(hole[i], shell)
-		if c == kernel.Outside {
-			return false
-		}
-		if c == kernel.Inside {
-			insideCount++
-		}
-	}
-	return insideCount > 0
 }
 
 // closeRing returns ring with its first vertex appended if not already
@@ -242,8 +344,9 @@ func reverseRing(r []geom.XY) []geom.XY {
 	return out
 }
 
-// reorientResult walks a Polygon/MultiPolygon result and forces every outer
-// ring to CCW.
+// reorientResult walks a Polygon/MultiPolygon result and forces every
+// outer ring to CCW and every interior ring to CW. Holes are
+// preserved (the previous implementation dropped them).
 func reorientResult(g geom.Geometry) geom.Geometry {
 	switch x := g.(type) {
 	case *geom.Polygon:
@@ -254,7 +357,15 @@ func reorientResult(g geom.Geometry) geom.Geometry {
 		if len(outer) < 4 {
 			return geom.NewEmptyPolygon(x.CRS(), geom.LayoutXY)
 		}
-		return geom.NewPolygon(x.CRS(), outer)
+		rings := [][]geom.XY{outer}
+		for i := 1; i < x.NumRings(); i++ {
+			h := closeRing(x.Ring(i))
+			if len(h) < 4 {
+				continue
+			}
+			rings = append(rings, orientCW(h))
+		}
+		return geom.NewPolygon(x.CRS(), rings...)
 	case *geom.MultiPolygon:
 		parts := make([]*geom.Polygon, 0, x.NumGeometries())
 		for i := 0; i < x.NumGeometries(); i++ {
@@ -297,6 +408,10 @@ func makeValidMultiLineString(m *geom.MultiLineString) geom.Geometry {
 	return geom.NewMultiLineString(m.CRS(), parts...)
 }
 
+// makeValidMultiPolygon ports JTS GeometryFixer.fixMultiPolygon: each
+// member is fixed independently, then overlapping members are merged
+// via cascaded union to satisfy the JTS rule "MultiPolygon: each
+// polygon is fixed, then result made non-overlapping (via union)".
 func makeValidMultiPolygon(m *geom.MultiPolygon) geom.Geometry {
 	parts := make([]*geom.Polygon, 0, m.NumGeometries())
 	for i := 0; i < m.NumGeometries(); i++ {
@@ -321,7 +436,44 @@ func makeValidMultiPolygon(m *geom.MultiPolygon) geom.Geometry {
 	if len(parts) == 0 {
 		return geom.NewMultiPolygon(m.CRS())
 	}
+	if len(parts) == 1 {
+		// Wrap the single Polygon in a MultiPolygon to preserve the
+		// caller's collection type (matches JTS isKeepMulti=true).
+		return geom.NewMultiPolygon(m.CRS(), parts[0])
+	}
+	// Rule: members of a MultiPolygon must not overlap. Run a
+	// cascaded union over the parts; if it succeeds we adopt the
+	// result, otherwise we fall back to the un-unioned multi-polygon
+	// (best-effort, matches JTS overlay-failure handling).
+	merged := unionMultiPolygonParts(m.CRS(), parts)
+	if merged == nil {
+		return geom.NewMultiPolygon(m.CRS(), parts...)
+	}
+	switch r := merged.(type) {
+	case *geom.Polygon:
+		return geom.NewMultiPolygon(m.CRS(), r)
+	case *geom.MultiPolygon:
+		return r
+	}
 	return geom.NewMultiPolygon(m.CRS(), parts...)
+}
+
+// unionMultiPolygonParts unions a slice of polygons left-to-right via
+// overlay.Union. Returns nil on the first overlay error (caller falls
+// back to un-unioned input).
+func unionMultiPolygonParts(c *crs.CRS, parts []*geom.Polygon) geom.Geometry {
+	if len(parts) == 0 {
+		return nil
+	}
+	var acc geom.Geometry = parts[0]
+	for i := 1; i < len(parts); i++ {
+		u, err := overlay.Union(acc, parts[i])
+		if err != nil || u == nil || u.IsEmpty() {
+			return nil
+		}
+		acc = u
+	}
+	return reorientResult(acc)
 }
 
 func makeValidCollection(c *geom.GeometryCollection) geom.Geometry {
