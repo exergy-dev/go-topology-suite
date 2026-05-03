@@ -123,14 +123,14 @@ func (s *HotPixelSet) QuerySegment(a, b geom.XY) []HotPixel {
 // segment [a, b] should be split. A pixel triggers a split iff:
 //
 //   - its centre is neither a nor b, AND
-//   - the perpendicular distance from the pixel centre to the segment
-//     is strictly less than tolerance/2.
+//   - the segment passes through the half-open pixel cell, as defined
+//     by JTS's HotPixel.intersectsScaled (top and right sides excluded
+//     so every point lies in a unique pixel).
 //
-// The half-tolerance threshold is the standard JTS test: it means the
-// segment's path enters the pixel cell strictly through its interior
-// (modulo the corner cases JTS handles via a tie-break, which v1
-// approximates with a strict inequality and treats grazing-edge cases
-// as non-splits — documented as a known divergence).
+// The intersection test is the JTS scaled-integer port: an envelope
+// pre-test followed by an orientation-of-corners check that decides
+// whether the segment crosses any side of the cell or pierces a
+// corner. See [HotPixelSet.segmentIntersectsPixel] for details.
 //
 // The returned list is sorted by parameter t ∈ [0, 1] along the
 // segment, and consecutive duplicates (within a tolerance-relative eps)
@@ -158,6 +158,19 @@ func (s *HotPixelSet) SegmentSplitsAtRelaxed(a, b geom.XY) []geom.XY {
 // segmentSplits is the common implementation parameterised by the
 // perpendicular-distance threshold.
 //
+// At the strict (half-tolerance) threshold the test mirrors the JTS
+// HotPixel.intersectsScaled algorithm: an axis-aligned envelope pretest
+// followed by an orientation-of-corners check on the half-open pixel
+// (top+right sides excluded for unique pixel ownership). This matches
+// JTS's snap-rounding output more faithfully than the previous
+// perpendicular-distance test, which dropped grazing-edge intersections
+// that JTS counts as splits.
+//
+// At the relaxed (full-tolerance) threshold the perpendicular-distance
+// test is retained — the relaxed pass exists precisely to recover
+// near-collinear hot pixels at distances JTS's strict cell test would
+// reject, so a wider band is desired by construction.
+//
 // useProjectedT controls how the parameter t along the segment is
 // computed:
 //
@@ -170,6 +183,7 @@ func (s *HotPixelSet) SegmentSplitsAtRelaxed(a, b geom.XY) []geom.XY {
 //     that incorrectly clips just past an endpoint.
 func (s *HotPixelSet) segmentSplits(a, b geom.XY, threshold float64) []geom.XY {
 	useProjectedT := threshold > s.half
+	useScaledIntersects := !useProjectedT // strict pass uses JTS test
 	candidates := s.QuerySegment(a, b)
 	if len(candidates) == 0 {
 		return nil
@@ -180,9 +194,15 @@ func (s *HotPixelSet) segmentSplits(a, b geom.XY, threshold float64) []geom.XY {
 		if hp.Centre.Equal(a) || hp.Centre.Equal(b) {
 			continue
 		}
-		d := planar.Default.SegmentDistance(hp.Centre, a, b)
-		if d >= threshold {
-			continue
+		if useScaledIntersects {
+			if !s.segmentIntersectsPixel(a, b, hp.Centre) {
+				continue
+			}
+		} else {
+			d := planar.Default.SegmentDistance(hp.Centre, a, b)
+			if d >= threshold {
+				continue
+			}
 		}
 		var t float64
 		if useProjectedT {
@@ -220,6 +240,141 @@ func (s *HotPixelSet) segmentSplits(a, b geom.XY, threshold float64) []geom.XY {
 type hotPixelSplit struct {
 	t      float64
 	centre geom.XY
+}
+
+// segmentIntersectsPixel reports whether segment [a, b] passes through
+// the hot pixel cell centred at centre. Port of
+// org.locationtech.jts.noding.snapround.HotPixel.intersectsScaled.
+//
+// The pixel is the half-open square [centre.X-half, centre.X+half) ×
+// [centre.Y-half, centre.Y+half) — the top and right sides are NOT
+// part of the cell, so every point of the plane belongs to a unique
+// pixel. This matches IEEE float "round-half-to-even" semantics and
+// avoids double-snapping points that sit on a cell boundary.
+//
+// Algorithm (from JTS):
+//
+//  1. Reject quickly via segment-envelope vs pixel-envelope test,
+//     respecting the half-open cell on the top/right.
+//  2. Vertical or horizontal segments that survive the envelope test
+//     necessarily intersect the cell (their orientation calculations
+//     are degenerate).
+//  3. Otherwise compute the orientation of each pixel corner relative
+//     to the segment. A corner with orientation 0 means the segment
+//     passes through that corner — handle the four corners individually
+//     (the top-left and bottom-right corners belong to the closure but
+//     not the open cell, while the bottom-left corner is interior).
+//     Differing orientations across the corners of any side mean the
+//     segment crosses that side and therefore enters the cell.
+func (s *HotPixelSet) segmentIntersectsPixel(a, b, centre geom.XY) bool {
+	half := s.half
+	hpx, hpy := centre.X, centre.Y
+
+	// Orient the segment to point in +X direction (px,py)->(qx,qy).
+	px, py := a.X, a.Y
+	qx, qy := b.X, b.Y
+	if px > qx {
+		px, py, qx, qy = b.X, b.Y, a.X, a.Y
+	}
+
+	// Envelope pretest reflecting half-open top/right sides.
+	maxx := hpx + half
+	segMinx := px // px <= qx by orientation above
+	if segMinx >= maxx {
+		return false
+	}
+	minx := hpx - half
+	segMaxx := qx
+	if segMaxx < minx {
+		return false
+	}
+	maxy := hpy + half
+	segMiny := py
+	if py > qy {
+		segMiny = qy
+	}
+	if segMiny >= maxy {
+		return false
+	}
+	miny := hpy - half
+	segMaxy := py
+	if qy > py {
+		segMaxy = qy
+	}
+	if segMaxy < miny {
+		return false
+	}
+
+	// Vertical or horizontal segments now intersect by construction
+	// (they touch the open bottom/left or interior).
+	if px == qx {
+		return true
+	}
+	if py == qy {
+		return true
+	}
+
+	// Orientation of each pixel corner WRT the segment line.
+	orientUL := orientOf(px, py, qx, qy, minx, maxy)
+	if orientUL == 0 {
+		// Segment passes through upper-left corner; it intersects only
+		// when going downward (ascending segments leave the corner
+		// without entering the half-open cell).
+		return py >= qy
+	}
+	orientUR := orientOf(px, py, qx, qy, maxx, maxy)
+	if orientUR == 0 {
+		// Upper-right corner: opposite case.
+		return py <= qy
+	}
+	if orientUL != orientUR {
+		// Crosses top side.
+		return true
+	}
+	orientLL := orientOf(px, py, qx, qy, minx, miny)
+	if orientLL == 0 {
+		// Lower-left is the only corner strictly inside the cell.
+		return true
+	}
+	if orientLL != orientUL {
+		// Crosses left side.
+		return true
+	}
+	orientLR := orientOf(px, py, qx, qy, maxx, miny)
+	if orientLR == 0 {
+		return py >= qy
+	}
+	if orientLL != orientLR {
+		// Crosses bottom side.
+		return true
+	}
+	if orientLR != orientUR {
+		// Crosses right side.
+		return true
+	}
+	return false
+}
+
+// orientOf returns the sign of the cross product (b-a) × (c-a) for
+// segment endpoints (ax,ay)-(bx,by) and test point (cx,cy). Mirrors
+// JTS CGAlgorithmsDD.orientationIndex but uses plain double arithmetic
+// — sufficient for the snap-round hot-pixel test, where coordinates
+// are already grid-aligned and the differences fit comfortably in
+// float64 precision.
+func orientOf(ax, ay, bx, by, cx, cy float64) int {
+	dx1 := bx - ax
+	dy1 := by - ay
+	dx2 := cx - ax
+	dy2 := cy - ay
+	det := dx1*dy2 - dy1*dx2
+	switch {
+	case det > 0:
+		return 1
+	case det < 0:
+		return -1
+	default:
+		return 0
+	}
 }
 
 // projectedSegmentParam returns the parameter t such that

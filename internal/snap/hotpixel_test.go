@@ -140,6 +140,47 @@ func TestSnapRoundRings_DropsCollapsed(t *testing.T) {
 	assert.Equal(t, len(healthy), len(out[0]))
 }
 
+// TestHotPixelSet_segmentIntersectsPixel_HalfOpen verifies the
+// half-open cell semantics from JTS HotPixel.intersectsScaled:
+// the bottom and left edges of the cell belong to it, the top and
+// right edges do not. With tolerance=1 the cell at (0,0) covers
+// [-0.5, 0.5) on each axis.
+func TestHotPixelSet_segmentIntersectsPixel_HalfOpen(t *testing.T) {
+	s := NewHotPixelSet(1.0)
+	s.Add(xy(0, 0))
+	centre := xy(0, 0)
+
+	// Through-the-centre — clearly inside.
+	assert.True(t, s.segmentIntersectsPixel(xy(-1, 0), xy(1, 0), centre))
+
+	// Skew segments crossing different sides of the cell.
+	assert.True(t, s.segmentIntersectsPixel(xy(-1, -1), xy(1, 1), centre),
+		"diagonal through interior")
+	assert.True(t, s.segmentIntersectsPixel(xy(-1, 1), xy(1, -1), centre),
+		"anti-diagonal through interior")
+
+	// A segment running along the right edge (x = 0.5) is OUTSIDE
+	// the half-open cell — right side excluded.
+	assert.False(t, s.segmentIntersectsPixel(xy(0.5, -1), xy(0.5, 1), centre),
+		"right edge excluded")
+
+	// A segment running along the top edge (y = 0.5) is OUTSIDE.
+	assert.False(t, s.segmentIntersectsPixel(xy(-1, 0.5), xy(1, 0.5), centre),
+		"top edge excluded")
+
+	// Bottom edge IS part of the cell — a horizontal segment on
+	// y = -0.5 should intersect.
+	assert.True(t, s.segmentIntersectsPixel(xy(-1, -0.5), xy(1, -0.5), centre),
+		"bottom edge included")
+
+	// Left edge IS part of the cell.
+	assert.True(t, s.segmentIntersectsPixel(xy(-0.5, -1), xy(-0.5, 1), centre),
+		"left edge included")
+
+	// Far-away segment.
+	assert.False(t, s.segmentIntersectsPixel(xy(10, 10), xy(11, 11), centre))
+}
+
 func assertHasVertex(t *testing.T, ring []geom.XY, v geom.XY, msg string) {
 	t.Helper()
 	for _, p := range ring {
