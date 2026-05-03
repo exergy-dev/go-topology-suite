@@ -26,11 +26,44 @@ func MinimumClearance(g geom.Geometry) (distance float64, segment [2]geom.XY) {
 	if g == nil || g.IsEmpty() {
 		return math.Inf(+1), [2]geom.XY{}
 	}
+	// Small-N fast path: for small inputs the FacetSequenceTree build
+	// and per-leaf Nearest traversal cost more than a flat O(N^2) scan.
+	// Empirically the tree wins above ~64 vertices; 32 keeps a safety
+	// margin without affecting medium/large inputs.
+	const smallNThreshold = 32
+	if countVertices(g) < smallNThreshold {
+		smc := NewSimpleMinimumClearance(g)
+		return smc.Distance(), smc.Points()
+	}
 	tree, seqs := buildFacetSequenceTree(g)
 	if tree == nil || len(seqs) == 0 {
 		return math.Inf(+1), [2]geom.XY{}
 	}
 	return minClearanceFromTree(tree, seqs)
+}
+
+// countVertices walks every leaf of g and totals its vertex count.
+// Used by MinimumClearance to choose between the tree-backed and
+// brute-force algorithms.
+func countVertices(g geom.Geometry) int {
+	n := 0
+	walkLeaves(g, func(leaf geom.Geometry) {
+		switch v := leaf.(type) {
+		case *geom.Point:
+			if !v.IsEmpty() {
+				n++
+			}
+		case *geom.LineString:
+			n += v.NumPoints()
+		case *geom.LinearRing:
+			n += v.AsLineString().NumPoints()
+		case *geom.Polygon:
+			for r := 0; r < v.NumRings(); r++ {
+				n += len(v.Ring(r))
+			}
+		}
+	})
+	return n
 }
 
 // SimpleMinimumClearance is a port of
