@@ -14,31 +14,17 @@ import "github.com/terra-geo/terra/geom"
 //   - AddPointOnGeometry covers P/L and P/A from the point side.
 //   - AddLineEndOnGeometry covers L/L and L/A line-end nodes.
 //   - AddAreaVertex covers A/L and A/A area-vertex nodes.
-//
-// Not yet ported:
-//
-//   - The edge-segment intersector pipeline (EdgeSegmentIntersector,
-//     EdgeSetIntersector, RelateNode, RelateEdge). When edges of A and
-//     B cross between vertices, those interior intersection points
-//     are not added. This is sufficient for the (large) class of
-//     predicates whose answer is determined by point-locator results
-//     on existing vertices alone — the higher-level RelateNG wrapper
-//     in predicate/relateng.go will fall back to the legacy
-//     predicate path for inputs whose answer depends on non-vertex
-//     edge intersections.
-//
-// The exposed API mirrors JTS so the missing pieces can be slotted
-// in later (TopologyComputer.AddIntersection, EvaluateNodes) without
-// disturbing callers.
+//   - AddIntersection collects edge-segment crossings for the later
+//     EvaluateNodes pass.
+//   - EvaluateNodes runs the per-node side-location propagation via
+//     RelateNode/RelateEdge.
 type TopologyComputer struct {
 	predicate TopologyPredicate
 	geomA     *Geometry
 	geomB     *Geometry
 	// nodeMap stores per-coordinate sections discovered by
-	// AddIntersection, for later evaluation. Until the edge pipeline
-	// lands the map is unused but kept so the field layout matches
-	// JTS for forward compatibility.
-	nodeMap map[geom.XY][]*NodeSection
+	// AddIntersection, keyed by node point.
+	nodeMap map[geom.XY]*NodeSections
 }
 
 // NewTopologyComputer constructs a TopologyComputer bound to the
@@ -49,7 +35,7 @@ func NewTopologyComputer(p TopologyPredicate, a, b *Geometry) *TopologyComputer 
 		predicate: p,
 		geomA:     a,
 		geomB:     b,
-		nodeMap:   make(map[geom.XY][]*NodeSection),
+		nodeMap:   make(map[geom.XY]*NodeSections),
 	}
 	tc.initExteriorDims()
 	return tc
@@ -266,33 +252,85 @@ func (tc *TopologyComputer) addAreaVertexOnArea(isAreaA bool, locArea, locTarget
 }
 
 // AddIntersection is the entry point for edge-intersection-derived
-// nodes. The Go port currently only collects the sections; the
-// node-evaluation step (RelateNode.finish + per-edge L-cell update)
-// is not yet ported, so the higher-level driver should not depend
-// on AddIntersection for correctness in cases where edges cross
-// between vertices.
+// nodes. Each call records the section pair under the node coordinate
+// for later evaluation in EvaluateNodes, and applies the immediate
+// AB-cell updates required by JTS RelateNG (area-area cross + node
+// location).
 func (tc *TopologyComputer) AddIntersection(a, b *NodeSection) {
 	if !a.IsSameGeometry(b) {
 		tc.updateIntersectionAB(a, b)
 	}
-	tc.nodeMap[a.NodePt] = append(tc.nodeMap[a.NodePt], a, b)
+	ns := tc.getNodeSections(a.NodePt)
+	ns.Add(a)
+	ns.Add(b)
+}
+
+func (tc *TopologyComputer) getNodeSections(pt geom.XY) *NodeSections {
+	ns, ok := tc.nodeMap[pt]
+	if !ok {
+		ns = NewNodeSections(pt)
+		tc.nodeMap[pt] = ns
+	}
+	return ns
 }
 
 func (tc *TopologyComputer) updateIntersectionAB(a, b *NodeSection) {
-	if IsAreaArea(a, b) && IsProperPair(a, b) {
-		tc.updateDim(LocInterior, LocInterior, DimA)
+	if IsAreaArea(a, b) {
+		tc.updateAreaAreaCross(a, b)
 	}
+	tc.updateNodeLocation(a, b)
+}
+
+func (tc *TopologyComputer) updateAreaAreaCross(a, b *NodeSection) {
+	if IsProperPair(a, b) {
+		tc.updateDim(LocInterior, LocInterior, DimA)
+		return
+	}
+	if a.V0 != nil && a.V1 != nil && b.V0 != nil && b.V1 != nil {
+		if isPolygonNodeCrossing(a.NodePt, *a.V0, *a.V1, *b.V0, *b.V1) {
+			tc.updateDim(LocInterior, LocInterior, DimA)
+		}
+	}
+}
+
+func (tc *TopologyComputer) updateNodeLocation(a, b *NodeSection) {
 	pt := a.NodePt
 	locA := tc.geomA.LocateNode(pt, a.Polygon)
 	locB := tc.geomB.LocateNode(pt, b.Polygon)
 	tc.updateDim(locA, locB, DimP)
 }
 
-// EvaluateNodes is the placeholder for the future RelateNode-driven
-// node evaluation pass. Today it is a no-op; once RelateNode +
-// RelateEdge are ported, this method will iterate the nodeMap and
-// finish each node's side-location propagation.
+// EvaluateNodes iterates the recorded node-section buckets, builds a
+// RelateNode for each AB-interacting node, and pushes the resulting
+// edge L/R/On classifications into the predicate. Mirrors
+// TopologyComputer.evaluateNodes.
 func (tc *TopologyComputer) EvaluateNodes() {
-	// no-op until RelateNode/RelateEdge are ported.
-	_ = tc.nodeMap
+	for _, ns := range tc.nodeMap {
+		if !ns.HasInteractionAB() {
+			continue
+		}
+		tc.evaluateNode(ns)
+		if tc.IsResultKnown() {
+			return
+		}
+	}
+}
+
+func (tc *TopologyComputer) evaluateNode(ns *NodeSections) {
+	p := ns.NodePt
+	node := ns.CreateNode()
+	isAreaInteriorA := tc.geomA.IsNodeInArea(p, ns.Polygonal(true))
+	isAreaInteriorB := tc.geomB.IsNodeInArea(p, ns.Polygonal(false))
+	node.Finish(isAreaInteriorA, isAreaInteriorB)
+	tc.evaluateNodeEdges(node)
+}
+
+func (tc *TopologyComputer) evaluateNodeEdges(node *RelateNode) {
+	for _, e := range node.Edges() {
+		if tc.IsAreaArea() {
+			tc.updateDim(e.location(true, posLeft), e.location(false, posLeft), DimA)
+			tc.updateDim(e.location(true, posRight), e.location(false, posRight), DimA)
+		}
+		tc.updateDim(e.location(true, posOn), e.location(false, posOn), DimL)
+	}
 }
