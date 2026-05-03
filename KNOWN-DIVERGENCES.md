@@ -147,3 +147,96 @@ already-minimal rings (cases 15/16). Both are deferred.
   returns `0` for `Polygon` and `MultiPolygon`, restricting Length to
   curve-typed geometries. Both choices are internally consistent; we
   follow JTS. No code change planned.
+
+### `geom/` package — survey vs JTS `org.locationtech.jts.geom` (2026-05-02)
+
+A directed survey of `geom/` against the corresponding JTS package
+(Group A) identified the following correctness-touching divergences.
+None affects the JTS conformance corpus (still 15 / 99.83% after
+the survey); each is recorded here so future readers know it was
+reviewed rather than missed.
+
+- **`Polygon.Envelope` includes hole vertices; JTS uses shell only.**
+  `JTS Polygon.computeEnvelopeInternal()` returns
+  `shell.getEnvelopeInternal()`. Our `baseGeom.envelope()` calls
+  `envelopeOfFlat(coords, stride)` over the polygon's entire flat
+  buffer, which includes hole vertices. For valid polygons (holes
+  inside the shell) the two envelopes are identical. For *invalid*
+  polygons whose holes protrude past the shell, ours can be larger,
+  which would make spatial-index queries match the polygon more
+  aggressively than JTS would. No fixture in the corpus tests
+  invalid polygons in this way; `validate.Validate` rejects them
+  upstream. Keeping the all-coords path because it is simpler and
+  cache-shared with LineString / MultiLineString. Estimated effort
+  to port: ~30 LOC for a Polygon-specific envelope override + cache
+  invalidation hook.
+
+- **`XY.Equal` treats NaN as equal; JTS `Coordinate.equals2D` treats
+  NaN as not equal.** Documented as by-design in `MEMORY.md` —
+  Terra inserts `math.NaN()` as the absent-data marker for missing
+  Z/M (and rarely as a missing-coord placeholder), and round-tripping
+  those through dedup/snap requires NaN==NaN. Callers needing JTS
+  semantics use `XY.EqualBitwise`, which matches `Coordinate.equals2D`
+  exactly. No change planned.
+
+- **No standalone `Triangle`, `Quadrant`, `PrecisionModel`, or
+  `IntersectionMatrix` types in `geom/`.** JTS exports these as
+  public utility classes. Terra inlines or relocates the math:
+  - `Triangle` (signedArea, centroid, circumcentre, area3D,
+    interpolateZ): used internally by area/centroid/Delaunay code,
+    no central package. Lifting into `geom/triangle.go` would be
+    ~150 LOC of pure math, low risk but no existing caller asks
+    for it. Deferred.
+  - `Quadrant`: used by JTS's DCEL angular sort. Our overlay-NG
+    DCEL does its own atan2-based sort; the integer-quadrant
+    helper has no caller. Skipped.
+  - `PrecisionModel`: covered out-of-package by
+    `bufferPrecisionTolerance` (commit `a5dad43`, mirrors
+    `BufferOp.precisionScaleFactor`) plus per-op snap-rounding
+    tolerances in `overlay/overlayng`. Each op picks its own grid;
+    a global PrecisionModel would be a cross-cutting refactor.
+    Deferred.
+  - `IntersectionMatrix`: present as `predicate.DE9IM` (string-typed)
+    with `Matches(pattern)` covering the `'F'`, `'T'`, `'*'`,
+    `'0'`/`'1'`/`'2'` symbols. Verified to match JTS
+    `IntersectionMatrix.matches(int, char)` semantics for every
+    symbol that can appear in our matrix. The JTS `Dimension.SYM_P`/
+    `SYM_L`/`SYM_A` (P/L/A) dimension-class symbols are not handled
+    because `predicate/relate.go` derives every cell from primitive
+    intersections, never from input dimension class. If we ever
+    expose `geometry.relate(g, "T*F**F***")` to outside callers we
+    would need to extend `Matches`; current callers (predicate
+    package + jtstest harness) all use the F/T/digit subset.
+
+- **`LineString.IsClosed()` / `LinearRing.IsClosed()` not exposed.**
+  JTS publishes both. Our internal callers
+  (`predicate/relate_pairs.go`, `internal/jtstest/helpers.go`)
+  inline the `PointAt(0) == PointAt(n-1)` check. Functionally
+  equivalent; adding the helper is a style/API ergonomics change,
+  not a correctness fix. Deferred.
+
+- **`Envelope` missing `ExpandBy`, `Distance`, `Disjoint` (as a
+  named method), `Overlaps`, `ContainsProperly`, `Covers` (as a
+  separate name from `Contains`).** Our `Envelope.Contains` already
+  matches JTS `Envelope.covers` semantics (boundary-inclusive). JTS
+  `Envelope.contains(Envelope)` is documented as an alias for
+  `covers(Envelope)`, so the two libraries agree on the predicate
+  even though we expose only one name. The other methods have no
+  in-repo caller; deferred until one appears.
+
+- **`envelopeOfFlat` does not pre-screen NaN ordinates.** JTS's
+  `Envelope.expandToInclude(double, double)` initialises from null
+  and grows incrementally, so a NaN ordinate is silently dropped.
+  Ours seeds `min/max` from `coords[0]`/`coords[1]`; if those are
+  NaN, all subsequent comparisons fail and the envelope ends up as
+  `{NaN, NaN, NaN, NaN}`. No caller produces NaN-bearing
+  geometries (parsers route empties through `NewEmptyPoint` /
+  `NewEmptyPolygon`), so this is latent. Estimated effort:
+  ~10 LOC defensive screen.
+
+- **`Coordinate` has no `compareTo` / canonical ordering on `XY`.**
+  JTS `Coordinate.compareTo` is X-major, then Y, NaN-undefined.
+  Internal sort sites in our overlay / noding code use ad-hoc
+  comparators (e.g. `internal/snap` lex-sorts by `(x, y)`
+  inline). No correctness impact identified — if we wanted to
+  share a comparator, the obvious place is `geom/coordinate.go`.
