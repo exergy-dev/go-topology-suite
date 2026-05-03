@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel/planar"
 )
 
 func TestMinimumAreaRectangle_Empty(t *testing.T) {
@@ -22,7 +23,7 @@ func TestMinimumAreaRectangle_Square(t *testing.T) {
 	if !ok {
 		t.Fatalf("ok=false")
 	}
-	a := math.Abs(ringSignedArea(rect.Ring(0)))
+	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
 	if math.Abs(a-16) > 1e-9 {
 		t.Fatalf("area=%v want 16", a)
 	}
@@ -42,7 +43,7 @@ func TestMinimumAreaRectangle_RotatedSquare(t *testing.T) {
 	if !ok {
 		t.Fatalf("ok=false")
 	}
-	a := math.Abs(ringSignedArea(rect.Ring(0)))
+	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
 	if math.Abs(a-16) > 1e-7 {
 		t.Fatalf("area=%v want 16", a)
 	}
@@ -62,7 +63,7 @@ func TestMinimumAreaRectangle_LongDiagonalRectangle(t *testing.T) {
 	if !ok {
 		t.Fatalf("ok=false")
 	}
-	a := math.Abs(ringSignedArea(rect.Ring(0)))
+	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
 	if math.Abs(a-16) > 1e-6 {
 		t.Fatalf("area=%v want 16", a)
 	}

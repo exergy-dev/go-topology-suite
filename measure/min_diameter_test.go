@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel/planar"
 )
 
 func TestMinimumDiameter_Empty(t *testing.T) {
@@ -71,16 +72,8 @@ func TestMinimumDiameterRectangle_Square(t *testing.T) {
 		t.Fatalf("ok=false")
 	}
 	// Rectangle should have area approximately 1.
-	a := math.Abs(ringSignedArea(rect.Ring(0)))
+	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
 	if math.Abs(a-1) > 1e-9 {
 		t.Fatalf("area=%v want 1", a)
 	}
-}
-
-func ringSignedArea(ring []geom.XY) float64 {
-	var s float64
-	for i := 0; i+1 < len(ring); i++ {
-		s += ring[i].X*ring[i+1].Y - ring[i+1].X*ring[i].Y
-	}
-	return s / 2
 }
