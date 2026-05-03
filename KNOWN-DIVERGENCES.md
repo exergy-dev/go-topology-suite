@@ -160,7 +160,22 @@ Wave 14 (`5387580` → `86352b6`, 8 commits): GeometryPrecisionReducer + CommonB
 
 ---
 
-**Total parity round (Waves 1–14)**: 130 commits, 11 new top-level packages, comprehensive extensions to every existing package, conformance held at 15/99.83% throughout with zero regressions. Every JTS class in `algorithm/*`, `noding/*`, `precision/*`, `geom/*`, `coverage/`, `shape/*`, `simplify/`, `triangulate/*`, `operation/*` (excluding 3D), `densify/`, `dissolve/`, `linearref/`, `math/`, `index/`, `io/{wkb,wkt,kml,geojson}` has been ported. The only remaining JTS source is documented above as explicitly out of scope: 3D operations, GML2/Oracle I/O, EnhancedPrecisionOp (gated by overlay/), and Java helper types (N/A in Go).
+#### Wave 15–16: lift gates + RelateNG promoted to default
+
+Wave 15 (`a4b29d2`, `dd11a9f`, 2 commits): EnhancedPrecisionOp (lifted overlay/ gate; falls back via `precision.CommonBitsOp`), GML2 reader/writer in new `gml/` package.
+
+Wave 16 (`f60dcee`, `fa03fea`, `a5ed3c1`, `8c3d6af`, `a301f3f`, 5 commits): closed 4 specific RelateNG correctness bugs that surfaced when Wave 15 attempted to flip RelateNG to default and saw 15 regressions:
+
+1. **Robust point-on-segment for non-simple line interiors** — `internal/relateng/point_locator.go::isOnSegment` swapped `SegmentDistance == 0` (float-distance comparison vulnerable to ULP drift) for `Orient == Collinear` + axis-aligned envelope test. Closed JTS `TestRelatePL` P/nsL.1-5-3 (residual 1.42e-14 from SegmentDistance was rejecting a genuinely on-segment point).
+2. **Zero-length-line vertex in P/P fast path** — `relate_ng.go::effectivePointSet` augments `uniquePoints` with the first vertex of any zero-length linear component. Closed `TestRelatePL` P/L-2 (point vs zero-length line; both `dimensionReal == DimP` so the input went through `computePP` which couldn't see the line's degenerate vertex).
+3. **Filter Point members shadowed by higher-dim elements** — `relate_ng.go::effectivePointsFor` mirrors JTS `RelateGeometry.getEffectivePoints`: when the operand has DimensionReal > P, drop Point members whose locator dim is no longer P. Closed `TestRelateGC` case#5 and case#26.
+4. **Snap AB intersection nodes to coincident self-intersection** — `topology_computer.go::AddIntersection` now snaps a new node point to a within-tolerance existing key. Closed `TestRelateLL` case#21 (JTS issue #396): A's self-intersection at (2/3, 2/3) and the topologically-identical A-vs-B intersection differed by 1 ULP because of `SegmentIntersect` argument-order asymmetry, splitting the bucket and stranding A's edge sections away from the AB node.
+
+Plus the default flip: `predicate.Relate` now uses RelateNG by default; `predicate.UseLegacyRelate(true)` is the opt-out. Conformance unchanged at 15.
+
+---
+
+**Total parity round (Waves 1–16)**: **138 commits**, 12 new top-level packages (`algorithm/locate`, `coverage`, `densify`, `dissolve`, `gml`, `kml`, `linearref`, `linemerge`, `polygonize`, `precision`, `shape`, `triangulate`), comprehensive extensions to every existing package, **RelateNG promoted to default**, conformance held at 15/99.83% throughout with zero regressions. Every meaningful JTS class has been ported; only out-of-scope items remain (3D operations, Oracle I/O, AWT integration, Java helper types).
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
