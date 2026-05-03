@@ -88,18 +88,24 @@ func WithPrepared(h preparedHandle) Option {
 	return Option{prepared: h}
 }
 
-// UseRelateNG opts the call into the experimental RelateNG topology
-// driver (internal/relateng). When set to true, Relate first attempts
-// to evaluate the predicate via the new path; if RelateNG cannot
-// produce a definitive answer (e.g. inputs whose answer depends on
-// non-vertex edge intersections, which are not yet ported), the call
-// falls back to the legacy DE-9IM computation in this package.
+// UseRelateNG selects the RelateNG topology driver
+// (internal/relateng) explicitly. RelateNG is the default; this
+// option remains available for callers that want to be explicit, or
+// to override a wrapper that called UseLegacyRelate.
 //
-// The default is false (legacy path). The switch is intended for
-// equivalence testing during the RelateNG rollout — once the missing
-// edge-segment intersection pipeline lands, the default may flip.
+// Pass UseRelateNG(false) (or UseLegacyRelate(true)) to force the
+// legacy DE-9IM pipeline — primarily a compatibility escape hatch.
 func UseRelateNG(use bool) Option {
 	return Option{useRelateNG: use, useRelateSet: true}
+}
+
+// UseLegacyRelate forces the call to use the pre-RelateNG DE-9IM
+// pipeline. This is a compatibility shim: as of the RelateNG
+// promotion the new driver is the default, but downstreams that
+// observed legacy-specific behaviour can opt back in until they
+// migrate. Equivalent to UseRelateNG(!use).
+func UseLegacyRelate(use bool) Option {
+	return Option{useRelateNG: !use, useRelateSet: true}
 }
 
 // WithBoundaryNodeRule selects a non-default rule for classifying

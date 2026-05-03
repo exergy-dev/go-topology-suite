@@ -95,12 +95,18 @@ func Relate(a, b geom.Geometry, opts ...Option) (DE9IM, error) {
 	if !cfg.bnrSet {
 		bnr = Mod2BoundaryNodeRule
 	}
-	if cfg.useRelateNG {
+	// Default routes through the RelateNG driver. Callers can opt out
+	// via UseLegacyRelate(true) (or the lower-level UseRelateNG(false))
+	// to force the legacy DE-9IM pipeline — primarily useful as a
+	// backward-compat escape hatch during the rollout.
+	useNG := !cfg.useRelateSet || cfg.useRelateNG
+	if useNG {
 		if im, ok := relateViaNG(a, b, bnr); ok {
 			return im, nil
 		}
 		// Fall through to legacy path on inputs the new driver can't
-		// definitively answer yet (edge-segment crossings).
+		// definitively answer yet (currently exhaustive — kept as a
+		// belt-and-braces guard).
 	}
 	m := computeMatrixWithRule(a, b, cfg.kernel, bnr)
 	return m.toDE9IM(), nil
