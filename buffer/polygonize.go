@@ -32,6 +32,79 @@ type offsetSegment struct {
 	depthDelta int8
 }
 
+// emitLineStringOffsetSegments runs the JTS-style offset curve emission
+// for an open LineString and converts the resulting closed offset ring
+// into offsetSegments tagged depthDelta=+1.
+//
+// Mirrors JTS BufferCurveSetBuilder.addLineString (which delegates to
+// OffsetCurveBuilder.computeLineBufferCurve): walk forward on the LEFT
+// side, append an end-cap at the last vertex, walk backward on the LEFT
+// side of the reversed line (= RIGHT of the original), append a start-
+// cap at the first vertex, and close the ring. The resulting ring goes
+// CCW around the buffer interior, so every (p0→p1) segment has interior
+// on its LEFT and depthDelta=+1.
+//
+// Caller is responsible for deduping consecutive duplicate vertices in
+// `pts` before invoking this. distance must be positive.
+func emitLineStringOffsetSegments(pts []geom.XY, distance float64, cfg config) []offsetSegment {
+	if len(pts) < 2 || distance <= 0 {
+		return nil
+	}
+	g := newOffsetSegmentGenerator(cfg, distance)
+	n := len(pts) - 1
+
+	// LEFT-side forward traversal.
+	g.initSideSegments(pts[0], pts[1], positionLeft)
+	for i := 2; i <= n; i++ {
+		g.addNextSegment(pts[i], true)
+	}
+	g.addLastSegment()
+	// End cap at the last vertex.
+	g.addLineEndCap(pts[n-1], pts[n])
+
+	// LEFT-of-reverse traversal: walk pts[n..0]. Side stays LEFT because
+	// the reversed line's LEFT is the original's RIGHT.
+	g.initSideSegments(pts[n], pts[n-1], positionLeft)
+	for i := n - 2; i >= 0; i-- {
+		g.addNextSegment(pts[i], true)
+	}
+	g.addLastSegment()
+	// Start cap at the first vertex.
+	g.addLineEndCap(pts[1], pts[0])
+
+	g.closeRing()
+	ring := g.coordinates()
+	if len(ring) < 4 {
+		return nil
+	}
+
+	// Spike removal: same as emitPolygonOffsetSegments. Mitre-overshoot
+	// pairs (a→b→a) cancel topologically; drop them so the noder sees a
+	// clean planar feature.
+	spikeTol := distance * 1e-6
+	ring = removeSpikes(ring, spikeTol)
+	if len(ring) < 4 {
+		return nil
+	}
+
+	// Emit segments in walking order. The ring is CCW around buffer
+	// interior, so each forward segment has interior on its LEFT (depthDelta=+1).
+	const minLen2 = 1e-20
+	out := make([]offsetSegment, 0, len(ring))
+	for i := 0; i+1 < len(ring); i++ {
+		a, b := ring[i], ring[i+1]
+		if a == b {
+			continue
+		}
+		dx, dy := b.X-a.X, b.Y-a.Y
+		if dx*dx+dy*dy < minLen2 {
+			continue
+		}
+		out = append(out, offsetSegment{p0: a, p1: b, depthDelta: 1})
+	}
+	return out
+}
+
 // emitPolygonOffsetSegments converts every ring of p into offset
 // segments tagged with depthDelta=+1 (buffer interior on LEFT). The
 // orientation is normalised so the polygonizer's depth invariant
