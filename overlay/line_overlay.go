@@ -1089,20 +1089,14 @@ func faceToPolygonWithHoles(c *crs.CRS, f *faceLA, snap func(geom.XY) geom.XY) *
 		return nil
 	}
 	// Compute signed areas; pick the largest |area| as outer.
-	signedRingArea := func(r []geom.XY) float64 {
-		var s float64
-		for i := 0; i+1 < len(r); i++ {
-			s += r[i].X*r[i+1].Y - r[i+1].X*r[i].Y
-		}
-		return s / 2
-	}
 	type ringInfo struct {
 		pts  []geom.XY
 		area float64
 	}
+	pk := planar.Kernel{}
 	var infos []ringInfo
 	for _, r := range rings {
-		a := signedRingArea(r)
+		a := pk.RingArea(r)
 		if math.Abs(a) < 1e-12 {
 			continue
 		}
