@@ -110,9 +110,18 @@ func TestBufferLineSquareCap(t *testing.T) {
 	require.NoError(t, err)
 	poly := g.(*geom.Polygon)
 	ring := poly.ExteriorRing()
-	// 2 left ends + 2 square cap forward extensions + 2 right ends + 2
-	// square cap backward extensions + closure = 8 + 1 = 9.
-	require.Equal(t, 9, len(ring), "square-cap ring vertices; %+v", ring)
+	// JTS-style output: 4 outer corners of the rectangular cap + 2
+	// interior segment-offset endpoints (one per side, collinear with
+	// the cap corners along y=±1) + closure = 7. The 2 collinear
+	// interior vertices are emitted by addLastSegment per-side; this
+	// matches JTS's OffsetSegmentGenerator behaviour exactly.
+	require.Equal(t, 7, len(ring), "square-cap ring vertices; %+v", ring)
+	// Sanity: the buffer should bound x ∈ [-1, 11], y ∈ [-1, 1].
+	env := poly.Envelope()
+	require.InDelta(t, -1.0, env.MinX, 1e-9)
+	require.InDelta(t, 11.0, env.MaxX, 1e-9)
+	require.InDelta(t, -1.0, env.MinY, 1e-9)
+	require.InDelta(t, 1.0, env.MaxY, 1e-9)
 }
 
 func TestBufferLineNegativeDistance(t *testing.T) {

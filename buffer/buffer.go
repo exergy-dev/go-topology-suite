@@ -196,17 +196,6 @@ func bufferPoint(c *crs.CRS, center geom.XY, distance float64, cfg config) *geom
 	return geom.NewPolygon(c, ring)
 }
 
-// segment is one edge of a polyline plus its precomputed unit
-// left-perpendicular normal (rotation of (dx,dy)/L by +90° CCW).
-type segment struct {
-	a, b   geom.XY
-	nx, ny float64 // unit left normal: (-dy, dx)/L
-}
-
-// forward returns the unit forward direction (a → b) of s.
-// forward = rotate(normal, -90°) = (ny, -nx).
-func (s segment) forward() (float64, float64) { return s.ny, -s.nx }
-
 // bufferLineString produces the offset polygon of ls at distance using cfg.
 //
 // Algorithm (textbook "thicken"):
@@ -233,91 +222,51 @@ func bufferLineString(ls *geom.LineString, distance float64, cfg config) (*geom.
 		return bufferPoint(ls.CRS(), pts[0], distance, cfg), nil
 	}
 
-	segs := make([]segment, 0, len(pts)-1)
-	for i := 0; i+1 < len(pts); i++ {
-		a, b := pts[i], pts[i+1]
-		dx, dy := b.X-a.X, b.Y-a.Y
-		L := math.Hypot(dx, dy)
-		if L == 0 {
+	// Drop consecutive duplicates more aggressively: dedupedPoints
+	// strips exact duplicates, but JTS-style buffering also rejects
+	// zero-length input segments before the offset generator sees them.
+	clean := make([]geom.XY, 0, len(pts))
+	clean = append(clean, pts[0])
+	for i := 1; i < len(pts); i++ {
+		if pts[i] == clean[len(clean)-1] {
 			continue
 		}
-		segs = append(segs, segment{a: a, b: b, nx: -dy / L, ny: dx / L})
+		clean = append(clean, pts[i])
 	}
-	if len(segs) == 0 {
-		return bufferPoint(ls.CRS(), pts[0], distance, cfg), nil
+	if len(clean) == 1 {
+		return bufferPoint(ls.CRS(), clean[0], distance, cfg), nil
 	}
 
 	d := distance
+	g := newOffsetSegmentGenerator(cfg, d)
 
-	// --- Forward (left) offset chain ---
-	left := make([]geom.XY, 0, 2*len(segs)+8)
-	s0 := segs[0]
-	left = append(left, geom.XY{X: s0.a.X + d*s0.nx, Y: s0.a.Y + d*s0.ny})
-	for i := 0; i+1 < len(segs); i++ {
-		curr := segs[i]
-		next := segs[i+1]
-		pCurrEnd := geom.XY{X: curr.b.X + d*curr.nx, Y: curr.b.Y + d*curr.ny}
-		pNextStart := geom.XY{X: next.a.X + d*next.nx, Y: next.a.Y + d*next.ny}
-		// Cross of curr.dir and next.dir; positive ⇒ left turn ⇒ convex
-		// on the LEFT side, requires a join arc.
-		// curr.dir = (curr.ny, -curr.nx); next.dir = (next.ny, -next.nx).
-		cross := curr.ny*(-next.nx) - (-curr.nx)*next.ny
-		if cross > 0 {
-			arc := buildJoinArc(curr.b, pCurrEnd, pNextStart, curr, next, d, cfg)
-			left = append(left, pCurrEnd)
-			left = append(left, arc...)
-		} else {
-			left = append(left, pCurrEnd, pNextStart)
-		}
+	// LEFT-side offset traversal: forward through clean[0..n].
+	n := len(clean) - 1
+	g.initSideSegments(clean[0], clean[1], positionLeft)
+	for i := 2; i <= n; i++ {
+		g.addNextSegment(clean[i], true)
 	}
-	sN := segs[len(segs)-1]
-	left = append(left, geom.XY{X: sN.b.X + d*sN.nx, Y: sN.b.Y + d*sN.ny})
+	g.addLastSegment()
+	// End cap: from second-to-last vertex toward the last.
+	g.addLineEndCap(clean[n-1], clean[n])
 
-	// --- Backward (right) offset chain ---
-	// Walking segs from N-1 down to 0 in reversed direction, the right
-	// offset of each segment forms the second half of the ring. A "convex"
-	// corner during reverse traversal of the right side corresponds to an
-	// original RIGHT turn (cross < 0).
-	right := make([]geom.XY, 0, 2*len(segs)+8)
-	last := segs[len(segs)-1]
-	right = append(right, geom.XY{X: last.b.X - d*last.nx, Y: last.b.Y - d*last.ny})
-	for i := len(segs) - 1; i > 0; i-- {
-		curr := segs[i]
-		prev := segs[i-1]
-		pCurrStart := geom.XY{X: curr.a.X - d*curr.nx, Y: curr.a.Y - d*curr.ny}
-		pPrevEnd := geom.XY{X: prev.b.X - d*prev.nx, Y: prev.b.Y - d*prev.ny}
-		// Original cross at vertex i (between prev.dir and curr.dir):
-		//   c = prev.ny*(-curr.nx) - (-prev.nx)*curr.ny
-		//     = -prev.ny*curr.nx + prev.nx*curr.ny
-		c := -prev.ny*curr.nx + prev.nx*curr.ny
-		if c < 0 {
-			// Original right turn ⇒ convex on the right side during reverse
-			// traversal. Build the join with reversed segments so the
-			// "forward" direction of the join matches the traversal.
-			revCurr := reverseSegment(curr)
-			revPrev := reverseSegment(prev)
-			arc := buildJoinArc(curr.a, pCurrStart, pPrevEnd, revCurr, revPrev, d, cfg)
-			right = append(right, pCurrStart)
-			right = append(right, arc...)
-		} else {
-			right = append(right, pCurrStart, pPrevEnd)
-		}
+	// RIGHT-side offset traversal: walk clean[n..0] in reverse, with
+	// side still LEFT (we're walking the reversed line, so its LEFT is
+	// the original's RIGHT).
+	g.initSideSegments(clean[n], clean[n-1], positionLeft)
+	for i := n - 2; i >= 0; i-- {
+		g.addNextSegment(clean[i], true)
 	}
-	first := segs[0]
-	right = append(right, geom.XY{X: first.a.X - d*first.nx, Y: first.a.Y - d*first.ny})
+	g.addLastSegment()
+	// Start cap: from second vertex toward the first.
+	g.addLineEndCap(clean[1], clean[0])
 
-	// --- End and start caps ---
-	endCap := buildEndCap(sN.b, sN, d, cfg)
-	startCap := buildStartCap(first.a, first, d, cfg)
+	g.closeRing()
 
-	// Assemble closed ring.
-	ring := make([]geom.XY, 0, len(left)+len(endCap)+len(right)+len(startCap)+1)
-	ring = append(ring, left...)
-	ring = append(ring, endCap...)
-	ring = append(ring, right...)
-	ring = append(ring, startCap...)
-	ring = append(ring, ring[0])
-
+	ring := g.coordinates()
+	if len(ring) < 4 {
+		return geom.NewEmptyPolygon(ls.CRS(), ls.Layout()), nil
+	}
 	raw := geom.NewPolygon(ls.CRS(), ring)
 	return cleanOffsetPolygon(raw)
 }
@@ -363,13 +312,6 @@ func cleanOffsetPolygon(raw *geom.Polygon) (*geom.Polygon, error) {
 		}
 	}
 	return raw, nil
-}
-
-// reverseSegment returns the segment with a/b swapped. The left normal of
-// the reversed segment is the negation of the original left normal (the
-// "left" of a→b is the "right" of b→a).
-func reverseSegment(s segment) segment {
-	return segment{a: s.b, b: s.a, nx: -s.nx, ny: -s.ny}
 }
 
 // isClosedLine reports whether ls is a closed polyline (first vertex
@@ -438,152 +380,3 @@ func dedupedPoints(ls *geom.LineString) []geom.XY {
 	return out
 }
 
-// buildJoinArc builds the interior vertices of a left-side convex join.
-// pCurrEnd and pNextStart are the offset endpoints of the two adjacent
-// segments at vertex; the caller emits pCurrEnd before the returned slice
-// and the slice ends with pNextStart.
-func buildJoinArc(vertex, pCurrEnd, pNextStart geom.XY, curr, next segment, d float64, cfg config) []geom.XY {
-	switch cfg.join {
-	case JoinBevel:
-		return []geom.XY{pNextStart}
-	case JoinMitre:
-		mp, ok := mitrePoint(vertex, pCurrEnd, pNextStart, curr, next, d, cfg.mitreLimit)
-		if !ok {
-			return []geom.XY{pNextStart}
-		}
-		return []geom.XY{mp, pNextStart}
-	case JoinRound:
-		return roundArc(vertex, pCurrEnd, pNextStart, d, cfg.quadSegments)
-	}
-	return []geom.XY{pNextStart}
-}
-
-// roundArc returns the arc points (excluding p0, including p1) sweeping
-// the short way around vertex at radius d.
-func roundArc(vertex, p0, p1 geom.XY, d float64, quad int) []geom.XY {
-	a0 := math.Atan2(p0.Y-vertex.Y, p0.X-vertex.X)
-	a1 := math.Atan2(p1.Y-vertex.Y, p1.X-vertex.X)
-	delta := a1 - a0
-	for delta > math.Pi {
-		delta -= 2 * math.Pi
-	}
-	for delta <= -math.Pi {
-		delta += 2 * math.Pi
-	}
-	steps := int(math.Ceil(math.Abs(delta) / (math.Pi / 2) * float64(quad)))
-	if steps < 1 {
-		steps = 1
-	}
-	out := make([]geom.XY, 0, steps)
-	for i := 1; i <= steps; i++ {
-		t := float64(i) / float64(steps)
-		theta := a0 + delta*t
-		out = append(out, geom.XY{
-			X: vertex.X + d*math.Cos(theta),
-			Y: vertex.Y + d*math.Sin(theta),
-		})
-	}
-	if len(out) > 0 {
-		out[len(out)-1] = p1
-	}
-	return out
-}
-
-// mitrePoint computes the intersection of the two offset half-lines.
-// Returns ok=false when the resulting mitre extension exceeds limit*d (the
-// caller should fall back to a bevel).
-func mitrePoint(vertex, pA, pB geom.XY, ea, eb segment, d, limit float64) (geom.XY, bool) {
-	dax, day := ea.b.X-ea.a.X, ea.b.Y-ea.a.Y
-	dbx, dby := eb.b.X-eb.a.X, eb.b.Y-eb.a.Y
-	denom := dax*dby - day*dbx
-	if denom == 0 {
-		return geom.XY{}, false
-	}
-	t := ((pB.X-pA.X)*dby - (pB.Y-pA.Y)*dbx) / denom
-	mp := geom.XY{X: pA.X + t*dax, Y: pA.Y + t*day}
-	if math.Hypot(mp.X-vertex.X, mp.Y-vertex.Y) > limit*d {
-		return geom.XY{}, false
-	}
-	return mp, true
-}
-
-// buildEndCap returns the cap vertices going from the last segment's left
-// offset endpoint to its right offset endpoint at vertex. The endpoints
-// themselves are NOT included (caller emits them).
-func buildEndCap(vertex geom.XY, last segment, d float64, cfg config) []geom.XY {
-	leftEnd := geom.XY{X: vertex.X + d*last.nx, Y: vertex.Y + d*last.ny}
-	rightEnd := geom.XY{X: vertex.X - d*last.nx, Y: vertex.Y - d*last.ny}
-	fx, fy := last.forward()
-	switch cfg.cap {
-	case CapFlat:
-		return nil
-	case CapSquare:
-		_ = leftEnd
-		_ = rightEnd
-		// Two corner points extending forward by d.
-		p1 := geom.XY{X: vertex.X + d*last.nx + d*fx, Y: vertex.Y + d*last.ny + d*fy}
-		p2 := geom.XY{X: vertex.X - d*last.nx + d*fx, Y: vertex.Y - d*last.ny + d*fy}
-		return []geom.XY{p1, p2}
-	case CapRound:
-		return semicircle(vertex, leftEnd, rightEnd, fx, fy, d, cfg.quadSegments)
-	}
-	return nil
-}
-
-// buildStartCap mirrors buildEndCap for the start of the polyline. The
-// vertices go from the first segment's right offset start to its left
-// offset start.
-func buildStartCap(vertex geom.XY, first segment, d float64, cfg config) []geom.XY {
-	leftStart := geom.XY{X: vertex.X + d*first.nx, Y: vertex.Y + d*first.ny}
-	rightStart := geom.XY{X: vertex.X - d*first.nx, Y: vertex.Y - d*first.ny}
-	fx, fy := first.forward()
-	bx, by := -fx, -fy
-	switch cfg.cap {
-	case CapFlat:
-		return nil
-	case CapSquare:
-		_ = leftStart
-		_ = rightStart
-		p1 := geom.XY{X: vertex.X - d*first.nx + d*bx, Y: vertex.Y - d*first.ny + d*by}
-		p2 := geom.XY{X: vertex.X + d*first.nx + d*bx, Y: vertex.Y + d*first.ny + d*by}
-		return []geom.XY{p1, p2}
-	case CapRound:
-		return semicircle(vertex, rightStart, leftStart, bx, by, d, cfg.quadSegments)
-	}
-	return nil
-}
-
-// semicircle returns the interior vertices of a semicircular arc on the
-// circle of radius d around vertex, sweeping from p0 through the
-// (fx,fy)-pointing half-plane to p1. p0 and p1 are NOT included; exactly
-// 2*quad - 1 interior vertices are returned.
-func semicircle(vertex, p0, p1 geom.XY, fx, fy, d float64, quad int) []geom.XY {
-	a0 := math.Atan2(p0.Y-vertex.Y, p0.X-vertex.X)
-	a1 := math.Atan2(p1.Y-vertex.Y, p1.X-vertex.X)
-	delta := a1 - a0
-	// Choose sweep direction so the arc midpoint lies in the (fx,fy)
-	// half-plane (the "outside" of the line at this endpoint).
-	mid := func() (float64, float64) {
-		th := a0 + delta*0.5
-		return math.Cos(th), math.Sin(th)
-	}
-	mx, my := mid()
-	if mx*fx+my*fy < 0 {
-		if delta > 0 {
-			delta -= 2 * math.Pi
-		} else {
-			delta += 2 * math.Pi
-		}
-	}
-	steps := 2 * quad
-	out := make([]geom.XY, 0, steps-1)
-	for i := 1; i < steps; i++ {
-		t := float64(i) / float64(steps)
-		theta := a0 + delta*t
-		out = append(out, geom.XY{
-			X: vertex.X + d*math.Cos(theta),
-			Y: vertex.Y + d*math.Sin(theta),
-		})
-	}
-	return out
-}
