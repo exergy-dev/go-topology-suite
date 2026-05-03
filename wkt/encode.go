@@ -8,12 +8,43 @@ import (
 	"github.com/terra-geo/terra/geom"
 )
 
+// Option configures the WKT writer.
+type Option func(*config)
+
+type config struct {
+	// precision is the number of decimal digits to emit using 'f' format.
+	// A negative value (the default) selects Go's 'g' format with -1 prec
+	// (round-trip 17-digit shortest representation).
+	precision int
+}
+
+func defaults() config { return config{precision: -1} }
+
+// WithPrecision selects fixed-point output with the given number of decimal
+// digits. Default behaviour (precision < 0) is unchanged: Go's 'g' format
+// with the round-trip shortest representation.
+//
+// JTS reference: WKTWriter.OrdinateFormat / WKTWriter.setPrecisionModel
+// (org.locationtech.jts.io.WKTWriter).
+func WithPrecision(decimals int) Option {
+	return func(c *config) {
+		if decimals < 0 {
+			decimals = -1
+		}
+		c.precision = decimals
+	}
+}
+
 // Marshal returns the WKT representation of g.
 // CRS is intentionally not encoded — WKT proper has no SRID slot. Use
 // MarshalEWKT for the PostGIS "SRID=...;..." extension.
-func Marshal(g geom.Geometry) (string, error) {
+func Marshal(g geom.Geometry, opts ...Option) (string, error) {
+	c := defaults()
+	for _, o := range opts {
+		o(&c)
+	}
 	var b strings.Builder
-	if err := appendGeometry(&b, g); err != nil {
+	if err := appendGeometry(&b, g, &c); err != nil {
 		return "", err
 	}
 	return b.String(), nil
@@ -21,8 +52,8 @@ func Marshal(g geom.Geometry) (string, error) {
 
 // MarshalEWKT returns "SRID=<code>;<wkt>" if the geometry has an EPSG-coded
 // CRS attached; otherwise it is identical to Marshal.
-func MarshalEWKT(g geom.Geometry) (string, error) {
-	core, err := Marshal(g)
+func MarshalEWKT(g geom.Geometry, opts ...Option) (string, error) {
+	core, err := Marshal(g, opts...)
 	if err != nil {
 		return "", err
 	}
@@ -32,24 +63,24 @@ func MarshalEWKT(g geom.Geometry) (string, error) {
 	return core, nil
 }
 
-func appendGeometry(b *strings.Builder, g geom.Geometry) error {
+func appendGeometry(b *strings.Builder, g geom.Geometry, c *config) error {
 	switch v := g.(type) {
 	case *geom.Point:
-		return appendPoint(b, v)
+		return appendPoint(b, v, c)
 	case *geom.LineString:
-		return appendLineString(b, v)
+		return appendLineString(b, v, c)
 	case *geom.LinearRing:
-		return appendLinearRing(b, v)
+		return appendLinearRing(b, v, c)
 	case *geom.Polygon:
-		return appendPolygon(b, v)
+		return appendPolygon(b, v, c)
 	case *geom.MultiPoint:
-		return appendMultiPoint(b, v)
+		return appendMultiPoint(b, v, c)
 	case *geom.MultiLineString:
-		return appendMultiLineString(b, v)
+		return appendMultiLineString(b, v, c)
 	case *geom.MultiPolygon:
-		return appendMultiPolygon(b, v)
+		return appendMultiPolygon(b, v, c)
 	case *geom.GeometryCollection:
-		return appendGeometryCollection(b, v)
+		return appendGeometryCollection(b, v, c)
 	default:
 		return fmt.Errorf("wkt: unsupported geometry type %T", g)
 	}
@@ -70,21 +101,25 @@ func layoutSuffix(l geom.Layout) string {
 	}
 }
 
-func writeNumber(b *strings.Builder, f float64) {
+func writeNumber(b *strings.Builder, f float64, c *config) {
+	if c != nil && c.precision >= 0 {
+		b.WriteString(strconv.FormatFloat(f, 'f', c.precision, 64))
+		return
+	}
 	b.WriteString(strconv.FormatFloat(f, 'g', -1, 64))
 }
 
 // writeFlatPoint writes one stride-sized vertex starting at coords[off].
-func writeFlatPoint(b *strings.Builder, coords []float64, off, stride int) {
+func writeFlatPoint(b *strings.Builder, coords []float64, off, stride int, c *config) {
 	for i := 0; i < stride; i++ {
 		if i > 0 {
 			b.WriteByte(' ')
 		}
-		writeNumber(b, coords[off+i])
+		writeNumber(b, coords[off+i], c)
 	}
 }
 
-func appendPoint(b *strings.Builder, p *geom.Point) error {
+func appendPoint(b *strings.Builder, p *geom.Point, c *config) error {
 	b.WriteString("POINT")
 	b.WriteString(layoutSuffix(p.Layout()))
 	if p.IsEmpty() {
@@ -94,24 +129,24 @@ func appendPoint(b *strings.Builder, p *geom.Point) error {
 	b.WriteString(" (")
 	flat := p.FlatCoords()
 	stride := p.Layout().Stride()
-	writeFlatPoint(b, flat, 0, stride)
+	writeFlatPoint(b, flat, 0, stride, c)
 	b.WriteByte(')')
 	return nil
 }
 
-func appendCoordSequence(b *strings.Builder, flat []float64, stride int) {
+func appendCoordSequence(b *strings.Builder, flat []float64, stride int, c *config) {
 	b.WriteByte('(')
 	n := len(flat) / stride
 	for i := 0; i < n; i++ {
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		writeFlatPoint(b, flat, i*stride, stride)
+		writeFlatPoint(b, flat, i*stride, stride, c)
 	}
 	b.WriteByte(')')
 }
 
-func appendLineString(b *strings.Builder, ls *geom.LineString) error {
+func appendLineString(b *strings.Builder, ls *geom.LineString, c *config) error {
 	b.WriteString("LINESTRING")
 	b.WriteString(layoutSuffix(ls.Layout()))
 	if ls.IsEmpty() {
@@ -119,11 +154,11 @@ func appendLineString(b *strings.Builder, ls *geom.LineString) error {
 		return nil
 	}
 	b.WriteByte(' ')
-	appendCoordSequence(b, ls.FlatCoords(), ls.Layout().Stride())
+	appendCoordSequence(b, ls.FlatCoords(), ls.Layout().Stride(), c)
 	return nil
 }
 
-func appendLinearRing(b *strings.Builder, lr *geom.LinearRing) error {
+func appendLinearRing(b *strings.Builder, lr *geom.LinearRing, c *config) error {
 	b.WriteString("LINEARRING")
 	b.WriteString(layoutSuffix(lr.Layout()))
 	if lr.IsEmpty() {
@@ -131,11 +166,11 @@ func appendLinearRing(b *strings.Builder, lr *geom.LinearRing) error {
 		return nil
 	}
 	b.WriteByte(' ')
-	appendCoordSequence(b, lr.FlatCoords(), lr.Layout().Stride())
+	appendCoordSequence(b, lr.FlatCoords(), lr.Layout().Stride(), c)
 	return nil
 }
 
-func appendPolygon(b *strings.Builder, p *geom.Polygon) error {
+func appendPolygon(b *strings.Builder, p *geom.Polygon, c *config) error {
 	b.WriteString("POLYGON")
 	b.WriteString(layoutSuffix(p.Layout()))
 	if p.IsEmpty() {
@@ -148,26 +183,26 @@ func appendPolygon(b *strings.Builder, p *geom.Polygon) error {
 			b.WriteString(", ")
 		}
 		ring := p.Ring(i)
-		writeRingXY(b, ring)
+		writeRingXY(b, ring, c)
 	}
 	b.WriteByte(')')
 	return nil
 }
 
-func writeRingXY(b *strings.Builder, ring []geom.XY) {
+func writeRingXY(b *strings.Builder, ring []geom.XY, c *config) {
 	b.WriteByte('(')
 	for i, p := range ring {
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		writeNumber(b, p.X)
+		writeNumber(b, p.X, c)
 		b.WriteByte(' ')
-		writeNumber(b, p.Y)
+		writeNumber(b, p.Y, c)
 	}
 	b.WriteByte(')')
 }
 
-func appendMultiPoint(b *strings.Builder, mp *geom.MultiPoint) error {
+func appendMultiPoint(b *strings.Builder, mp *geom.MultiPoint, c *config) error {
 	b.WriteString("MULTIPOINT")
 	b.WriteString(layoutSuffix(mp.Layout()))
 	if mp.IsEmpty() {
@@ -183,14 +218,14 @@ func appendMultiPoint(b *strings.Builder, mp *geom.MultiPoint) error {
 			b.WriteString(", ")
 		}
 		b.WriteByte('(')
-		writeFlatPoint(b, flat, i*stride, stride)
+		writeFlatPoint(b, flat, i*stride, stride, c)
 		b.WriteByte(')')
 	}
 	b.WriteByte(')')
 	return nil
 }
 
-func appendMultiLineString(b *strings.Builder, m *geom.MultiLineString) error {
+func appendMultiLineString(b *strings.Builder, m *geom.MultiLineString, c *config) error {
 	b.WriteString("MULTILINESTRING")
 	b.WriteString(layoutSuffix(m.Layout()))
 	if m.IsEmpty() {
@@ -203,13 +238,13 @@ func appendMultiLineString(b *strings.Builder, m *geom.MultiLineString) error {
 			b.WriteString(", ")
 		}
 		ls := m.LineStringAt(i)
-		appendCoordSequence(b, ls.FlatCoords(), ls.Layout().Stride())
+		appendCoordSequence(b, ls.FlatCoords(), ls.Layout().Stride(), c)
 	}
 	b.WriteByte(')')
 	return nil
 }
 
-func appendMultiPolygon(b *strings.Builder, m *geom.MultiPolygon) error {
+func appendMultiPolygon(b *strings.Builder, m *geom.MultiPolygon, c *config) error {
 	b.WriteString("MULTIPOLYGON")
 	b.WriteString(layoutSuffix(m.Layout()))
 	if m.IsEmpty() {
@@ -227,7 +262,7 @@ func appendMultiPolygon(b *strings.Builder, m *geom.MultiPolygon) error {
 			if j > 0 {
 				b.WriteString(", ")
 			}
-			writeRingXY(b, p.Ring(j))
+			writeRingXY(b, p.Ring(j), c)
 		}
 		b.WriteByte(')')
 	}
@@ -235,7 +270,7 @@ func appendMultiPolygon(b *strings.Builder, m *geom.MultiPolygon) error {
 	return nil
 }
 
-func appendGeometryCollection(b *strings.Builder, gc *geom.GeometryCollection) error {
+func appendGeometryCollection(b *strings.Builder, gc *geom.GeometryCollection, c *config) error {
 	b.WriteString("GEOMETRYCOLLECTION")
 	b.WriteString(layoutSuffix(gc.Layout()))
 	if gc.IsEmpty() {
@@ -247,7 +282,7 @@ func appendGeometryCollection(b *strings.Builder, gc *geom.GeometryCollection) e
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		if err := appendGeometry(b, gc.GeometryAt(i)); err != nil {
+		if err := appendGeometry(b, gc.GeometryAt(i), c); err != nil {
 			return err
 		}
 	}
