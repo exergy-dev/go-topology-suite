@@ -222,31 +222,6 @@ func (k Kernel) SegmentDistance(p, a, b geom.XY) float64 {
 	return k.Distance(p, closest)
 }
 
-// PointToSegmentSq returns the squared shortest distance from p to segment
-// [a,b]. Equivalent to SegmentDistance(p,a,b)² but avoids the sqrt — useful
-// for inner-loop comparisons where only relative ordering is needed.
-//
-// Mirrors JTS Distance.pointToSegmentSq (org.locationtech.jts.algorithm.Distance).
-func (k Kernel) PointToSegmentSq(p, a, b geom.XY) float64 {
-	if a.X == b.X && a.Y == b.Y {
-		return k.DistanceSquared(p, a)
-	}
-	dx := b.X - a.X
-	dy := b.Y - a.Y
-	lenSq := dx*dx + dy*dy
-	r := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / lenSq
-	if r <= 0 {
-		return k.DistanceSquared(p, a)
-	}
-	if r >= 1 {
-		return k.DistanceSquared(p, b)
-	}
-	// Perpendicular component (signed cross / |AB|²) times |AB| gives the
-	// perpendicular distance; squared form is s²·|AB|².
-	s := ((a.Y-p.Y)*dx - (a.X-p.X)*dy) / lenSq
-	return s * s * lenSq
-}
-
 // PointToLinePerpendicular returns the perpendicular distance from p to the
 // INFINITE line through a and b (NOT clamped to the segment). a and b must
 // be distinct.

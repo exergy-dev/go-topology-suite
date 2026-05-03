@@ -141,7 +141,7 @@ func (a *IntersectionAdder) processNearVertex(p, p0, p1 geom.XY) {
 	if planarK.DistanceSquared(p, p1) < tolSq {
 		return
 	}
-	if planarK.PointToSegmentSq(p, p0, p1) < tolSq {
+	if planarK.SegmentDistanceSq(p, p0, p1) < tolSq {
 		a.intersections = append(a.intersections, p)
 	}
 }

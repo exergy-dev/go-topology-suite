@@ -8,9 +8,9 @@ import (
 	"github.com/terra-geo/terra/geom"
 )
 
-// PointToSegmentSq must equal SegmentDistance² across a battery of
+// SegmentDistanceSq must equal SegmentDistance² across a battery of
 // geometries (perpendicular, before-A clamp, after-B clamp, on-segment).
-func TestPointToSegmentSq_AgreesWithSegmentDistance(t *testing.T) {
+func TestSegmentDistanceSq_AgreesWithSegmentDistance(t *testing.T) {
 	cases := []struct {
 		name    string
 		p, a, b geom.XY
@@ -24,15 +24,15 @@ func TestPointToSegmentSq_AgreesWithSegmentDistance(t *testing.T) {
 		{"large coords", xy(1e6, 1e6), xy(0, 0), xy(2e6, 0)},
 	}
 	for _, tc := range cases {
-		got := k.PointToSegmentSq(tc.p, tc.a, tc.b)
+		got := k.SegmentDistanceSq(tc.p, tc.a, tc.b)
 		want := k.SegmentDistance(tc.p, tc.a, tc.b)
 		assert.InDeltaf(t, want*want, got, 1e-9, "%s: got %v want %v² = %v", tc.name, got, want, want*want)
 	}
 }
 
-// PointToSegmentSq must never be negative.
-func TestPointToSegmentSq_NonNegative(t *testing.T) {
-	got := k.PointToSegmentSq(xy(1, 0), xy(0, 0), xy(2, 0))
+// SegmentDistanceSq must never be negative.
+func TestSegmentDistanceSq_NonNegative(t *testing.T) {
+	got := k.SegmentDistanceSq(xy(1, 0), xy(0, 0), xy(2, 0))
 	assert.GreaterOrEqual(t, got, 0.0)
 }
 
