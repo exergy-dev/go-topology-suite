@@ -11,17 +11,64 @@ import "github.com/terra-geo/terra/geom"
 // (twin of an arriving boundary half-edge) and "exits" along another
 // outgoing boundary half-edge. The exit is the FIRST outgoing edge in
 // CCW-around-the-vertex order, starting from twin(e), whose face is
-// kept (and twin not kept).
+// kept (and twin not kept) AND in the same connected-component-of-kept
+// faces as the incoming edge's face.
 //
-// This is the standard "boundary of a face union" trace; it correctly
-// handles the case where multiple kept faces meet at a vertex (the
-// interior-of-kept-region edges between them are simply skipped).
+// The connected-component constraint matters at PINCH-POINT vertices,
+// where two kept components touch only at a single vertex (no shared
+// edge). Without the constraint, the trace's "next CCW after twin"
+// rule can pick an outgoing edge whose face belongs to a DIFFERENT
+// kept component, fusing what should be separate boundary loops into
+// a single self-touching ring. TestOverlayAA case#9 (multipoly
+// SymDifference with comb notches partially filled) exposes this
+// directly.
+//
+// Connected components are computed by union-find over kept faces:
+// two kept faces are in the same component iff they share at least
+// one half-edge whose twin is also kept (i.e., a non-boundary
+// interior edge of the union).
 func extractResultRings(d *dcel) [][]geom.XY {
 	isBoundary := func(e *halfEdge) bool {
 		if e.face == nil || e.twin == nil || e.twin.face == nil {
 			return false
 		}
 		return e.face.keep && !e.twin.face.keep
+	}
+
+	// Union-find over kept faces. Faces are joined when they share an
+	// interior edge (both halves kept). Pinch-point-only contact does
+	// NOT join (no shared edge — only a shared vertex).
+	parent := map[*face]*face{}
+	var find func(f *face) *face
+	find = func(f *face) *face {
+		if parent[f] == nil {
+			parent[f] = f
+		}
+		if parent[f] == f {
+			return f
+		}
+		root := find(parent[f])
+		parent[f] = root
+		return root
+	}
+	union := func(a, b *face) {
+		ra, rb := find(a), find(b)
+		if ra != rb {
+			parent[ra] = rb
+		}
+	}
+	for _, f := range d.faces {
+		if f.keep {
+			find(f)
+		}
+	}
+	for _, e := range d.edges {
+		if e.face == nil || e.twin == nil || e.twin.face == nil {
+			continue
+		}
+		if e.face.keep && e.twin.face.keep {
+			union(e.face, e.twin.face)
+		}
 	}
 
 	var allBoundary []*halfEdge
@@ -49,7 +96,7 @@ func extractResultRings(d *dcel) [][]geom.XY {
 			}
 			visited[cur] = true
 			ring = append(ring, cur.origin.p)
-			next := nextBoundaryAtVertex(cur, isBoundary)
+			next := nextBoundaryAtVertex(cur, isBoundary, find)
 			if next == nil || next == start {
 				break
 			}
@@ -64,8 +111,16 @@ func extractResultRings(d *dcel) [][]geom.XY {
 }
 
 // nextBoundaryAtVertex returns the next outgoing boundary edge in CCW
-// order around e.target, starting after twin(e). Returns nil if none.
-func nextBoundaryAtVertex(e *halfEdge, isBoundary func(*halfEdge) bool) *halfEdge {
+// order around e.target, starting after twin(e). The selected edge's
+// face must be in the same kept-region connected component as e.face
+// (per the find function); this prevents the trace from crossing
+// pinch-point vertices into a different component. Returns nil if no
+// same-component boundary edge exists.
+//
+// If find is nil, falls back to plain "first CCW boundary after twin"
+// — preserves the original behaviour for callers that don't require
+// component-aware tracing.
+func nextBoundaryAtVertex(e *halfEdge, isBoundary func(*halfEdge) bool, find func(*face) *face) *halfEdge {
 	v := e.target
 	twin := e.twin
 	idx := -1
@@ -78,12 +133,32 @@ func nextBoundaryAtVertex(e *halfEdge, isBoundary func(*halfEdge) bool) *halfEdg
 	if idx < 0 {
 		return nil
 	}
+	var component *face
+	if find != nil && e.face != nil {
+		component = find(e.face)
+	}
 	n := len(v.out)
 	for step := 1; step < n; step++ {
 		j := (idx + step) % n
 		candidate := v.out[j]
-		if isBoundary(candidate) {
-			return candidate
+		if !isBoundary(candidate) {
+			continue
+		}
+		if component != nil && find(candidate.face) != component {
+			continue
+		}
+		return candidate
+	}
+	// Fallback: if no same-component candidate exists at this vertex,
+	// any boundary edge will do (rare; happens in degenerate
+	// disjoint-component traces). Try without the component filter.
+	if component != nil {
+		for step := 1; step < n; step++ {
+			j := (idx + step) % n
+			candidate := v.out[j]
+			if isBoundary(candidate) {
+				return candidate
+			}
 		}
 	}
 	return nil
