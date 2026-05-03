@@ -296,3 +296,24 @@ func (Kernel) AngleBetween(a, b, c geom.XY) float64 {
 	}
 	return math.Acos(cos)
 }
+
+// AngleBetweenOriented returns the oriented (signed) smallest angle between
+// the two vectors (vertex -> tip0) and (vertex -> tip1), in radians, in the
+// range (-π, π].
+//
+// A positive result corresponds to a counterclockwise rotation from v0 to v1;
+// a negative result to a clockwise rotation; zero means no rotation.
+//
+// Mirrors JTS Angle.angleBetweenOriented (org.locationtech.jts.algorithm.Angle).
+func (Kernel) AngleBetweenOriented(tip0, vertex, tip1 geom.XY) float64 {
+	a1 := math.Atan2(tip0.Y-vertex.Y, tip0.X-vertex.X)
+	a2 := math.Atan2(tip1.Y-vertex.Y, tip1.X-vertex.X)
+	angDel := a2 - a1
+	if angDel <= -math.Pi {
+		return angDel + 2*math.Pi
+	}
+	if angDel > math.Pi {
+		return angDel - 2*math.Pi
+	}
+	return angDel
+}
