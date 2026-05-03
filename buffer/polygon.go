@@ -69,13 +69,15 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 			// original polygon as the safest no-growth answer.
 			return geom.NewPolygon(p.CRS(), allRings(p)...), nil
 		}
-		// Snap-rounding tolerance: a fraction of the buffer distance,
-		// chosen so coordinate ULP noise from mitre-cap corner
-		// computation is clustered to the same grid cell, but real
-		// geometric features (segments separated by > tolerance) are
-		// preserved. JTS uses scale = max-input-coord-magnitude *
-		// 1e-12; we use distance * 1e-9 as a robust default.
-		tolerance := math.Abs(distance) * 1e-9
+		// Snap-rounding tolerance: JTS-style coordinate-magnitude-
+		// relative scale factor. Reserves maxPrecisionDigits=12
+		// decimal digits of precision in the (geometry envelope +
+		// buffer distance), capping the snap grid so the noder sees
+		// discriminable vertices at the input's natural scale rather
+		// than at our previous fixed distance·1e-9 (which is too fine
+		// for UTM-magnitude coords and leads to depth-labelling
+		// non-convergence on the GEOS#605 corpus).
+		tolerance := bufferPrecisionTolerance(p, distance, 12)
 		// V4 positive-buffer validator: filter polygonizer output by
 		// winding-number depth-against-original. Phantom subgraphs
 		// whose rep has winding == -sign(outer) (topologically inverted
@@ -138,7 +140,7 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		if len(segs) == 0 {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		tolerance := d * 1e-9
+		tolerance := bufferPrecisionTolerance(p, distance, 12)
 		// Face-validity filter for the polygonizer: a kept ring's
 		// representative interior point must satisfy BOTH
 		//
@@ -752,3 +754,43 @@ func ringDegenerate(ring []geom.XY) bool {
 	return (maxX-minX) < eps || (maxY-minY) < eps
 }
 
+// bufferPrecisionTolerance returns the snap-rounding cell size for
+// buffering p at the given (signed) distance, capped to leave
+// maxPrecisionDigits decimal digits of headroom in the
+// (envelope-magnitude + buffer-distance) range.
+//
+// Mirrors JTS's BufferOp.precisionScaleFactor: scaleFactor = 10^(maxDigits −
+// bufEnvPrecisionDigits) where bufEnvPrecisionDigits =
+// floor(log10(envMax + 2·max(distance,0))) + 1. We return 1/scaleFactor
+// directly so callers can pass it as a tolerance in original-coord units.
+//
+// Falls back to math.Abs(distance)*1e-9 (our previous default) when the
+// envelope is degenerate or the computed tolerance is non-finite.
+func bufferPrecisionTolerance(p *geom.Polygon, distance float64, maxPrecisionDigits int) float64 {
+	fallback := math.Abs(distance) * 1e-9
+	if p == nil || p.IsEmpty() {
+		return fallback
+	}
+	env := p.Envelope()
+	envMax := math.Abs(env.MinX)
+	for _, v := range []float64{math.Abs(env.MaxX), math.Abs(env.MinY), math.Abs(env.MaxY)} {
+		if v > envMax {
+			envMax = v
+		}
+	}
+	expand := 0.0
+	if distance > 0 {
+		expand = distance
+	}
+	bufEnvMax := envMax + 2*expand
+	if !(bufEnvMax > 0) || math.IsInf(bufEnvMax, 0) {
+		return fallback
+	}
+	bufEnvPrecisionDigits := int(math.Log10(bufEnvMax)) + 1
+	minUnitLog10 := maxPrecisionDigits - bufEnvPrecisionDigits
+	scaleFactor := math.Pow(10, float64(minUnitLog10))
+	if !(scaleFactor > 0) || math.IsInf(scaleFactor, 0) {
+		return fallback
+	}
+	return 1.0 / scaleFactor
+}
