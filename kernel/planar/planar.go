@@ -260,6 +260,33 @@ func (Kernel) PointToLinePerpendicular(p, a, b geom.XY) float64 {
 	return math.Abs(s) * math.Sqrt(lenSq)
 }
 
+// SegmentDistanceSq returns the squared shortest distance from p to
+// segment [a,b]. Mirrors JTS Distance.pointToSegmentSq — useful in
+// hot loops where comparing against a squared tolerance avoids a
+// sqrt per call (e.g., spatial-index nearest-neighbour pruning).
+//
+// For a degenerate segment (a == b) it falls back to the squared
+// point-distance.
+func (k Kernel) SegmentDistanceSq(p, a, b geom.XY) float64 {
+	dx := b.X - a.X
+	dy := b.Y - a.Y
+	lenSq := dx*dx + dy*dy
+	if lenSq == 0 {
+		ex, ey := p.X-a.X, p.Y-a.Y
+		return ex*ex + ey*ey
+	}
+	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / lenSq
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+	cx := a.X + t*dx
+	cy := a.Y + t*dy
+	ex, ey := p.X-cx, p.Y-cy
+	return ex*ex + ey*ey
+}
+
 // Orient classifies the turn (a, b, c) using a Shewchuk-style adaptive
 // 2D orientation predicate (see robust.go).
 //

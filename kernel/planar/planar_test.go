@@ -204,3 +204,17 @@ func TestSegmentDistance(t *testing.T) {
 	d3 := k.SegmentDistance(xy(0, 0), xy(3, 4), xy(3, 4))
 	assert.Equal(t, 5.0, d3, "Degenerate segment distance")
 }
+
+// TestSegmentDistanceSq mirrors TestSegmentDistance for the
+// JTS-style Distance.pointToSegmentSq helper. Each value should be
+// the square of the corresponding SegmentDistance result.
+func TestSegmentDistanceSq(t *testing.T) {
+	dsq := k.SegmentDistanceSq(xy(1, 1), xy(0, 0), xy(2, 0))
+	assert.InDelta(t, 1.0, dsq, 1e-9, "SegmentDistanceSq perpendicular")
+
+	dsq2 := k.SegmentDistanceSq(xy(5, 0), xy(0, 0), xy(2, 0))
+	assert.InDelta(t, 9.0, dsq2, 1e-9, "SegmentDistanceSq past-end")
+
+	dsq3 := k.SegmentDistanceSq(xy(0, 0), xy(3, 4), xy(3, 4))
+	assert.Equal(t, 25.0, dsq3, "SegmentDistanceSq degenerate")
+}
