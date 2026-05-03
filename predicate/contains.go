@@ -485,6 +485,30 @@ func Within(a, b geom.Geometry, opts ...Option) (bool, error) {
 	return Contains(b, a, opts...)
 }
 
+// ContainsProperly reports whether b lies entirely in the interior of a
+// (no point of b touches a's boundary). Strict version of Contains; the
+// matrix pattern is "T**FF*FF*" (mirrors JTS
+// IntersectionMatrixPattern.CONTAINS_PROPERLY).
+//
+// Useful as a fast pre-filter for spatial joins where boundary contact
+// is irrelevant: ContainsProperly never requires boundary noding, while
+// Contains and Covers may.
+func ContainsProperly(a, b geom.Geometry, opts ...Option) (bool, error) {
+	if !crs.Equal(a.CRS(), b.CRS()) {
+		return false, terra.ErrCRSMismatch
+	}
+	a = unwrapLinearRing(a)
+	b = unwrapLinearRing(b)
+	if a.IsEmpty() || b.IsEmpty() {
+		return false, nil
+	}
+	d, err := Relate(a, b, opts...)
+	if err != nil {
+		return false, err
+	}
+	return d.IsContainsProperly(), nil
+}
+
 func polygonContains(a *geom.Polygon, b geom.Geometry, k kernel.Kernel) (bool, error) {
 	switch vb := b.(type) {
 	case *geom.Point:

@@ -653,6 +653,100 @@ func pointCoveredByOne(p geom.XY, m geom.Geometry, k kernel.Kernel) bool {
 	return err == nil && ok
 }
 
+// JTS-compatible DE-9IM matrix pattern constants (mirrors
+// org.locationtech.jts.operation.relateng.IntersectionMatrixPattern).
+//
+//   - PatternAdjacent matches polygonal geometries that share an edge but
+//     do not overlap.
+//   - PatternContainsProperly matches a geometry whose interior strictly
+//     contains another (no boundary contact).
+//   - PatternInteriorIntersects matches any pair whose interiors meet.
+const (
+	PatternAdjacent           = "F***1****"
+	PatternContainsProperly   = "T**FF*FF*"
+	PatternInteriorIntersects = "T********"
+)
+
+// IsIntersects reports whether d corresponds to two geometries with a
+// non-empty intersection (any of II/IB/BI/BB non-F).
+func (d DE9IM) IsIntersects() bool {
+	return d.Matches("T********") ||
+		d.Matches("*T*******") ||
+		d.Matches("***T*****") ||
+		d.Matches("****T****")
+}
+
+// IsDisjoint reports whether d corresponds to two geometries with no
+// shared points.
+func (d DE9IM) IsDisjoint() bool { return !d.IsIntersects() }
+
+// IsContains reports whether d satisfies the OGC contains pattern.
+func (d DE9IM) IsContains() bool { return d.Matches("T*****FF*") }
+
+// IsWithin reports whether d satisfies the OGC within pattern.
+func (d DE9IM) IsWithin() bool { return d.Matches("T*F**F***") }
+
+// IsCovers reports whether d satisfies any of the OGC covers patterns.
+func (d DE9IM) IsCovers() bool {
+	return d.Matches("T*****FF*") ||
+		d.Matches("*T****FF*") ||
+		d.Matches("***T**FF*") ||
+		d.Matches("****T*FF*")
+}
+
+// IsCoveredBy reports whether d satisfies any of the OGC covered-by
+// patterns (the transposes of IsCovers).
+func (d DE9IM) IsCoveredBy() bool {
+	return d.Matches("T*F**F***") ||
+		d.Matches("*TF**F***") ||
+		d.Matches("**FT*F***") ||
+		d.Matches("**F*TF***")
+}
+
+// IsTouches reports whether d satisfies the OGC touches pattern. The
+// dimension-pair filter (no Point/Point) is the caller's responsibility.
+func (d DE9IM) IsTouches() bool {
+	return d.Matches("FT*******") ||
+		d.Matches("F**T*****") ||
+		d.Matches("F***T****")
+}
+
+// IsCrosses reports whether d satisfies the OGC crosses pattern for
+// geometries of dimensions dimA and dimB. Same-dim 0/0 and 2/2 are
+// undefined and return false.
+func (d DE9IM) IsCrosses(dimA, dimB int) bool {
+	switch {
+	case dimA == 1 && dimB == 1:
+		return d.Matches("0********")
+	case dimA < dimB:
+		return d.Matches("T*T******")
+	case dimA > dimB:
+		return d.Matches("T*****T**")
+	}
+	return false
+}
+
+// IsOverlaps reports whether d satisfies the OGC overlaps pattern for
+// equal-dimension dim. Mixed-dim returns false.
+func (d DE9IM) IsOverlaps(dimA, dimB int) bool {
+	if dimA != dimB {
+		return false
+	}
+	if dimA == 1 {
+		return d.Matches("1*T***T**")
+	}
+	return d.Matches("T*T***T**")
+}
+
+// IsEquals reports whether d satisfies the OGC topological equals
+// pattern (II non-empty, no exclusive parts).
+func (d DE9IM) IsEquals() bool { return d.Matches("T*F**FFF*") }
+
+// IsContainsProperly reports whether d satisfies the JTS
+// "contains properly" pattern (interior strictly contains the other,
+// no boundary contact).
+func (d DE9IM) IsContainsProperly() bool { return d.Matches(PatternContainsProperly) }
+
 // Matches reports whether the DE-9IM matrix matches the given pattern.
 // The pattern uses the same 9-char layout but with extra wildcards:
 //
