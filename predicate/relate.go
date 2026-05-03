@@ -16,13 +16,9 @@ import (
 // intersection: point / curve / area).
 type DE9IM string
 
-// Relate returns the DE-9IM matrix for (a, b).
-//
-// The matrix is computed by the RelateNG topology driver
-// (internal/relateng), which mirrors JTS's
-// org.locationtech.jts.operation.relateng.RelateNG. The legacy
-// per-pair DE-9IM pipeline that previously sat here was removed
-// after RelateNG became the default in Wave 16.
+// Relate returns the DE-9IM matrix for (a, b). Computed by the
+// RelateNG topology driver (internal/relateng), mirroring JTS's
+// org.locationtech.jts.operation.relateng.RelateNG.
 func Relate(a, b geom.Geometry, opts ...Option) (DE9IM, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
 		return "", terra.ErrCRSMismatch

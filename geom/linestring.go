@@ -64,6 +64,19 @@ func (ls *LineString) IsClosed() bool {
 	return ls.PointAt(0).Equal(ls.PointAt(n - 1))
 }
 
+// XYs returns the line string's vertices as a fresh []XY slice. The result
+// is independent of the LineString's internal storage; mutating it does not
+// affect the geometry.
+func (ls *LineString) XYs() []XY {
+	n := ls.numCoords()
+	stride := ls.stride()
+	out := make([]XY, n)
+	for i, off := 0, 0; i < n; i, off = i+1, off+stride {
+		out[i] = XY{ls.coords[off], ls.coords[off+1]}
+	}
+	return out
+}
+
 // CoordsXY returns a range-over-func iterator yielding each vertex as XY.
 // Use:
 //

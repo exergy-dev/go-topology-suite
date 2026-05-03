@@ -18,8 +18,6 @@ import (
 	"github.com/terra-geo/terra/index"
 )
 
-// facetSequenceSize follows JTS: 6 segments per chunk is empirically a
-// good trade-off between query selectivity and per-leaf compute.
 const facetSequenceSize = 6
 
 // facetSequence is a JTS-shaped subsequence of a coordinate ring.
@@ -81,10 +79,10 @@ func computeFacetSequences(g geom.Geometry) []*facetSequence {
 			pts := []geom.XY{v.XY()}
 			out = append(out, newFacetSequence(pts, 0, 1))
 		case *geom.LineString:
-			pts := lineStringXYs(v)
+			pts := v.XYs()
 			out = append(out, addFacetSequences(pts)...)
 		case *geom.LinearRing:
-			pts := lineStringXYs(v.AsLineString())
+			pts := v.AsLineString().XYs()
 			out = append(out, addFacetSequences(pts)...)
 		case *geom.Polygon:
 			for r := 0; r < v.NumRings(); r++ {
@@ -116,14 +114,6 @@ func addFacetSequences(pts []geom.XY) []*facetSequence {
 		i += facetSequenceSize
 	}
 	return out
-}
-
-func lineStringXYs(ls *geom.LineString) []geom.XY {
-	pts := make([]geom.XY, ls.NumPoints())
-	for i := 0; i < ls.NumPoints(); i++ {
-		pts[i] = ls.PointAt(i)
-	}
-	return pts
 }
 
 // minClearanceBetween computes the MinClearance distance metric between
@@ -202,30 +192,6 @@ func segmentClearance(fs1, fs2 *facetSequence, bestDist float64, pts *[2]geom.XY
 	return bestDist
 }
 
-// envEnvDistance computes the minimum distance between two envelopes.
-// Returns 0 if they overlap, +Inf if either is empty.
-func envEnvDistance(a, b geom.Envelope) float64 {
-	if a.IsEmpty() || b.IsEmpty() {
-		return math.Inf(+1)
-	}
-	dx := 0.0
-	if a.MaxX < b.MinX {
-		dx = b.MinX - a.MaxX
-	} else if b.MaxX < a.MinX {
-		dx = a.MinX - b.MaxX
-	}
-	dy := 0.0
-	if a.MaxY < b.MinY {
-		dy = b.MinY - a.MaxY
-	} else if b.MaxY < a.MinY {
-		dy = a.MinY - b.MaxY
-	}
-	if dx == 0 && dy == 0 {
-		return 0
-	}
-	return math.Sqrt(dx*dx + dy*dy)
-}
-
 // minClearanceFromTree runs each facet sequence as a query against the
 // shared tree, finds its closest *other* facet, and returns the global
 // minimum distance plus the witness coordinate pair.
@@ -241,13 +207,7 @@ func minClearanceFromTree(tree *index.RTree[*facetSequence], seqs []*facetSequen
 	best := math.Inf(+1)
 	var bestPts [2]geom.XY
 
-	// Self-clearance: every sequence may contain its own minimum
-	// (e.g. vertex-vertex within a 5-point square chunk, or
-	// vertex-to-non-adjacent-segment within the same chunk).
-	// JTS's MinClearanceDistance.distance(fs, fs) handles this case
-	// because the JTS STRtree pair traversal allows item==item when
-	// expanding the same subtree against itself; we make that
-	// explicit here.
+	// Self-clearance: a chunk's own minimum may live within the chunk.
 	for _, fs := range seqs {
 		var localPts [2]geom.XY
 		d := minClearanceBetween(fs, fs, math.Inf(+1), &localPts)
@@ -259,10 +219,8 @@ func minClearanceFromTree(tree *index.RTree[*facetSequence], seqs []*facetSequen
 
 	for _, fs := range seqs {
 		query := fs.envelope()
-		// Distance metric closes over fs so we can detect identity
-		// (comparison with self always yields +Inf so the tree will
-		// move on to the next candidate). Cross-sequence pairs return
-		// the inter-sequence MinClearance metric.
+		// Closure detects self-comparison and returns +Inf so the
+		// tree advances to the next candidate.
 		dist := index.ItemDistanceFunc[*facetSequence](
 			func(_ geom.Envelope, item index.Item[*facetSequence]) float64 {
 				if item.Value == fs {

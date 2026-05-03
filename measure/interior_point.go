@@ -212,26 +212,18 @@ func walkLines(g geom.Geometry, fn func([]geom.XY)) {
 	}
 	switch v := g.(type) {
 	case *geom.LineString:
-		fn(lineStringXYs(v))
+		fn(v.XYs())
 	case *geom.LinearRing:
-		fn(lineStringXYs(v.AsLineString()))
+		fn(v.AsLineString().XYs())
 	case *geom.MultiLineString:
 		for i := 0; i < v.NumGeometries(); i++ {
-			fn(lineStringXYs(v.LineStringAt(i)))
+			fn(v.LineStringAt(i).XYs())
 		}
 	case *geom.GeometryCollection:
 		for i := 0; i < v.NumGeometries(); i++ {
 			walkLines(v.GeometryAt(i), fn)
 		}
 	}
-}
-
-func lineStringXYs(ls *geom.LineString) []geom.XY {
-	out := make([]geom.XY, 0, ls.NumPoints())
-	for p := range ls.CoordsXY() {
-		out = append(out, p)
-	}
-	return out
 }
 
 // ----- InteriorPointArea (JTS InteriorPointArea) ------------------------------

@@ -32,8 +32,8 @@ type VertexSequencePackedRtree struct {
 	items       []geom.XY
 	levelOffset []int
 	bounds      []geom.Envelope
-	// boundsValid[i] mirrors JTS's "Envelope == null" sentinel, used to
-	// prune a parent node once all its children have been removed.
+	// boundsValid is a parallel slice of validity flags so that fully
+	// emptied nodes can be pruned without sentinel envelopes.
 	boundsValid []bool
 	isRemoved   []bool
 }
@@ -105,7 +105,7 @@ func (t *VertexSequencePackedRtree) fillItemBounds(bounds []geom.Envelope, valid
 	nodeStart := 0
 	boundIndex := 0
 	for nodeStart < len(t.items) {
-		nodeEnd := vsprMin(nodeStart+vsprNodeCapacity, len(t.items))
+		nodeEnd := min(nodeStart+vsprNodeCapacity, len(t.items))
 		bounds[boundIndex] = computeItemEnvelope(t.items, nodeStart, nodeEnd)
 		valid[boundIndex] = true
 		boundIndex++
@@ -119,7 +119,7 @@ func (t *VertexSequencePackedRtree) fillLevelBounds(lvl int, bounds []geom.Envel
 	nodeStart := levelStart
 	levelBoundIndex := t.levelOffset[lvl]
 	for nodeStart < levelEnd {
-		nodeEnd := vsprMin(nodeStart+vsprNodeCapacity, levelEnd)
+		nodeEnd := min(nodeStart+vsprNodeCapacity, levelEnd)
 		bounds[levelBoundIndex] = computeNodeEnvelope(bounds, valid, nodeStart, nodeEnd)
 		valid[levelBoundIndex] = true
 		levelBoundIndex++
@@ -208,9 +208,8 @@ func (t *VertexSequencePackedRtree) queryItemRange(queryEnv geom.Envelope, itemI
 
 // Remove marks the input vertex at index inactive. The underlying
 // coordinate slice is not modified. Subsequent Query calls will not
-// return this index. JTS-faithful: prunes the leaf-level node and its
-// level-1 parent when emptied; deeper-level pruning is left as a TODO
-// (matching JTS).
+// return this index. Prunes the leaf node and its level-1 parent when
+// emptied; deeper levels are left in place (matching JTS).
 func (t *VertexSequencePackedRtree) Remove(index int) {
 	t.isRemoved[index] = true
 	nodeIndex := index / vsprNodeCapacity
@@ -226,12 +225,11 @@ func (t *VertexSequencePackedRtree) Remove(index int) {
 		return
 	}
 	t.boundsValid[t.levelOffset[1]+nodeLevelIndex] = false
-	// TODO (matches JTS): propagate removal further up the tree.
 }
 
 func (t *VertexSequencePackedRtree) isItemsNodeEmpty(nodeIndex int) bool {
 	start := nodeIndex * vsprNodeCapacity
-	end := vsprMin(start+vsprNodeCapacity, len(t.items))
+	end := min(start+vsprNodeCapacity, len(t.items))
 	for i := start; i < end; i++ {
 		if !t.isRemoved[i] {
 			return false
@@ -242,7 +240,7 @@ func (t *VertexSequencePackedRtree) isItemsNodeEmpty(nodeIndex int) bool {
 
 func (t *VertexSequencePackedRtree) isNodeEmpty(level, index int) bool {
 	start := index * vsprNodeCapacity
-	end := vsprMin(start+vsprNodeCapacity, t.levelOffset[level])
+	end := min(start+vsprNodeCapacity, t.levelOffset[level])
 	for i := start; i < end; i++ {
 		if t.boundsValid[i] {
 			return false
@@ -258,11 +256,4 @@ func (t *VertexSequencePackedRtree) Bounds() []geom.Envelope {
 	out := make([]geom.Envelope, len(t.bounds))
 	copy(out, t.bounds)
 	return out
-}
-
-func vsprMin(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

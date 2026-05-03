@@ -40,11 +40,11 @@ func NewEdgeSetIntersector(edgesA, edgesB []*RelateSegmentString, env geom.Envel
 	}
 	es.addEdges(edgesA)
 	es.addEdges(edgesB)
-	es.idx.Bulk(toRTreeItems(es.chains, env))
+	es.idx.Bulk(toRTreeItems(es.chains))
 	return es
 }
 
-func toRTreeItems(chs []*relateChain, env geom.Envelope) []index.Item[*relateChain] {
+func toRTreeItems(chs []*relateChain) []index.Item[*relateChain] {
 	items := make([]index.Item[*relateChain], 0, len(chs))
 	for _, c := range chs {
 		items = append(items, index.Item[*relateChain]{
@@ -52,7 +52,6 @@ func toRTreeItems(chs []*relateChain, env geom.Envelope) []index.Item[*relateCha
 			Value: c,
 		})
 	}
-	_ = env
 	return items
 }
 
@@ -91,18 +90,8 @@ type SegmentPairProcessor interface {
 // Process runs the segment-pair scan, calling intersector.ProcessIntersections
 // for every candidate pair. The scan stops early when intersector.IsDone.
 //
-// requireSelfNoding controls whether intra-input pairs (A-vs-A and
-// B-vs-B) participate. When false (the common case for predicates like
-// Intersects / Disjoint / Contains / Covers / Touches whose answer
-// does not depend on self-intersections of an individual operand) the
-// scan visits only A-vs-B candidate pairs, skipping work that the
-// predicate would discard anyway. When true (Relate matrix predicates,
-// or any predicate whose JTS counterpart returns
-// requireSelfNoding=true) every chain pair is tested as before.
-//
-// Mirrors the corresponding short-circuit in JTS RelateNG, where the
-// EdgeSetIntersector consults the active TopologyPredicate before
-// dispatching each chain pair.
+// requireSelfNoding=false skips intra-input (A-vs-A, B-vs-B) chain
+// pairs, which the predicate would discard anyway.
 func (es *EdgeSetIntersector) Process(intersector SegmentPairProcessor, requireSelfNoding bool) {
 	for _, qc := range es.chains {
 		queryEnv := qc.mc.Envelope()
@@ -121,10 +110,7 @@ func (es *EdgeSetIntersector) Process(intersector SegmentPairProcessor, requireS
 			if !requireSelfNoding && tc.ss.IsA == qc.ss.IsA {
 				return true
 			}
-			tc.mc.ComputeOverlaps(qc.mc, 0, func(mc1 *noding.MonotoneChain, s1 int, mc2 *noding.MonotoneChain, s2 int) {
-				// mc1 is tc.mc; mc2 is qc.mc (matches the JTS callback
-				// orientation). The intersector handles isA-ordering
-				// internally.
+			tc.mc.ComputeOverlaps(qc.mc, 0, func(_ *noding.MonotoneChain, s1 int, _ *noding.MonotoneChain, s2 int) {
 				intersector.ProcessIntersections(tc.ss, s1, qc.ss, s2)
 			})
 			if intersector.IsDone() {

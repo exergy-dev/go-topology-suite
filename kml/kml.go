@@ -117,7 +117,7 @@ func writeGeometry(b *strings.Builder, g geom.Geometry, level int, c *config) er
 	case *geom.LineString:
 		writeLineString(b, v, level, c)
 	case *geom.LinearRing:
-		writeLinearRing(b, lineStringXY(v.AsLineString()), level, c, true)
+		writeLinearRing(b, v.AsLineString().XYs(), level, c, true)
 	case *geom.Polygon:
 		writePolygon(b, v, level, c)
 	case *geom.MultiPoint:
@@ -179,7 +179,7 @@ func pointZ(p *geom.Point, c *config) float64 {
 func writeLineString(b *strings.Builder, ls *geom.LineString, level int, c *config) {
 	startLine(b, "<LineString>\n", level, c)
 	writeModifiers(b, level, c)
-	xys := lineStringXY(ls)
+	xys := ls.XYs()
 	zs := lineStringZ(ls, c, len(xys))
 	writeCoords(b, xys, zs, level+1, c)
 	startLine(b, "</LineString>\n", level, c)
@@ -291,16 +291,6 @@ func (c *config) zValOrNaN() float64 {
 		return c.zVal
 	}
 	return math.NaN()
-}
-
-// lineStringXY returns the LineString's points as a fresh []XY slice.
-func lineStringXY(ls *geom.LineString) []geom.XY {
-	n := ls.NumPoints()
-	out := make([]geom.XY, n)
-	for i := 0; i < n; i++ {
-		out[i] = ls.PointAt(i)
-	}
-	return out
 }
 
 // lineStringZ returns the per-vertex Z to emit for a LineString. We use the

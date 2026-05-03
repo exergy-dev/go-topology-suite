@@ -5,11 +5,8 @@ import (
 	"github.com/terra-geo/terra/kernel"
 )
 
-// Small geometric helpers shared by Contains / Covers / Equals / the
-// short-circuit fast paths. These were originally part of the legacy
-// per-pair DE-9IM pipeline; they survive that pipeline's removal
-// because the short-circuit predicates still need them to answer
-// degenerate-shape questions without round-tripping through RelateNG.
+// Geometric helpers shared by Contains / Covers / Equals / short-circuit
+// fast paths to answer degenerate-shape questions without invoking RelateNG.
 
 // isZeroLengthLine reports whether every vertex of ls coincides with
 // the first — i.e. the LineString collapses to a single point.
