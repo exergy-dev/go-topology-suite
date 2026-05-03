@@ -30,9 +30,27 @@ type config struct {
 // preparedHandle is a thin interface so this package doesn't directly
 // depend on terra/prepare (which would create a cycle once prepare grows
 // to use predicates). Concrete instance: *prepare.PreparedPolygon.
+//
+// Methods beyond ContainsPoint/IntersectsEnvelope are reached via type
+// assertion in the per-predicate fast paths; only the core two are
+// required so a prepared form for a non-polygonal geometry can implement
+// the minimal interface.
 type preparedHandle interface {
 	ContainsPoint(p geom.XY) kernel.Containment
 	IntersectsEnvelope(e geom.Envelope) bool
+}
+
+// preparedIntersector is implemented by prepared geometries that can
+// answer the generic Intersects(geometry) question without a fall-through
+// to the slow path.
+type preparedIntersector interface {
+	Intersects(g geom.Geometry) bool
+}
+
+// preparedCoverer is implemented by prepared geometries that can answer
+// the generic Covers(geometry) question.
+type preparedCoverer interface {
+	Covers(g geom.Geometry) bool
 }
 
 // WithKernel selects an explicit geometric kernel. When omitted the

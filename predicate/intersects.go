@@ -33,6 +33,18 @@ func Intersects(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if c.kernel.Name() == "planar" && !a.Envelope().Intersects(b.Envelope()) {
 		return false, nil
 	}
+	// Prepared fast-path. Two tiers: (1) generic Intersects(g) when the
+	// prepared form supports it (PreparedPolygon, PreparedLineString),
+	// (2) a single-point ContainsPoint shortcut for the Polygon-vs-Point
+	// case using only the minimal handle interface.
+	if c.prepared != nil {
+		if pi, ok := c.prepared.(preparedIntersector); ok {
+			return pi.Intersects(b), nil
+		}
+		if pb, ok := b.(*geom.Point); ok {
+			return c.prepared.ContainsPoint(pb.XY()) != kernel.Outside, nil
+		}
+	}
 	return intersectsDispatch(a, b, c.kernel)
 }
 

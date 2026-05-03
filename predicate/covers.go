@@ -27,6 +27,25 @@ func Covers(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if c.kernel.Name() == "planar" && !a.Envelope().Contains(b.Envelope()) {
 		return false, nil
 	}
+	// Prepared fast-path. PreparedPolygon implements Covers(g) directly;
+	// fall back to the per-point ContainsPoint loop for the minimal
+	// handle interface (works for Point/MultiPoint inputs).
+	if c.prepared != nil {
+		if pc, ok := c.prepared.(preparedCoverer); ok {
+			return pc.Covers(b), nil
+		}
+		switch vb := b.(type) {
+		case *geom.Point:
+			return c.prepared.ContainsPoint(vb.XY()) != kernel.Outside, nil
+		case *geom.MultiPoint:
+			for i := 0; i < vb.NumGeometries(); i++ {
+				if c.prepared.ContainsPoint(vb.PointAt(i)) == kernel.Outside {
+					return false, nil
+				}
+			}
+			return vb.NumGeometries() > 0, nil
+		}
+	}
 	if ok, handled := coversFastPath(a, b, c.kernel); handled {
 		return ok, nil
 	}
