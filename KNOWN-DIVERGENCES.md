@@ -118,12 +118,25 @@ every wave's merge; no regressions.
 - **`geojson/`** — `WithPrecision`, `WithForceCCW` writer options.
 - **`overlay/`** — cascaded `UnaryUnion` via balanced binary tree (CascadedPolygonUnion), component-aware boundary trace for pinch-point topologies (closed TestOverlayAA case#9).
 
-#### Items still deferred
+#### RelateNG fully ported (Waves 7–10)
 
-- **Full RelateNG `TopologyComputer` port** (~2000 LOC, multi-day): the lazy DE-9IM build with incremental cell evaluation. Skeleton landed at `predicate/relateng.go`; short-circuit layer at `predicate/relate_short_circuit.go` provides most of the perf benefit. Full architecture port requires `RelateGeometry`, `EdgeSegmentIntersector`, `RelateEdge`, `RelateNode`, `IMPredicate`, `IMPatternMatcher` etc.
-- **3D operations** (`operation/distance3d`): out of scope — our codebase is 2D.
-- **`EnhancedPrecisionOp`**: requires modifying `overlay/`, deliberately gated in the parity round prompts.
-- **The 15 conformance residuals**: unchanged. 13 are external-tracker known or version-drift; 2 are residual algorithmic gaps already documented above.
+The full lazy DE-9IM build pipeline has been ported across waves
+7–10 in 104 total commits since `a0841aa`. RelateNG is now a complete
+JTS-faithful alternative to the legacy `Relate` path, opt-in via
+`predicate.UseRelateNG(true)`:
+
+- **Wave 7** (`1eac61b`): short-circuit fast-path layer + experimental `RelateNG` skeleton.
+- **Wave 8** (`6021b70`, `39eb6fb`, `0999f22`): `RelateGeometry` + `RelatePointLocator`, `TopologyPredicate` strategy family, `BasicPredicate` + `IMPredicate`, `IntersectsPredicate` + `DisjointPredicate` + `IMPatternMatcher`, `NodeSection`.
+- **Wave 9** (`c7ecf57`, `da91119`): `TopologyComputer` (point-locator path), `RelateNG.evaluate()` driver, wire into `predicate.Relate` via `UseRelateNG` option.
+- **Wave 10** (`97ff9d0` → `1ed5d19`, 6 commits): edge-intersection pipeline — `RelateNode`, `RelateEdge`, `EdgeSegmentIntersector`, `EdgeSetIntersector`, `PolygonNodeConverter`, `PolygonNodeTopology`, `AdjacentEdgeLocator`, `RelateSegmentString`, `NodeSections`, `computeAtEdges` integration.
+
+Verification: `TestRelateNG_EdgePipeline_Agrees` (5 subtests in `predicate/relateng_edge_pipeline_test.go`) confirms `UseRelateNG(true)` agrees with legacy `Relate` on crossing lines, polygon/line edge crosses, shared-boundary polygons, overlapping polygons, T-junctions. Conformance unchanged.
+
+#### Items still out of scope
+
+- **3D operations** (`operation/distance3d`, etc.): our codebase is 2D.
+- **`EnhancedPrecisionOp`**: requires modifying `overlay/`, deliberately gated during the parity round.
+- **The 15 conformance residuals**: unchanged across all 10 waves. 13 are external-tracker known or version-drift; 2 are residual algorithmic gaps (TestBufferExternal2 case#97, GEOSBuffer GEOS#605) already documented above.
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
