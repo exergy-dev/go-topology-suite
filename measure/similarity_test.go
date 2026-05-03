@@ -61,3 +61,37 @@ func TestHausdorffSimilarity_NilInputs(t *testing.T) {
 		t.Fatalf("nil input: want NaN, got %v", got)
 	}
 }
+
+func TestFrechetSimilarity_Identical(t *testing.T) {
+	p := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10}})
+	if got := FrechetSimilarity(p, p); math.Abs(got-1) > 1e-9 {
+		t.Fatalf("identical: want 1, got %v", got)
+	}
+}
+
+func TestFrechetSimilarity_OrderSensitive(t *testing.T) {
+	// Reversing one curve relative to the other yields a strictly
+	// lower Fréchet similarity than identical (the leash must stretch
+	// to cover the reversal).
+	a := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10}})
+	b := geom.NewLineString(nil, []geom.XY{{10, 10}, {10, 0}, {0, 0}})
+	got := FrechetSimilarity(a, b)
+	if got >= 1 {
+		t.Fatalf("reversed order should be < 1, got %v", got)
+	}
+}
+
+func TestFrechetSimilarity_BothEmpty(t *testing.T) {
+	a := geom.NewLineString(nil, nil)
+	b := geom.NewLineString(nil, nil)
+	if got := FrechetSimilarity(a, b); got != 1 {
+		t.Fatalf("both empty: want 1, got %v", got)
+	}
+}
+
+func TestFrechetSimilarity_NilInputs(t *testing.T) {
+	a := geom.NewLineString(nil, []geom.XY{{0, 0}, {1, 0}})
+	if got := FrechetSimilarity(nil, a); !math.IsNaN(got) {
+		t.Fatalf("nil input: want NaN, got %v", got)
+	}
+}

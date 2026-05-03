@@ -137,6 +137,51 @@ func AreaSimilarity(a, b geom.Geometry) float64 {
 	return areaInter / areaUnion
 }
 
+// FrechetSimilarity returns a similarity score in [0, 1] between two
+// LineStrings based on the discrete Fréchet distance metric. A score
+// of 1 indicates identical curves; 0 indicates fully divergent curves.
+//
+// The score is `1 - F(a, b) / diag(env(a) ∪ env(b))`, where F is the
+// discrete Fréchet distance and diag is the diagonal length of the
+// combined envelope. Unlike Hausdorff, Fréchet is order-sensitive, so
+// the input vertex sequences must be ordered consistently.
+//
+// Empty inputs: both empty returns 1; only one empty returns 0.
+//
+// Port of org.locationtech.jts.algorithm.match.FrechetSimilarityMeasure.
+func FrechetSimilarity(a, b *geom.LineString) float64 {
+	if a == nil || b == nil {
+		return math.NaN()
+	}
+	aEmpty := a.IsEmpty()
+	bEmpty := b.IsEmpty()
+	if aEmpty && bEmpty {
+		return 1
+	}
+	if aEmpty || bEmpty {
+		return 0
+	}
+
+	dist := DiscreteFrechet(a, b)
+	if dist == 0 {
+		return 1
+	}
+	if math.IsInf(dist, +1) {
+		return 0
+	}
+
+	envA := a.Envelope()
+	envB := b.Envelope()
+	env := envA.ExpandToInclude(envB)
+	envSize := envelopeDiagonal(env)
+	if envSize == 0 {
+		// Both inputs degenerate to a single point — distance is 0
+		// already handled above; otherwise treat as fully divergent.
+		return 0
+	}
+	return 1 - dist/envSize
+}
+
 // envelopeDiagonal returns the length of the envelope's diagonal, or 0
 // if the envelope is empty. Mirrors JTS HausdorffSimilarityMeasure.diagonalSize.
 func envelopeDiagonal(env geom.Envelope) float64 {
