@@ -76,6 +76,55 @@ proper failure detector (empty-output isn't a clean failure signal
 for negative buffer), or `BufferSubgraph` + `SubgraphDepthLocater`
 for multi-component depth labelling.
 
+### JTS API parity round (2026-05-03, Waves 1–7)
+
+After the conformance-driven work above, a 7-wave parallel-agent
+sweep ported the broader JTS API surface in 88 commits since
+`a0841aa`. Conformance held at **15 failures / 99.83%** throughout
+every wave's merge; no regressions.
+
+#### New top-level packages added (10)
+
+| Package | JTS counterpart | Highlights |
+|---|---|---|
+| `algorithm/locate/` | `algorithm.locate` | `SimplePointLocator`, `IndexedPointLocator`, `PointOnGeometryLocator` interface |
+| `coverage/` | `coverage` + `operation.union.CoverageUnion` | `Union`, `Validate`, `Simplify` for polygon coverages |
+| `densify/` | `densify` | `Densify(g, maxSegmentLength)` |
+| `dissolve/` | `dissolve.LineDissolver` | line-network common-edge dissolve |
+| `linearref/` | `linearref` | `LinearLocation`, `LengthLocationMap`, `LocationIndexedLine`, `LengthIndexedLine` |
+| `linemerge/` | `operation.linemerge` | `Merge` (LineMerger), `Sequence` (LineSequencer Eulerian path) |
+| `polygonize/` | `operation.polygonize.Polygonizer` | line-network → polygon assembler |
+| `precision/` | `precision` | `MinimumClearance`, `SimpleMinimumClearance`, `GeometrySnapper` |
+| `shape/` | `shape.random` + `shape.fractal` | `RandomPoints`, `GridPoints`, `HilbertCurve`, `SierpinskiCarpet`, `KochSnowflake` |
+| `triangulate/` (incl. `quadedge/` subpkg) | `triangulate` | `DelaunayOf`, `ConformingDelaunayOf`, `Voronoi` |
+
+#### Major additions to existing packages
+
+- **`buffer/`** — `OffsetCurve` public API, `OffsetSegmentGenerator` port, `bufferReducedPrecision` retry, JTS-style `bufferPrecisionTolerance`.
+- **`geom/`** — `Triangle` utility, `Envelope` helpers (ExpandBy/Distance/Disjoint/Overlaps/ContainsProperly), `XY.Compare`, `LineString.IsClosed`/`LinearRing.IsClosed`, `OctagonalEnvelope`, `GeometryEditor` (`Edit`), extracters (`PointsOf`/`LineStringsOf`/`PolygonsOf`), `PrecisionModel` value type, `MapCollection`.
+- **`hull/`** — `ConcaveHull`, `ConcaveHullByLengthRatio`.
+- **`index/`** — `Nearest`+`ItemDistance` API on R-tree, new `KdTree`, `Quadtree`, `IntervalRTree`, `HPRtree`.
+- **`internal/noding/`** — `MonotoneChain`, `MCIndexNoder`, `SnappingNoder`, `FastNodingValidator`, `NodingValidator`.
+- **`internal/snap/`** — JTS-faithful `HotPixel.intersectsScaled` (half-open cell, orientation-of-corners).
+- **`internal/snaprounding/`** — `IntersectionAdder` for two-phase snap-rounding (opt-in).
+- **`kernel/planar/`** — `AngleBetweenOriented`, `SinSnap`/`CosSnap`, `SegmentDistanceSq`, `PointToLinePerpendicular`, bit-exact endpoint preservation in `CollinearOverlap`.
+- **`measure/`** — `MaximumInscribedCircle`, `LargestEmptyCircle`, `MinimumBoundingCircle`, `MinimumDiameter`, `MinimumAreaRectangle`, `InteriorPoint(Point/Line/Area)`, `DiscreteHausdorff`, `DiscreteFrechet`, `DistanceOp`, `IndexedFacetDistance`.
+- **`predicate/`** — DE-9IM pattern constants + named `Is*` helpers, `ContainsProperly`, `BoundaryNodeRule` strategy with `WithBoundaryNodeRule` option, RelateNG short-circuit fast-path layer + experimental `RelateNG` type.
+- **`prepare/`** — `PreparedLineString` with R-tree segment index, `PreparedPolygon.Intersects/Covers/ContainsProperly`, `WithPrepared` wired into `Intersects` and `Covers`.
+- **`simplify/`** — `Visvalingam` (VW area-based), `PolygonHull`/`PolygonHullByAreaDelta`.
+- **`validate/`** — split `DefectSelfIntersection` into 5 JTS error codes (NestedHoles, NestedShells, DuplicateRings, RingSelfIntersection), `PolygonRing` inverted-ring relaxation with `WithInvertedRingValid`, complete GeometryFixer hole/multipoly rules, public `Fix` entry point.
+- **`wkb/`** — `DecodeHex`/`EncodeHex` public helpers.
+- **`wkt/`** — glued dimension suffixes (`POINTZ`, `LINESTRINGZM`), `WithPrecision` writer option.
+- **`geojson/`** — `WithPrecision`, `WithForceCCW` writer options.
+- **`overlay/`** — cascaded `UnaryUnion` via balanced binary tree (CascadedPolygonUnion), component-aware boundary trace for pinch-point topologies (closed TestOverlayAA case#9).
+
+#### Items still deferred
+
+- **Full RelateNG `TopologyComputer` port** (~2000 LOC, multi-day): the lazy DE-9IM build with incremental cell evaluation. Skeleton landed at `predicate/relateng.go`; short-circuit layer at `predicate/relate_short_circuit.go` provides most of the perf benefit. Full architecture port requires `RelateGeometry`, `EdgeSegmentIntersector`, `RelateEdge`, `RelateNode`, `IMPredicate`, `IMPatternMatcher` etc.
+- **3D operations** (`operation/distance3d`): out of scope — our codebase is 2D.
+- **`EnhancedPrecisionOp`**: requires modifying `overlay/`, deliberately gated in the parity round prompts.
+- **The 15 conformance residuals**: unchanged. 13 are external-tracker known or version-drift; 2 are residual algorithmic gaps already documented above.
+
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
   (https://trac.osgeo.org/geos/ticket/737). Two polygons in UTM-scale
