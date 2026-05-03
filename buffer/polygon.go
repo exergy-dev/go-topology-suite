@@ -640,14 +640,34 @@ func offsetClosedRing(ring []geom.XY, d float64, outward bool, cfg config) ([]ge
 	// Concretely: outward offset on a convex original corner diverges; the
 	// inward offset of the same corner crosses; concave (reflex) corners
 	// flip both.
+	// Near-degenerate corner tolerance: cx is sin(turn-angle) on unit
+	// direction vectors, so |cx| < 1e-5 corresponds to a turn of
+	// ~1e-5 rad. Below that the line-line mitre intersection lies many
+	// orders of magnitude off the offset corner and produces phantom
+	// spike vertices (TestBufferMitredJoin case#4 measures cx ≈ 7.8e-6
+	// at its near-collinear corner). Treating the corner as collinear
+	// is the topologically faithful choice.
+	const collinearCxTol = 1e-5
 	out := make([]geom.XY, 0, 2*len(segs)+8)
 	for i := 0; i < len(segs); i++ {
 		curr := segs[i]
 		next := segs[(i+1)%len(segs)]
 		pCurrEnd := geom.XY{X: curr.b.X + signed*curr.nx, Y: curr.b.Y + signed*curr.ny}
 		pNextStart := geom.XY{X: next.a.X + signed*next.nx, Y: next.a.Y + signed*next.ny}
-		// curr.dir × next.dir
+		// curr.dir × next.dir (sin of turn angle between unit dirs).
 		cx := curr.ny*(-next.nx) - (-curr.nx)*next.ny
+		// Treat near-collinear corners as straight-through. The line-line
+		// mitre is numerically unstable here, AND emitting any vertex
+		// at a point that lies (geometrically) on the line between its
+		// neighbours is itself a spurious vertex — the offset of two
+		// near-parallel adjacent edges should be a single continuous
+		// segment, not two segments meeting at a duplicate corner.
+		// Emit nothing for this corner; the prev iteration's pNextStart
+		// (or its CROSS-branch mitre) and the next iteration's pCurrEnd
+		// terminate the offset edge correctly.
+		if math.Abs(cx) < collinearCxTol {
+			continue
+		}
 		s := signed * cx
 		switch {
 		case s < 0:
@@ -657,9 +677,9 @@ func offsetClosedRing(ring []geom.XY, d float64, outward bool, cfg config) ([]ge
 			out = append(out, arc...)
 		case s > 0:
 			// Cross: emit the line-line intersection of the two offset
-			// edges (mitre truncation). Falls back to pNextStart if the
-			// lines are parallel.
-			mp, ok := mitrePoint(curr.b, pCurrEnd, pNextStart, curr, next, math.Abs(signed), math.Inf(1))
+			// edges (mitre truncation). Honor cfg.mitreLimit so the
+			// fallback to pNextStart fires on extreme overshoots.
+			mp, ok := mitrePoint(curr.b, pCurrEnd, pNextStart, curr, next, math.Abs(signed), cfg.mitreLimit)
 			if ok {
 				out = append(out, mp)
 			} else {
