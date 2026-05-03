@@ -46,6 +46,7 @@ type PointLocator struct {
 	polyLocator []*locate.IndexedPointLocator
 	lineBoundary *LinearBoundary
 	isEmpty     bool
+	adjLocator  *AdjacentEdgeLocator
 }
 
 // NewPointLocator builds a locator over geom with the OGC SFS rule.
@@ -276,18 +277,24 @@ func (l *PointLocator) locateOnPolygons(p geom.XY, isNode bool, parentPoly geom.
 		return LocBoundary
 	}
 	if numBoundary > 1 {
-		// JTS uses AdjacentEdgeLocator here to disambiguate
-		// shared-edge configurations in a GeometryCollection.
-		// That class depends on the not-yet-ported RelateNode /
-		// NodeSection machinery. As a conservative fallback we
-		// return BOUNDARY: a point on multiple polygon boundaries
-		// in a *MultiPolygon* (whose members may not overlap) is
-		// indeed on the boundary; for *GeometryCollection* with
-		// overlapping polygons the answer should sometimes be
-		// INTERIOR, which is handled by the legacy predicate path.
+		// Disambiguate shared-edge configurations via the
+		// AdjacentEdgeLocator: a point on the shared boundary
+		// between two adjacent polygons of a GC is in the union's
+		// INTERIOR; only points on the outer boundary remain
+		// classified as BOUNDARY.
+		if l.adjacentLocator() != nil {
+			return l.adjacentLocator().Locate(p)
+		}
 		return LocBoundary
 	}
 	return LocExterior
+}
+
+func (l *PointLocator) adjacentLocator() *AdjacentEdgeLocator {
+	if l.adjLocator == nil && l.geom != nil {
+		l.adjLocator = NewAdjacentEdgeLocator(l.geom)
+	}
+	return l.adjLocator
 }
 
 func (l *PointLocator) locateOnPolygonal(p geom.XY, isNode bool, parentPoly geom.Geometry, idx int) int {
