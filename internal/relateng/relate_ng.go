@@ -236,7 +236,7 @@ func (r *RelateNG) computePoints(g *Geometry, isA bool, target *Geometry, tc *To
 	if !g.HasDimension(DimP) {
 		return false
 	}
-	for _, pt := range effectivePoints(g.Geometry()) {
+	for _, pt := range effectivePointsFor(g) {
 		locDimTarget := target.LocateWithDim(pt)
 		locTarget := Location(locDimTarget)
 		dimTarget := DimensionExt(locDimTarget, tc.GetDimension(!isA))
@@ -403,6 +403,34 @@ func effectivePoints(g geom.Geometry) []geom.XY {
 	out := make([]geom.XY, 0, len(pts))
 	for p := range pts {
 		out = append(out, p)
+	}
+	return out
+}
+
+// effectivePointsFor mirrors JTS RelateGeometry.getEffectivePoints:
+// when the wrapper geometry has higher-dim members, a Point member
+// whose coordinate is covered by a line/area element is omitted —
+// the line/area locator already classifies that coordinate, and
+// double-counting it as "interior of the point" would spuriously
+// raise the I-row of the matrix when the coord actually lies on the
+// higher-dim element's boundary or interior.
+func effectivePointsFor(g *Geometry) []geom.XY {
+	pts := uniquePoints(g.Geometry())
+	if g.DimensionReal() <= DimP {
+		out := make([]geom.XY, 0, len(pts))
+		for p := range pts {
+			out = append(out, p)
+		}
+		return out
+	}
+	out := make([]geom.XY, 0, len(pts))
+	for p := range pts {
+		// Filter to coords whose location's dimension is still P
+		// (not subsumed by a line or area element).
+		locDim := g.LocateWithDim(p)
+		if Dimension(locDim) == DimP {
+			out = append(out, p)
+		}
 	}
 	return out
 }
