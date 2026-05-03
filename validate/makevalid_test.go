@@ -2,6 +2,7 @@ package validate
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,8 +147,10 @@ func TestMakeValid_EmptyReturnsErrEmpty(t *testing.T) {
 	assert.True(t, errors.Is(err, terra.ErrEmpty), "expected ErrEmpty, got err=%v g=%v", err, g)
 }
 
-func TestMakeValid_HolesDropped(t *testing.T) {
-	// Square with a small hole; holes should be dropped per v0.1 limitation.
+func TestMakeValid_HolePreservedWhenInsideShell(t *testing.T) {
+	// Square with a small hole strictly inside: hole must survive
+	// (matches JTS GeometryFixer.classifyHoles, which keeps holes that
+	// intersect the shell).
 	outer := []geom.XY{
 		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0},
 	}
@@ -159,7 +162,49 @@ func TestMakeValid_HolesDropped(t *testing.T) {
 	require.NoError(t, err)
 	out, ok := g.(*geom.Polygon)
 	require.True(t, ok, "expected *Polygon, got %T", g)
-	assert.Equal(t, 1, out.NumRings(), "expected hole dropped (1 ring), got %d rings", out.NumRings())
+	assert.Equal(t, 2, out.NumRings(), "expected hole preserved (2 rings), got %d rings", out.NumRings())
+	// Hole orientation must be CW (negative signed area) when shell is CCW.
+	assert.Less(t, planar.Default.RingArea(out.Ring(1)), 0.0, "expected CW hole")
+	assert.NoError(t, Validate(out), "expected valid polygon-with-hole")
+}
+
+func TestMakeValid_HoleOutsideShellDropped(t *testing.T) {
+	// Hole vertices are entirely outside the shell — JTS would
+	// promote it to a shell via union; our v0.1 simply drops it,
+	// which still produces a valid polygon (no longer fires the
+	// hole-outside-shell defect).
+	outer := []geom.XY{
+		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
+	}
+	hole := []geom.XY{
+		{X: 5, Y: 5}, {X: 6, Y: 5}, {X: 6, Y: 6}, {X: 5, Y: 6}, {X: 5, Y: 5},
+	}
+	p := geom.NewPolygon(nil, outer, hole)
+	g, err := MakeValid(p)
+	require.NoError(t, err)
+	out, ok := g.(*geom.Polygon)
+	require.True(t, ok, "expected *Polygon, got %T", g)
+	assert.Equal(t, 1, out.NumRings(), "expected outside-shell hole dropped")
+	assert.NoError(t, Validate(out))
+}
+
+// TestMakeValid_NonFiniteVerticesRemoved exercises JTS GeometryFixer
+// rule 1: vertices with non-finite ordinates must be filtered before
+// the rest of the pipeline runs.
+func TestMakeValid_NonFiniteVerticesRemoved(t *testing.T) {
+	ls := geom.NewLineString(nil, []geom.XY{
+		{X: 0, Y: 0},
+		{X: math.NaN(), Y: 1},
+		{X: 1, Y: 1},
+		{X: 2, Y: math.Inf(1)},
+		{X: 2, Y: 0},
+	})
+	g, err := MakeValid(ls)
+	require.NoError(t, err)
+	out, ok := g.(*geom.LineString)
+	require.True(t, ok, "expected *LineString, got %T", g)
+	assert.Equal(t, 3, out.NumPoints(), "expected 3 finite vertices to survive")
+	assert.NoError(t, Validate(out))
 }
 
 func TestMakeValid_GeometryCollectionRecurses(t *testing.T) {

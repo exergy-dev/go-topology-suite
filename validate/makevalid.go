@@ -1,8 +1,11 @@
 package validate
 
 import (
+	"math"
+
 	terra "github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel"
 	"github.com/terra-geo/terra/kernel/planar"
 	"github.com/terra-geo/terra/overlay"
 )
@@ -77,6 +80,10 @@ func collapseAdjacentDuplicates(pts []geom.XY) []geom.XY {
 	if len(pts) == 0 {
 		return pts
 	}
+	pts = removeNonFinite(pts)
+	if len(pts) == 0 {
+		return pts
+	}
 	out := make([]geom.XY, 0, len(pts))
 	out = append(out, pts[0])
 	for i := 1; i < len(pts); i++ {
@@ -87,9 +94,48 @@ func collapseAdjacentDuplicates(pts []geom.XY) []geom.XY {
 	return out
 }
 
+// removeNonFinite drops any vertex whose X or Y is NaN or ±Inf,
+// matching JTS GeometryFixer rule 1 ("Vertices with non-finite X or
+// Y ordinates are removed"). Returns the input unchanged if no
+// vertex is bad, so the common path allocates nothing.
+func removeNonFinite(pts []geom.XY) []geom.XY {
+	bad := false
+	for _, p := range pts {
+		if !finiteXY(p) {
+			bad = true
+			break
+		}
+	}
+	if !bad {
+		return pts
+	}
+	out := make([]geom.XY, 0, len(pts))
+	for _, p := range pts {
+		if finiteXY(p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func finiteXY(p geom.XY) bool {
+	return !math.IsNaN(p.X) && !math.IsNaN(p.Y) &&
+		!math.IsInf(p.X, 0) && !math.IsInf(p.Y, 0)
+}
+
 // makeValidPolygon corrects ring closure, orientation, and (if possible)
-// self-intersection in the outer ring. Holes are dropped per v0.1
-// limitations.
+// self-intersection in the outer ring.
+//
+// Hole handling tracks JTS GeometryFixer's "preserve as much extent
+// and as many vertices as possible" goal: a hole is kept iff after
+// the same closure / collapse / non-finite-vertex cleanup we apply
+// to the shell, every one of its vertices lies inside the cleaned
+// shell's closure (matching JTS classifyHoles's "intersects" test
+// without the full Union-difference machinery). Holes that fail
+// this test — too few vertices, partly-outside, or self-
+// intersecting — are dropped silently rather than promoted to
+// shells, since promoting requires an OverlayNG-style union that
+// the v0.1 pipeline cannot perform.
 func makeValidPolygon(p *geom.Polygon) geom.Geometry {
 	if p.NumRings() == 0 {
 		return geom.NewEmptyPolygon(p.CRS(), geom.LayoutXY)
@@ -101,16 +147,69 @@ func makeValidPolygon(p *geom.Polygon) geom.Geometry {
 	outer = orientCCW(outer)
 
 	// Try snap-rounding via Union(g, g) when the outer ring self-intersects.
+	// Self-intersection invalidates the simple hole-classification path
+	// below, so we forward to overlay first; holes are still dropped on
+	// that branch (matches the prior v0.1 behaviour).
 	if _, hit := ringSelfIntersection(outer); hit {
 		clean := geom.NewPolygon(p.CRS(), outer)
 		if cleaned, err := overlay.Union(clean, clean); err == nil && cleaned != nil && !cleaned.IsEmpty() {
-			// Ensure orientation on returned polygon(s).
 			return reorientResult(cleaned)
 		}
 		// Fall through with the structurally-corrected (closed, CCW) polygon
 		// but no intersection cleaning.
+		return geom.NewPolygon(p.CRS(), outer)
 	}
-	return geom.NewPolygon(p.CRS(), outer)
+
+	// Single-ring polygon: no holes to preserve.
+	if p.NumRings() == 1 {
+		return geom.NewPolygon(p.CRS(), outer)
+	}
+
+	// Preserve holes that survive cleanup AND lie inside the cleaned
+	// shell's closure. CCW shells require CW holes, so re-orient.
+	k := planar.Default
+	rings := [][]geom.XY{outer}
+	for r := 1; r < p.NumRings(); r++ {
+		hole := closeRing(p.Ring(r))
+		if len(hole) < 4 {
+			continue
+		}
+		if !holeInsideShell(hole, outer, k) {
+			continue
+		}
+		if _, hit := ringSelfIntersection(hole); hit {
+			continue
+		}
+		rings = append(rings, orientCW(hole))
+	}
+	return geom.NewPolygon(p.CRS(), rings...)
+}
+
+// orientCW returns ring as CW (negative shoelace area). Holes
+// require CW orientation when shells are CCW.
+func orientCW(ring []geom.XY) []geom.XY {
+	if planar.Default.RingArea(ring) > 0 {
+		return reverseRing(ring)
+	}
+	return ring
+}
+
+// holeInsideShell reports whether every vertex of `hole` lies in
+// the closure of `shell` (interior or boundary). At least one
+// vertex must be strictly inside — a hole whose vertices all sit
+// on the shell boundary is degenerate and dropped.
+func holeInsideShell(hole, shell []geom.XY, k kernel.Kernel) bool {
+	insideCount := 0
+	for i := 0; i+1 < len(hole); i++ {
+		c := k.PointInRing(hole[i], shell)
+		if c == kernel.Outside {
+			return false
+		}
+		if c == kernel.Inside {
+			insideCount++
+		}
+	}
+	return insideCount > 0
 }
 
 // closeRing returns ring with its first vertex appended if not already
