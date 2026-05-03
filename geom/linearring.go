@@ -54,6 +54,19 @@ func (lr *LinearRing) PointAt(i int) XY {
 	return XY{lr.coords[off], lr.coords[off+1]}
 }
 
+// IsClosed reports whether the ring's first and last vertices coincide.
+// A well-formed LinearRing is always closed, but ill-constructed rings
+// (e.g. produced by lossy parsers) may not be — call this before relying
+// on the closure invariant. Mirrors JTS LinearRing.isClosed().
+func (lr *LinearRing) IsClosed() bool {
+	n := lr.numCoords()
+	if n < 2 {
+		// JTS treats an empty ring as closed; an empty LineString as not.
+		return n == 0
+	}
+	return lr.PointAt(0).Equal(lr.PointAt(n - 1))
+}
+
 // CoordsXY returns a range-over-func iterator yielding each vertex as XY.
 func (lr *LinearRing) CoordsXY() iter.Seq[XY] {
 	stride := lr.stride()

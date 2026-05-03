@@ -53,6 +53,17 @@ func (ls *LineString) PointAt(i int) XY {
 	return XY{ls.coords[off], ls.coords[off+1]}
 }
 
+// IsClosed reports whether the line string is closed: i.e. the first and
+// last vertices coincide (under XY.Equal). An empty line string is not
+// closed. Mirrors JTS LineString.isClosed().
+func (ls *LineString) IsClosed() bool {
+	n := ls.numCoords()
+	if n < 2 {
+		return false
+	}
+	return ls.PointAt(0).Equal(ls.PointAt(n - 1))
+}
+
 // CoordsXY returns a range-over-func iterator yielding each vertex as XY.
 // Use:
 //
