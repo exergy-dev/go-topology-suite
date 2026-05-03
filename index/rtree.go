@@ -16,7 +16,7 @@ const (
 )
 
 // Item pairs an envelope with a payload value. It is the input to bulk
-// loading and the iteration record produced by Search/Nearest.
+// loading and the iteration record produced by Search.
 type Item[T any] struct {
 	Env   geom.Envelope
 	Value T
@@ -24,7 +24,7 @@ type Item[T any] struct {
 
 // RTree is the spatial index. The zero value is invalid; use New.
 //
-// All read methods (Search, Nearest, Len) are safe for concurrent use after
+// All read methods (Search, Len) are safe for concurrent use after
 // the last write. Concurrent writes require external synchronisation; the
 // internal mutex serialises Insert/Bulk against itself but does not protect
 // against caller-side concurrent writes if the writer holds a reference to
