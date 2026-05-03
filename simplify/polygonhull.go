@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/index"
 )
 
 // PolygonHull computes a topology-preserving simplified hull of a polygonal
@@ -217,6 +218,12 @@ type ringHull struct {
 	size int
 	// total area removed so far (for areaDelta target).
 	areaDelta float64
+	// vertexIndex is a JTS-faithful packed R-tree over pts; queried with
+	// a corner-triangle envelope to fetch the small subset of vertices
+	// that need the full triangle-containment test. Replaces the
+	// previous O(N) linear scan in hasIntersectingVertex. Mirrors
+	// RingHull.vertexIndex in JTS.
+	vertexIndex *index.VertexSequencePackedRtree
 }
 
 func newRingHull(ring []geom.XY, isOuter bool) *ringHull {
@@ -247,6 +254,7 @@ func newRingHull(ring []geom.XY, isOuter bool) *ringHull {
 		rh.prev[i] = (i - 1 + n) % n
 		rh.next[i] = (i + 1) % n
 	}
+	rh.vertexIndex = index.NewVertexSequencePackedRtree(rh.pts)
 	return rh
 }
 
@@ -335,25 +343,44 @@ func (rh *ringHull) isCornerRemovable(c *corner, idx *ringHullIndex) bool {
 
 // hasIntersectingVertex tests whether any live vertex of `other` (other
 // than the corner's own three vertices) lies inside the corner triangle.
-// The implementation is a linear scan over the `other` ring; this matches
-// JTS's RingHullIndex (which is also a linear list) and avoids the cost
-// of porting VertexSequencePackedRtree.
+// Uses the per-ring VertexSequencePackedRtree to fetch only the
+// candidates whose envelope intersects the corner triangle, then runs
+// the precise triangle-containment test on that small subset.
+//
+// Mirrors JTS RingHull.hasIntersectingVertex.
 func (rh *ringHull) hasIntersectingVertex(c *corner, env geom.Envelope, other *ringHull) bool {
 	pp := rh.pts[c.prev]
 	p := rh.pts[c.index]
 	pn := rh.pts[c.next]
-	for j := 0; j < len(other.pts); j++ {
-		if !other.live[j] {
-			continue
+	if other.vertexIndex == nil {
+		// Defensive fallback (e.g. degenerate ring with no index).
+		for j := 0; j < len(other.pts); j++ {
+			if !other.live[j] {
+				continue
+			}
+			if other == rh && c.isVertex(j) {
+				continue
+			}
+			v := other.pts[j]
+			if v.X < env.MinX || v.X > env.MaxX || v.Y < env.MinY || v.Y > env.MaxY {
+				continue
+			}
+			if triangleContains(pp, p, pn, v) {
+				return true
+			}
 		}
+		return false
+	}
+	for _, j := range other.vertexIndex.Query(env) {
 		if other == rh && c.isVertex(j) {
 			continue
 		}
-		v := other.pts[j]
-		// quick envelope reject
-		if v.X < env.MinX || v.X > env.MaxX || v.Y < env.MinY || v.Y > env.MaxY {
+		// liveness is also tracked by the index (Remove is called from
+		// removeCorner), but check anyway for paranoia.
+		if !other.live[j] {
 			continue
 		}
+		v := other.pts[j]
 		if triangleContains(pp, p, pn, v) {
 			return true
 		}
@@ -375,6 +402,11 @@ func (rh *ringHull) removeCorner(c *corner, pq *cornerHeap) {
 	rh.live[i] = false
 	rh.size--
 	rh.areaDelta += c.area
+	if rh.vertexIndex != nil {
+		// Mirrors JTS RingHull.removeCorner: keep the spatial index in
+		// sync so future queries don't return stale apexes.
+		rh.vertexIndex.Remove(i)
+	}
 	rh.addCorner(prev, pq)
 	rh.addCorner(next, pq)
 }
