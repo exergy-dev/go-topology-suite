@@ -257,12 +257,49 @@ func (tc *TopologyComputer) addAreaVertexOnArea(isAreaA bool, locArea, locTarget
 // AB-cell updates required by JTS RelateNG (area-area cross + node
 // location).
 func (tc *TopologyComputer) AddIntersection(a, b *NodeSection) {
+	// Snap to a nearby existing bucket to absorb tiny float-precision
+	// asymmetries when the same topological intersection is computed
+	// twice with differently-ordered arguments. Without this, an A-vs-A
+	// self-intersection node and the topologically-identical A-vs-B
+	// node end up in two separate buckets — and the AB bucket is
+	// missing the A-edge information from the self-intersection,
+	// leading to spurious EI/IE classifications.
+	if snapped, ok := tc.snapNodePt(a.NodePt); ok {
+		a.NodePt = snapped
+		b.NodePt = snapped
+	}
 	if !a.IsSameGeometry(b) {
 		tc.updateIntersectionAB(a, b)
 	}
 	ns := tc.getNodeSections(a.NodePt)
 	ns.Add(a)
 	ns.Add(b)
+}
+
+// snapNodePt looks for an existing bucket whose key is within
+// nodeSnapTol of pt and returns that key. The tolerance is chosen to
+// absorb the few-ULP differences a non-symmetric SegmentIntersect can
+// produce; topologically distinct nodes will always be far further apart.
+const nodeSnapTol = 1e-12
+
+func (tc *TopologyComputer) snapNodePt(pt geom.XY) (geom.XY, bool) {
+	if _, ok := tc.nodeMap[pt]; ok {
+		return pt, false
+	}
+	for k := range tc.nodeMap {
+		dx := k.X - pt.X
+		dy := k.Y - pt.Y
+		if dx < 0 {
+			dx = -dx
+		}
+		if dy < 0 {
+			dy = -dy
+		}
+		if dx <= nodeSnapTol && dy <= nodeSnapTol {
+			return k, true
+		}
+	}
+	return pt, false
 }
 
 func (tc *TopologyComputer) getNodeSections(pt geom.XY) *NodeSections {
