@@ -199,8 +199,8 @@ func envelopeCovers(outer, inner geom.Envelope) bool {
 }
 
 func (r *RelateNG) computePP(geomB *Geometry, tc *TopologyComputer) {
-	ptsA := uniquePoints(r.geomA.Geometry())
-	ptsB := uniquePoints(geomB.Geometry())
+	ptsA := effectivePointSet(r.geomA)
+	ptsB := effectivePointSet(geomB)
 	numBinA := 0
 	for ptB := range ptsB {
 		if _, ok := ptsA[ptB]; ok {
@@ -331,6 +331,49 @@ func uniquePoints(g geom.Geometry) map[geom.XY]struct{} {
 	out := make(map[geom.XY]struct{})
 	collectUniquePoints(g, out)
 	return out
+}
+
+// effectivePointSet returns the unique XY coordinates that constitute
+// the geometry's "effective" point set under JTS RelateGeometry
+// semantics: every Point/MultiPoint coordinate, plus the first vertex
+// of every zero-length linear element (which is topologically a
+// Point). Used by the P/P-only fast path so a zero-length-line
+// operand still contributes its degenerate vertex.
+func effectivePointSet(g *Geometry) map[geom.XY]struct{} {
+	out := make(map[geom.XY]struct{})
+	collectUniquePoints(g.Geometry(), out)
+	if g.isLineZeroLen {
+		collectZeroLengthLineVertices(g.Geometry(), out)
+	}
+	return out
+}
+
+func collectZeroLengthLineVertices(g geom.Geometry, out map[geom.XY]struct{}) {
+	if g == nil || g.IsEmpty() {
+		return
+	}
+	switch v := g.(type) {
+	case *geom.LineString:
+		if v.NumPoints() > 0 {
+			out[v.PointAt(0)] = struct{}{}
+		}
+	case *geom.LinearRing:
+		ls := v.AsLineString()
+		if ls.NumPoints() > 0 {
+			out[ls.PointAt(0)] = struct{}{}
+		}
+	case *geom.MultiLineString:
+		for i := 0; i < v.NumGeometries(); i++ {
+			ls := v.LineStringAt(i)
+			if ls.NumPoints() > 0 {
+				out[ls.PointAt(0)] = struct{}{}
+			}
+		}
+	case *geom.GeometryCollection:
+		for i := 0; i < v.NumGeometries(); i++ {
+			collectZeroLengthLineVertices(v.GeometryAt(i), out)
+		}
+	}
 }
 
 func collectUniquePoints(g geom.Geometry, out map[geom.XY]struct{}) {
