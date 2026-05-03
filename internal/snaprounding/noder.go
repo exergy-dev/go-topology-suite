@@ -67,6 +67,26 @@ type Noder struct {
 	// callers that need bit-stable output between releases should
 	// leave it unset.
 	MergeNearCollinear bool
+
+	// SeedIntersections opts in to a JTS-style pre-noding intersection-
+	// seeding pass. When set, Node runs IntersectionAdder over the
+	// initial input to compute every full-precision segment-segment
+	// intersection (and "near-vertex" adjacency) and seeds those points
+	// into the hot-pixel set BEFORE the fix-point loop runs. This is
+	// what allows JTS's pipeline to converge in a single rounding pass
+	// rather than iterate until the fix-point stabilises, since every
+	// robustness-sensitive near-touch is already realised as a hot
+	// pixel up-front.
+	//
+	// When set and the post-seed strict pass converges in one round,
+	// Node short-circuits and returns immediately. Otherwise the
+	// remaining iterations of the regular fix-point loop run as a
+	// fallback.
+	//
+	// The seeding step is O(N²) in the segment count (it has no
+	// internal pruning index of its own). Callers that operate on
+	// many-thousand-segment inputs should leave it disabled.
+	SeedIntersections bool
 }
 
 // Stats reports per-Node telemetry. Useful both for tests (asserting
@@ -115,6 +135,21 @@ func (n *Noder) Node(input []*noding.SegmentString) ([]*noding.SegmentString, St
 	// subsequent in-place vertex snapping is safe.
 	noded := adaptiveNode(input)
 
+	// Pre-seed: compute all full-precision intersections + near-vertex
+	// adjacencies on the initial input and stash them so they can be
+	// folded into the hot-pixel set as soon as the first snap-and-build
+	// step runs. JTS's pipeline relies on this to converge in a single
+	// pass — every robustness-sensitive intersection point is already a
+	// hot pixel before any rounding happens.
+	var seedPoints []geom.XY
+	if n.SeedIntersections {
+		// Use the input segment-string set (post-noded but pre-snapped)
+		// so the adder sees the same edge topology the snap pass will.
+		ad := NewIntersectionAdder(n.Tolerance / 100)
+		ad.Process(noded)
+		seedPoints = ad.Points()
+	}
+
 	stats := Stats{}
 	for iter := 0; iter < maxIter; iter++ {
 		stats.Iterations++
@@ -122,6 +157,16 @@ func (n *Noder) Node(input []*noding.SegmentString) ([]*noding.SegmentString, St
 		snapAndDedupe(noded, rd)
 
 		hp := buildHotPixelSet(noded, n.Tolerance)
+		// Seed pre-computed intersection points into the hot-pixel set
+		// on the FIRST iteration so the strict pass can converge with
+		// every interior intersection already realised as a hot pixel.
+		if iter == 0 && len(seedPoints) > 0 {
+			for _, p := range seedPoints {
+				// Snap to the same grid as the segment vertices.
+				hp.Add(rd.SnapVertex(p))
+			}
+			seedPoints = nil
+		}
 		stats.HotPixels = hp.Len()
 
 		next, inserted := insertHotPixelSplits(noded, hp)

@@ -260,6 +260,29 @@ func dump(strs []*noding.SegmentString) string {
 	return out + "]"
 }
 
+// TestNodeSeedIntersections runs the simple X-cross with the JTS-style
+// pre-noding intersection seed enabled and asserts the same shared
+// vertex appears on both crossings, confirming the seeded hot-pixel
+// path produces the same topology as the bare fix-point loop.
+func TestNodeSeedIntersections(t *testing.T) {
+	tol := 1.0
+	n := &Noder{Tolerance: tol, SeedIntersections: true}
+	out, stats, err := n.Node([]*noding.SegmentString{
+		ss(1, xy(0, 0), xy(10, 10)),
+		ss(2, xy(0, 10), xy(10, 0)),
+	})
+	if err != nil {
+		t.Fatalf("Node returned error: %v", err)
+	}
+	if !stats.Converged {
+		t.Errorf("expected Converged=true, got %+v", stats)
+	}
+	mid := xy(5, 5)
+	if vertexCount(out, mid) < 2 {
+		t.Errorf("expected (5,5) shared by both segments, got %d occurrences", vertexCount(out, mid))
+	}
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"
