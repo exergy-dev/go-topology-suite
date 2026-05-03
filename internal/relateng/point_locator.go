@@ -3,6 +3,7 @@ package relateng
 import (
 	"github.com/terra-geo/terra/algorithm/locate"
 	"github.com/terra-geo/terra/geom"
+	"github.com/terra-geo/terra/kernel"
 	"github.com/terra-geo/terra/kernel/planar"
 )
 
@@ -256,10 +257,27 @@ func envelopeContainsXY(e geom.Envelope, p geom.XY) bool {
 }
 
 // isOnSegment reports whether p lies on the closed segment (a,b).
-// Uses the planar kernel's segment-distance check (== 0 means
-// exactly on the segment, including endpoints).
+//
+// Implementation uses the robust orientation predicate combined with
+// an axis-aligned envelope test. Float-precision SegmentDistance
+// would lose collinear points whose closest projection rounds to a
+// non-zero residual on long segments; the orient + envelope check is
+// exact for collinear inputs and safe across all coordinate magnitudes.
 func isOnSegment(p, a, b geom.XY) bool {
-	return planar.Default.SegmentDistance(p, a, b) == 0
+	if planar.Default.Orient(a, b, p) != kernel.Collinear {
+		return false
+	}
+	// p is collinear with [a,b]; check it lies within the axis-aligned
+	// envelope of the segment.
+	minX, maxX := a.X, b.X
+	if minX > maxX {
+		minX, maxX = maxX, minX
+	}
+	minY, maxY := a.Y, b.Y
+	if minY > maxY {
+		minY, maxY = maxY, minY
+	}
+	return p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY
 }
 
 func (l *PointLocator) locateOnPolygons(p geom.XY, isNode bool, parentPoly geom.Geometry) int {
