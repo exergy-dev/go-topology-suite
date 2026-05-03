@@ -112,9 +112,12 @@ func (k Kernel) SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersect
 		return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
 	}
 
-	// Collinear: parameterise b1, b2 along (a1, a2) and intersect the
-	// 1D intervals [0, 1] and [t1, t2]. Use the dominant axis to avoid
-	// dividing by a near-zero |a2-a1|^2 when the segment is degenerate.
+	// Collinear case. Mirror JTS RobustLineIntersector.computeCollinearIntersection:
+	// classify each endpoint by whether it lies inside the OTHER segment's
+	// envelope, then return BIT-EXACT input endpoints (no parametric
+	// reconstruction) for the cases where they are in the overlap. This
+	// matters for downstream noding — re-emerging vertices via parametric
+	// reconstruction carries rounding error that disconnects topology graphs.
 	if rx == 0 && ry == 0 {
 		// Degenerate a-segment: a is a point. Check whether it lies on b.
 		if pointOnSegment(a1, b1, b2) {
@@ -123,36 +126,70 @@ func (k Kernel) SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersect
 		return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
 	}
 
-	// t parameter of b1 and b2 on segment [a1, a2].
-	var tB1, tB2 float64
-	if math.Abs(rx) >= math.Abs(ry) {
-		tB1 = (b1.X - a1.X) / rx
-		tB2 = (b2.X - a1.X) / rx
-	} else {
-		tB1 = (b1.Y - a1.Y) / ry
-		tB2 = (b2.Y - a1.Y) / ry
-	}
-	tMin, tMax := tB1, tB2
-	if tMin > tMax {
-		tMin, tMax = tMax, tMin
-	}
-	// Intersect [tMin, tMax] with [0, 1].
-	lo := math.Max(0, tMin)
-	hi := math.Min(1, tMax)
-	if lo > hi {
-		return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
-	}
-	if lo == hi {
-		return kernel.SegmentIntersectionResult{
-			Kind: kernel.PointIntersection,
-			P:    geom.XY{X: a1.X + lo*rx, Y: a1.Y + lo*ry},
+	q1inP := envelopeIntersects(a1, a2, b1)
+	q2inP := envelopeIntersects(a1, a2, b2)
+	p1inQ := envelopeIntersects(b1, b2, a1)
+	p2inQ := envelopeIntersects(b1, b2, a2)
+
+	// Both endpoints of b inside a's envelope → overlap = b1..b2.
+	if q1inP && q2inP {
+		if b1 == b2 {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b1}
 		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.CollinearOverlap, P: b1, Q: b2}
 	}
-	return kernel.SegmentIntersectionResult{
-		Kind: kernel.CollinearOverlap,
-		P:    geom.XY{X: a1.X + lo*rx, Y: a1.Y + lo*ry},
-		Q:    geom.XY{X: a1.X + hi*rx, Y: a1.Y + hi*ry},
+	// Both endpoints of a inside b's envelope → overlap = a1..a2.
+	if p1inQ && p2inQ {
+		if a1 == a2 {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: a1}
+		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.CollinearOverlap, P: a1, Q: a2}
 	}
+	// Mixed cases: one endpoint from each segment forms the overlap.
+	// JTS additionally collapses to PointIntersection when the two chosen
+	// endpoints are equal AND the other two endpoints don't lie in the
+	// opposing envelope (i.e. the segments touch only at a shared vertex).
+	if q1inP && p1inQ {
+		if b1 == a1 && !q2inP && !p2inQ {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b1}
+		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.CollinearOverlap, P: b1, Q: a1}
+	}
+	if q1inP && p2inQ {
+		if b1 == a2 && !q2inP && !p1inQ {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b1}
+		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.CollinearOverlap, P: b1, Q: a2}
+	}
+	if q2inP && p1inQ {
+		if b2 == a1 && !q1inP && !p2inQ {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b2}
+		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.CollinearOverlap, P: b2, Q: a1}
+	}
+	if q2inP && p2inQ {
+		if b2 == a2 && !q1inP && !p1inQ {
+			return kernel.SegmentIntersectionResult{Kind: kernel.PointIntersection, P: b2}
+		}
+		return kernel.SegmentIntersectionResult{Kind: kernel.CollinearOverlap, P: b2, Q: a2}
+	}
+	return kernel.SegmentIntersectionResult{Kind: kernel.NoIntersection}
+}
+
+// envelopeIntersects reports whether p lies in the closed bounding box of
+// [a, b]. Mirrors JTS Envelope.intersects(Coordinate, Coordinate, Coordinate),
+// which is the bounding-box containment test used by the collinear-overlap
+// branch of RobustLineIntersector.
+func envelopeIntersects(a, b, p geom.XY) bool {
+	minX, maxX := a.X, b.X
+	if minX > maxX {
+		minX, maxX = maxX, minX
+	}
+	minY, maxY := a.Y, b.Y
+	if minY > maxY {
+		minY, maxY = maxY, minY
+	}
+	return p.X >= minX && p.X <= maxX && p.Y >= minY && p.Y <= maxY
 }
 
 // pointOnSegment reports whether p lies on the closed segment [a, b].
