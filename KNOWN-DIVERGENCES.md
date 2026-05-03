@@ -132,11 +132,27 @@ JTS-faithful alternative to the legacy `Relate` path, opt-in via
 
 Verification: `TestRelateNG_EdgePipeline_Agrees` (5 subtests in `predicate/relateng_edge_pipeline_test.go`) confirms `UseRelateNG(true)` agrees with legacy `Relate` on crossing lines, polygon/line edge crosses, shared-boundary polygons, overlapping polygons, T-junctions. Conformance unchanged.
 
+#### Wave 11–12 final fill-in
+
+Wave 11 (`a7872a4` → `dca6ef7`, 8 commits): RectangleContains/RectangleIntersects fast predicates, BufferDistanceValidator + BufferResultValidator, PolygonTriangulator (ear-clipping) + EarClipper + PolygonHoleJoiner, HausdorffSimilarity + AreaSimilarity (with overlay-hook indirection in `measure/match` to break import cycle).
+
+Wave 12 (`647c6ff`, `2160741`, `29182cd`, 3 commits): MinimumBoundingTriangle (Klee-Laskowski rotating calipers), VariableBuffer (per-vertex buffer distance with linear interpolation), KML writer in new `kml/` package.
+
 #### Items still out of scope
 
-- **3D operations** (`operation/distance3d`, etc.): our codebase is 2D.
+- **3D operations** (`operation/distance3d`, `algorithm/distance3d`, `algorithm/CGAlgorithms3D`): our codebase is 2D.
 - **`EnhancedPrecisionOp`**: requires modifying `overlay/`, deliberately gated during the parity round.
-- **The 15 conformance residuals**: unchanged across all 10 waves. 13 are external-tracker known or version-drift; 2 are residual algorithmic gaps (TestBufferExternal2 case#97, GEOSBuffer GEOS#605) already documented above.
+- **GML2 / Oracle I/O** (`io/gml2`, `io/oracle`): Java-specific niche I/O formats; KML writer is the only widely-used non-WKB/WKT/GeoJSON output that was ported.
+- **JTS internal infrastructure equivalents** (`geomgraph/`, `planargraph/`, `edgegraph/`): we have functional equivalents in `internal/relateng/`, `linemerge/`, `dissolve/` and `internal/noding/`; the JTS-class-by-class internal types are not directly mirrored because our DCEL + half-edge approach in OverlayNG plays the same role.
+- **Java helper types** (`util/IntArrayList`, `util/Assert`, etc.): N/A in Go's standard library.
+
+#### The 15 conformance residuals
+
+Unchanged across all 12 waves and 116 commits. 13 are external-tracker known or version-drift; 2 are residual algorithmic gaps (TestBufferExternal2 case#97, GEOSBuffer GEOS#605) already documented in detail above.
+
+---
+
+**Total parity round (Waves 1–12)**: 116 commits, 11 new top-level packages (`algorithm/locate`, `coverage`, `densify`, `dissolve`, `kml`, `linearref`, `linemerge`, `polygonize`, `precision`, `shape`, `triangulate`), comprehensive extensions to every existing package, conformance held at 15/99.83% throughout with zero regressions. Every JTS module from the source tree has either been ported, has a functional equivalent, or is documented above as out of scope.
 
 - **Op:** `union` on real-world high-magnitude polygon pairs
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
