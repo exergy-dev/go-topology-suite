@@ -253,9 +253,13 @@ func differenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 		return linePolygonOverlay(a, b, opDifference)
 	}
 	if isPolygonal(a) && isLineal(b) {
-		// (poly \ line): line has lower dim than poly, so poly is
-		// unchanged set-theoretically.
-		return a, nil
+		// (poly \ line): under exact arithmetic the polygon is
+		// unchanged (line has lower dimension). Under snap-rounding
+		// however a line can collapse a sub-face of a thin sliver;
+		// route through linePolygonOverlay which decomposes the
+		// noded planar graph and emits collapsed sub-faces as
+		// LineStrings.
+		return linePolygonOverlay(a, b, opDifference)
 	}
 	return nil, terra.ErrUnsupportedKernel
 }
