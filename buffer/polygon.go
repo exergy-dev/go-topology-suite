@@ -69,15 +69,6 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 			// original polygon as the safest no-growth answer.
 			return geom.NewPolygon(p.CRS(), allRings(p)...), nil
 		}
-		// Snap-rounding tolerance: JTS-style coordinate-magnitude-
-		// relative scale factor. Reserves maxPrecisionDigits=12
-		// decimal digits of precision in the (geometry envelope +
-		// buffer distance), capping the snap grid so the noder sees
-		// discriminable vertices at the input's natural scale rather
-		// than at our previous fixed distance·1e-9 (which is too fine
-		// for UTM-magnitude coords and leads to depth-labelling
-		// non-convergence on the GEOS#605 corpus).
-		tolerance := bufferPrecisionTolerance(p, distance, 12)
 		// V4 positive-buffer validator: filter polygonizer output by
 		// winding-number depth-against-original. Phantom subgraphs
 		// whose rep has winding == -sign(outer) (topologically inverted
@@ -86,7 +77,12 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		// which the polygonizer's depth labelling has already
 		// classified as buffer interior) are kept.
 		validate := positiveBufferWindingValidator(p)
-		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, 0)
+		// JTS BufferOp.bufferReducedPrecision: try snap-rounding at
+		// MAX_PRECISION_DIGITS=12 first; on failure (empty result for
+		// non-trivial input) retry with progressively coarser precision
+		// down to 0 digits. Mirrors JTS's TopologyException retry but
+		// uses the polygonizer's empty-output as the failure signal.
+		got, err := bufferPolygonReducedPrecision(p, distance, segs, validate, true)
 		if err != nil {
 			return nil, fmt.Errorf("buffer: polygonize: %w", err)
 		}
@@ -140,7 +136,6 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		if len(segs) == 0 {
 			return geom.NewEmptyPolygon(p.CRS(), p.Layout()), nil
 		}
-		tolerance := bufferPrecisionTolerance(p, distance, 12)
 		// Face-validity filter for the polygonizer: a kept ring's
 		// representative interior point must satisfy BOTH
 		//
@@ -177,7 +172,13 @@ func bufferPolygon(p *geom.Polygon, distance float64, cfg config) (geom.Geometry
 		// 5-vertex polygon whose area is ≪ d^2). The validator's
 		// winding+distance check is the load-bearing phantom rejector;
 		// area-based filtering on top of that throws out real geometry.
-		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, 0)
+		//
+		// JTS BufferOp.bufferReducedPrecision: try MAX_PRECISION_DIGITS
+		// first; on failure (empty result when bbox is wide enough to
+		// admit an inset) retry with coarser precision. Mirrors JTS's
+		// fixed-precision fallback used by GEOSBuffer #605 and similar
+		// near-degenerate inputs.
+		got, err := bufferPolygonReducedPrecision(p, distance, segs, validate, false)
 		if err != nil {
 			return nil, fmt.Errorf("buffer: polygonize inset: %w", err)
 		}
@@ -752,6 +753,77 @@ func ringDegenerate(ring []geom.XY) bool {
 	}
 	const eps = 1e-12
 	return (maxX-minX) < eps || (maxY-minY) < eps
+}
+
+// bufferPolygonReducedPrecision runs the polygonizer at progressively
+// coarser snap-rounding tolerances, mirroring JTS's
+// BufferOp.bufferReducedPrecision retry loop. JTS catches a
+// TopologyException from the noder; we don't have exceptions, so we
+// use the polygonizer's empty-result-on-non-trivial-input as the
+// failure signal.
+//
+// Failure detection:
+//
+//   - Positive buffer: an empty result is treated as failure when the
+//     input has positive area. The first non-empty result is returned.
+//   - Negative buffer: an empty result is treated as failure ONLY when
+//     the bbox is wide enough to admit an inset of magnitude d (i.e.
+//     bbox sides > 2d). Otherwise empty is the geometrically correct
+//     answer and retrying at coarser precision would invent slivers.
+//
+// The retry walks maxPrecisionDigits from MAX_PRECISION_DIGITS=12
+// down to 0, each step backing off the snap grid by one decimal
+// digit. Returns the first non-empty polygonizer output, or the
+// final empty result when every retry fails.
+//
+// Reference: JTS BufferOp.bufferReducedPrecision (loop body) and
+// BufferOp.bufferReducedPrecision(int precisionDigits) which calls
+// bufferFixedPrecision via PrecisionModel(scaleFactor).
+func bufferPolygonReducedPrecision(
+	p *geom.Polygon,
+	distance float64,
+	segs []offsetSegment,
+	validate func(geom.XY) bool,
+	positive bool,
+) (geom.Geometry, error) {
+	const maxPrecisionDigits = 12
+	// Failure-signal preconditions: a non-trivial input that COULD
+	// produce a non-empty result.
+	canProduceResult := false
+	if positive {
+		canProduceResult = !p.IsEmpty() && p.NumRings() > 0
+	} else {
+		d := -distance
+		if p.NumRings() > 0 {
+			canProduceResult = !bboxTooThinForInset(p.Ring(0), d)
+		}
+	}
+	var last geom.Geometry
+	var lastErr error
+	for digits := maxPrecisionDigits; digits >= 0; digits-- {
+		tolerance := bufferPrecisionTolerance(p, distance, digits)
+		got, err := polygonizeBufferWithFilter(p.CRS(), segs, tolerance, validate, 0)
+		if err != nil {
+			lastErr = err
+			// On error, keep retrying at coarser precision.
+			continue
+		}
+		last = got
+		lastErr = nil
+		// Success: any non-empty result, OR empty when the input could
+		// not have produced anything anyway.
+		if got != nil && !got.IsEmpty() {
+			return got, nil
+		}
+		if !canProduceResult {
+			return got, nil
+		}
+		// Empty on a non-trivial input: failure signal. Retry coarser.
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return last, nil
 }
 
 // bufferPrecisionTolerance returns the snap-rounding cell size for
