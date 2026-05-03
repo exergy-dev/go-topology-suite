@@ -763,6 +763,36 @@ func polyMinusLineDecompose(
 	}
 	tol := 1e-6 * (math.Abs(wantArea) + 1)
 	if math.Abs(gotArea-wantArea) > tol {
+		// Hole-fuse case: the line cuts through a snap-collapsed wall
+		// of a polygon-with-hole, producing two inner faces — one whose
+		// signed area equals the polygon's full area (wantArea), the
+		// other being the hole's interior face. Detect this by finding
+		// an inner face whose area matches wantArea exactly; if found,
+		// emit that single face as a polygon-with-hole by walking its
+		// edges, dropping chord (tag=1) bridges, snapping, and
+		// extracting sub-rings at vertex repetitions.
+		var bestFace *faceLA
+		for _, f := range innerFaces {
+			if math.Abs(signedArea(f)-wantArea) <= tol {
+				bestFace = f
+				break
+			}
+		}
+		if bestFace != nil {
+			snap := func(p geom.XY) geom.XY { return p }
+			if scale > 0 {
+				s := scale
+				snap = func(p geom.XY) geom.XY {
+					return geom.XY{
+						X: math.Round(p.X*s) / s,
+						Y: math.Round(p.Y*s) / s,
+					}
+				}
+			}
+			if poly := faceToPolygonWithHoles(c, bestFace, snap); poly != nil {
+				return poly, nil
+			}
+		}
 		return polySide, nil
 	}
 
@@ -963,4 +993,153 @@ func faceToPolygonSnapped(c *crs.CRS, f *faceLA, snapXY func(geom.XY) geom.XY) *
 		pts = append(pts, pts[0])
 	}
 	return geom.NewPolygon(c, pts)
+}
+
+// faceToPolygonWithHoles emits a face whose boundary self-touches as a
+// proper Polygon-with-holes. It walks the face's half-edges in order,
+// skipping chord (tag=1 only) edges (these form bridges that connect a
+// hole's boundary to the outer boundary), snaps each vertex via snap,
+// drops zero-length steps, and extracts sub-rings whenever the walk
+// re-visits a vertex. The largest positive-area sub-ring is the outer
+// shell; remaining sub-rings are emitted as holes (CW orientation).
+//
+// Returns nil if no valid outer ring can be extracted.
+func faceToPolygonWithHoles(c *crs.CRS, f *faceLA, snap func(geom.XY) geom.XY) *geom.Polygon {
+	if f == nil || len(f.edges) == 0 {
+		return nil
+	}
+	// Build the snapped vertex sequence, walking polygon-tag edges only.
+	// A chord half-edge has tags == 1 exactly (not merged with a
+	// polygon-tag); polygon-tag edges have tags & 2 set. We skip the
+	// former. Also drop zero-length steps after snap.
+	type segPt struct {
+		p geom.XY
+	}
+	var seq []segPt
+	pushPt := func(p geom.XY) {
+		sp := snap(p)
+		if len(seq) > 0 && seq[len(seq)-1].p == sp {
+			return
+		}
+		seq = append(seq, segPt{p: sp})
+	}
+	// Seed with the origin of the first polygon-tag edge so we start
+	// the walk from a real boundary vertex (not a chord-only start).
+	first := -1
+	for i, e := range f.edges {
+		if e.tags&2 != 0 {
+			first = i
+			break
+		}
+	}
+	if first < 0 {
+		return nil
+	}
+	n := len(f.edges)
+	pushPt(f.edges[first].origin.p)
+	for k := 0; k < n; k++ {
+		e := f.edges[(first+k)%n]
+		if e.tags&2 == 0 {
+			// Pure chord half-edge: bridge step, skip.
+			continue
+		}
+		pushPt(e.target.p)
+	}
+	if len(seq) < 3 {
+		return nil
+	}
+	// Drop final vertex if equal to first (the walk closes).
+	if seq[0].p == seq[len(seq)-1].p {
+		seq = seq[:len(seq)-1]
+	}
+	// Extract sub-rings via repeated-vertex stack split.
+	var rings [][]geom.XY
+	stack := []geom.XY{}
+	indexInStack := map[geom.XY]int{}
+	for _, sp := range seq {
+		p := sp.p
+		if idx, dup := indexInStack[p]; dup {
+			// Pop sub-ring from idx..end of stack and close at p.
+			sub := append([]geom.XY{}, stack[idx:]...)
+			sub = append(sub, p)
+			if len(sub) >= 4 {
+				rings = append(rings, sub)
+			}
+			// Pop the sub-ring vertices off the stack (excluding the
+			// repeating vertex at idx, which stays).
+			for j := idx + 1; j < len(stack); j++ {
+				delete(indexInStack, stack[j])
+			}
+			stack = stack[:idx+1]
+			continue
+		}
+		indexInStack[p] = len(stack)
+		stack = append(stack, p)
+	}
+	// The remaining stack must close into a final ring (close back to seq[0]).
+	if len(stack) >= 3 {
+		// Close at stack[0] if not already there.
+		final := append([]geom.XY{}, stack...)
+		final = append(final, stack[0])
+		if len(final) >= 4 {
+			rings = append(rings, final)
+		}
+	}
+	if len(rings) == 0 {
+		return nil
+	}
+	// Compute signed areas; pick the largest |area| as outer.
+	signedRingArea := func(r []geom.XY) float64 {
+		var s float64
+		for i := 0; i+1 < len(r); i++ {
+			s += r[i].X*r[i+1].Y - r[i+1].X*r[i].Y
+		}
+		return s / 2
+	}
+	type ringInfo struct {
+		pts  []geom.XY
+		area float64
+	}
+	var infos []ringInfo
+	for _, r := range rings {
+		a := signedRingArea(r)
+		if math.Abs(a) < 1e-12 {
+			continue
+		}
+		infos = append(infos, ringInfo{pts: r, area: a})
+	}
+	if len(infos) == 0 {
+		return nil
+	}
+	// Outer = ring with maximum |area|.
+	outerIdx := 0
+	for i, info := range infos {
+		if math.Abs(info.area) > math.Abs(infos[outerIdx].area) {
+			outerIdx = i
+		}
+	}
+	outer := infos[outerIdx].pts
+	// Outer must be CCW (positive area). Reverse if needed.
+	if infos[outerIdx].area < 0 {
+		reverseInPlace(outer)
+	}
+	allRings := [][]geom.XY{outer}
+	for i, info := range infos {
+		if i == outerIdx {
+			continue
+		}
+		hole := info.pts
+		// Holes must be CW (negative area). Reverse if positive.
+		if info.area > 0 {
+			reverseInPlace(hole)
+		}
+		allRings = append(allRings, hole)
+	}
+	return geom.NewPolygon(c, allRings...)
+}
+
+func reverseInPlace(r []geom.XY) {
+	for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {
+		r[i], r[j] = r[j], r[i]
+	}
 }
