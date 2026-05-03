@@ -35,6 +35,11 @@ type parser struct {
 	src string
 	pos int
 	crs *crs.CRS
+	// pendingLayout is non-NoLayout when the leading type token used a
+	// glued dimension modifier (e.g. POINTZ, LINESTRINGZM). The next call
+	// to parseLayout consumes this value instead of scanning a separate
+	// word, preserving JTS WKTReader compatibility.
+	pendingLayout geom.Layout
 }
 
 func (p *parser) skipWhitespace() {
@@ -151,7 +156,16 @@ func (p *parser) parseSRIDPrefix() error {
 
 // parseLayout consumes an optional layout suffix ("Z"/"M"/"ZM") after a
 // type keyword. EMPTY tokens are NOT layouts; the caller handles them.
+//
+// If the type token itself carried a glued dimension modifier (e.g.
+// POINTZ, LINESTRINGZM, parsed by parseGeometry), pendingLayout is
+// returned and consumed without scanning further input.
 func (p *parser) parseLayout() geom.Layout {
+	if p.pendingLayout != geom.NoLayout {
+		out := p.pendingLayout
+		p.pendingLayout = geom.NoLayout
+		return out
+	}
 	save := p.pos
 	w := p.readWord()
 	switch w {
@@ -168,8 +182,14 @@ func (p *parser) parseLayout() geom.Layout {
 }
 
 // parseGeometry dispatches on the leading type word.
+//
+// JTS WKTReader accepts both whitespace-separated dimension modifiers
+// (POINT Z (...)) and glued forms (POINTZ (...), LINESTRINGZM (...)).
+// We strip a trailing Z/M/ZM modifier from the type token and stash the
+// implied layout in p.pendingLayout for the per-type parser to consume.
 func (p *parser) parseGeometry() (geom.Geometry, error) {
 	w := p.readWord()
+	w, p.pendingLayout = stripDimensionSuffix(w)
 	switch w {
 	case "POINT":
 		return p.parsePoint()
@@ -190,6 +210,27 @@ func (p *parser) parseGeometry() (geom.Geometry, error) {
 	default:
 		return nil, fmt.Errorf("wkt: unknown geometry type %q at offset %d", w, p.pos)
 	}
+}
+
+// stripDimensionSuffix removes a trailing Z/M/ZM modifier from a WKT
+// type token (already upper-cased). Returns the bare type and the
+// implied layout (NoLayout if no modifier was glued).
+func stripDimensionSuffix(typ string) (string, geom.Layout) {
+	// Order matters: ZM must be checked before Z and M.
+	switch {
+	case strings.HasSuffix(typ, "ZM") && len(typ) > 2:
+		return typ[:len(typ)-2], geom.LayoutXYZM
+	case strings.HasSuffix(typ, "Z") && len(typ) > 1:
+		return typ[:len(typ)-1], geom.LayoutXYZ
+	case strings.HasSuffix(typ, "M") && len(typ) > 1:
+		// Don't strip M from POINTM-vs-POINT confusion: POINT itself
+		// ends in T, MULTIPOINT in T, MULTILINESTRING in G, etc.
+		// LINEARRING ends in G; LINESTRING in G; POLYGON in N;
+		// MULTIPOLYGON in N. No bare type ends in M, so a trailing M
+		// is unambiguously a modifier.
+		return typ[:len(typ)-1], geom.LayoutXYM
+	}
+	return typ, geom.NoLayout
 }
 
 // parseEmptyOrLayout looks ahead. If the next word is EMPTY (after an
