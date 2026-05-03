@@ -196,24 +196,27 @@ func bufferPoint(c *crs.CRS, center geom.XY, distance float64, cfg config) *geom
 	return geom.NewPolygon(c, ring)
 }
 
-// bufferLineString produces the offset polygon of ls at distance using cfg.
+// bufferLineString produces the offset polygon of ls at distance using
+// cfg. Mirrors JTS's BufferBuilder + BufferCurveSetBuilder.addLineString
+// pipeline:
 //
-// Algorithm (textbook "thicken"):
+//  1. Emit forward LEFT-side + end-cap + reverse LEFT-side + start-cap
+//     offset segments tagged depthDelta=+1 via emitLineStringOffsetSegments.
+//  2. Snap-round and feed the segment set through the polygonizer
+//     (DCEL build + per-subgraph depth labelling), extracting kept
+//     boundary rings.
+//  3. Reduced-precision retry loop (analogous to JTS's
+//     BufferOp.bufferReducedPrecision): try MAX_PRECISION_DIGITS=12
+//     first, back off one decimal digit at a time on empty / failed
+//     polygonizer output, all the way down to 0 digits.
 //
-//  1. Walk forward emitting the LEFT-side parallel offset of each segment,
-//     joining at interior vertices per cfg.join.
-//  2. Apply the END cap (transition from left side to right side at the
-//     final vertex).
-//  3. Walk backward emitting the RIGHT-side parallel offset, joining at
-//     interior vertices.
-//  4. Apply the START cap.
-//  5. Close the ring.
-//
-// For non-self-intersecting input this produces a simple polygon. Self
-// intersections at concave corners (where the two offsets overlap) are
-// left in place; cleaning them requires the union operation, scheduled
-// for Phase 3.
+// The polygonizer-based pipeline correctly handles self-overlapping
+// LineStrings (which the legacy self-Union pipeline under-merged on
+// extreme inputs like GEOSBuffer #2). Closes GEOSBuffer #2.
 func bufferLineString(ls *geom.LineString, distance float64, cfg config) (*geom.Polygon, error) {
+	if distance <= 0 {
+		return geom.NewEmptyPolygon(ls.CRS(), ls.Layout()), nil
+	}
 	pts := dedupedPoints(ls)
 	if len(pts) == 0 {
 		return geom.NewEmptyPolygon(ls.CRS(), ls.Layout()), nil
@@ -221,10 +224,8 @@ func bufferLineString(ls *geom.LineString, distance float64, cfg config) (*geom.
 	if len(pts) == 1 {
 		return bufferPoint(ls.CRS(), pts[0], distance, cfg), nil
 	}
-
-	// Drop consecutive duplicates more aggressively: dedupedPoints
-	// strips exact duplicates, but JTS-style buffering also rejects
-	// zero-length input segments before the offset generator sees them.
+	// Aggressive consecutive-duplicate removal (JTS rejects zero-length
+	// input segments before the offset generator sees them).
 	clean := make([]geom.XY, 0, len(pts))
 	clean = append(clean, pts[0])
 	for i := 1; i < len(pts); i++ {
@@ -237,81 +238,70 @@ func bufferLineString(ls *geom.LineString, distance float64, cfg config) (*geom.
 		return bufferPoint(ls.CRS(), clean[0], distance, cfg), nil
 	}
 
-	d := distance
-	g := newOffsetSegmentGenerator(cfg, d)
-
-	// LEFT-side offset traversal: forward through clean[0..n].
-	n := len(clean) - 1
-	g.initSideSegments(clean[0], clean[1], positionLeft)
-	for i := 2; i <= n; i++ {
-		g.addNextSegment(clean[i], true)
+	got, err := bufferLineStringReducedPrecision(ls, clean, distance, cfg)
+	if err != nil {
+		return nil, err
 	}
-	g.addLastSegment()
-	// End cap: from second-to-last vertex toward the last.
-	g.addLineEndCap(clean[n-1], clean[n])
-
-	// RIGHT-side offset traversal: walk clean[n..0] in reverse, with
-	// side still LEFT (we're walking the reversed line, so its LEFT is
-	// the original's RIGHT).
-	g.initSideSegments(clean[n], clean[n-1], positionLeft)
-	for i := n - 2; i >= 0; i-- {
-		g.addNextSegment(clean[i], true)
-	}
-	g.addLastSegment()
-	// Start cap: from second vertex toward the first.
-	g.addLineEndCap(clean[1], clean[0])
-
-	g.closeRing()
-
-	ring := g.coordinates()
-	if len(ring) < 4 {
+	if got == nil || got.IsEmpty() {
 		return geom.NewEmptyPolygon(ls.CRS(), ls.Layout()), nil
 	}
-	raw := geom.NewPolygon(ls.CRS(), ring)
-	return cleanOffsetPolygon(raw)
-}
-
-// cleanOffsetPolygon resolves the self-intersections produced by the
-// offset-curve generator at concave corners by unioning the polygon
-// with itself. Overlay-NG nodes the self-intersection points (now via
-// the snap-rounding noder) and emits the simply-connected outer
-// boundary. For a non-self-intersecting input the result is identical
-// to the input (modulo coordinate canonicalisation).
-//
-// On overlay failure the raw polygon is returned, preserving the
-// pre-cleanup behaviour as a safe fallback.
-func cleanOffsetPolygon(raw *geom.Polygon) (*geom.Polygon, error) {
-	cleaned, err := overlay.Union(raw, raw)
-	if err != nil {
-		return raw, nil
-	}
-	switch v := cleaned.(type) {
+	// Caller contract: bufferLineString returns *geom.Polygon. The
+	// polygonizer can occasionally yield a MultiPolygon when an offset
+	// curve self-intersects into disjoint lobes (rare). Pick the
+	// largest-area component as the representative buffer body.
+	switch v := got.(type) {
 	case *geom.Polygon:
-		if v.IsEmpty() {
-			return raw, nil
-		}
 		return v, nil
 	case *geom.MultiPolygon:
-		// A self-intersecting offset that splits into multiple disjoint
-		// polygons under union: return the largest by area as the
-		// representative buffer body. Rare in practice — generally
-		// concave corners produce a single outer boundary plus one or
-		// more inner loops which Union absorbs as holes.
 		var best *geom.Polygon
 		bestArea := math.Inf(-1)
 		for i := 0; i < v.NumGeometries(); i++ {
-			p := v.PolygonAt(i)
-			a := math.Abs(planar.Default.RingArea(p.Ring(0)))
+			pp := v.PolygonAt(i)
+			a := math.Abs(planar.Default.RingArea(pp.Ring(0)))
 			if a > bestArea {
 				bestArea = a
-				best = p
+				best = pp
 			}
 		}
 		if best != nil {
 			return best, nil
 		}
 	}
-	return raw, nil
+	return geom.NewEmptyPolygon(ls.CRS(), ls.Layout()), nil
+}
+
+// bufferLineStringReducedPrecision drives the polygonizer at
+// progressively coarser snap-rounding tolerances, mirroring JTS's
+// BufferOp.bufferReducedPrecision retry loop. JTS catches a
+// TopologyException from the noder; we use the polygonizer's
+// empty-result-on-non-trivial-input as the failure signal.
+func bufferLineStringReducedPrecision(ls *geom.LineString, pts []geom.XY, distance float64, cfg config) (geom.Geometry, error) {
+	const maxPrecisionDigits = 12
+	segs := emitLineStringOffsetSegments(pts, distance, cfg)
+	if len(segs) == 0 {
+		return geom.NewEmptyPolygon(ls.CRS(), ls.Layout()), nil
+	}
+	env := ls.Envelope()
+	var last geom.Geometry
+	var lastErr error
+	for digits := maxPrecisionDigits; digits >= 0; digits-- {
+		tolerance := bufferPrecisionToleranceEnv(env, distance, digits)
+		got, err := polygonizeBuffer(ls.CRS(), segs, tolerance)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		last = got
+		lastErr = nil
+		if got != nil && !got.IsEmpty() {
+			return got, nil
+		}
+		// Empty: failure signal — retry coarser.
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return last, nil
 }
 
 // isClosedLine reports whether ls is a closed polyline (first vertex

@@ -839,11 +839,21 @@ func bufferPolygonReducedPrecision(
 // Falls back to math.Abs(distance)*1e-9 (our previous default) when the
 // envelope is degenerate or the computed tolerance is non-finite.
 func bufferPrecisionTolerance(p *geom.Polygon, distance float64, maxPrecisionDigits int) float64 {
-	fallback := math.Abs(distance) * 1e-9
 	if p == nil || p.IsEmpty() {
+		return math.Abs(distance) * 1e-9
+	}
+	return bufferPrecisionToleranceEnv(p.Envelope(), distance, maxPrecisionDigits)
+}
+
+// bufferPrecisionToleranceEnv is the geometry-agnostic flavour of
+// bufferPrecisionTolerance: takes the envelope of the input directly so
+// it can be applied to LineStrings (or any other geometry type) without
+// wrapping in a Polygon.
+func bufferPrecisionToleranceEnv(env geom.Envelope, distance float64, maxPrecisionDigits int) float64 {
+	fallback := math.Abs(distance) * 1e-9
+	if env.IsEmpty() {
 		return fallback
 	}
-	env := p.Envelope()
 	envMax := math.Abs(env.MinX)
 	for _, v := range []float64{math.Abs(env.MaxX), math.Abs(env.MinY), math.Abs(env.MaxY)} {
 		if v > envMax {

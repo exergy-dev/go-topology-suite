@@ -87,12 +87,19 @@ func emitLineStringOffsetSegments(pts []geom.XY, distance float64, cfg config) [
 		return nil
 	}
 
-	// Emit segments in walking order. The ring is CCW around buffer
-	// interior, so each forward segment has interior on its LEFT (depthDelta=+1).
+	// Orient so buffer-interior is on the LEFT of every emitted segment
+	// direction (depthDelta=+1 invariant of the polygonizer). The closed
+	// offset ring built by JTS's computeLineBufferCurve walks the upper-
+	// left side forward then the lower-right side backward — viewed in a
+	// standard +X-right / +Y-up frame, that traversal is CLOCKWISE around
+	// the buffer interior (interior is on the RIGHT of each edge in
+	// walking order). To give the polygonizer interior-on-LEFT segments,
+	// emit the ring in REVERSE.
 	const minLen2 = 1e-20
-	out := make([]offsetSegment, 0, len(ring))
-	for i := 0; i+1 < len(ring); i++ {
-		a, b := ring[i], ring[i+1]
+	rn := len(ring)
+	out := make([]offsetSegment, 0, rn)
+	for i := rn - 1; i > 0; i-- {
+		a, b := ring[i], ring[i-1]
 		if a == b {
 			continue
 		}
@@ -1174,11 +1181,11 @@ func topmostRightmostVertex(edges []*pgHalfEdge) *pgVertex {
 //     subgraph the polygonizer produces. Porting JTS's
 //     rightmost-edge anchor would not change the kept-ring set.
 //
-//   - Case #2 (UTM-scale LineString d=1000) doesn't reach the
-//     polygonizer at all — it goes through bufferLineString ->
-//     cleanOffsetPolygon (overlay self-Union). BufferSubgraph would
-//     only help if we re-routed line buffer through the polygonizer
-//     pipeline (a Pillar B-scope rewrite, not a subtask here).
+//   - Case #2 (UTM-scale LineString d=1000) is now also routed through
+//     the polygonizer pipeline via emitLineStringOffsetSegments — see
+//     bufferLineString in buffer.go. BufferSubgraph remains optional
+//     scope: our existing global-ray-cast anchor is functionally
+//     equivalent for the line-buffer case in practice.
 //
 // Decision: do NOT port BufferSubgraph + SubgraphDepthLocater. Our
 // existing global-ray-cast anchor is functionally equivalent for
