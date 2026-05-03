@@ -13,17 +13,39 @@
 //     mixed-dimension GeometryCollections with proper union semantics.
 //
 // Wave-state: the foundation classes (RelateGeometry, RelatePointLocator,
-// LinearBoundary, DimensionLocation) and the predicate-interface family
-// (TopologyPredicate, BasicPredicate, IMPredicate) are ported here.
+// LinearBoundary, DimensionLocation), the predicate-interface family
+// (TopologyPredicate, BasicPredicate, IMPredicate, IMPatternMatcher,
+// IntersectsPredicate, DisjointPredicate, NewMatchesPredicate), and
+// the NodeSection data class are ported here.
 //
-// Not yet ported (planned for the next wave):
+// Not yet ported (planned for the next wave — these are interlocking
+// and best landed together):
 //
-//   - NodeSection / NodeSections / RelateNode / RelateEdge data classes
-//   - EdgeSegmentIntersector / EdgeSetIntersector
-//   - TopologyComputer
-//   - PolygonNodeConverter
-//   - AdjacentEdgeLocator (the multi-polygon edge-adjacency case in
-//     RelatePointLocator currently falls back to a conservative answer).
+//   - NodeSections / RelateNode / RelateEdge: the per-vertex topology
+//     graph nodes, with CCW edge ordering by angle. RelateNode.finish
+//     (which propagates side locations around the node) is the
+//     non-trivial piece — it depends on JTS PolygonNodeTopology, which
+//     is itself a separate port.
+//   - PolygonNodeConverter: re-orients polygon node sections so the
+//     shell is CW.
+//   - EdgeSegmentIntersector + EdgeSegmentOverlapAction: drives
+//     segment-pair intersection across self-noding monotone chains,
+//     emitting NodeSections.
+//   - EdgeSetIntersector: top-level driver that pairs edge segments
+//     of A with B (and A with itself if self-noding required).
+//   - TopologyComputer: the final orchestrator. Walks vertices /
+//     edges of A and B, pushes nodes into RelateNodes, consults the
+//     PointLocator for "lone" vertices, and feeds the resulting
+//     DE-9IM cells into the bound TopologyPredicate.
+//   - AdjacentEdgeLocator: the multi-polygon edge-adjacency case in
+//     RelatePointLocator currently falls back to a conservative
+//     answer (BOUNDARY); AdjacentEdgeLocator depends on RelateNode.
+//
+// The Wave 3 plan: once RelateNode + EdgeSegmentIntersector +
+// TopologyComputer are in place, predicate/relate.go's `Relate(a,b)`
+// public entry can dispatch to a TopologyComputer-backed path. The
+// existing legacy DE-9IM builder remains as a fallback for the
+// not-yet-supported geometry-pair cases.
 //
 // The package is internal and reserved for terra's own predicate layer;
 // stable users should continue to use github.com/terra-geo/terra/predicate.
