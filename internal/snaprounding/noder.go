@@ -51,15 +51,21 @@ type Noder struct {
 	// offset-curve geometry intact at tolerance much smaller than
 	// the buffer distance.
 	//
-	// Currently the standard fixpoint loop already merges
-	// near-collinear segments via hot-pixel insertion when their
-	// vertices fall within the same grid cell; setting this flag
-	// enables a stricter perpendicular-distance test that catches
-	// segment pairs whose shared collinearity emerges only after
-	// rounding. The flag is reserved for future expansion: today it
-	// is recognised but does not change the noder output. Callers
-	// that need stricter behaviour should still set the flag so the
-	// upgrade ships transparently.
+	// The standard fixpoint loop already merges near-collinear
+	// segments via hot-pixel insertion when their vertices fall
+	// within the same grid cell. Setting this flag additionally
+	// runs nearCollinearPass after the strict fixpoint converges;
+	// that pass uses HotPixelSet.SegmentSplitsAtRelaxed (a wider,
+	// full-tolerance perpendicular-distance threshold) to recover
+	// hot pixels that lie just outside the strict half-cell band
+	// but on a chord near-tangent to the segment. After the relaxed
+	// pass inserts splits, a fresh strict fixpoint pass runs to
+	// resolve any new intersections those splits create.
+	//
+	// Setting this flag CAN change the noder output (the relaxed
+	// pass exists precisely to add splits the strict pass misses);
+	// callers that need bit-stable output between releases should
+	// leave it unset.
 	MergeNearCollinear bool
 }
 
