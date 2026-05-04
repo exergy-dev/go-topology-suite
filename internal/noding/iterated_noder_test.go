@@ -39,7 +39,7 @@ func (g *growingNoder) Node(input []*SegmentString) []*SegmentString {
 }
 
 func TestIteratedNoder_ConvergesImmediatelyForStableInner(t *testing.T) {
-	in := []*SegmentString{{Coords: []geom.XY{{0, 0}, {1, 1}}}}
+	in := []*SegmentString{{Coords: []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}}}}
 	n := NewIteratedNoder(stableNoder{}, 5)
 	out, err := n.NodeIter(in)
 	require.NoError(t, err)
@@ -48,7 +48,7 @@ func TestIteratedNoder_ConvergesImmediatelyForStableInner(t *testing.T) {
 }
 
 func TestIteratedNoder_ReturnsErrNotConverged(t *testing.T) {
-	in := []*SegmentString{{Coords: []geom.XY{{0, 0}, {1, 1}}}}
+	in := []*SegmentString{{Coords: []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}}}}
 	n := NewIteratedNoder(&growingNoder{}, 3)
 	out, err := n.NodeIter(in)
 	assert.ErrorIs(t, err, ErrNotConverged)
@@ -62,7 +62,7 @@ func TestIteratedNoder_DefaultMaxIter(t *testing.T) {
 }
 
 func TestIteratedNoder_NodeSwallowsConvergenceError(t *testing.T) {
-	in := []*SegmentString{{Coords: []geom.XY{{0, 0}, {1, 1}}}}
+	in := []*SegmentString{{Coords: []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}}}}
 	n := NewIteratedNoder(&growingNoder{}, 2)
 	out := n.Node(in)
 	assert.NotNil(t, out)

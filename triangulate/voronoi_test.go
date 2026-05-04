@@ -77,4 +77,3 @@ func TestVoronoi_CellsCoverClipBox(t *testing.T) {
 		t.Fatalf("total cell area %v, want %v (clip box area)", total, want)
 	}
 }
-

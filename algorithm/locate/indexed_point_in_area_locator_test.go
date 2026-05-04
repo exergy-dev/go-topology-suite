@@ -14,12 +14,12 @@ func TestIndexedLocate_Polygon(t *testing.T) {
 		p    geom.XY
 		want Location
 	}{
-		{geom.XY{5, 5}, Interior},
-		{geom.XY{0, 0}, Boundary},
-		{geom.XY{10, 5}, Boundary},
-		{geom.XY{5, 10}, Boundary},
-		{geom.XY{-1, 5}, Exterior},
-		{geom.XY{20, 20}, Exterior},
+		{geom.XY{X: 5, Y: 5}, Interior},
+		{geom.XY{X: 0, Y: 0}, Boundary},
+		{geom.XY{X: 10, Y: 5}, Boundary},
+		{geom.XY{X: 5, Y: 10}, Boundary},
+		{geom.XY{X: -1, Y: 5}, Exterior},
+		{geom.XY{X: 20, Y: 20}, Exterior},
 	}
 	for _, c := range cases {
 		if got := loc.Locate(c.p); got != c.want {
@@ -34,10 +34,10 @@ func TestIndexedLocate_Hole(t *testing.T) {
 		p    geom.XY
 		want Location
 	}{
-		{geom.XY{1, 1}, Interior},
-		{geom.XY{5, 5}, Exterior},
-		{geom.XY{4, 5}, Boundary},
-		{geom.XY{6, 5}, Boundary},
+		{geom.XY{X: 1, Y: 1}, Interior},
+		{geom.XY{X: 5, Y: 5}, Exterior},
+		{geom.XY{X: 4, Y: 5}, Boundary},
+		{geom.XY{X: 6, Y: 5}, Boundary},
 	}
 	for _, c := range cases {
 		if got := loc.Locate(c.p); got != c.want {
@@ -84,17 +84,17 @@ func TestIndexedMatchesSimple_Random(t *testing.T) {
 }
 
 func TestIndexedLocate_MultiPolygon(t *testing.T) {
-	a := geom.NewPolygon(nil, []geom.XY{{0, 0}, {2, 0}, {2, 2}, {0, 2}, {0, 0}})
-	b := geom.NewPolygon(nil, []geom.XY{{10, 10}, {12, 10}, {12, 12}, {10, 12}, {10, 10}})
+	a := geom.NewPolygon(nil, []geom.XY{{X: 0, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 2}, {X: 0, Y: 2}, {X: 0, Y: 0}})
+	b := geom.NewPolygon(nil, []geom.XY{{X: 10, Y: 10}, {X: 12, Y: 10}, {X: 12, Y: 12}, {X: 10, Y: 12}, {X: 10, Y: 10}})
 	mp := geom.NewMultiPolygon(nil, a, b)
 	loc := NewIndexedPointLocator(mp)
-	if got := loc.Locate(geom.XY{1, 1}); got != Interior {
+	if got := loc.Locate(geom.XY{X: 1, Y: 1}); got != Interior {
 		t.Errorf("inside A: got %s", got)
 	}
-	if got := loc.Locate(geom.XY{11, 11}); got != Interior {
+	if got := loc.Locate(geom.XY{X: 11, Y: 11}); got != Interior {
 		t.Errorf("inside B: got %s", got)
 	}
-	if got := loc.Locate(geom.XY{5, 5}); got != Exterior {
+	if got := loc.Locate(geom.XY{X: 5, Y: 5}); got != Exterior {
 		t.Errorf("between: got %s", got)
 	}
 }
@@ -102,7 +102,7 @@ func TestIndexedLocate_MultiPolygon(t *testing.T) {
 func TestIndexedLocate_Empty(t *testing.T) {
 	empty := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	loc := NewIndexedPointLocator(empty)
-	if got := loc.Locate(geom.XY{0, 0}); got != Exterior {
+	if got := loc.Locate(geom.XY{X: 0, Y: 0}); got != Exterior {
 		t.Errorf("empty: got %s", got)
 	}
 }

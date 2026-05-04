@@ -156,4 +156,3 @@ func BenchmarkEdgeSetIntersector_GuardSavesWork(b *testing.B) {
 		})
 	}
 }
-

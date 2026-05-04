@@ -13,14 +13,14 @@ import (
 // Constructed values are immutable; Forward/Inverse are pure on the
 // constructed value and safe for concurrent use.
 type TransverseMercator struct {
-	a, e2          float64
-	lon0, lat0     float64
-	k0             float64
-	fe, fn         float64
-	a0             float64    // rectifying radius × k0
-	alpha          [6]float64 // forward series coefficients
-	beta           [6]float64 // inverse series coefficients
-	xi0            float64    // ξ₀ = rectifying latitude of lat0
+	a, e2      float64
+	lon0, lat0 float64
+	k0         float64
+	fe, fn     float64
+	a0         float64    // rectifying radius × k0
+	alpha      [6]float64 // forward series coefficients
+	beta       [6]float64 // inverse series coefficients
+	xi0        float64    // ξ₀ = rectifying latitude of lat0
 }
 
 // NewTransverseMercator builds a TM projection with the given parameters.

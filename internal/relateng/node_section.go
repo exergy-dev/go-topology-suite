@@ -16,14 +16,14 @@ import "github.com/terra-geo/terra/geom"
 // (JTS norm) is the caller's responsibility; the data class merely
 // stores what it is given.
 type NodeSection struct {
-	IsA           bool       // true if this section belongs to geometry A
-	Dim           int        // DimP / DimL / DimA
-	ID            int        // element id within the parent geometry
-	RingID        int        // ring id within a polygon (0 = shell)
-	IsNodeAtVertex bool      // true if the node coincides with an existing vertex
-	NodePt        geom.XY    // the node point itself
-	V0, V1        *geom.XY   // optional incident vertices
-	Polygon       geom.Geometry // the polygon this section is part of (nil for non-area)
+	IsA            bool          // true if this section belongs to geometry A
+	Dim            int           // DimP / DimL / DimA
+	ID             int           // element id within the parent geometry
+	RingID         int           // ring id within a polygon (0 = shell)
+	IsNodeAtVertex bool          // true if the node coincides with an existing vertex
+	NodePt         geom.XY       // the node point itself
+	V0, V1         *geom.XY      // optional incident vertices
+	Polygon        geom.Geometry // the polygon this section is part of (nil for non-area)
 }
 
 // NewNodeSection constructs a NodeSection with the given fields.
@@ -31,15 +31,15 @@ type NodeSection struct {
 func NewNodeSection(isA bool, dim, id, ringID int, poly geom.Geometry,
 	isNodeAtVertex bool, v0 *geom.XY, nodePt geom.XY, v1 *geom.XY) *NodeSection {
 	return &NodeSection{
-		IsA:           isA,
-		Dim:           dim,
-		ID:            id,
-		RingID:        ringID,
+		IsA:            isA,
+		Dim:            dim,
+		ID:             id,
+		RingID:         ringID,
 		IsNodeAtVertex: isNodeAtVertex,
-		NodePt:        nodePt,
-		V0:            v0,
-		V1:            v1,
-		Polygon:       poly,
+		NodePt:         nodePt,
+		V0:             v0,
+		V1:             v1,
+		Polygon:        poly,
 	}
 }
 

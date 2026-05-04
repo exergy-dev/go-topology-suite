@@ -30,7 +30,7 @@ const (
 	// expects, producing a 4-vertex sliver instead of the JTS 6-vertex
 	// shape. Reference: org.locationtech.jts.operation.buffer.
 	// OffsetSegmentGenerator.addOutsideTurn / addInsideTurn.
-	offsetSegmentSeparationFactor = 1.0E-3
+	offsetSegmentSeparationFactor = 1.0e-3
 
 	// insideTurnVertexSnapDistanceFactor controls when the closing
 	// segment at an inside (concave) turn is suppressed because the

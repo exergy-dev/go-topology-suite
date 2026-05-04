@@ -10,16 +10,16 @@ import (
 
 // Fix on a Point: an already-valid point passes through.
 func TestFix_PointPassesThrough(t *testing.T) {
-	p := geom.NewPoint(nil, geom.XY{1, 2})
+	p := geom.NewPoint(nil, geom.XY{X: 1, Y: 2})
 	out := Fix(p)
 	require.NotNil(t, out)
 	assert.Equal(t, geom.PointType, out.Type())
-	assert.Equal(t, geom.XY{1, 2}, out.(*geom.Point).XY())
+	assert.Equal(t, geom.XY{X: 1, Y: 2}, out.(*geom.Point).XY())
 }
 
 // Fix on a LineString with a duplicated vertex: the duplicate is collapsed.
 func TestFix_LineStringRemovesDuplicate(t *testing.T) {
-	ls := geom.NewLineString(nil, []geom.XY{{0, 0}, {0, 0}, {1, 1}})
+	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 0, Y: 0}, {X: 1, Y: 1}})
 	out := Fix(ls)
 	require.NotNil(t, out)
 	require.IsType(t, (*geom.LineString)(nil), out)
@@ -31,7 +31,7 @@ func TestFix_LineStringRemovesDuplicate(t *testing.T) {
 func TestFix_PolygonRepairsSelfIntersection(t *testing.T) {
 	// Bowtie: (0,0)→(2,2)→(2,0)→(0,2)→(0,0)
 	poly := geom.NewPolygon(nil, []geom.XY{
-		{0, 0}, {2, 2}, {2, 0}, {0, 2}, {0, 0},
+		{X: 0, Y: 0}, {X: 2, Y: 2}, {X: 2, Y: 0}, {X: 0, Y: 2}, {X: 0, Y: 0},
 	})
 	out := Fix(poly)
 	require.NotNil(t, out)
@@ -40,8 +40,8 @@ func TestFix_PolygonRepairsSelfIntersection(t *testing.T) {
 
 // Fix on a MultiPolygon: returns a fixed multi-result.
 func TestFix_MultiPolygon(t *testing.T) {
-	a := geom.NewPolygon(nil, []geom.XY{{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0}})
-	b := geom.NewPolygon(nil, []geom.XY{{2, 2}, {3, 2}, {3, 3}, {2, 3}, {2, 2}})
+	a := geom.NewPolygon(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0}})
+	b := geom.NewPolygon(nil, []geom.XY{{X: 2, Y: 2}, {X: 3, Y: 2}, {X: 3, Y: 3}, {X: 2, Y: 3}, {X: 2, Y: 2}})
 	mp := geom.NewMultiPolygon(nil, a, b)
 	out := Fix(mp)
 	require.NotNil(t, out)
@@ -62,7 +62,7 @@ func TestFix_NilReturnsNil(t *testing.T) {
 
 // KeepMulti=false: a single-element MultiPoint is unwrapped to a Point.
 func TestFix_KeepMultiFalseUnwrapsSingleton(t *testing.T) {
-	mp := geom.NewMultiPoint(nil, []geom.XY{{1, 2}})
+	mp := geom.NewMultiPoint(nil, []geom.XY{{X: 1, Y: 2}})
 	out := Fix(mp, WithKeepMulti(false))
 	require.NotNil(t, out)
 	assert.Equal(t, geom.PointType, out.Type())
@@ -70,7 +70,7 @@ func TestFix_KeepMultiFalseUnwrapsSingleton(t *testing.T) {
 
 // KeepMulti=true (default): a single-element MultiPoint stays a MultiPoint.
 func TestFix_KeepMultiDefaultPreservesMulti(t *testing.T) {
-	mp := geom.NewMultiPoint(nil, []geom.XY{{1, 2}})
+	mp := geom.NewMultiPoint(nil, []geom.XY{{X: 1, Y: 2}})
 	out := Fix(mp)
 	require.NotNil(t, out)
 	assert.Equal(t, geom.MultiPointType, out.Type())

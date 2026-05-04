@@ -18,11 +18,11 @@ func mustParse(t *testing.T, s string) geom.Geometry {
 
 func TestRelateGeometry_Dimension(t *testing.T) {
 	cases := []struct {
-		wkt    string
-		dim    int
-		hasP   bool
-		hasL   bool
-		hasA   bool
+		wkt  string
+		dim  int
+		hasP bool
+		hasL bool
+		hasA bool
 	}{
 		{"POINT (1 2)", DimP, true, false, false},
 		{"MULTIPOINT (1 2, 3 4)", DimP, true, false, false},
@@ -64,7 +64,7 @@ func TestRelateGeometry_HasBoundary(t *testing.T) {
 	}{
 		{"POINT (1 2)", false},
 		{"LINESTRING (0 0, 1 1)", true},
-		{"LINESTRING (0 0, 1 0, 0 0)", false}, // closed → no boundary under Mod2
+		{"LINESTRING (0 0, 1 0, 0 0)", false},      // closed → no boundary under Mod2
 		{"POLYGON ((0 0,1 0,1 1,0 1,0 0))", false}, // areal: locator has no line boundary
 	}
 	for _, tc := range cases {

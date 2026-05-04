@@ -16,10 +16,10 @@ import (
 //
 // Ported from org.locationtech.jts.triangulate.IncrementalDelaunayTriangulator.
 type IncrementalDelaunayTriangulator struct {
-	subdiv         *quadedge.Subdivision
-	isForceConvex  bool
-	isUsingTol     bool
-	tol            float64
+	subdiv        *quadedge.Subdivision
+	isForceConvex bool
+	isUsingTol    bool
+	tol           float64
 }
 
 // NewIncrementalDelaunayTriangulator creates a triangulator backed by the

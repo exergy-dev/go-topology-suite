@@ -276,8 +276,8 @@ type holeClassification int
 
 const (
 	holeInside  holeClassification = iota // every vertex strictly inside or on shell, no edge crosses
-	holeOverlap                            // some vertices inside, others outside (hole crosses shell boundary)
-	holeOutside                            // every vertex strictly outside shell
+	holeOverlap                           // some vertices inside, others outside (hole crosses shell boundary)
+	holeOutside                           // every vertex strictly outside shell
 )
 
 // classifyHole classifies a (cleaned) hole ring relative to a shell.

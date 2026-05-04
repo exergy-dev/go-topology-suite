@@ -552,4 +552,3 @@ func karneyRingArea(ring []geom.XY) float64 {
 	}
 	return A
 }
-

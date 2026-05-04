@@ -38,16 +38,16 @@ import (
 // answer may be slightly conservative — this is documented and
 // will be filled in when AdjacentEdgeLocator is ported.
 type PointLocator struct {
-	geom        geom.Geometry
-	isPrepared  bool
-	rule        BoundaryNodeRule
-	points      map[geom.XY]struct{}
-	lines       []*geom.LineString
-	polygons    []geom.Geometry
-	polyLocator []*locate.IndexedPointLocator
+	geom         geom.Geometry
+	isPrepared   bool
+	rule         BoundaryNodeRule
+	points       map[geom.XY]struct{}
+	lines        []*geom.LineString
+	polygons     []geom.Geometry
+	polyLocator  []*locate.IndexedPointLocator
 	lineBoundary *LinearBoundary
-	isEmpty     bool
-	adjLocator  *AdjacentEdgeLocator
+	isEmpty      bool
+	adjLocator   *AdjacentEdgeLocator
 }
 
 // NewPointLocator builds a locator over geom with the OGC SFS rule.

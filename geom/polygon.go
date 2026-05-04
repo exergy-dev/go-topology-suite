@@ -58,11 +58,11 @@ func NewPolygonOwned(layout Layout, c *crs.CRS, flat []float64, ringStarts []int
 	}
 }
 
-func (p *Polygon) isGeometry()       {}
-func (p *Polygon) Type() Type        { return PolygonType }
-func (p *Polygon) Envelope() Envelope  { return p.envelope() }
-func (p *Polygon) IsEmpty() bool       { return len(p.coords) == 0 }
-func (p *Polygon) NumGeometries() int  { return 1 }
+func (p *Polygon) isGeometry()        {}
+func (p *Polygon) Type() Type         { return PolygonType }
+func (p *Polygon) Envelope() Envelope { return p.envelope() }
+func (p *Polygon) IsEmpty() bool      { return len(p.coords) == 0 }
+func (p *Polygon) NumGeometries() int { return 1 }
 
 // NumRings returns the number of rings (1 outer + n holes).
 func (p *Polygon) NumRings() int { return len(p.ringStarts) }

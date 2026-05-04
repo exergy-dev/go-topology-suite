@@ -9,15 +9,15 @@ import "math"
 // Construct via NewLambertAzimuthalEqualArea. Forward/Inverse are pure
 // on the constructed value and safe for concurrent use.
 type LambertAzimuthalEqualArea struct {
-	a, e2          float64
-	lon0, lat0     float64
-	fe, fn         float64
-	qp             float64
-	beta0          float64
-	rq             float64
-	d              float64
-	sinB0, cosB0   float64
-	polar          int8 // 0 = oblique/equatorial, +1 = north polar, -1 = south polar
+	a, e2        float64
+	lon0, lat0   float64
+	fe, fn       float64
+	qp           float64
+	beta0        float64
+	rq           float64
+	d            float64
+	sinB0, cosB0 float64
+	polar        int8 // 0 = oblique/equatorial, +1 = north polar, -1 = south polar
 }
 
 // NewLambertAzimuthalEqualArea builds a Lambert Azimuthal Equal-Area

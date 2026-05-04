@@ -38,10 +38,11 @@ func TestBoundaryNodeRule_IsInBoundary(t *testing.T) {
 // valency 1, common end has valency 3.
 //
 // Boundary set under each rule:
-//   Mod2:        4 points (3 tips + origin, all odd valency)
-//   Endpoint:    4 points (any valency > 0)
-//   MultiValent: 1 point  (origin only, valency > 1)
-//   MonoValent:  3 points (tips only, valency == 1)
+//
+//	Mod2:        4 points (3 tips + origin, all odd valency)
+//	Endpoint:    4 points (any valency > 0)
+//	MultiValent: 1 point  (origin only, valency > 1)
+//	MonoValent:  3 points (tips only, valency == 1)
 func TestBoundaryNodeRule_BoundarySetByRule(t *testing.T) {
 	g, err := wkt.Unmarshal(
 		"MULTILINESTRING ((0 0, 1 0), (0 0, -1 0), (0 0, 0 1))",

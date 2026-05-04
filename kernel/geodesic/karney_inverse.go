@@ -14,10 +14,10 @@ import "math"
 // pairs within ~0.5° of antipodal) we fall through to karneyInverse.
 
 const (
-	karneyTol0  = 2.220446049250313e-16 // DBL_EPSILON
-	karneyTol1  = 200 * karneyTol0
-	karneyTol2  = 1.4901161193847656e-08 // sqrt(DBL_EPSILON)
-	karneyTolb  = karneyTol0 // tolerance for bisection
+	karneyTol0   = 2.220446049250313e-16 // DBL_EPSILON
+	karneyTol1   = 200 * karneyTol0
+	karneyTol2   = 1.4901161193847656e-08 // sqrt(DBL_EPSILON)
+	karneyTolb   = karneyTol0             // tolerance for bisection
 	karneyMaxit1 = 20
 	karneyMaxit2 = 83 // = maxit1 + DBL_MANT_DIG + 10 = 20 + 53 + 10
 )

@@ -302,4 +302,3 @@ func numSegments(line *geom.LineString) int {
 	}
 	return n - 1
 }
-

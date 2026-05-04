@@ -7,7 +7,6 @@ import (
 	"github.com/terra-geo/terra/crs/proj"
 )
 
-
 // init populates the Definition pointer on every named CRS this package
 // registers. UTM-range Definitions are wired in projected.go.
 //

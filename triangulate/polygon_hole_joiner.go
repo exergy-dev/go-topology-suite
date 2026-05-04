@@ -242,4 +242,3 @@ func segmentsCrossProper(p1, p2, p3, p4 geom.XY) bool {
 	}
 	return d1 != d2 && d3 != d4
 }
-

@@ -38,8 +38,8 @@ func NewLinearRingFlatNoClone(layout Layout, c *crs.CRS, flat []float64) *Linear
 	return &LinearRing{baseGeom{layout: layout, coords: flat, crs: c}}
 }
 
-func (lr *LinearRing) isGeometry()      {}
-func (lr *LinearRing) Type() Type       { return LinearRingType }
+func (lr *LinearRing) isGeometry()        {}
+func (lr *LinearRing) Type() Type         { return LinearRingType }
 func (lr *LinearRing) Envelope() Envelope { return lr.envelope() }
 func (lr *LinearRing) IsEmpty() bool      { return len(lr.coords) == 0 }
 func (lr *LinearRing) NumGeometries() int { return 1 }

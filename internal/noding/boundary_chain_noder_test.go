@@ -14,10 +14,10 @@ func TestBoundaryChainNoder_TwoAdjacentSquares(t *testing.T) {
 	// Right: (1,0)-(2,0)-(2,1)-(1,1)-(1,0)
 	// Shared edge (1,0)-(1,1) appears twice → dropped.
 	left := &SegmentString{Coords: []geom.XY{
-		{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0},
+		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
 	}, Tag: 1}
 	right := &SegmentString{Coords: []geom.XY{
-		{1, 0}, {2, 0}, {2, 1}, {1, 1}, {1, 0},
+		{X: 1, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 1}, {X: 1, Y: 1}, {X: 1, Y: 0},
 	}, Tag: 2}
 	n := NewBoundaryChainNoder([]*SegmentString{left, right})
 	out := n.NodedSubstrings()
@@ -36,7 +36,7 @@ func TestBoundaryChainNoder_TwoAdjacentSquares(t *testing.T) {
 		for j := 0; j < ss.NumSegments(); j++ {
 			a, b := ss.Segment(j)
 			key := canonicalSegKey(a, b)
-			if key == canonicalSegKey(geom.XY{1, 0}, geom.XY{1, 1}) {
+			if key == canonicalSegKey(geom.XY{X: 1, Y: 0}, geom.XY{X: 1, Y: 1}) {
 				t.Fatalf("shared interior edge present in output")
 			}
 		}
@@ -45,7 +45,7 @@ func TestBoundaryChainNoder_TwoAdjacentSquares(t *testing.T) {
 
 func TestBoundaryChainNoder_SinglePolygonAllBoundary(t *testing.T) {
 	square := &SegmentString{Coords: []geom.XY{
-		{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0},
+		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
 	}}
 	n := NewBoundaryChainNoder([]*SegmentString{square})
 	out := n.NodedSubstrings()
@@ -63,11 +63,10 @@ func TestBoundaryChainNoder_EmptyInput(t *testing.T) {
 
 func TestBoundaryChainNoder_NodeMethodMatchesSubstrings(t *testing.T) {
 	square := &SegmentString{Coords: []geom.XY{
-		{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0},
+		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
 	}}
 	n := NewBoundaryChainNoder([]*SegmentString{square})
 	a := n.NodedSubstrings()
 	b := n.Node(nil)
 	assert.Equal(t, len(a), len(b))
 }
-

@@ -12,8 +12,8 @@ func TestKochSnowflakeVertexCount(t *testing.T) {
 		level int
 		want  int
 	}{
-		{0, 4},   // triangle
-		{1, 13},  // 12 segments + closing vertex
+		{0, 4},  // triangle
+		{1, 13}, // 12 segments + closing vertex
 		{2, 49},
 		{3, 193},
 	}

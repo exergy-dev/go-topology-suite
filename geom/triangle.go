@@ -122,7 +122,9 @@ func TriangleInterpolateZ(p XY, v0, v1, v2 XYZ) float64 {
 
 // SignedArea returns the signed 2D area of this triangle (positive for CW,
 // negative for CCW orientation).
-func (t Triangle) SignedArea() float64 { return TriangleSignedArea(t.P0.AsXY(), t.P1.AsXY(), t.P2.AsXY()) }
+func (t Triangle) SignedArea() float64 {
+	return TriangleSignedArea(t.P0.AsXY(), t.P1.AsXY(), t.P2.AsXY())
+}
 
 // Area returns the unsigned 2D area of this triangle.
 func (t Triangle) Area() float64 { return TriangleArea(t.P0.AsXY(), t.P1.AsXY(), t.P2.AsXY()) }

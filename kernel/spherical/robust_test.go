@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
 	"github.com/terra-geo/terra/internal/proptest"
+	"github.com/terra-geo/terra/kernel"
 	"pgregory.net/rapid"
 )
 
@@ -142,10 +142,10 @@ func TestSphericalOrient_AntipodalTriple(t *testing.T) {
 // fallback. Complements the rapid-driven TestSphericalOrient_AntiSymmetric.
 func TestSphericalOrient_AntiSymmetricExplicit(t *testing.T) {
 	cases := [][3]geom.XY{
-		{ll(0, 0), ll(0, 90), ll(90, 0)},                             // pole + equator
-		{ll(-100, 30), ll(50, -20), ll(170, 60)},                     // generic
-		{ll(0.000001, 0.000001), ll(0.000002, 0.000002), ll(1, 1)},   // near-equator collinear
-		{ll(-179.999999, 0), ll(179.999999, 0), ll(0, 1)},            // antimeridian-spanning
+		{ll(0, 0), ll(0, 90), ll(90, 0)},                           // pole + equator
+		{ll(-100, 30), ll(50, -20), ll(170, 60)},                   // generic
+		{ll(0.000001, 0.000001), ll(0.000002, 0.000002), ll(1, 1)}, // near-equator collinear
+		{ll(-179.999999, 0), ll(179.999999, 0), ll(0, 1)},          // antimeridian-spanning
 	}
 	for i, tc := range cases {
 		o1 := k.Orient(tc[0], tc[1], tc[2])

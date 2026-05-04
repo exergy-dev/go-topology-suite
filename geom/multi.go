@@ -22,11 +22,11 @@ func NewMultiPoint(c *crs.CRS, pts []XY) *MultiPoint {
 	return &MultiPoint{baseGeom{layout: LayoutXY, coords: flat, crs: c}}
 }
 
-func (mp *MultiPoint) isGeometry()       {}
-func (mp *MultiPoint) Type() Type        { return MultiPointType }
-func (mp *MultiPoint) Envelope() Envelope  { return mp.envelope() }
-func (mp *MultiPoint) IsEmpty() bool       { return len(mp.coords) == 0 }
-func (mp *MultiPoint) NumGeometries() int  { return mp.numCoords() }
+func (mp *MultiPoint) isGeometry()        {}
+func (mp *MultiPoint) Type() Type         { return MultiPointType }
+func (mp *MultiPoint) Envelope() Envelope { return mp.envelope() }
+func (mp *MultiPoint) IsEmpty() bool      { return len(mp.coords) == 0 }
+func (mp *MultiPoint) NumGeometries() int { return mp.numCoords() }
 
 // PointAt returns the i-th point projected to XY.
 func (mp *MultiPoint) PointAt(i int) XY {
@@ -74,11 +74,11 @@ func NewMultiLineStringStrict(c *crs.CRS, parts ...*LineString) (*MultiLineStrin
 	return &MultiLineString{layout: layout, crs: c, parts: parts}, nil
 }
 
-func (m *MultiLineString) isGeometry()      {}
-func (m *MultiLineString) Type() Type       { return MultiLineStringType }
-func (m *MultiLineString) Layout() Layout   { return m.layout }
-func (m *MultiLineString) CRS() *crs.CRS    { return m.crs }
-func (m *MultiLineString) IsEmpty() bool    { return len(m.parts) == 0 }
+func (m *MultiLineString) isGeometry()        {}
+func (m *MultiLineString) Type() Type         { return MultiLineStringType }
+func (m *MultiLineString) Layout() Layout     { return m.layout }
+func (m *MultiLineString) CRS() *crs.CRS      { return m.crs }
+func (m *MultiLineString) IsEmpty() bool      { return len(m.parts) == 0 }
 func (m *MultiLineString) NumGeometries() int { return len(m.parts) }
 
 // LineStringAt returns the i-th member.
@@ -132,12 +132,12 @@ func NewMultiPolygonStrict(c *crs.CRS, parts ...*Polygon) (*MultiPolygon, error)
 	return &MultiPolygon{layout: layout, crs: c, parts: parts}, nil
 }
 
-func (m *MultiPolygon) isGeometry()      {}
-func (m *MultiPolygon) Type() Type       { return MultiPolygonType }
-func (m *MultiPolygon) Layout() Layout   { return m.layout }
-func (m *MultiPolygon) CRS() *crs.CRS    { return m.crs }
-func (m *MultiPolygon) IsEmpty() bool    { return len(m.parts) == 0 }
-func (m *MultiPolygon) NumGeometries() int { return len(m.parts) }
+func (m *MultiPolygon) isGeometry()              {}
+func (m *MultiPolygon) Type() Type               { return MultiPolygonType }
+func (m *MultiPolygon) Layout() Layout           { return m.layout }
+func (m *MultiPolygon) CRS() *crs.CRS            { return m.crs }
+func (m *MultiPolygon) IsEmpty() bool            { return len(m.parts) == 0 }
+func (m *MultiPolygon) NumGeometries() int       { return len(m.parts) }
 func (m *MultiPolygon) PolygonAt(i int) *Polygon { return m.parts[i] }
 
 func (m *MultiPolygon) Envelope() Envelope {
@@ -189,12 +189,12 @@ func NewGeometryCollectionStrict(c *crs.CRS, parts ...Geometry) (*GeometryCollec
 	return &GeometryCollection{layout: layout, crs: c, parts: parts}, nil
 }
 
-func (g *GeometryCollection) isGeometry()      {}
-func (g *GeometryCollection) Type() Type       { return GeometryCollectionType }
-func (g *GeometryCollection) Layout() Layout   { return g.layout }
-func (g *GeometryCollection) CRS() *crs.CRS    { return g.crs }
-func (g *GeometryCollection) IsEmpty() bool    { return len(g.parts) == 0 }
-func (g *GeometryCollection) NumGeometries() int { return len(g.parts) }
+func (g *GeometryCollection) isGeometry()               {}
+func (g *GeometryCollection) Type() Type                { return GeometryCollectionType }
+func (g *GeometryCollection) Layout() Layout            { return g.layout }
+func (g *GeometryCollection) CRS() *crs.CRS             { return g.crs }
+func (g *GeometryCollection) IsEmpty() bool             { return len(g.parts) == 0 }
+func (g *GeometryCollection) NumGeometries() int        { return len(g.parts) }
 func (g *GeometryCollection) GeometryAt(i int) Geometry { return g.parts[i] }
 
 func (g *GeometryCollection) Envelope() Envelope {

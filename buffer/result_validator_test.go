@@ -61,8 +61,8 @@ func TestValidateBufferResult_ExpectedEmpty(t *testing.T) {
 // larger than its input fails the Area check (envelope check is skipped
 // for negative distances, so Area is the first stage to catch this).
 func TestValidateBufferResult_AreaCheckNegative(t *testing.T) {
-	in := mustGeom(t, "POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))")              // area 100
-	out := mustGeom(t, "POLYGON ((-5 -5, -5 15, 15 15, 15 -5, -5 -5))")       // area 400
+	in := mustGeom(t, "POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))")        // area 100
+	out := mustGeom(t, "POLYGON ((-5 -5, -5 15, 15 15, 15 -5, -5 -5))") // area 400
 	errs := ValidateBufferResult(in, out, -1.0)
 	require.NotEmpty(t, errs)
 	require.Equal(t, ValidationErrorArea, errs[0].Kind)

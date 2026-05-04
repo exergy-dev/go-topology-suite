@@ -62,8 +62,8 @@ func TestCommonBitsRemover_EmptyInputAccumulatesNothing(t *testing.T) {
 }
 
 func TestCommonBitsOp_AppliesAndUnshifts(t *testing.T) {
-	a := geom.NewLineString(nil, []geom.XY{{1e9, 1e9}, {1e9 + 1, 1e9 + 1}})
-	b := geom.NewLineString(nil, []geom.XY{{1e9, 1e9}, {1e9 + 2, 1e9 + 2}})
+	a := geom.NewLineString(nil, []geom.XY{{X: 1e9, Y: 1e9}, {X: 1e9 + 1, Y: 1e9 + 1}})
+	b := geom.NewLineString(nil, []geom.XY{{X: 1e9, Y: 1e9}, {X: 1e9 + 2, Y: 1e9 + 2}})
 
 	var captured geom.XY
 	op := func(sa, sb geom.Geometry) (geom.Geometry, error) {
@@ -86,8 +86,8 @@ func TestCommonBitsOp_AppliesAndUnshifts(t *testing.T) {
 }
 
 func TestCommonBitsOp_PropagatesError(t *testing.T) {
-	a := geom.NewLineString(nil, []geom.XY{{0, 0}, {1, 1}})
-	b := geom.NewLineString(nil, []geom.XY{{0, 0}, {2, 2}})
+	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}})
+	b := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 2, Y: 2}})
 	want := errors.New("boom")
 	_, err := CommonBitsOp(a, b, func(geom.Geometry, geom.Geometry) (geom.Geometry, error) {
 		return nil, want

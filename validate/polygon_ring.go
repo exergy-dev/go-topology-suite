@@ -12,12 +12,12 @@
 //
 // The analysis recorded here mirrors the JTS class:
 //
-//   * self-touch nodes are tracked per ring (PolygonRingSelfNode in JTS);
-//   * touches between distinct rings of the same polygon are tracked
+//   - self-touch nodes are tracked per ring (PolygonRingSelfNode in JTS);
+//   - touches between distinct rings of the same polygon are tracked
 //     as edges of a touch graph (PolygonRingTouch);
-//   * the touch graph must be a forest — a cycle means a chain of
+//   - the touch graph must be a forest — a cycle means a chain of
 //     touching holes disconnects the interior;
-//   * a self-touch is valid only when the four edges meeting at the
+//   - a self-touch is valid only when the four edges meeting at the
 //     node lie in the polygon exterior (the "pinch point" topology).
 //     A self-touch whose corner lies on the interior side disconnects
 //     the interior even though the touch point is single.

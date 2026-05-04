@@ -32,7 +32,7 @@ const (
 // DimLoc combines an element dimension with a location. The integer
 // values match JTS DimensionLocation exactly.
 const (
-	DLExterior     = LocExterior // 0
+	DLExterior      = LocExterior // 0
 	DLPointInterior = 103
 	DLLineInterior  = 110
 	DLLineBoundary  = 111

@@ -29,10 +29,10 @@ import (
 // synchronisation; the internal mutex serialises Insert against itself
 // but does not protect callers that retain references to KdNode values.
 type KdTree[T any] struct {
-	mu            sync.RWMutex
-	root          *KdNode[T]
-	count         int
-	snapTolerance float64
+	mu              sync.RWMutex
+	root            *KdNode[T]
+	count           int
+	snapTolerance   float64
 	snapToleranceSq float64
 }
 

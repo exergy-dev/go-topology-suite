@@ -120,10 +120,10 @@ func TestMerge_MultiPolygonRingsExtracted(t *testing.T) {
 // direction. The Go port must match: when 3 of 4 inputs run
 // right-to-left the overall result must run right-to-left.
 func TestMerge_MajorityDirectionReversed(t *testing.T) {
-	a := mustParse(t, "LINESTRING (1 0, 0 0)")     // reversed (right-to-left)
-	b := mustParse(t, "LINESTRING (1 0, 2 0)")     // forward
-	c := mustParse(t, "LINESTRING (3 0, 2 0)")     // reversed
-	d := mustParse(t, "LINESTRING (4 0, 3 0)")     // reversed
+	a := mustParse(t, "LINESTRING (1 0, 0 0)") // reversed (right-to-left)
+	b := mustParse(t, "LINESTRING (1 0, 2 0)") // forward
+	c := mustParse(t, "LINESTRING (3 0, 2 0)") // reversed
+	d := mustParse(t, "LINESTRING (4 0, 3 0)") // reversed
 	out := Merge([]geom.Geometry{a, b, c, d})
 	require.Len(t, out, 1)
 	got := out[0]

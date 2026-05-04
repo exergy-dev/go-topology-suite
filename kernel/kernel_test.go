@@ -17,10 +17,12 @@ func TestOrientationString(t *testing.T) {
 // compiles. Concrete kernels (planar, spherical, geodesic) ship in Phase 1.
 type kernelStub struct{}
 
-func (kernelStub) Name() string                                                { return "stub" }
-func (kernelStub) Distance(a, b geom.XY) float64                               { return 0 }
-func (kernelStub) DistanceSquared(a, b geom.XY) float64                        { return 0 }
-func (kernelStub) SegmentIntersection(a1, a2, b1, b2 geom.XY) (geom.XY, bool)  { return geom.XY{}, false }
+func (kernelStub) Name() string                         { return "stub" }
+func (kernelStub) Distance(a, b geom.XY) float64        { return 0 }
+func (kernelStub) DistanceSquared(a, b geom.XY) float64 { return 0 }
+func (kernelStub) SegmentIntersection(a1, a2, b1, b2 geom.XY) (geom.XY, bool) {
+	return geom.XY{}, false
+}
 func (kernelStub) SegmentDistance(p, a, b geom.XY) float64                     { return 0 }
 func (kernelStub) Orient(a, b, c geom.XY) Orientation                          { return Collinear }
 func (kernelStub) PointInRing(p geom.XY, ring []geom.XY) Containment           { return Outside }

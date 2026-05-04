@@ -32,13 +32,13 @@ func TestReduce_FloatingIsIdentity(t *testing.T) {
 func TestReduce_PolygonHoleCollapsesAtCoarseGrid(t *testing.T) {
 	// Hole is roughly a 0.001 x 0.001 square — at scale=10 (grid 0.1)
 	// every hole vertex snaps to (5, 5) and the hole collapses.
-	shell := []geom.XY{{0, 0}, {10, 0}, {10, 10}, {0, 10}, {0, 0}}
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0}}
 	hole := []geom.XY{
-		{5.0001, 5.0001},
-		{5.0009, 5.0001},
-		{5.0009, 5.0009},
-		{5.0001, 5.0009},
-		{5.0001, 5.0001},
+		{X: 5.0001, Y: 5.0001},
+		{X: 5.0009, Y: 5.0001},
+		{X: 5.0009, Y: 5.0009},
+		{X: 5.0001, Y: 5.0009},
+		{X: 5.0001, Y: 5.0001},
 	}
 	in := geom.NewPolygon(nil, shell, hole)
 	pm := geom.NewFixedPrecision(10)
@@ -48,15 +48,15 @@ func TestReduce_PolygonHoleCollapsesAtCoarseGrid(t *testing.T) {
 
 func TestReduce_LineStringCollapsesToSinglePointDropsIt(t *testing.T) {
 	pm := geom.NewFixedPrecision(1) // grid spacing 1
-	in := geom.NewLineString(nil, []geom.XY{{0.1, 0.1}, {0.2, 0.2}, {0.3, 0.3}})
+	in := geom.NewLineString(nil, []geom.XY{{X: 0.1, Y: 0.1}, {X: 0.2, Y: 0.2}, {X: 0.3, Y: 0.3}})
 	out := Reduce(in, pm).(*geom.LineString)
 	assert.True(t, out.IsEmpty(), "collapsed line should yield empty linestring")
 }
 
 func TestReduce_MultiLineStringDropsCollapsedComponent(t *testing.T) {
 	pm := geom.NewFixedPrecision(1)
-	good := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 10}})
-	bad := geom.NewLineString(nil, []geom.XY{{0.1, 0.1}, {0.2, 0.2}})
+	good := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 10}})
+	bad := geom.NewLineString(nil, []geom.XY{{X: 0.1, Y: 0.1}, {X: 0.2, Y: 0.2}})
 	in := geom.NewMultiLineString(nil, good, bad)
 	out := Reduce(in, pm).(*geom.MultiLineString)
 	assert.Equal(t, 1, out.NumGeometries())
@@ -64,7 +64,7 @@ func TestReduce_MultiLineStringDropsCollapsedComponent(t *testing.T) {
 
 func TestReducePointwise_KeepsCollapsedComponents(t *testing.T) {
 	pm := geom.NewFixedPrecision(1)
-	in := geom.NewLineString(nil, []geom.XY{{0.1, 0.1}, {0.2, 0.2}, {0.3, 0.3}})
+	in := geom.NewLineString(nil, []geom.XY{{X: 0.1, Y: 0.1}, {X: 0.2, Y: 0.2}, {X: 0.3, Y: 0.3}})
 	out := ReducePointwise(in, pm).(*geom.LineString)
 	// Pointwise: every coord rounds to (0,0); we should still have a
 	// non-empty linestring (pad-to-2 behaviour).
@@ -82,7 +82,7 @@ func TestReduce_EmptyInputUnchanged(t *testing.T) {
 
 func TestReduce_ShellCollapseYieldsEmptyPolygon(t *testing.T) {
 	pm := geom.NewFixedPrecision(1)
-	shell := []geom.XY{{0.1, 0.1}, {0.2, 0.1}, {0.2, 0.2}, {0.1, 0.1}}
+	shell := []geom.XY{{X: 0.1, Y: 0.1}, {X: 0.2, Y: 0.1}, {X: 0.2, Y: 0.2}, {X: 0.1, Y: 0.1}}
 	in := geom.NewPolygon(nil, shell)
 	out := Reduce(in, pm).(*geom.Polygon)
 	assert.True(t, out.IsEmpty())

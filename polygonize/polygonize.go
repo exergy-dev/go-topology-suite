@@ -42,14 +42,14 @@ import (
 
 // Polygonize assembles polygons from the linework in geoms. It returns:
 //
-//   polygons:     the polygons formed (as *geom.Polygon wrapped in
-//                 geom.Geometry).
-//   dangles:      input lines that are not connected at one or both
-//                 ends (as *geom.LineString).
-//   cutEdges:     lines connected at both ends but not part of a
-//                 polygon ring.
-//   invalidRings: lines forming rings whose own linework is invalid
-//                 (self-intersecting).
+//	polygons:     the polygons formed (as *geom.Polygon wrapped in
+//	              geom.Geometry).
+//	dangles:      input lines that are not connected at one or both
+//	              ends (as *geom.LineString).
+//	cutEdges:     lines connected at both ends but not part of a
+//	              polygon ring.
+//	invalidRings: lines forming rings whose own linework is invalid
+//	              (self-intersecting).
 //
 // Inputs of any geometry type are accepted — only LineString and
 // LinearRing components contribute.

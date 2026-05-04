@@ -30,11 +30,11 @@ func bitEqualXY(a, b geom.XY) bool {
 // recomputing via interpolation.
 func TestSegmentIntersect_CollinearOverlap_BitExactEndpoints(t *testing.T) {
 	cases := []struct {
-		name       string
-		a1, a2     geom.XY
-		b1, b2     geom.XY
-		wantP      geom.XY // expected bit-exact source vertex for r.P
-		wantQ      geom.XY // expected bit-exact source vertex for r.Q
+		name   string
+		a1, a2 geom.XY
+		b1, b2 geom.XY
+		wantP  geom.XY // expected bit-exact source vertex for r.P
+		wantQ  geom.XY // expected bit-exact source vertex for r.Q
 	}{
 		{
 			"axis-aligned overlap (b inside a's envelope)",

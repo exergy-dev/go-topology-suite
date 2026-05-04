@@ -19,8 +19,8 @@ import (
 //
 // The polygonizer's depth-from-input invariant is: at any face F,
 //
-//   depth(F) = winding-number sum over offset edges crossed by a ray
-//              from F to +infinity, weighted by depthDelta.
+//	depth(F) = winding-number sum over offset edges crossed by a ray
+//	           from F to +infinity, weighted by depthDelta.
 //
 // For a positive buffer of any input ring, every emitted segment has
 // depthDelta = +1; faces with depth >= 1 are inside the buffer. For a
@@ -824,7 +824,7 @@ func flattenChains(strings []*noding.SegmentString) []offsetSegment {
 	}
 	type accum struct {
 		p0, p1 geom.XY
-		net    int    // sum of (depthDelta * sign) across all coincident occurrences
+		net    int // sum of (depthDelta * sign) across all coincident occurrences
 	}
 	by := map[canonKey]*accum{}
 	add := func(p0, p1 geom.XY, delta int8) {

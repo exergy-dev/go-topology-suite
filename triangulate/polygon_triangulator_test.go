@@ -22,7 +22,7 @@ func sumTriangleArea(tris []Triangle) float64 {
 
 func TestTriangulatePolygon_Square(t *testing.T) {
 	// Convex square — 2 triangles, total area = 1.
-	shell := []geom.XY{{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0}}
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0}}
 	p := geom.NewPolygon(nil, shell)
 	tris := TriangulatePolygon(p)
 	if len(tris) != 2 {
@@ -56,7 +56,7 @@ func TestTriangulatePolygon_Pentagon(t *testing.T) {
 func TestTriangulatePolygon_Concave(t *testing.T) {
 	// Concave "L" shape: 6 vertices -> 4 triangles, area = 3.
 	shell := []geom.XY{
-		{0, 0}, {2, 0}, {2, 1}, {1, 1}, {1, 2}, {0, 2}, {0, 0},
+		{X: 0, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 1}, {X: 1, Y: 1}, {X: 1, Y: 2}, {X: 0, Y: 2}, {X: 0, Y: 0},
 	}
 	p := geom.NewPolygon(nil, shell)
 	tris := TriangulatePolygon(p)
@@ -70,8 +70,8 @@ func TestTriangulatePolygon_Concave(t *testing.T) {
 
 func TestTriangulatePolygon_OneHole(t *testing.T) {
 	// 4x4 square with a 1x1 hole — area should be 16 - 1 = 15.
-	shell := []geom.XY{{0, 0}, {4, 0}, {4, 4}, {0, 4}, {0, 0}}
-	hole := []geom.XY{{1, 1}, {2, 1}, {2, 2}, {1, 2}, {1, 1}}
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 4, Y: 0}, {X: 4, Y: 4}, {X: 0, Y: 4}, {X: 0, Y: 0}}
+	hole := []geom.XY{{X: 1, Y: 1}, {X: 2, Y: 1}, {X: 2, Y: 2}, {X: 1, Y: 2}, {X: 1, Y: 1}}
 	p := geom.NewPolygon(nil, shell, hole)
 	tris := TriangulatePolygon(p)
 	if len(tris) == 0 {
@@ -85,9 +85,9 @@ func TestTriangulatePolygon_OneHole(t *testing.T) {
 
 func TestTriangulatePolygon_TwoHoles(t *testing.T) {
 	// 10x10 square with two 1x1 holes — area = 100 - 2 = 98.
-	shell := []geom.XY{{0, 0}, {10, 0}, {10, 10}, {0, 10}, {0, 0}}
-	h1 := []geom.XY{{1, 1}, {2, 1}, {2, 2}, {1, 2}, {1, 1}}
-	h2 := []geom.XY{{6, 6}, {7, 6}, {7, 7}, {6, 7}, {6, 6}}
+	shell := []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}, {X: 0, Y: 10}, {X: 0, Y: 0}}
+	h1 := []geom.XY{{X: 1, Y: 1}, {X: 2, Y: 1}, {X: 2, Y: 2}, {X: 1, Y: 2}, {X: 1, Y: 1}}
+	h2 := []geom.XY{{X: 6, Y: 6}, {X: 7, Y: 6}, {X: 7, Y: 7}, {X: 6, Y: 7}, {X: 6, Y: 6}}
 	p := geom.NewPolygon(nil, shell, h1, h2)
 	tris := TriangulatePolygon(p)
 	if len(tris) == 0 {
@@ -110,8 +110,8 @@ func TestTriangulatePolygon_Empty(t *testing.T) {
 }
 
 func TestTriangulatePolygons_MultiPolygon(t *testing.T) {
-	p1 := geom.NewPolygon(nil, []geom.XY{{0, 0}, {1, 0}, {1, 1}, {0, 1}, {0, 0}})
-	p2 := geom.NewPolygon(nil, []geom.XY{{2, 2}, {3, 2}, {3, 3}, {2, 3}, {2, 2}})
+	p1 := geom.NewPolygon(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0}})
+	p2 := geom.NewPolygon(nil, []geom.XY{{X: 2, Y: 2}, {X: 3, Y: 2}, {X: 3, Y: 3}, {X: 2, Y: 3}, {X: 2, Y: 2}})
 	mp := geom.NewMultiPolygon(nil, p1, p2)
 	tris := TriangulatePolygons(mp)
 	if len(tris) != 4 {

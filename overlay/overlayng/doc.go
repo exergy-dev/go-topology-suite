@@ -17,9 +17,9 @@
 //     propagation and gives correct answers regardless of how edges are
 //     shared between inputs.
 //  5. For the chosen operation, mark each face keep/drop:
-//       - Intersection: keep iff inSubj && inClip
-//       - Union:        keep iff inSubj || inClip
-//       - Difference:   keep iff inSubj && !inClip
+//     - Intersection: keep iff inSubj && inClip
+//     - Union:        keep iff inSubj || inClip
+//     - Difference:   keep iff inSubj && !inClip
 //  6. Output the boundary: edges separating a kept face from a not-kept
 //     face (or the outer face). Trace those edges into rings.
 //

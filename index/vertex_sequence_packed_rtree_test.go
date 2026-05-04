@@ -25,8 +25,8 @@ func queryAll(tree *VertexSequencePackedRtree, env geom.Envelope) []int {
 // scan.
 func TestVSPR_Query_Exhaustive(t *testing.T) {
 	pts := []geom.XY{
-		{0, 0}, {1, 0}, {2, 0}, {3, 1}, {4, 1},
-		{5, 2}, {6, 2}, {7, 3}, {8, 3}, {9, 4},
+		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 0}, {X: 3, Y: 1}, {X: 4, Y: 1},
+		{X: 5, Y: 2}, {X: 6, Y: 2}, {X: 7, Y: 3}, {X: 8, Y: 3}, {X: 9, Y: 4},
 	}
 	tree := NewVertexSequencePackedRtree(pts)
 	for _, q := range []geom.Envelope{
@@ -74,8 +74,8 @@ func TestVSPR_QueryParity_Random(t *testing.T) {
 // queries and is idempotent.
 func TestVSPR_Remove(t *testing.T) {
 	pts := []geom.XY{
-		{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0},
-		{5, 0}, {6, 0}, {7, 0}, {8, 0}, {9, 0},
+		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 2, Y: 0}, {X: 3, Y: 0}, {X: 4, Y: 0},
+		{X: 5, Y: 0}, {X: 6, Y: 0}, {X: 7, Y: 0}, {X: 8, Y: 0}, {X: 9, Y: 0},
 	}
 	tree := NewVertexSequencePackedRtree(pts)
 	full := geom.Envelope{MinX: -1, MinY: -1, MaxX: 100, MaxY: 100}

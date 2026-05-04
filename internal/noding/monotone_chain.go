@@ -21,12 +21,12 @@ import "github.com/terra-geo/terra/geom"
 // The Tag carries the originating SegmentString.Tag through callbacks so
 // MCIndexNoder can recover which input string a chain came from.
 type MonotoneChain struct {
-	Pts   []geom.XY // backing slice (NOT copied)
-	Start int       // index of first vertex of the chain
-	End   int       // index of last vertex of the chain (Start+1 minimum)
-	ID    int       // unique id assigned by the noder for pair-ordering
-	Tag   int       // Tag of the originating SegmentString
-	env   geom.Envelope
+	Pts    []geom.XY // backing slice (NOT copied)
+	Start  int       // index of first vertex of the chain
+	End    int       // index of last vertex of the chain (Start+1 minimum)
+	ID     int       // unique id assigned by the noder for pair-ordering
+	Tag    int       // Tag of the originating SegmentString
+	env    geom.Envelope
 	hasEnv bool
 }
 

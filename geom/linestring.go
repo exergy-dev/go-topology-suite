@@ -36,11 +36,11 @@ func NewEmptyLineString(c *crs.CRS, layout Layout) *LineString {
 	return &LineString{baseGeom{layout: layout, crs: c}}
 }
 
-func (ls *LineString) isGeometry()       {}
-func (ls *LineString) Type() Type        { return LineStringType }
-func (ls *LineString) Envelope() Envelope  { return ls.envelope() }
-func (ls *LineString) IsEmpty() bool       { return len(ls.coords) == 0 }
-func (ls *LineString) NumGeometries() int  { return 1 }
+func (ls *LineString) isGeometry()        {}
+func (ls *LineString) Type() Type         { return LineStringType }
+func (ls *LineString) Envelope() Envelope { return ls.envelope() }
+func (ls *LineString) IsEmpty() bool      { return len(ls.coords) == 0 }
+func (ls *LineString) NumGeometries() int { return 1 }
 
 // NumPoints returns the number of vertices in the line string.
 func (ls *LineString) NumPoints() int { return ls.numCoords() }

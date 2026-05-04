@@ -5,10 +5,11 @@ package relateng
 // geometry-B location, with EXTERIOR=0, BOUNDARY=1, INTERIOR=2.
 //
 // Cell values use JTS Dimension semantics:
-//   -1 (DimFalse / "F"): empty intersection
-//    0 / 1 / 2 (DimP / DimL / DimA): non-empty intersection of given dim
-//   -2 (DimDontCare): pattern wildcard, only used for parsing patterns
-//   -3 (DimTrue): pattern "T", only used for parsing patterns
+//
+//	-1 (DimFalse / "F"): empty intersection
+//	 0 / 1 / 2 (DimP / DimL / DimA): non-empty intersection of given dim
+//	-2 (DimDontCare): pattern wildcard, only used for parsing patterns
+//	-3 (DimTrue): pattern "T", only used for parsing patterns
 //
 // The runtime matrix only ever contains -1..2.
 type IntersectionMatrix struct {

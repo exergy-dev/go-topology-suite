@@ -87,8 +87,8 @@ func (p *Point) M() float64 {
 	return nan()
 }
 
-func (p *Point) isGeometry()      {}
-func (p *Point) Type() Type       { return PointType }
+func (p *Point) isGeometry() {}
+func (p *Point) Type() Type  { return PointType }
 
 // Envelope for a Point is the degenerate envelope at its coordinate.
 // Computed inline (no atomic-pointer cache allocation) — for a single

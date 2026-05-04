@@ -25,9 +25,9 @@ import (
 // A scale of zero or one is treated as a pass-through: input is fed
 // through inner unchanged.
 type ScaledNoder struct {
-	inner   Noder
-	scale   float64
-	offset  geom.XY
+	inner    Noder
+	scale    float64
+	offset   geom.XY
 	isScaled bool
 }
 

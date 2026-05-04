@@ -111,7 +111,7 @@ func computeTargetLength(tris []triangulate.Triangle, ratio float64) float64 {
 // ---------------------------------------------------------------------
 
 type hullTri struct {
-	v       [3]geom.XY
+	v [3]geom.XY
 	// adj[i] = neighbour triangle across edge (v[i], v[i+1]); nil if border.
 	adj     [3]*hullTri
 	removed bool

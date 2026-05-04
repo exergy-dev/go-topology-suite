@@ -16,11 +16,11 @@ import (
 // Shape: figure-eight-like shell with a single pinch at (5,5) but
 // edges that don't cross.
 //
-//	  10,10 ---- 0,10
-//	   |          |
-//	   5,5  pinch 5,5
-//	   |          |
-//	  10,0 ---- 0,0
+//	10,10 ---- 0,10
+//	 |          |
+//	 5,5  pinch 5,5
+//	 |          |
+//	10,0 ---- 0,0
 func TestInvertedRingValid_AcceptsPinchPoint(t *testing.T) {
 	// Two squares sharing a single pinch vertex at (5,5).
 	g, err := wkt.Unmarshal(

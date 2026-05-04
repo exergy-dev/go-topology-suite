@@ -145,9 +145,9 @@ type qtRoot[T comparable] struct {
 // getSubnodeIndex returns the index of the quadrant that wholly contains env,
 // or -1 if env crosses the axis at (centrex, centrey).
 //
-//  2 | 3
-//  --+--
-//  0 | 1
+//	2 | 3
+//	--+--
+//	0 | 1
 func getSubnodeIndex(env geom.Envelope, centrex, centrey float64) int {
 	idx := -1
 	if env.MinX >= centrex {

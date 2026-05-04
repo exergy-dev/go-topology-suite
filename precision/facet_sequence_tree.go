@@ -121,8 +121,8 @@ func addFacetSequences(pts []geom.XY) []*facetSequence {
 // Returns the smaller of (input bestDist, computed distance). The
 // metric, mirroring JTS's MinClearance.distance:
 //
-//   * vertex-vertex pairs that aren't equal2D
-//   * point-to-segment pairs where the point is not equal to either
+//   - vertex-vertex pairs that aren't equal2D
+//   - point-to-segment pairs where the point is not equal to either
 //     segment endpoint
 //
 // pts is updated in-place if a strictly-smaller distance is found.

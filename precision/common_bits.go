@@ -25,10 +25,10 @@ import (
 //
 // Mirrors org.locationtech.jts.precision.CommonBits.
 type CommonBits struct {
-	isFirst      bool
+	isFirst                 bool
 	commonMantissaBitsCount int
-	commonBits   uint64
-	commonSignExp uint64
+	commonBits              uint64
+	commonSignExp           uint64
 }
 
 // NewCommonBits returns an empty accumulator.

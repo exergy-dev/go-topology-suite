@@ -201,4 +201,3 @@ func envelopeMinDist(a, b geom.Envelope) float64 {
 	}
 	return math.Hypot(dx, dy)
 }
-

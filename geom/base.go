@@ -20,8 +20,8 @@ type baseGeom struct {
 	env    atomic.Pointer[Envelope]
 }
 
-func (b *baseGeom) Layout() Layout  { return b.layout }
-func (b *baseGeom) CRS() *crs.CRS   { return b.crs }
+func (b *baseGeom) Layout() Layout { return b.layout }
+func (b *baseGeom) CRS() *crs.CRS  { return b.crs }
 func (b *baseGeom) FlatCoords() []float64 {
 	// Returns the underlying buffer. Callers MUST treat as read-only;
 	// mutating it bypasses the envelope cache invariant.

@@ -8,15 +8,15 @@ import (
 )
 
 func TestHausdorffSimilarity_Identical(t *testing.T) {
-	p := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10}})
+	p := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
 	if got := HausdorffSimilarity(p, p); math.Abs(got-1) > 1e-9 {
 		t.Fatalf("identical: want 1, got %v", got)
 	}
 }
 
 func TestHausdorffSimilarity_Disjoint(t *testing.T) {
-	a := geom.NewPoint(nil, geom.XY{0, 0})
-	b := geom.NewPoint(nil, geom.XY{10, 0})
+	a := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
+	b := geom.NewPoint(nil, geom.XY{X: 10, Y: 0})
 	got := HausdorffSimilarity(a, b)
 	// Two points: the combined envelope is degenerate (height 0) so
 	// diagonal = 10. Hausdorff distance = 10. Similarity = 1 - 10/10 = 0.
@@ -28,8 +28,8 @@ func TestHausdorffSimilarity_Disjoint(t *testing.T) {
 func TestHausdorffSimilarity_NearlyIdentical(t *testing.T) {
 	// A tiny perturbation should yield a similarity close to (but
 	// less than) 1.
-	a := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10}})
-	b := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10.1}})
+	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
+	b := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10.1}})
 	got := HausdorffSimilarity(a, b)
 	if got <= 0.95 || got >= 1 {
 		t.Fatalf("nearly identical: want in (0.95, 1), got %v", got)
@@ -46,14 +46,14 @@ func TestHausdorffSimilarity_BothEmpty(t *testing.T) {
 
 func TestHausdorffSimilarity_OneEmpty(t *testing.T) {
 	a := geom.NewEmptyPolygon(nil, geom.LayoutXY)
-	b := geom.NewPoint(nil, geom.XY{0, 0})
+	b := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
 	if got := HausdorffSimilarity(a, b); got != 0 {
 		t.Fatalf("one empty: want 0, got %v", got)
 	}
 }
 
 func TestHausdorffSimilarity_NilInputs(t *testing.T) {
-	a := geom.NewPoint(nil, geom.XY{0, 0})
+	a := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
 	if got := HausdorffSimilarity(nil, a); !math.IsNaN(got) {
 		t.Fatalf("nil input: want NaN, got %v", got)
 	}
@@ -63,7 +63,7 @@ func TestHausdorffSimilarity_NilInputs(t *testing.T) {
 }
 
 func TestFrechetSimilarity_Identical(t *testing.T) {
-	p := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10}})
+	p := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
 	if got := FrechetSimilarity(p, p); math.Abs(got-1) > 1e-9 {
 		t.Fatalf("identical: want 1, got %v", got)
 	}
@@ -73,8 +73,8 @@ func TestFrechetSimilarity_OrderSensitive(t *testing.T) {
 	// Reversing one curve relative to the other yields a strictly
 	// lower Fréchet similarity than identical (the leash must stretch
 	// to cover the reversal).
-	a := geom.NewLineString(nil, []geom.XY{{0, 0}, {10, 0}, {10, 10}})
-	b := geom.NewLineString(nil, []geom.XY{{10, 10}, {10, 0}, {0, 0}})
+	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
+	b := geom.NewLineString(nil, []geom.XY{{X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 0}})
 	got := FrechetSimilarity(a, b)
 	if got >= 1 {
 		t.Fatalf("reversed order should be < 1, got %v", got)
@@ -90,7 +90,7 @@ func TestFrechetSimilarity_BothEmpty(t *testing.T) {
 }
 
 func TestFrechetSimilarity_NilInputs(t *testing.T) {
-	a := geom.NewLineString(nil, []geom.XY{{0, 0}, {1, 0}})
+	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}})
 	if got := FrechetSimilarity(nil, a); !math.IsNaN(got) {
 		t.Fatalf("nil input: want NaN, got %v", got)
 	}

@@ -10,8 +10,8 @@ import (
 var kochHeightFactor = math.Sin(math.Pi / 3.0)
 
 const (
-	kochOneThird   = 1.0 / 3.0
-	kochTwoThirds  = 2.0 / 3.0
+	kochOneThird  = 1.0 / 3.0
+	kochTwoThirds = 2.0 / 3.0
 )
 
 // kochThirdHeight is one third of an equilateral triangle's height.

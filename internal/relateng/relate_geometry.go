@@ -19,17 +19,17 @@ const (
 // on first locate*) so an instance can be reused across many
 // predicate calls — that's the JTS "prepared" mode.
 type Geometry struct {
-	geom         geom.Geometry
-	isPrepared   bool
-	rule         BoundaryNodeRule
-	envelope     geom.Envelope
-	dim          int
-	hasPoints    bool
-	hasLines     bool
-	hasAreas     bool
+	geom          geom.Geometry
+	isPrepared    bool
+	rule          BoundaryNodeRule
+	envelope      geom.Envelope
+	dim           int
+	hasPoints     bool
+	hasLines      bool
+	hasAreas      bool
 	isLineZeroLen bool
-	isEmpty      bool
-	locator      *PointLocator
+	isEmpty       bool
+	locator       *PointLocator
 }
 
 // NewGeometry wraps g with the OGC SFS rule (default).

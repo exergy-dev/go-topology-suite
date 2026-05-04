@@ -157,12 +157,12 @@ func (g *graph) addEdge(ls *geom.LineString) {
 }
 
 // merge produces the maximal-length polyline set. Algorithm:
-//   1. For every non-degree-2 node, walk every incident edge and
-//      build a chain by stepping through degree-2 nodes until
-//      we hit another non-degree-2 node or close the loop.
-//   2. Then sweep any remaining unmarked nodes (only degree-2
-//      nodes are left, all part of isolated rings) and emit each
-//      ring as a single closed polyline.
+//  1. For every non-degree-2 node, walk every incident edge and
+//     build a chain by stepping through degree-2 nodes until
+//     we hit another non-degree-2 node or close the loop.
+//  2. Then sweep any remaining unmarked nodes (only degree-2
+//     nodes are left, all part of isolated rings) and emit each
+//     ring as a single closed polyline.
 func (g *graph) merge() []*geom.LineString {
 	out := make([]*geom.LineString, 0, len(g.edges))
 	// Stable iteration order across runs: walk nodes in insertion

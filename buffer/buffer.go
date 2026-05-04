@@ -369,4 +369,3 @@ func dedupedPoints(ls *geom.LineString) []geom.XY {
 	}
 	return out
 }
-
