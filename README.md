@@ -41,6 +41,8 @@ func main() {
 }
 ```
 
+More worked examples (predicates, overlay, buffer + GeoJSON, CRS transform, R-tree, validate/fix) live under [`examples/`](./examples). Run any with `go run ./examples/<name>`.
+
 ## Packages
 
 The module is organised in roughly the same package layout as JTS, lifted into Go conventions:
