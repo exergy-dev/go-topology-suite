@@ -1,0 +1,15 @@
+Terra
+Copyright 2026 The Terra Authors
+
+This product includes software developed by The Terra Authors and the
+JTS Topology Suite project (https://github.com/locationtech/jts).
+
+Portions of this software are derived from the JTS Topology Suite,
+which is dual-licensed under the Eclipse Public License 1.0 and the
+Eclipse Distribution License 1.0. The JTS port in this repository was
+re-implemented in Go from the published JTS source; consult the JTS
+project for the upstream license terms.
+
+Test fixtures under crs/proj/testdata/gie/ are derived from the PROJ
+project (https://github.com/OSGeo/PROJ) and carry their own X/MIT
+license — see crs/proj/testdata/gie/LICENSE.

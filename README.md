@@ -1,0 +1,118 @@
+# Terra
+
+A Go port of the [JTS Topology Suite](https://github.com/locationtech/jts) — geometry types, spatial predicates, overlay, buffer, simplification, indexing, and the surrounding ecosystem of geospatial primitives.
+
+```go
+import "github.com/terra-geo/terra"
+```
+
+The module path is `github.com/terra-geo/terra`. The directory name in this repository (`go-topology-suite`) is historical; the import path is what users depend on.
+
+## Why Terra
+
+JTS is the de-facto reference implementation for 2D vector geometry on the JVM. Terra ports it to idiomatic Go: explicit CRS attachment on every geometry, no globals on the hot path, value-typed coordinates, sealed `Geometry` interface, and a robust planar kernel built on Shewchuk-style adaptive predicates with a `math/big` exact fallback.
+
+Conformance against JTS's own `testxml` corpus (8 951 cases) is **99.88 %**; the 11 residual failures are tracked in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md) and are either external-tracker known (GEOS upstream), JTS-`failure/` flagged, or fixture version drift.
+
+## Quick start
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/terra-geo/terra/buffer"
+	"github.com/terra-geo/terra/geojson"
+	"github.com/terra-geo/terra/predicate"
+	"github.com/terra-geo/terra/wkt"
+)
+
+func main() {
+	a, _ := wkt.Unmarshal([]byte("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"))
+	b, _ := wkt.Unmarshal([]byte("POINT (5 5)"))
+
+	hit, _ := predicate.Intersects(a, b)
+	fmt.Println("intersects:", hit) // true
+
+	expanded, _ := buffer.Buffer(a, 2.0)
+	out, _ := geojson.Marshal(expanded)
+	fmt.Println(string(out))
+}
+```
+
+## Packages
+
+The module is organised in roughly the same package layout as JTS, lifted into Go conventions:
+
+| Package | Role |
+|---|---|
+| `geom` | `Geometry` interface, value types (`XY`, `XYZ`, `XYM`, `XYZM`), the seven OGC Simple Features types, `Envelope`, `Layout`, `WithCRS` rebrand. |
+| `crs` | Coordinate Reference Systems: identity tags, ellipsoids, datums, projections, transform pipeline. EPSG registry under `crs/epsg/`. Five projection families implemented under `crs/proj/`. |
+| `predicate` | DE-9IM and named predicates: `Intersects`, `Disjoint`, `Equals`, `Contains`, `Within`, `Crosses`, `Touches`, `Overlaps`, `Covers`, `CoveredBy`, `Relate`, `RelateNG`. RelateNG is the default. |
+| `overlay`, `overlay/overlayng` | Boolean operations (Intersection, Union, Difference, SymmetricDifference) on the JTS DCEL + depth-labelling pipeline. |
+| `buffer` | Distance buffer, with the OffsetSegmentGenerator port and the polygonizer pipeline. |
+| `simplify` | Douglas-Peucker, Visvalingam, polygon-hull. |
+| `validate` | Validity check, defect codes, GeometryFixer. |
+| `prepare` | Pre-computed acceleration structures for repeated predicates. |
+| `precision` | Precision reduction, snapping, MinimumClearance, CommonBits. |
+| `index` | R-tree, KdTree, Quadtree, IntervalRTree, HPRtree, MonotoneChain. |
+| `measure` | Distance, Hausdorff/Frechet similarity, MinimumBoundingCircle, MaximumInscribedCircle, etc. |
+| `triangulate` | Delaunay (incl. conforming), Voronoi, polygon triangulation. |
+| `kernel`, `kernel/planar`, `kernel/spherical`, `kernel/geodesic` | Pluggable orientation/intersection kernels. Planar is Shewchuk-adaptive with `math/big` fallback. |
+| `wkt`, `wkb`, `geojson`, `gml`, `kml` | I/O. WKT/WKB/GeoJSON/GML are read+write; KML is write-only. EWKB and ISO-WKB Z/M flag conventions are both supported. |
+| `linearref`, `linemerge`, `polygonize`, `dissolve`, `densify`, `coverage`, `hull`, `shape`, `algorithm/locate` | Operations and constructions ported from the corresponding JTS classes. |
+
+The `internal/` packages — `relateng`, `noding`, `snap`, `snaprounding`, `corpus`, `jtstest`, `proptest` — are not part of the public API.
+
+## Coordinate reference systems
+
+Every geometry holds a `*crs.CRS` pointer. Operations between two geometries with different CRS pointers return `terra.ErrCRSMismatch`; there is no implicit reprojection. Use `terra.Transform(g, target)` (or `crs.OperationFor(src, dst)`) to reproject explicitly.
+
+The CRS subsystem is **deliberately narrower than PROJ**:
+
+- Five projection families are implemented end-to-end and validated against PROJ's GIE corpus: Web Mercator, Transverse Mercator, Lambert Conformal Conic 2SP, Albers Equal-Area Conic, Lambert Azimuthal Equal-Area.
+- Datum shifts use the 7-parameter Helmert (Bursa-Wolf) transformation in either PositionVector or CoordinateFrame convention, with closed-form geodetic↔geocentric conversion via Bowring 1985 + 2× Newton refinement.
+- Common EPSG codes (4326 WGS84, 3857 Web Mercator, 4269 NAD83, the UTM zones for the families above) are populated. Codes outside this set return `crs.ErrUntransformable`.
+
+For full PROJ feature parity (150+ projection families, polynomial grid shifts, pipeline composition), wrap PROJ via cgo or a shell-out — Terra does not aim to replace it.
+
+## Testing
+
+The full test suite runs under stock `go test`:
+
+```sh
+go test ./...
+go test -race ./...
+```
+
+Additional gated harnesses:
+
+```sh
+# JTS testxml conformance (8 951 cases, 99.88 % pass).
+go test -tags=jts ./internal/jtstest/...
+
+# Cross-implementation conformance vs simplefeatures (Pillar B2).
+go test ./bench/conformance/...
+
+# Native-fuzz targets (wkt, wkb, geojson, crs/wkt2).
+go test -fuzz=FuzzUnmarshal -fuzztime=1m ./wkt/
+```
+
+Property-based tests via `pgregory.net/rapid` cover predicates, overlay, buffer, validate, the planar/spherical kernels, and the projection roundtrips. CI runs `go vet`, `go test`, `go test -race`, and an Address Sanitizer pass on every push.
+
+## Versioning and stability
+
+Terra follows [Semantic Versioning](https://semver.org/). The public API surface — every exported symbol outside `internal/` — is covered by the v1 stability promise. Packages explicitly marked **experimental** in their `doc.go` (notably parts of `crs/proj/` and `kernel/spherical/`) may evolve within a major version with a release-note entry.
+
+Breaking changes require a major-version bump. Deprecations are announced one minor version ahead of removal.
+
+## Acknowledgments
+
+Terra is a Go port of [JTS](https://github.com/locationtech/jts), authored by Martin Davis and contributors and maintained at LocationTech. Behavioral fidelity to JTS is a design goal; documented divergences live in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md).
+
+The `crs/proj/testdata/gie/` corpus is derived from the [PROJ project](https://github.com/OSGeo/PROJ) and retains its X/MIT license.
+
+## License
+
+[Apache License 2.0](./LICENSE). See [`NOTICE`](./NOTICE) for attribution details.
