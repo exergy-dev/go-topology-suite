@@ -1,2 +1,9 @@
 .claude/worktrees/
 .claude/scheduled_tasks.lock
+
+# Go test binaries (from `go test -c`)
+*.test
+# Coverage / profile output
+*.out
+*.prof
+*.pprof
