@@ -17,9 +17,9 @@ func WithCRS(g Geometry, c *crs.CRS) Geometry {
 	}
 	switch v := g.(type) {
 	case *Point:
-		// Reconstruct baseGeom field-by-field to avoid copying the
-		// sync/atomic.Pointer envelope cache (which carries noCopy).
-		// Mirrors the LineString/LinearRing/MultiPoint arms below.
+		// Reconstruct baseGeom field-by-field; copying *v would copy
+		// the embedded sync/atomic.Pointer envelope cache, violating
+		// its noCopy contract.
 		return &Point{baseGeom: baseGeom{layout: v.layout, coords: v.coords, crs: c}}
 	case *LineString:
 		return &LineString{baseGeom{layout: v.layout, coords: v.coords, crs: c}}

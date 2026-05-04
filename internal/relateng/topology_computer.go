@@ -363,11 +363,7 @@ func (tc *TopologyComputer) EvaluateNodes() {
 		}
 	}
 	sort.Slice(nss, func(i, j int) bool {
-		a, b := nss[i].NodePt, nss[j].NodePt
-		if a.X != b.X {
-			return a.X < b.X
-		}
-		return a.Y < b.Y
+		return nss[i].NodePt.Compare(nss[j].NodePt) < 0
 	})
 	for _, ns := range nss {
 		tc.evaluateNode(ns)

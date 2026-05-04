@@ -2,7 +2,6 @@ package terra_test
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/terra-geo/terra"
 	"github.com/terra-geo/terra/buffer"
@@ -13,9 +12,7 @@ import (
 	"github.com/terra-geo/terra/wkt"
 )
 
-// Decode a polygon from WKT, test a point against it, and re-encode the
-// result of buffering it as GeoJSON. This is the canonical "first program"
-// shape: parse → operate → encode.
+// Decode a polygon from WKT, test a point against it.
 func Example() {
 	square, _ := wkt.Unmarshal("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
 	pt, _ := wkt.Unmarshal("POINT (5 5)")
@@ -84,9 +81,9 @@ func ExampleTransform() {
 	}
 	xy := projected.(*geom.Point).XY()
 	// (0°, 0°) maps to (0, 0) on Web Mercator.
-	fmt.Printf("(%g, %g)\n", math.Abs(xy.X), math.Abs(xy.Y))
+	fmt.Printf("%.0f %.0f\n", xy.X, xy.Y)
 	// Output:
-	// (0, 0)
+	// 0 0
 }
 
 // ExampleMarshal_geojson round-trips a geometry through GeoJSON. The
