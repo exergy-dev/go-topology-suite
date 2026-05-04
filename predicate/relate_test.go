@@ -8,12 +8,6 @@ import (
 	"github.com/terra-geo/terra/wkt"
 )
 
-func mustWKT(t *testing.T, s string) interface{ /* geom.Geometry */ } {
-	g, err := wkt.Unmarshal(s)
-	require.NoError(t, err, "unmarshal %q", s)
-	return g
-}
-
 // expectMatch asserts that Relate(a,b) matches `pattern`.
 func expectMatch(t *testing.T, awkt, bwkt, pattern, label string) {
 	t.Helper()

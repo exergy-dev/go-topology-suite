@@ -78,7 +78,13 @@ type taggedSegment struct {
 // caller's responsibility (typically: snap → node before building).
 func buildDCEL(segs []taggedSegment) *dcel {
 	d := &dcel{}
-	vmap := map[vertexKey]*vertex{}
+	// Heuristic capacities: vmap typically holds ~half the segment count
+	// (each interior vertex is shared by two segments); edgeMap holds at
+	// most 2*len(segs) directed entries. Slight over-sizing is cheap and
+	// avoids rehashes for the common dense-polygon case.
+	d.vertices = make([]*vertex, 0, len(segs))
+	d.edges = make([]*halfEdge, 0, 2*len(segs))
+	vmap := make(map[vertexKey]*vertex, len(segs))
 
 	getVertex := func(p geom.XY) *vertex {
 		k := makeKey(p)
@@ -95,7 +101,7 @@ func buildDCEL(segs []taggedSegment) *dcel {
 	// If the same directed edge appears twice (same source AND same
 	// direction), tags merge — same for the reverse direction.
 	type edgeKey struct{ a, b vertexKey }
-	edgeMap := map[edgeKey]*halfEdge{}
+	edgeMap := make(map[edgeKey]*halfEdge, 2*len(segs))
 
 	for _, s := range segs {
 		if s.p0 == s.p1 {

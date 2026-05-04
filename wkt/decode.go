@@ -348,13 +348,13 @@ func (p *parser) readCoordSequence(stride int) ([]float64, error) {
 func (p *parser) parseLineString() (geom.Geometry, error) {
 	layout, empty := p.parseEmptyOrLayout()
 	if empty {
-		return geom.NewLineStringFlat(layout, p.crs, nil), nil
+		return geom.NewEmptyLineString(p.crs, layout), nil
 	}
 	flat, err := p.readCoordSequence(layout.Stride())
 	if err != nil {
 		return nil, err
 	}
-	return geom.NewLineStringFlatNoClone(layout, p.crs, flat), nil
+	return geom.NewLineStringOwned(layout, p.crs, flat), nil
 }
 
 func (p *parser) parseLinearRing() (geom.Geometry, error) {
@@ -469,13 +469,13 @@ func (p *parser) parseMultiLineString() (geom.Geometry, error) {
 	var lines []*geom.LineString
 	for {
 		if p.tryReadEmpty() {
-			lines = append(lines, geom.NewLineStringFlat(layout, p.crs, nil))
+			lines = append(lines, geom.NewEmptyLineString(p.crs, layout))
 		} else {
 			flat, err := p.readCoordSequence(stride)
 			if err != nil {
 				return nil, err
 			}
-			lines = append(lines, geom.NewLineStringFlatNoClone(layout, p.crs, flat))
+			lines = append(lines, geom.NewLineStringOwned(layout, p.crs, flat))
 		}
 		done, err := p.consumeMemberSeparator("multilinestring")
 		if err != nil {

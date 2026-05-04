@@ -427,7 +427,6 @@ func karneyInverse(lon1, lat1, lon2, lat2 float64) (s, alpha1, alpha2 float64) {
 		calp1, calp2 = 0, 0
 		salp1, salp2 = 1, 1
 		s12x = a * lam12
-		sig12 = lam12 / (1 - f)
 	} else if !meridian {
 		var dnm float64
 		sig12, salp1, calp1, salp2, calp2, dnm = inverseStart(

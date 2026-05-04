@@ -236,7 +236,7 @@ func (d *decoder) readLineString(layout geom.Layout, cr *crs.CRS, o binary.ByteO
 		}
 		flat[i] = v
 	}
-	return geom.NewLineStringFlatNoClone(layout, cr, flat), nil
+	return geom.NewLineStringOwned(layout, cr, flat), nil
 }
 
 func (d *decoder) readPolygon(layout geom.Layout, cr *crs.CRS, o binary.ByteOrder) (geom.Geometry, error) {
@@ -245,12 +245,19 @@ func (d *decoder) readPolygon(layout geom.Layout, cr *crs.CRS, o binary.ByteOrde
 	if err != nil {
 		return nil, err
 	}
-	// Each ring needs at least a 4-byte vertex count; cap the slice
-	// allocation accordingly.
 	if err := d.checkCount(numRings, 4); err != nil {
 		return nil, err
 	}
-	rings := make([][]geom.XY, 0, numRings)
+	if numRings == 0 {
+		return geom.NewEmptyPolygon(cr, geom.LayoutXY), nil
+	}
+	// Two-pass decode: first pass reads the per-ring vertex counts so we
+	// can allocate the flat coord buffer in one shot, second pass reads
+	// the actual coordinates. Avoids the intermediate [][]XY allocation
+	// (and its growth) that NewPolygon would otherwise need to clone.
+	mark := d.pos
+	starts := make([]int, numRings)
+	totalVerts := 0
 	for r := uint32(0); r < numRings; r++ {
 		nv, err := d.readUint32(o)
 		if err != nil {
@@ -259,7 +266,21 @@ func (d *decoder) readPolygon(layout geom.Layout, cr *crs.CRS, o binary.ByteOrde
 		if err := d.checkCount(nv, stride*8); err != nil {
 			return nil, err
 		}
-		ring := make([]geom.XY, nv)
+		starts[r] = totalVerts
+		totalVerts += int(nv)
+		// Skip the coord bytes; the second pass will read them.
+		if err := d.need(int(nv) * stride * 8); err != nil {
+			return nil, err
+		}
+		d.pos += int(nv) * stride * 8
+	}
+	d.pos = mark
+	flat := make([]float64, 0, 2*totalVerts)
+	for r := uint32(0); r < numRings; r++ {
+		nv, err := d.readUint32(o)
+		if err != nil {
+			return nil, err
+		}
 		for i := uint32(0); i < nv; i++ {
 			x, err := d.readFloat64(o)
 			if err != nil {
@@ -269,17 +290,15 @@ func (d *decoder) readPolygon(layout geom.Layout, cr *crs.CRS, o binary.ByteOrde
 			if err != nil {
 				return nil, err
 			}
-			// Skip Z/M values.
 			for j := 2; j < stride; j++ {
 				if _, err := d.readFloat64(o); err != nil {
 					return nil, err
 				}
 			}
-			ring[i] = geom.XY{X: x, Y: y}
+			flat = append(flat, x, y)
 		}
-		rings = append(rings, ring)
 	}
-	return geom.NewPolygon(cr, rings...), nil
+	return geom.NewPolygonOwned(geom.LayoutXY, cr, flat, starts), nil
 }
 
 func (d *decoder) readMultiPoint(layout geom.Layout, cr *crs.CRS, o binary.ByteOrder) (geom.Geometry, error) {

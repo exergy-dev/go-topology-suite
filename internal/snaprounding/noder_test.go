@@ -15,18 +15,6 @@ func ss(tag int, pts ...geom.XY) *noding.SegmentString {
 
 func xy(x, y float64) geom.XY { return geom.XY{X: x, Y: y} }
 
-// hasVertex returns true if any string contains the exact vertex p.
-func hasVertex(strs []*noding.SegmentString, p geom.XY) bool {
-	for _, s := range strs {
-		for _, v := range s.Coords {
-			if v == p {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // vertexCount returns the number of (string, index) positions whose
 // vertex equals p across the result set. Useful for asserting that an
 // intersection is shared by both crossing segments.

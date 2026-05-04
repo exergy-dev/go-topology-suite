@@ -34,16 +34,17 @@ func Intersects(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if sc := scIntersects(a, b, c.kernel.Name() == "planar"); sc.resolved {
 		return sc.get(), nil
 	}
-	// Prepared fast-path. Two tiers: (1) generic Intersects(g) when the
-	// prepared form supports it (PreparedPolygon, PreparedLineString),
-	// (2) a single-point ContainsPoint shortcut for the Polygon-vs-Point
-	// case using only the minimal handle interface.
+	// Prepared fast-path. The Polygon-vs-Point case is checked FIRST
+	// (before the preparedIntersector tier) because ContainsPoint goes
+	// straight to the segment R-tree, while preparedIntersector.Intersects
+	// routes through walkVertices + closure dispatch — measurably slower
+	// for the very common single-point query.
 	if c.prepared != nil {
-		if pi, ok := c.prepared.(preparedIntersector); ok {
-			return pi.Intersects(b), nil
-		}
 		if pb, ok := b.(*geom.Point); ok {
 			return c.prepared.ContainsPoint(pb.XY()) != kernel.Outside, nil
+		}
+		if pi, ok := c.prepared.(preparedIntersector); ok {
+			return pi.Intersects(b), nil
 		}
 	}
 	return intersectsDispatch(a, b, c.kernel)

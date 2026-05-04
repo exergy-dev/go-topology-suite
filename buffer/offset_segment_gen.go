@@ -96,7 +96,6 @@ type offsetSegmentGenerator struct {
 	seg0, seg1       offsetLineSeg
 	offset0, offset1 offsetLineSeg
 	side             int
-	hasNarrowConcave bool
 }
 
 // offsetLineSeg is a 2D line segment (matches JTS LineSegment).
@@ -122,14 +121,6 @@ func newOffsetSegmentGenerator(cfg config, distance float64) *offsetSegmentGener
 	}
 	g.segList = newOffsetSegmentString(g.distance * curveVertexSnapDistanceFactor)
 	return g
-}
-
-// hasNarrowConcaveAngle reports whether any inside turn produced a
-// "closing segment" because the offset segments did not intersect
-// (i.e. the corner was very narrow relative to the offset distance).
-// Mirrors JTS's hasNarrowConcaveAngle().
-func (g *offsetSegmentGenerator) hasNarrowConcaveAngle() bool {
-	return g.hasNarrowConcave
 }
 
 // initSideSegments seeds the generator with the first input segment
@@ -278,7 +269,6 @@ func (g *offsetSegmentGenerator) addInsideTurn(orientation kernel.Orientation, a
 		g.segList.addPt(pt)
 		return
 	}
-	g.hasNarrowConcave = true
 	if dist(g.offset0.p1, g.offset1.p0) < g.distance*insideTurnVertexSnapDistanceFactor {
 		g.segList.addPt(g.offset0.p1)
 		return
@@ -427,24 +417,6 @@ func (g *offsetSegmentGenerator) addDirectedFillet(p geom.XY, startAngle, endAng
 			Y: p.Y + radius*math.Sin(angle),
 		})
 	}
-}
-
-// createCircle emits a CW circle around p with radius equal to the
-// generator's distance. Used by the round-cap path for point inputs.
-func (g *offsetSegmentGenerator) createCircle(p geom.XY) {
-	g.segList.addPt(geom.XY{X: p.X + g.distance, Y: p.Y})
-	g.addDirectedFillet(p, 0, piTimes2, kernel.Clockwise, g.distance)
-	g.segList.closeRing()
-}
-
-// createSquare emits a CW square around p with half-side equal to the
-// generator's distance. Used by the square-cap path for point inputs.
-func (g *offsetSegmentGenerator) createSquare(p geom.XY) {
-	g.segList.addPt(geom.XY{X: p.X + g.distance, Y: p.Y + g.distance})
-	g.segList.addPt(geom.XY{X: p.X + g.distance, Y: p.Y - g.distance})
-	g.segList.addPt(geom.XY{X: p.X - g.distance, Y: p.Y - g.distance})
-	g.segList.addPt(geom.XY{X: p.X - g.distance, Y: p.Y + g.distance})
-	g.segList.closeRing()
 }
 
 // computeOffsetSegment returns the parallel offset of seg on the given

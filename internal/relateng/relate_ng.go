@@ -390,19 +390,6 @@ func collectUniquePoints(g geom.Geometry, out map[geom.XY]struct{}) {
 	}
 }
 
-// effectivePoints returns the XY coords of every Point/MultiPoint
-// member, deduplicated, in arbitrary order. Mirrors JTS
-// RelateGeometry.getEffectivePoints (zero-length lines included
-// elsewhere via DimensionReal logic).
-func effectivePoints(g geom.Geometry) []geom.XY {
-	pts := uniquePoints(g)
-	out := make([]geom.XY, 0, len(pts))
-	for p := range pts {
-		out = append(out, p)
-	}
-	return out
-}
-
 // effectivePointsFor mirrors JTS RelateGeometry.getEffectivePoints:
 // when the wrapper geometry has higher-dim members, a Point member
 // whose coordinate is covered by a line/area element is omitted —

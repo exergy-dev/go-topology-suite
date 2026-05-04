@@ -149,61 +149,70 @@ func computeNodeEnvelope(bounds []geom.Envelope, valid []bool, start, end int) g
 // Query returns the indices of all (non-removed) input coordinates that
 // lie within queryEnv (closed: boundary inclusive). Order is undefined.
 //
-// Mirrors VertexSequencePackedRtree.query.
-func (t *VertexSequencePackedRtree) Query(queryEnv geom.Envelope) []int {
+// Query invokes fn for every index whose vertex lies in queryEnv
+// (closed: boundary inclusive). fn returns false to stop traversal
+// early. Allocation-free.
+//
+// Mirrors VertexSequencePackedRtree.query, returning results via
+// callback (matches KdTree.Query and IntervalRtree.Query in this
+// codebase).
+func (t *VertexSequencePackedRtree) Query(queryEnv geom.Envelope, fn func(idx int) bool) {
 	if len(t.items) == 0 {
-		return nil
+		return
 	}
-	var result []int
 	level := len(t.levelOffset) - 1
-	t.queryNode(queryEnv, level, 0, &result)
-	return result
+	t.queryNode(queryEnv, level, 0, fn)
 }
 
-func (t *VertexSequencePackedRtree) queryNode(queryEnv geom.Envelope, level, nodeIndex int, result *[]int) {
+func (t *VertexSequencePackedRtree) queryNode(queryEnv geom.Envelope, level, nodeIndex int, fn func(int) bool) bool {
 	boundsIndex := t.levelOffset[level] + nodeIndex
 	if !t.boundsValid[boundsIndex] {
-		return
+		return true
 	}
 	if !queryEnv.Intersects(t.bounds[boundsIndex]) {
-		return
+		return true
 	}
 	childStart := nodeIndex * vsprNodeCapacity
 	if level == 0 {
-		t.queryItemRange(queryEnv, childStart, result)
-		return
+		return t.queryItemRange(queryEnv, childStart, fn)
 	}
-	t.queryNodeRange(queryEnv, level-1, childStart, result)
+	return t.queryNodeRange(queryEnv, level-1, childStart, fn)
 }
 
-func (t *VertexSequencePackedRtree) queryNodeRange(queryEnv geom.Envelope, level, nodeStartIndex int, result *[]int) {
+func (t *VertexSequencePackedRtree) queryNodeRange(queryEnv geom.Envelope, level, nodeStartIndex int, fn func(int) bool) bool {
 	levelMax := t.levelSize(level)
 	for i := 0; i < vsprNodeCapacity; i++ {
 		index := nodeStartIndex + i
 		if index >= levelMax {
-			return
+			return true
 		}
-		t.queryNode(queryEnv, level, index, result)
+		if !t.queryNode(queryEnv, level, index, fn) {
+			return false
+		}
 	}
+	return true
 }
 
 func (t *VertexSequencePackedRtree) levelSize(level int) int {
 	return t.levelOffset[level+1] - t.levelOffset[level]
 }
 
-func (t *VertexSequencePackedRtree) queryItemRange(queryEnv geom.Envelope, itemIndex int, result *[]int) {
+func (t *VertexSequencePackedRtree) queryItemRange(queryEnv geom.Envelope, itemIndex int, fn func(int) bool) bool {
 	for i := 0; i < vsprNodeCapacity; i++ {
 		idx := itemIndex + i
 		if idx >= len(t.items) {
-			return
+			return true
 		}
 		if t.isRemoved[idx] {
 			continue
 		}
 		if queryEnv.ContainsXY(t.items[idx]) {
-			*result = append(*result, idx)
+			if !fn(idx) {
+				return false
+			}
 		}
 	}
+	return true
 }
 
 // Remove marks the input vertex at index inactive. The underlying

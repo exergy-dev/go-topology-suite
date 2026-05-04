@@ -22,18 +22,18 @@ func NewLineString(c *crs.CRS, pts []XY) *LineString {
 	return &LineString{baseGeom{layout: LayoutXY, coords: flat, crs: c}}
 }
 
-// NewLineStringFlat constructs a LineString directly from a flat coordinate
-// buffer. The buffer is cloned. Callers wanting zero-copy behaviour should
-// donate ownership via NewLineStringFlatNoClone (intended for format
-// decoders only).
-func NewLineStringFlat(layout Layout, c *crs.CRS, flat []float64) *LineString {
-	return &LineString{baseGeom{layout: layout, coords: cloneFloats(flat), crs: c}}
+// NewLineStringOwned constructs a LineString that takes ownership of
+// flat without copying. Intended for format decoders and other callers
+// that have just allocated the buffer themselves and won't mutate it
+// afterwards.
+func NewLineStringOwned(layout Layout, c *crs.CRS, flat []float64) *LineString {
+	return &LineString{baseGeom{layout: layout, coords: flat, crs: c}}
 }
 
-// NewLineStringFlatNoClone takes ownership of flat without copying. Intended
-// for format decoders that have just allocated the buffer themselves.
-func NewLineStringFlatNoClone(layout Layout, c *crs.CRS, flat []float64) *LineString {
-	return &LineString{baseGeom{layout: layout, coords: flat, crs: c}}
+// NewEmptyLineString constructs a LINESTRING EMPTY in the given layout.
+// Parallels NewEmptyPoint and NewEmptyPolygon.
+func NewEmptyLineString(c *crs.CRS, layout Layout) *LineString {
+	return &LineString{baseGeom{layout: layout, crs: c}}
 }
 
 func (ls *LineString) isGeometry()       {}

@@ -55,10 +55,6 @@ func (b *baseGeom) envelope() Envelope {
 	return computed
 }
 
-// invalidateEnvelope drops the cached envelope. Mutator methods on concrete
-// types call this after writing through to the coord buffer.
-func (b *baseGeom) invalidateEnvelope() { b.env.Store(nil) }
-
 // cloneFloats returns a defensive copy of in. Constructors clone inputs by
 // default so callers retain ownership of their own slices — the same rule
 // the v2 codebase used.

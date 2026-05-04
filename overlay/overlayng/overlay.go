@@ -184,19 +184,6 @@ func snapAllRings(p *geom.Polygon, tolerance float64) [][]geom.XY {
 	return out
 }
 
-// overlayCore is the single-polygon shared body: node every ring →
-// DCEL → classify faces against the original (multi-ring) polygons →
-// trace result rings → reassemble outers and holes.
-func overlayCore(c *crs.CRS, subjRings, clipRings [][]geom.XY, op Op) (*geom.Polygon, []*geom.Polygon, error) {
-	// Single-polygon overlay routes through the polygonal entry point
-	// with one polygon per side; perPoly slices encode that.
-	return overlayCorePolygonal(c,
-		subjRings, []int{len(subjRings)},
-		clipRings, []int{len(clipRings)},
-		op,
-	)
-}
-
 // OverlayPolygonalMixedDim is the polygonal-input entry point that
 // returns a generic Geometry — possibly a GeometryCollection if the
 // overlay produces mixed-dimension output (e.g., polygon ∩ polygon
@@ -334,7 +321,7 @@ func assembleMixedDim(c *crs.CRS, first *geom.Polygon, rest []*geom.Polygon, lin
 	}
 	// Mixed: build a GeometryCollection.
 	var members []geom.Geometry
-	if poly := wrapPolygonResult(c, first, rest); poly != nil && !poly.IsEmpty() {
+	if poly := wrapPolygonResult(c, first, rest); !poly.IsEmpty() {
 		members = append(members, poly)
 	}
 	if hasLines {
@@ -546,7 +533,7 @@ func repairOnePolygon(p *geom.Polygon) (geom.Geometry, error) {
 			return p, err
 		}
 		diffG := assemblePolygonResult(p.CRS(), first, rest)
-		if diffG == nil || diffG.IsEmpty() {
+		if diffG.IsEmpty() {
 			return diffG, nil
 		}
 		// Recurse on the result so any new figure-8 introduced by the
@@ -1069,7 +1056,13 @@ func rebuildPolygons(c *crs.CRS, rings [][]geom.XY, perPoly []int) []*geom.Polyg
 // directed segment, the DCEL builder merges them and ORs the tags so
 // shared edges carry both source labels.
 func flattenNoded(strings []*noding.SegmentString) []taggedSegment {
-	var out []taggedSegment
+	total := 0
+	for _, s := range strings {
+		if n := len(s.Coords); n >= 2 {
+			total += n - 1
+		}
+	}
+	out := make([]taggedSegment, 0, total)
 	for _, s := range strings {
 		if len(s.Coords) < 2 {
 			continue

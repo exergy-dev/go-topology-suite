@@ -45,6 +45,19 @@ func NewEmptyPolygon(c *crs.CRS, layout Layout) *Polygon {
 	return &Polygon{baseGeom: baseGeom{layout: layout, crs: c}}
 }
 
+// NewPolygonOwned constructs a Polygon that takes ownership of flat and
+// ringStarts without copying. Intended for format decoders and other
+// callers that have just built the flat layout themselves and won't
+// mutate it afterwards.
+//
+// Parallels NewLineStringOwned.
+func NewPolygonOwned(layout Layout, c *crs.CRS, flat []float64, ringStarts []int) *Polygon {
+	return &Polygon{
+		baseGeom:   baseGeom{layout: layout, coords: flat, crs: c},
+		ringStarts: ringStarts,
+	}
+}
+
 func (p *Polygon) isGeometry()       {}
 func (p *Polygon) Type() Type        { return PolygonType }
 func (p *Polygon) Envelope() Envelope  { return p.envelope() }

@@ -100,9 +100,8 @@ func lineLineOverlay(a, b geom.Geometry, op overlayOp) (geom.Geometry, error) {
 	// Group by canonical edge — accumulate the union of source tags and
 	// also the line-intersection-point dimension for each canonical edge.
 	type edgeInfo struct {
-		tags     int // bitmask: 1 = A, 2 = B
-		pos      int // first index where seen, used for stable ordering
-		inserted bool
+		tags int // bitmask: 1 = A, 2 = B
+		pos  int // first index where seen, used for stable ordering
 	}
 	edges := make(map[canonicalEdge]*edgeInfo)
 	pointCounts := make(map[geom.XY]int) // tag bitmask per shared vertex (for point-only intersections)
@@ -265,7 +264,7 @@ func stitchEdges(edges []canonicalEdge, c *crs.CRS) []*geom.LineString {
 		for _, p := range chain {
 			flat = append(flat, p.X, p.Y)
 		}
-		lines = append(lines, geom.NewLineStringFlatNoClone(geom.LayoutXY, c, flat))
+		lines = append(lines, geom.NewLineStringOwned(geom.LayoutXY, c, flat))
 	}
 	return lines
 }
@@ -969,7 +968,7 @@ func faceToLineStringSnapped(c *crs.CRS, f *faceLA, snapXY func(geom.XY) geom.XY
 	for _, p := range pts {
 		flat = append(flat, p.X, p.Y)
 	}
-	return geom.NewLineStringFlatNoClone(geom.LayoutXY, c, flat)
+	return geom.NewLineStringOwned(geom.LayoutXY, c, flat)
 }
 
 // faceToPolygonSnapped emits a face as a Polygon, snapping each

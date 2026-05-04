@@ -84,7 +84,7 @@ func TestGeometryInterfaceSatisfaction(t *testing.T) {
 
 func TestNewMultiLineStringStrict_RejectsMixedLayout(t *testing.T) {
 	xy := NewLineString(crs.WGS84, []XY{{0, 0}, {1, 1}})
-	xyz := NewLineStringFlat(LayoutXYZ, crs.WGS84, []float64{0, 0, 0, 1, 1, 1})
+	xyz := NewLineStringOwned(LayoutXYZ, crs.WGS84, []float64{0, 0, 0, 1, 1, 1})
 
 	_, err := NewMultiLineStringStrict(crs.WGS84, xy, xyz)
 	require.Error(t, err, "mixed XY/XYZ children should be rejected")

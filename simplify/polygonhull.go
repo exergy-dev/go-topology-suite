@@ -349,19 +349,21 @@ func (rh *ringHull) hasIntersectingVertex(c *corner, env geom.Envelope, other *r
 	pp := rh.pts[c.prev]
 	p := rh.pts[c.index]
 	pn := rh.pts[c.next]
-	for _, j := range other.vertexIndex.Query(env) {
+	hit := false
+	other.vertexIndex.Query(env, func(j int) bool {
 		if other == rh && c.isVertex(j) {
-			continue
-		}
-		if !other.live[j] {
-			continue
-		}
-		v := other.pts[j]
-		if triangleContains(pp, p, pn, v) {
 			return true
 		}
-	}
-	return false
+		if !other.live[j] {
+			return true
+		}
+		if triangleContains(pp, p, pn, other.pts[j]) {
+			hit = true
+			return false
+		}
+		return true
+	})
+	return hit
 }
 
 // removeCorner unlinks the corner's apex and re-enqueues the two

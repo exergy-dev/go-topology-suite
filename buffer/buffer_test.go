@@ -87,10 +87,6 @@ func TestBufferLineRoundCap(t *testing.T) {
 	require.Equal(t, wantVerts, len(ring), "round-cap ring vertices")
 	// Sanity: every vertex within 1 of the line segment [0,0]-[10,0].
 	for i, v := range ring {
-		dx := v.X
-		if dx < 0 {
-			dx = -dx
-		}
 		// Distance from segment.
 		var dist float64
 		if v.X < 0 {

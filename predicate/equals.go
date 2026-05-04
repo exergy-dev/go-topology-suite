@@ -161,18 +161,6 @@ func flatEqual(a, b []float64) bool {
 	return true
 }
 
-func ringEqualXY(a, b []geom.XY) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // ringMatchAnyRotationOrReverse reports whether closed rings a and b
 // describe the same vertex sequence up to cyclic rotation and direction
 // reversal. Both rings are assumed closed (first == last); the closing

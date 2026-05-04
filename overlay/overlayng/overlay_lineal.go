@@ -643,31 +643,6 @@ func segmentIntersectsCell(a, b, c geom.XY, h float64) (bool, float64) {
 	return true, tmin
 }
 
-// paramAlong returns the parameter t in [0, 1] giving p's position
-// along segment (a, b), picking the more numerically stable axis.
-func paramAlong(a, b, p geom.XY) float64 {
-	dx := b.X - a.X
-	dy := b.Y - a.Y
-	adx := dx
-	if adx < 0 {
-		adx = -adx
-	}
-	ady := dy
-	if ady < 0 {
-		ady = -ady
-	}
-	if adx >= ady {
-		if dx == 0 {
-			return 0
-		}
-		return (p.X - a.X) / dx
-	}
-	if dy == 0 {
-		return 0
-	}
-	return (p.Y - a.Y) / dy
-}
-
 // pointOnOriginalLine reports whether the (rounded) vertex v's
 // originating Point operand lies on the OTHER input's original
 // (unrounded) line geometry. ptMask says which side contributed v

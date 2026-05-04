@@ -9,6 +9,17 @@ import (
 	"github.com/terra-geo/terra/geom"
 )
 
+// queryAll collects all hits via the callback Query API, for use in
+// tests that want a sorted slice to compare against brute force.
+func queryAll(tree *VertexSequencePackedRtree, env geom.Envelope) []int {
+	var out []int
+	tree.Query(env, func(idx int) bool {
+		out = append(out, idx)
+		return true
+	})
+	return out
+}
+
 // TestVSPR_Query_Exhaustive verifies that for a few small fixtures the
 // tree returns exactly the same indices as a brute-force point-in-env
 // scan.
@@ -20,11 +31,11 @@ func TestVSPR_Query_Exhaustive(t *testing.T) {
 	tree := NewVertexSequencePackedRtree(pts)
 	for _, q := range []geom.Envelope{
 		{MinX: -1, MinY: -1, MaxX: 100, MaxY: 100}, // full extent
-		{MinX: 0, MinY: 0, MaxX: 2.5, MaxY: 0.5},    // first three points
-		{MinX: 5, MinY: 1.5, MaxX: 8.5, MaxY: 3.5},  // {5,2}..{8,3}
-		{MinX: -10, MinY: -10, MaxX: -5, MaxY: -5},  // empty
+		{MinX: 0, MinY: 0, MaxX: 2.5, MaxY: 0.5},   // first three points
+		{MinX: 5, MinY: 1.5, MaxX: 8.5, MaxY: 3.5}, // {5,2}..{8,3}
+		{MinX: -10, MinY: -10, MaxX: -5, MaxY: -5}, // empty
 	} {
-		got := tree.Query(q)
+		got := queryAll(tree, q)
 		want := bruteQuery(pts, q, nil)
 		sort.Ints(got)
 		if !equalInts(got, want) {
@@ -49,7 +60,7 @@ func TestVSPR_QueryParity_Random(t *testing.T) {
 			x0 := rng.Float64()*100 - 50
 			y0 := rng.Float64()*100 - 50
 			env := geom.Envelope{MinX: x0, MinY: y0, MaxX: x0 + rng.Float64()*30, MaxY: y0 + rng.Float64()*30}
-			got := tree.Query(env)
+			got := queryAll(tree, env)
 			want := bruteQuery(pts, env, nil)
 			sort.Ints(got)
 			if !equalInts(got, want) {
@@ -68,12 +79,12 @@ func TestVSPR_Remove(t *testing.T) {
 	}
 	tree := NewVertexSequencePackedRtree(pts)
 	full := geom.Envelope{MinX: -1, MinY: -1, MaxX: 100, MaxY: 100}
-	if got := tree.Query(full); len(got) != len(pts) {
+	if got := queryAll(tree, full); len(got) != len(pts) {
 		t.Fatalf("pre-remove: got %d want %d", len(got), len(pts))
 	}
 	tree.Remove(3)
 	tree.Remove(7)
-	got := tree.Query(full)
+	got := queryAll(tree, full)
 	sort.Ints(got)
 	want := []int{0, 1, 2, 4, 5, 6, 8, 9}
 	if !equalInts(got, want) {
@@ -84,7 +95,7 @@ func TestVSPR_Remove(t *testing.T) {
 // TestVSPR_Empty handles the corner case of an empty point sequence.
 func TestVSPR_Empty(t *testing.T) {
 	tree := NewVertexSequencePackedRtree(nil)
-	if got := tree.Query(geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1}); len(got) != 0 {
+	if got := queryAll(tree, geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1}); len(got) != 0 {
 		t.Errorf("empty: got %v", got)
 	}
 }
@@ -121,7 +132,7 @@ func BenchmarkVSPR_Query(b *testing.B) {
 	env := geom.Envelope{MinX: -1, MinY: -1, MaxX: 1, MaxY: 1}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = tree.Query(env)
+		tree.Query(env, func(int) bool { return true })
 	}
 }
 

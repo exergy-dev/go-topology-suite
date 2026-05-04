@@ -420,7 +420,7 @@ func densifyGeometry(g geom.Geometry, tol float64) geom.Geometry {
 	case *geom.Point, *geom.MultiPoint:
 		return v
 	case *geom.LineString:
-		return geom.NewLineStringFlatNoClone(v.Layout(), v.CRS(),
+		return geom.NewLineStringOwned(v.Layout(), v.CRS(),
 			densifyFlat(lineXY(v), v.Layout().Stride(), tol))
 	case *geom.LinearRing:
 		ls := v.AsLineString()
@@ -516,7 +516,7 @@ func reducePrecision(g geom.Geometry, scale float64) geom.Geometry {
 		for _, p := range pts {
 			flat = append(flat, p.X, p.Y)
 		}
-		return geom.NewLineStringFlatNoClone(geom.LayoutXY, v.CRS(), flat)
+		return geom.NewLineStringOwned(geom.LayoutXY, v.CRS(), flat)
 	case *geom.LinearRing:
 		pts := lineXY(v.AsLineString())
 		for i := range pts {
@@ -914,7 +914,7 @@ func geometryBoundary(g geom.Geometry) geom.Geometry {
 			for _, p := range ring {
 				flat = append(flat, p.X, p.Y)
 			}
-			lines = append(lines, geom.NewLineStringFlatNoClone(geom.LayoutXY, v.CRS(), flat))
+			lines = append(lines, geom.NewLineStringOwned(geom.LayoutXY, v.CRS(), flat))
 		}
 		if len(lines) == 1 {
 			return lines[0]
@@ -933,7 +933,7 @@ func geometryBoundary(g geom.Geometry) geom.Geometry {
 				for _, q := range ring {
 					flat = append(flat, q.X, q.Y)
 				}
-				lines = append(lines, geom.NewLineStringFlatNoClone(geom.LayoutXY, p.CRS(), flat))
+				lines = append(lines, geom.NewLineStringOwned(geom.LayoutXY, p.CRS(), flat))
 			}
 		}
 		return geom.NewMultiLineString(v.CRS(), lines...)

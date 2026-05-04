@@ -302,44 +302,6 @@ func pointSegmentPerpDist(p, a, b geom.XY) float64 {
 	return math.Hypot(p.X-cx, p.Y-cy)
 }
 
-// reverseRing returns ring with vertex order reversed. Closing
-// duplicate (if any) is preserved at the end.
-func reverseRing(ring []geom.XY) []geom.XY {
-	if len(ring) == 0 {
-		return ring
-	}
-	closed := ring[0].Equal(ring[len(ring)-1])
-	end := len(ring)
-	if closed {
-		end--
-	}
-	out := make([]geom.XY, 0, len(ring))
-	for i := end - 1; i >= 0; i-- {
-		out = append(out, ring[i])
-	}
-	if closed {
-		out = append(out, out[0])
-	}
-	return out
-}
-
-// cleanRingPolygon resolves self-intersections in a (possibly invalid)
-// ring by self-unioning it. Returns nil on failure or empty result.
-// For a simple ring the result is geometrically equivalent.
-func cleanRingPolygon(c *crs.CRS, ring []geom.XY) geom.Geometry {
-	raw := geom.NewPolygon(c, ring)
-	if raw == nil || raw.IsEmpty() {
-		return nil
-	}
-	cleaned, err := overlay.Union(raw, raw)
-	if err != nil || cleaned == nil || cleaned.IsEmpty() {
-		// Fall back to the raw (possibly invalid) ring; better than
-		// dropping the hole entirely.
-		return raw
-	}
-	return cleaned
-}
-
 // unionMultiBufferParts unions a slice of buffer polygons, falling
 // back to a MultiPolygon assembly when overlay.Union produces a
 // spurious empty/smaller result (known fragility on large-coordinate
@@ -462,7 +424,7 @@ func bufferDegenerateRing(c *crs.CRS, ring []geom.XY, distance float64, cfg conf
 	for _, p := range pts {
 		flat = append(flat, p.X, p.Y)
 	}
-	ls := geom.NewLineStringFlat(geom.LayoutXY, c, flat)
+	ls := geom.NewLineStringOwned(geom.LayoutXY, c, flat)
 	if ls == nil || ls.IsEmpty() {
 		return nil, false
 	}

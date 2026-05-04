@@ -1,0 +1,77 @@
+# 2026/05/02 18:56:06.247936 [TestStressInclusionExclusion] [rapid] draw cx1: 4.311136109972846e-63
+# 2026/05/02 18:56:06.247949 [TestStressInclusionExclusion] [rapid] draw cy1: -0
+# 2026/05/02 18:56:06.247950 [TestStressInclusionExclusion] [rapid] draw s1: 20
+# 2026/05/02 18:56:06.247951 [TestStressInclusionExclusion] [rapid] draw rot1: 0.5779807700340598
+# 2026/05/02 18:56:06.247951 [TestStressInclusionExclusion] [rapid] draw cx2: -6.999073467969117e-96
+# 2026/05/02 18:56:06.247952 [TestStressInclusionExclusion] [rapid] draw cy2: 0.2524947049322872
+# 2026/05/02 18:56:06.247952 [TestStressInclusionExclusion] [rapid] draw s2: 20
+# 2026/05/02 18:56:06.247953 [TestStressInclusionExclusion] [rapid] draw rot2: 1.25
+# 2026/05/02 18:56:06.248013 [TestStressInclusionExclusion] 
+# 	Error Trace:	/home/rkm/projects/go-topology-suite/overlay/overlayng/stress_test.go:73
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:371
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:380
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:205
+# 	            				/home/rkm/go/pkg/mod/pgregory.net/rapid@v1.2.0/engine.go:120
+# 	            				/home/rkm/projects/go-topology-suite/overlay/overlayng/stress_test.go:37
+# 	Error:      	Max difference between 800 and 332.4909993257123 allowed is 0.8, but difference was 467.5090006742877
+# 	Test:       	TestStressInclusionExclusion
+# 	Messages:   	U+I=332.4909993257123 vs A+B=800 (Δ=467.5090006742877)
+# 
+v0.4.8#7990625209310931434
+0xa913a7353c5be
+0x107597e0de1a9e
+0x1238433926519e
+0xcf
+0x0
+0x26
+0xc603ffe5c7974
+0x1920dd368e4eb9
+0x10f14eeecfc1c2
+0x1ff3a6eaeb750d
+0xffffffffffffffff
+0x0
+0x0
+0x0
+0xd31de1f078d2b
+0x5a23c086b7605
+0x86d51b6cbc0c6
+0x6
+0x4
+0x0
+0x0
+0x0
+0x1eb5938bbb2e19
+0x13e9d6f1dc6e7d
+0x1c416756f0df68
+0x0
+0x0
+0x2f
+0x27ed187206c1e
+0x1416961f137832
+0x1238fb7fb80907
+0x1456187461a71d
+0x13c
+0x0
+0x16
+0xde65d6940cfcd
+0x5af4bfc1821a5
+0x16cbee8ddca3f1
+0x2dff420358962
+0x1
+0x0
+0x36
+0x28df8d063ae0
+0x1264b5409c9098
+0x193f5a124034a6
+0x1f4c072ef97c54
+0xffffffffffffffff
+0x0
+0x0
+0x0
+0xa30ecd9b10475
+0xc73e40c548e76
+0x193c4f1064fa32
+0x0
+0x0
+0x3
+0x413572c44f11d

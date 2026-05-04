@@ -69,17 +69,6 @@ func scIntersects(a, b geom.Geometry, planar bool) shortCircuit {
 	return unresolved()
 }
 
-// scDisjoint is the inverse of scIntersects.
-func scDisjoint(a, b geom.Geometry, planar bool) shortCircuit {
-	if a.IsEmpty() || b.IsEmpty() {
-		return known(true)
-	}
-	if planar && !a.Envelope().Intersects(b.Envelope()) {
-		return known(true)
-	}
-	return unresolved()
-}
-
 // scCovers handles the covers/contains family fast paths. The dim and
 // envelope checks are identical for both predicates (RelateNG's
 // `requireCovers(envA, envB)` plus `isDimsCompatibleWithCovers(dimA,
@@ -140,16 +129,6 @@ func isRegularShape(g geom.Geometry) bool {
 // handling) only shows up in the matrix.
 func scContains(a, b geom.Geometry, planar bool) shortCircuit {
 	return scCovers(a, b, planar)
-}
-
-// scWithin / scCoveredBy mirror scContains/scCovers with operands
-// swapped.
-func scWithin(a, b geom.Geometry, planar bool) shortCircuit {
-	return scCovers(b, a, planar)
-}
-
-func scCoveredBy(a, b geom.Geometry, planar bool) shortCircuit {
-	return scCovers(b, a, planar)
 }
 
 // scOverlaps handles dim-mismatch + envelope short-circuits for the

@@ -2,24 +2,6 @@ package overlayng
 
 import "github.com/terra-geo/terra/geom"
 
-// classifyFacesPolygons tags each non-outer face with whether its
-// interior lies inside subj (resp. clip), accounting for HOLES. A point
-// is "inside" a multi-ring polygon iff it's inside the outer ring AND
-// not inside any interior ring.
-func classifyFacesPolygons(d *dcel, subjRings, clipRings [][]geom.XY) {
-	for _, f := range d.faces {
-		ip := interiorPoint(f)
-		f.inSubj = pointInPolygonRings(ip, subjRings)
-		f.inClip = pointInPolygonRings(ip, clipRings)
-	}
-}
-
-// classifyFaces (kept for the simpler shell-only call site in the
-// disjoint helper) routes through the multi-ring path with a single ring.
-func classifyFaces(d *dcel, subjRing, clipRing []geom.XY) {
-	classifyFacesPolygons(d, [][]geom.XY{subjRing}, [][]geom.XY{clipRing})
-}
-
 // classifyFacesByPolygons is the multi-aware classifier: it tags each
 // face with whether its interior lies inside any subj polygon (resp.
 // any clip polygon). subjPerPoly partitions subjRings into

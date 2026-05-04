@@ -96,10 +96,6 @@ func Simplify(polygons []*geom.Polygon, tolerance float64) []*geom.Polygon {
 	// in lockstep across two polygons, we use a chain-cache keyed
 	// by the chain's two endpoints + the sorted set of all interior
 	// vertices.
-	type chainKey struct {
-		a, b geom.XY
-		hash uint64
-	}
 	chainCache := make(map[chainKey][]geom.XY)
 
 	out := make([]*geom.Polygon, len(polygons))
@@ -173,17 +169,17 @@ func Simplify(polygons []*geom.Polygon, tolerance float64) []*geom.Polygon {
 	return out
 }
 
-// makeChainKey canonicalises a chain so the same shared edge
-// considered from either side hashes to the same key.
-func makeChainKey(chain []geom.XY) struct {
+// chainKey canonicalises a chain into a value usable as a map key.
+type chainKey struct {
 	a, b geom.XY
 	hash uint64
-} {
+}
+
+// makeChainKey canonicalises a chain so the same shared edge
+// considered from either side hashes to the same key.
+func makeChainKey(chain []geom.XY) chainKey {
 	if len(chain) < 2 {
-		return struct {
-			a, b geom.XY
-			hash uint64
-		}{}
+		return chainKey{}
 	}
 	a, b := chain[0], chain[len(chain)-1]
 	// Order endpoints so (a,b) and (b,a) collide.
@@ -212,10 +208,7 @@ func makeChainKey(chain []geom.XY) struct {
 			mix(chain[i])
 		}
 	}
-	return struct {
-		a, b geom.XY
-		hash uint64
-	}{a, b, h}
+	return chainKey{a: a, b: b, hash: h}
 }
 
 // dpSimplifyChain runs Douglas-Peucker on an open chain, preserving

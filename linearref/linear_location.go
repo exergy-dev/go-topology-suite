@@ -303,21 +303,3 @@ func numSegments(line *geom.LineString) int {
 	return n - 1
 }
 
-// segmentLength returns the planar length of the segment of g containing
-// loc. If loc.SegmentIndex is past end, the last segment is used.
-func segmentLength(g geom.Geometry, loc LinearLocation) float64 {
-	line := componentAt(g, loc.ComponentIndex)
-	if line == nil {
-		return 0
-	}
-	si := loc.SegmentIndex
-	if si >= numSegments(line) {
-		si = line.NumPoints() - 2
-	}
-	if si < 0 {
-		return 0
-	}
-	p0 := line.PointAt(si)
-	p1 := line.PointAt(si + 1)
-	return math.Hypot(p1.X-p0.X, p1.Y-p0.Y)
-}

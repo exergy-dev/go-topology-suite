@@ -31,9 +31,7 @@ func newFacetSequence(pts []geom.XY, start, end int) *facetSequence {
 	return &facetSequence{pts: pts, start: start, end: end}
 }
 
-func (fs *facetSequence) size() int    { return fs.end - fs.start }
-func (fs *facetSequence) isPoint() bool { return fs.end-fs.start == 1 }
-
+func (fs *facetSequence) size() int           { return fs.end - fs.start }
 func (fs *facetSequence) coord(i int) geom.XY { return fs.pts[fs.start+i] }
 
 // envelope returns the axis-aligned bounding box of the facet's vertices.

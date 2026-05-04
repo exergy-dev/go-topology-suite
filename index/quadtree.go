@@ -301,6 +301,11 @@ func (n *qtNode[T]) findContainingNode(searchEnv geom.Envelope) interface {
 	return n.subnode[idx].findContainingNode(searchEnv)
 }
 
+// addItem implements the anonymous interface returned by
+// findContainingNode (which lets that helper return either a *qtNode or
+// a *quadtree[T] without committing to a concrete type).
+//
+//lint:ignore U1000 reachable via interface in findContainingNode
 func (n *qtNode[T]) addItem(it qtItem[T]) {
 	n.items = append(n.items, it)
 }

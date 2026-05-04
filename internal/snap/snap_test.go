@@ -262,14 +262,12 @@ func TestSnapSegments_NearCoincidentBecomeCoincident(t *testing.T) {
 	// Segment B: (0, 0.5*tol) -> (1, 0.5*tol)
 	a0 := r.SnapVertex(geom.XY{X: 0, Y: 0})
 	a1 := r.SnapVertex(geom.XY{X: 1, Y: 0})
-	b0 := r.SnapVertex(geom.XY{X: 0, Y: 0.5 * tol})
-	b1 := r.SnapVertex(geom.XY{X: 1, Y: 0.5 * tol})
 	// Half-away-from-zero rounding sends 0.5*tol up to tol; we want the
 	// invariant "endpoints snap to identical grid points" — so we test
 	// the more interesting case where the offset is below half a cell.
 	// Use 0.4*tol instead.
-	b0 = r.SnapVertex(geom.XY{X: 0, Y: 0.4 * tol})
-	b1 = r.SnapVertex(geom.XY{X: 1, Y: 0.4 * tol})
+	b0 := r.SnapVertex(geom.XY{X: 0, Y: 0.4 * tol})
+	b1 := r.SnapVertex(geom.XY{X: 1, Y: 0.4 * tol})
 	assert.Equal(t, a0, b0, "expected coincident start: a0=%+v b0=%+v", a0, b0)
 	assert.Equal(t, a1, b1, "expected coincident end: a1=%+v b1=%+v", a1, b1)
 }

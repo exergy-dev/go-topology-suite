@@ -817,7 +817,7 @@ func emptyOfDim(c *crs.CRS, dim int) geom.Geometry {
 	case 0:
 		return geom.NewEmptyPoint(c, geom.LayoutXY)
 	case 1:
-		return geom.NewLineStringFlat(geom.LayoutXY, c, nil)
+		return geom.NewEmptyLineString(c, geom.LayoutXY)
 	default:
 		return geom.NewEmptyPolygon(c, geom.LayoutXY)
 	}

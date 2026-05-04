@@ -28,9 +28,6 @@ const (
 	posOn    = 0
 	posLeft  = 1
 	posRight = 2
-
-	relateEdgeForward = true
-	relateEdgeReverse = false
 )
 
 // newRelateEdgeArea creates an area-edge incident at node, pointing at

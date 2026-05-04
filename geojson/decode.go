@@ -129,7 +129,7 @@ func decodeLineString(coords json.RawMessage, c *crs.CRS) (geom.Geometry, error)
 	if err != nil {
 		return nil, err
 	}
-	return geom.NewLineStringFlatNoClone(layout, c, flat), nil
+	return geom.NewLineStringOwned(layout, c, flat), nil
 }
 
 func decodePolygon(coords json.RawMessage, c *crs.CRS) (geom.Geometry, error) {
@@ -175,7 +175,7 @@ func decodeMultiLineString(coords json.RawMessage, c *crs.CRS) (geom.Geometry, e
 		if err != nil {
 			return nil, err
 		}
-		parts = append(parts, geom.NewLineStringFlatNoClone(layout, c, flat))
+		parts = append(parts, geom.NewLineStringOwned(layout, c, flat))
 	}
 	return geom.NewMultiLineString(c, parts...), nil
 }

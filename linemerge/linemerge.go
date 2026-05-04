@@ -114,7 +114,6 @@ func isTrivialLine(ls *geom.LineString) bool {
 type node struct {
 	pt    geom.XY
 	edges []*edge
-	mark  bool // visited during chain emission
 }
 
 // edge corresponds to one input LineString. start/end are the node
