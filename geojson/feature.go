@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Feature is the GeoJSON Feature type.

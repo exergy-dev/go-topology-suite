@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // RelateSegmentString is a polyline edge of a RelateGeometry, carrying
 // the parent input flags (isA, dim, element id, ring id, parent polygon)

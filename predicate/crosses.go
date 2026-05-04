@@ -1,9 +1,9 @@
 package predicate
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Crosses reports whether the geometries' interiors share at least one
@@ -19,7 +19,7 @@ import (
 // Same-dim area-area is undefined and returns false.
 func Crosses(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return false, terra.ErrCRSMismatch
+		return false, gts.ErrCRSMismatch
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)

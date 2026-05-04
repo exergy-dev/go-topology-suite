@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Unmarshal parses a WKT (or EWKT with SRID prefix) string and returns the
@@ -422,7 +422,7 @@ func (p *parser) parseMultiPoint() (geom.Geometry, error) {
 		// Each member may be EMPTY, parenthesised "(x y)", or bare "x y".
 		p.skipWhitespace()
 		if p.tryReadEmpty() {
-			// Drop empty Point member; terra's MultiPoint is a flat XY
+			// Drop empty Point member; go-topology-suite's MultiPoint is a flat XY
 			// list and has no representation for empty Points. JTS
 			// behaviour is preserved for relate/distance/overlay since
 			// an empty Point contributes nothing topologically.

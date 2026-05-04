@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // MultiPoint is an unordered collection of points. It uses the same flat

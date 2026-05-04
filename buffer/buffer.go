@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/overlay"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/overlay"
 )
 
 // errGeometryCollectionNotImplemented is returned for GeometryCollection
@@ -28,13 +28,13 @@ var errGeometryCollectionNotImplemented = errors.New("buffer.Buffer: GeometryCol
 //
 //   - distance == 0 returns g unchanged.
 //   - distance < 0 is only meaningful for polygon inputs (inset buffer);
-//     it is rejected with terra.ErrInvalidGeometry for points and lines.
+//     it is rejected with gts.ErrInvalidGeometry for points and lines.
 func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, error) {
 	if g == nil {
-		return nil, terra.ErrInvalidGeometry
+		return nil, gts.ErrInvalidGeometry
 	}
 	if math.IsNaN(distance) || math.IsInf(distance, 0) {
-		return nil, fmt.Errorf("buffer.Buffer: distance must be finite: %w", terra.ErrInvalidGeometry)
+		return nil, fmt.Errorf("buffer.Buffer: distance must be finite: %w", gts.ErrInvalidGeometry)
 	}
 
 	cfg := defaultConfig()
@@ -160,7 +160,7 @@ func Buffer(g geom.Geometry, distance float64, opts ...Option) (geom.Geometry, e
 		return nil, errGeometryCollectionNotImplemented
 	}
 
-	return nil, fmt.Errorf("buffer.Buffer: unsupported geometry type %T: %w", g, terra.ErrInvalidGeometry)
+	return nil, fmt.Errorf("buffer.Buffer: unsupported geometry type %T: %w", g, gts.ErrInvalidGeometry)
 }
 
 // isDegenerateAreal reports whether a polygon's outer ring is too

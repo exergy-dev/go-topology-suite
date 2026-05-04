@@ -3,11 +3,11 @@ package bench
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/overlay"
-	"github.com/terra-geo/terra/predicate"
-	"github.com/terra-geo/terra/prepare"
-	"github.com/terra-geo/terra/wkb"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/overlay"
+	"github.com/exergy-dev/go-topology-suite/predicate"
+	"github.com/exergy-dev/go-topology-suite/prepare"
+	"github.com/exergy-dev/go-topology-suite/wkb"
 )
 
 // Workload is one iteration's worth of work for a benchmark scenario,
@@ -15,7 +15,7 @@ import (
 type Workload func(b *testing.B)
 
 // Workloads is the canonical ordered list of harness workloads. Both the
-// _test.go benchmarks and bench/cmd/terra-bench iterate this list so the
+// _test.go benchmarks and bench/cmd/gts-bench iterate this list so the
 // two entry points stay in sync.
 func Workloads() []NamedWorkload {
 	return []NamedWorkload{

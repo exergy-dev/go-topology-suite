@@ -22,7 +22,7 @@ package measure
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // CentroidBuilder accumulates a dimensional-priority centroid across

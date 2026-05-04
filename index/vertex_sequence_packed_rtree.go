@@ -17,7 +17,7 @@
 
 package index
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // vsprNodeCapacity is the fanout of every node in a
 // VertexSequencePackedRtree. JTS uses 16 and notes the index is "not

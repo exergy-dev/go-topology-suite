@@ -24,8 +24,8 @@
 package coverage
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/predicate"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/predicate"
 )
 
 // ValidationError reports a per-polygon coverage violation. The

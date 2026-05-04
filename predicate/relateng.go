@@ -1,8 +1,8 @@
 package predicate
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/relateng"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/relateng"
 )
 
 // RelateNG is the public entry point for the RelateNG topology

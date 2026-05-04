@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // Parse parses a WKT2 (ISO 19162:2019) coordinate reference system
@@ -12,7 +12,7 @@ import (
 // outermost authority code (if any), and the kind classified from the
 // top-level keyword.
 //
-// v0.1 deliberately does not build a structural CRS model: Terra has
+// v0.1 deliberately does not build a structural CRS model: go-topology-suite has
 // no projection engine yet, so parsing exists only to extract identity.
 func Parse(s string) (*crs.CRS, error) {
 	if strings.TrimSpace(s) == "" {

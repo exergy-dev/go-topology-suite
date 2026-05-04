@@ -3,7 +3,7 @@ package shape
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // GridPoints returns points placed by jittering cell centres of a square

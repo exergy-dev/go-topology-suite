@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // DecodeHex parses a hex-encoded WKB string. Whitespace is rejected; the

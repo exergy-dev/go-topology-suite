@@ -1,8 +1,8 @@
 package overlayng
 
 import (
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // ringRepresentativePoint returns a point strictly inside ring's

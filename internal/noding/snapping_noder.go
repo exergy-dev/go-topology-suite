@@ -1,8 +1,8 @@
 package noding
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
 )
 
 // SnappingNoder implements JTS's vertex-snap-and-node strategy

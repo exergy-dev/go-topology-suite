@@ -1,9 +1,9 @@
-// Package jtstest provides a JTS XML conformance test harness for terra.
+// Package jtstest provides a JTS XML conformance test harness for go-topology-suite.
 //
 // The harness reads JTS-format XML test cases (as used by the
 // locationtech/jts project for its testxml suite) and dispatches each
-// op to the corresponding terra function. It exists purely to validate
-// behaviour parity with JTS and is not part of the terra public API.
+// op to the corresponding gts function. It exists purely to validate
+// behaviour parity with JTS and is not part of the go-topology-suite public API.
 //
 // # Build tag
 //
@@ -42,8 +42,8 @@
 //     coveredBy, touches, crosses, overlaps, equals, equalsTopo
 //   - Spatial relation: relate (with arg3 DE-9IM pattern OR matrix text)
 //   - Constructive: intersection, union, difference, symdifference,
-//     plus the *NG variants aliased to the same terra ops since
-//     terra always uses overlay-NG for polygonal overlay
+//     plus the *NG variants aliased to the same gts ops since
+//     gts always uses overlay-NG for polygonal overlay
 //   - Validity: isValid (via package validate)
 //   - Measurement: getArea, getLength, distance, getCentroid
 //   - Construction: convexHull

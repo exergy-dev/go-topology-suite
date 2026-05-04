@@ -3,9 +3,9 @@ package measure
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // DistanceOp returns the planar (Euclidean) distance between the nearest

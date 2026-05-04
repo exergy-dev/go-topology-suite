@@ -21,7 +21,7 @@
 package linemerge
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Merge runs the line-merging algorithm and returns the maximal

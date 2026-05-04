@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // Operand-side flags. JTS uses a boolean isA; we expose named
 // constants for readability at call sites.
@@ -9,7 +9,7 @@ const (
 	GeomB = false
 )
 
-// Geometry wraps a terra geom.Geometry with cached metadata used
+// Geometry wraps a gts geom.Geometry with cached metadata used
 // throughout RelateNG: envelope, dimension, hasPoints/hasLines/hasAreas
 // flags, and a lazily constructed PointLocator.
 //

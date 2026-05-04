@@ -1,6 +1,6 @@
 package geom
 
-import "github.com/terra-geo/terra/crs"
+import "github.com/exergy-dev/go-topology-suite/crs"
 
 // WithCRS returns a copy of g whose CRS pointer is c. The coordinate data
 // itself is shared with g (no deep copy); callers must not mutate the

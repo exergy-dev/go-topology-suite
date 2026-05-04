@@ -5,9 +5,9 @@ import (
 	"math"
 	"strings"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // DefectKind classifies a structural defect. Codes mirror JTS
@@ -44,7 +44,7 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string {
 	var b strings.Builder
-	b.WriteString("terra: invalid geometry: ")
+	b.WriteString("gts: invalid geometry: ")
 	for i, d := range e.Defects {
 		if i > 0 {
 			b.WriteString("; ")

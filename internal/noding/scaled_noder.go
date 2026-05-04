@@ -3,7 +3,7 @@ package noding
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // ScaledNoder wraps another noder, applying an integer-grid scale to

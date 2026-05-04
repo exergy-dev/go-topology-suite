@@ -47,6 +47,6 @@
 // existing legacy DE-9IM builder remains as a fallback for the
 // not-yet-supported geometry-pair cases.
 //
-// The package is internal and reserved for terra's own predicate layer;
-// stable users should continue to use github.com/terra-geo/terra/predicate.
+// The package is internal and reserved for go-topology-suite's own predicate layer;
+// stable users should continue to use github.com/exergy-dev/go-topology-suite/predicate.
 package relateng

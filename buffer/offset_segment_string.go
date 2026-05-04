@@ -1,6 +1,6 @@
 package buffer
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // offsetSegmentString is a dynamic list of vertices in a constructed
 // offset curve. Adjacent vertices closer than minVertexDistance are

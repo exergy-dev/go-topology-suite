@@ -11,7 +11,7 @@ import (
 
 // TestJTSConformance walks the testdata corpus (including the vendored
 // upstream JTS testxml at testdata/upstream/) and runs every op against
-// terra.
+// go-topology-suite.
 //
 // Following the bench/conformance convention, divergences are recorded
 // via t.Logf rather than t.Errorf — the harness reports aggregate

@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // ConvexHull returns the convex hull of g as a Polygon (or Point /

@@ -1,8 +1,8 @@
 package epsg
 
 import (
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/crs/proj"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/crs/proj"
 )
 
 // init registers the bulk EPSG ranges that aren't worth hand-naming:

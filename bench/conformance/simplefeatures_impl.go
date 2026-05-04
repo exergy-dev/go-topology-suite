@@ -5,8 +5,8 @@ import (
 
 	sfgeom "github.com/peterstace/simplefeatures/geom"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // simplefeaturesImpl adapts github.com/peterstace/simplefeatures/geom
@@ -14,14 +14,14 @@ import (
 //
 // simplefeatures is pure Go (no cgo), so it is compiled into the
 // default test binary. The conversion path is WKT in both directions:
-// Terra -> wkt.Marshal -> simplefeatures.UnmarshalWKT -> operation ->
-// Geometry.AsText() -> wkt.Unmarshal -> Terra.
+// go-topology-suite -> wkt.Marshal -> simplefeatures.UnmarshalWKT -> operation ->
+// Geometry.AsText() -> wkt.Unmarshal -> go-topology-suite.
 //
 // CAVEATS:
-//   - Round-tripping through WKT loses M values (terra and simplefeatures
-//     both support M, but our Terra->WKT encoder defaults to XY for the
+//   - Round-tripping through WKT loses M values (gts and simplefeatures
+//     both support M, but our go-topology-suite->WKT encoder defaults to XY for the
 //     corpus geometries, which are 2D anyway).
-//   - simplefeatures rejects some inputs Terra accepts as "valid enough"
+//   - simplefeatures rejects some inputs go-topology-suite accepts as "valid enough"
 //     (e.g. self-touching rings). When that happens we surface the
 //     error and the harness records a divergence rather than a panic.
 type simplefeaturesImpl struct{}
@@ -31,19 +31,19 @@ func NewSimplefeatures() Impl { return simplefeaturesImpl{} }
 
 func (simplefeaturesImpl) Name() string { return "simplefeatures" }
 
-// toSF converts a Terra geometry to a simplefeatures geometry via WKT.
+// toSF converts a go-topology-suite geometry to a simplefeatures geometry via WKT.
 // Errors from either marshalling or parsing surface to the caller so
 // the harness can record a clean divergence (rather than panicking).
 func toSF(g geom.Geometry) (sfgeom.Geometry, error) {
 	w, err := wkt.Marshal(g)
 	if err != nil {
-		return sfgeom.Geometry{}, fmt.Errorf("terra->wkt: %w", err)
+		return sfgeom.Geometry{}, fmt.Errorf("gts->wkt: %w", err)
 	}
 	// NoValidate is a deliberate choice: the corpus geometries are
 	// already validated upstream by validate.Validate (in the corpus
 	// smoke harness). Suppressing simplefeatures' own validation
 	// avoids spurious "duplicate vertex" or "ring not closed"
-	// rejections where Terra would still produce a usable result.
+	// rejections where go-topology-suite would still produce a usable result.
 	sf, err := sfgeom.UnmarshalWKT(w, sfgeom.NoValidate{})
 	if err != nil {
 		return sfgeom.Geometry{}, fmt.Errorf("wkt->simplefeatures: %w", err)
@@ -51,8 +51,8 @@ func toSF(g geom.Geometry) (sfgeom.Geometry, error) {
 	return sf, nil
 }
 
-// fromSF converts a simplefeatures geometry back to a Terra geometry
-// via WKT. Empty results round-trip to a Terra empty polygon so the
+// fromSF converts a simplefeatures geometry back to a go-topology-suite geometry
+// via WKT. Empty results round-trip to a go-topology-suite empty polygon so the
 // area-based equality comparator naturally handles them.
 func fromSF(sf sfgeom.Geometry) (geom.Geometry, error) {
 	if sf.IsEmpty() {

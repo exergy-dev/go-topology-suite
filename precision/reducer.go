@@ -8,7 +8,7 @@
 package precision
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // PrecisionReducer reduces the precision of a geometry to a target

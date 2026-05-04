@@ -15,7 +15,7 @@ package xybuf
 import (
 	"sync"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // MaxCap is the largest pool-retained capacity. Borrowing a buffer

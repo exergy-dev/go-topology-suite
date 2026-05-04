@@ -1,5 +1,5 @@
 // Package overlayng implements a JTS overlay-NG-style polygon overlay
-// for Terra. It replaces the v0.1 Greiner-Hormann implementation in
+// for go-topology-suite. It replaces the v0.1 Greiner-Hormann implementation in
 // cases where GH degenerates — coincident edges, shared boundary
 // vertices, axis-aligned inputs.
 //

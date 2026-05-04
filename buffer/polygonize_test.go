@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
 )
 
 // TestPolygonize_ConvexSquare: a 10×10 CCW square offset outward by

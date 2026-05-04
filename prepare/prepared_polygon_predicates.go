@@ -1,10 +1,10 @@
 package prepare
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // Intersects reports whether g shares at least one point with the prepared

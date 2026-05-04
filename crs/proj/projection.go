@@ -1,5 +1,5 @@
 // Package proj implements the projection families needed by the EPSG
-// codes Terra ships with: Web Mercator (EPSG:3857), Transverse Mercator
+// codes go-topology-suite ships with: Web Mercator (EPSG:3857), Transverse Mercator
 // (UTM zones, BNG, ...), Lambert Conformal Conic 2SP (EPSG:2154),
 // Albers Equal-Area Conic (EPSG:5070), Lambert Azimuthal Equal-Area
 // (EPSG:3035).

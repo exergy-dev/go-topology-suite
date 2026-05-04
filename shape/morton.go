@@ -3,7 +3,7 @@ package shape
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // mortonMaxLevel is the maximum Morton curve order representable in

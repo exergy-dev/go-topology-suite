@@ -3,10 +3,10 @@ package predicate
 import (
 	"errors"
 
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
 // Intersects reports whether a and b share at least one point.
@@ -16,7 +16,7 @@ import (
 // Intersects returns false (not an error).
 func Intersects(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return false, terra.ErrCRSMismatch
+		return false, gts.ErrCRSMismatch
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)
@@ -25,7 +25,7 @@ func Intersects(a, b geom.Geometry, opts ...Option) (bool, error) {
 	// with lon/lat-space rectangles — i.e. for planar. Geographic
 	// envelopes that span the antimeridian look disjoint to the planar
 	// envelope test even when the underlying spherical geometries
-	// intersect. Until terra/index grows a spherical-cap variant we
+	// intersect. Until gts/index grows a spherical-cap variant we
 	// simply skip the short-circuit for non-planar kernels.
 	//
 	// Routed through the RelateNG short-circuit layer

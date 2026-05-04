@@ -5,11 +5,11 @@ import (
 	"math"
 	"slices"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/internal/snaprounding"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/internal/snaprounding"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // offsetSegment is one edge of a parallel-offset curve, oriented so the

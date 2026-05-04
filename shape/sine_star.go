@@ -9,7 +9,7 @@ package shape
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // SineStarOptions captures the JTS SineStarFactory parameters that

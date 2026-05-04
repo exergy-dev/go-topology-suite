@@ -1,17 +1,17 @@
-package terra_test
+package gts_test
 
 import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/crs/epsg"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/crs/epsg"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // TestTransformWGS84ToWebMercatorRoundTrip exercises the public
-// terra.Transform API end-to-end on a small polygon, asserting that
+// gts.Transform API end-to-end on a small polygon, asserting that
 // the round-trip recovers the input within 1mm.
 func TestTransformWGS84ToWebMercatorRoundTrip(t *testing.T) {
 	src := epsg.WGS84
@@ -21,7 +21,7 @@ func TestTransformWGS84ToWebMercatorRoundTrip(t *testing.T) {
 		[]geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0}},
 	)
 
-	projected, err := terra.Transform(poly, dst)
+	projected, err := gts.Transform(poly, dst)
 	if err != nil {
 		t.Fatalf("Transform forward: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestTransformWGS84ToWebMercatorRoundTrip(t *testing.T) {
 
 	// (1°, 0°) on WGS84 web-mercators to roughly (111319.49, 0). We
 	// don't pin the exact value here — round-trip is the contract.
-	roundTrip, err := terra.Transform(projected, src)
+	roundTrip, err := gts.Transform(projected, src)
 	if err != nil {
 		t.Fatalf("Transform back: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestTransformWGS84ToWebMercatorRoundTrip(t *testing.T) {
 }
 
 // TestTransformWGS84ToUTM exercises a UTM-zone projected target — the
-// bulk of Terra's registered EPSG codes. Reference value drawn from
+// bulk of go-topology-suite's registered EPSG codes. Reference value drawn from
 // PROJ's own gie corpus (test/gie/builtins.gie, +proj=utm +zone=32).
 func TestTransformWGS84ToUTM(t *testing.T) {
 	src := epsg.WGS84
@@ -64,7 +64,7 @@ func TestTransformWGS84ToUTM(t *testing.T) {
 	}
 
 	pt := geom.NewPoint(src, geom.XY{X: 12, Y: 56})
-	projected, err := terra.Transform(pt, dst)
+	projected, err := gts.Transform(pt, dst)
 	if err != nil {
 		t.Fatalf("Transform: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestTransformWGS84ToUTM(t *testing.T) {
 	}
 
 	// Round-trip back.
-	back, err := terra.Transform(projected, src)
+	back, err := gts.Transform(projected, src)
 	if err != nil {
 		t.Fatalf("inverse: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestTransformWGS84ToUTM(t *testing.T) {
 func TestTransformErrUntransformable(t *testing.T) {
 	bare := &crs.CRS{Authority: "EPSG", Code: 12345, Kind: crs.Projected}
 	pt := geom.NewPoint(epsg.WGS84, geom.XY{X: 1, Y: 1})
-	if _, err := terra.Transform(pt, bare); err != crs.ErrUntransformable {
+	if _, err := gts.Transform(pt, bare); err != crs.ErrUntransformable {
 		t.Errorf("got err=%v, want %v", err, crs.ErrUntransformable)
 	}
 }
@@ -100,7 +100,7 @@ func TestTransformErrUntransformable(t *testing.T) {
 // returns a value with the target CRS pointer (not a deep copy).
 func TestTransformIdentity(t *testing.T) {
 	pt := geom.NewPoint(epsg.WGS84, geom.XY{X: 1, Y: 1})
-	out, err := terra.Transform(pt, epsg.WGS84)
+	out, err := gts.Transform(pt, epsg.WGS84)
 	if err != nil {
 		t.Fatalf("Transform: %v", err)
 	}

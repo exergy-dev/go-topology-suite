@@ -1,4 +1,4 @@
-// Package index provides Terra's in-memory spatial index — an R-tree
+// Package index provides go-topology-suite's in-memory spatial index — an R-tree
 // generic over the payload type. The index does not store geometries; it
 // indexes envelopes plus a user-supplied value, leaving geometry ownership
 // with the caller.

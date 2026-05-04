@@ -3,7 +3,7 @@ package locate
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func square() *geom.Polygon {

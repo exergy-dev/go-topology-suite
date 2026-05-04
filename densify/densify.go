@@ -18,8 +18,8 @@ package densify
 import (
 	"math"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Densify inserts vertices along every segment of g so the resulting

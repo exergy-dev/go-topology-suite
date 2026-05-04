@@ -1,7 +1,7 @@
 package predicate
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // This file ports the SHORT-CIRCUIT layer of JTS RelateNG (the

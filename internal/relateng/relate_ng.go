@@ -1,7 +1,7 @@
 package relateng
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // RelateNG is the driver that orchestrates a topology computation

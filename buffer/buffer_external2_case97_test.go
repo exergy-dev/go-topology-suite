@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // TestBufferExternal2Case97 is the JTS conformance regression for

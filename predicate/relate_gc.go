@@ -1,6 +1,6 @@
 package predicate
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // SetUnaryUnion is a no-op retained for overlay's init wiring;
 // RelateNG handles GeometryCollection operands natively.

@@ -3,7 +3,7 @@ package geom
 import (
 	"iter"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // LinearRing is a closed LineString: the first and last vertices coincide

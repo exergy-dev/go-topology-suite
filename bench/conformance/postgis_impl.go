@@ -5,7 +5,7 @@ package conformance
 import (
 	"errors"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // TODO(b2-postgis): wire this stub up to a running Postgres + PostGIS
@@ -31,7 +31,7 @@ import (
 //
 // Connection-string example:
 //
-//   postgres://terra:terra@127.0.0.1:5432/terra_conformance?sslmode=disable
+//   postgres://gts:gts@127.0.0.1:5432/gts_conformance?sslmode=disable
 //
 // CI integration: run a Postgres+PostGIS service container in the
 // `postgis` workflow job and gate the build on the postgis tag, e.g.:

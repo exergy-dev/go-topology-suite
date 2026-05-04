@@ -3,12 +3,12 @@ package measure
 import (
 	"math"
 
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/geodesic"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/geodesic"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // Option configures a measurement call.
@@ -52,7 +52,7 @@ func defaultKernel(g geom.Geometry) kernel.Kernel {
 // ErrCRSMismatch and a NaN distance.
 func Distance(a, b geom.Geometry, opts ...Option) (float64, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return math.NaN(), terra.ErrCRSMismatch
+		return math.NaN(), gts.ErrCRSMismatch
 	}
 	if a.IsEmpty() || b.IsEmpty() {
 		return 0, nil

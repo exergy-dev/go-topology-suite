@@ -3,12 +3,12 @@ package validate
 import (
 	"math"
 
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/overlay"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/overlay"
 )
 
 // MakeValid returns a topologically valid geometry that approximates g.
@@ -20,10 +20,10 @@ import (
 // unexpected ways. Documented per-call.
 func MakeValid(g geom.Geometry) (geom.Geometry, error) {
 	if g == nil {
-		return nil, terra.ErrEmpty
+		return nil, gts.ErrEmpty
 	}
 	if g.IsEmpty() {
-		return nil, terra.ErrEmpty
+		return nil, gts.ErrEmpty
 	}
 	switch x := g.(type) {
 	case *geom.Point:

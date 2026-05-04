@@ -1,11 +1,11 @@
-name: Terra CI
+name: CI
 
 on:
   push:
-    branches: [main, terra]
+    branches: [main]
     tags: ["v*"]
   pull_request:
-    branches: [main, terra]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

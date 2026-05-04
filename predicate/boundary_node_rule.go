@@ -1,6 +1,6 @@
 package predicate
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // BoundaryNodeRule decides whether a vertex shared by some number of
 // component-boundary endpoints is itself a boundary point of the

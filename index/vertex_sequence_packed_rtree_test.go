@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // queryAll collects all hits via the callback Query API, for use in

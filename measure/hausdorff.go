@@ -3,7 +3,7 @@ package measure
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // DiscreteHausdorff returns the discrete Hausdorff distance between a and b.

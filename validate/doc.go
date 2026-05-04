@@ -1,4 +1,4 @@
-// Package validate detects defects in Terra geometries against the OGC
+// Package validate detects defects in go-topology-suite geometries against the OGC
 // Simple Features rules.
 //
 // Construction is non-validating by design: callers running

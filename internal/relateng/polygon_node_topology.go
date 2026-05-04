@@ -1,9 +1,9 @@
 package relateng
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // compareAngle compares the angles of two vectors p and q anchored at

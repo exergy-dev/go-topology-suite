@@ -1,9 +1,9 @@
 package predicate
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // DE9IM is the dimensionally-extended 9-intersection model relationship
@@ -21,7 +21,7 @@ type DE9IM string
 // org.locationtech.jts.operation.relateng.RelateNG.
 func Relate(a, b geom.Geometry, opts ...Option) (DE9IM, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return "", terra.ErrCRSMismatch
+		return "", gts.ErrCRSMismatch
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)

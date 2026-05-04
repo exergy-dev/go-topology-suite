@@ -4,12 +4,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 	"pgregory.net/rapid"
 )
 
 // TestRoundTrips uses property-based testing to verify that for every
-// projection Terra ships, Inverse(Forward(p)) ≈ p within a strict
+// projection go-topology-suite ships, Inverse(Forward(p)) ≈ p within a strict
 // tolerance, over the projection's stated domain of validity.
 func TestRoundTrips(t *testing.T) {
 	d2r := math.Pi / 180.0

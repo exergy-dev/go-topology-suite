@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/triangulate/quadedge"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/triangulate/quadedge"
 )
 
 func TestDelaunayOf_Empty(t *testing.T) {

@@ -3,7 +3,7 @@ package precision
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // MinimumClearance computes the minimum-clearance distance of g and the

@@ -1,4 +1,4 @@
-module github.com/terra-geo/terra
+module github.com/exergy-dev/go-topology-suite
 
 go 1.23
 

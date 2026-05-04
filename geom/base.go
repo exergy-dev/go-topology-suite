@@ -3,7 +3,7 @@ package geom
 import (
 	"sync/atomic"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // baseGeom is embedded by every concrete geometry type. It owns the flat

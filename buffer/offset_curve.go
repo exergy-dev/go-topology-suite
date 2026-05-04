@@ -29,7 +29,7 @@ package buffer
 //     component, points dropped)
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // OffsetCurve returns the one-sided parallel offset of g at the given

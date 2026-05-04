@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/terra-geo/terra/geojson"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geojson"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 //go:embed testdata/natural_earth_admin0_sample.geojson

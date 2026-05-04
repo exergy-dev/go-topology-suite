@@ -3,8 +3,8 @@ package buffer
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
 )
 
 // maxBufferDistanceDiffFrac is the maximum allowable fractional deviation

@@ -1,4 +1,4 @@
-// Package geojson encodes and decodes Terra geometries to/from GeoJSON
+// Package geojson encodes and decodes go-topology-suite geometries to/from GeoJSON
 // (RFC 7946).
 //
 // Output is strict RFC 7946: always WGS84-implied (no CRS member emitted),

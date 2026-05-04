@@ -1,5 +1,5 @@
 // Package gie parses the subset of PROJ's .gie regression-test format
-// that Terra needs to validate its pure-Go projection implementations.
+// that go-topology-suite needs to validate its pure-Go projection implementations.
 //
 // A .gie file contains <gie> and <gie-strict> envelopes; within each
 // envelope, every `operation` directive starts a new test scenario.

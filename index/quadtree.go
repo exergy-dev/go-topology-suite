@@ -3,7 +3,7 @@ package index
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Quadtree is a generic MX-CIF region quadtree. It is a port of JTS's

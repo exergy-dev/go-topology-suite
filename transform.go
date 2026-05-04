@@ -1,8 +1,8 @@
-package terra
+package gts
 
 import (
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Transform reprojects g into target's CRS. The returned geometry is a

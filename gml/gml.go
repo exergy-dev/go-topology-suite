@@ -32,8 +32,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // GML 2 namespace + canonical prefix.

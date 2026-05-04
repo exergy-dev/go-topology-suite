@@ -1,7 +1,7 @@
 package triangulate
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // TriangulatePolygon computes a triangulation of a single polygon

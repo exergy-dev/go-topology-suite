@@ -1,15 +1,15 @@
-package terra_test
+package gts_test
 
 import (
 	"fmt"
 
-	"github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/buffer"
-	"github.com/terra-geo/terra/crs/epsg"
-	"github.com/terra-geo/terra/geojson"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/predicate"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/buffer"
+	"github.com/exergy-dev/go-topology-suite/crs/epsg"
+	"github.com/exergy-dev/go-topology-suite/geojson"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/predicate"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // Decode a polygon from WKT, test a point against it.
@@ -24,7 +24,7 @@ func Example() {
 }
 
 // ExampleIntersects shows the predicate API: two geometries plus optional
-// kernel/precision options. CRS mismatches return terra.ErrCRSMismatch
+// kernel/precision options. CRS mismatches return gts.ErrCRSMismatch
 // rather than silently coercing.
 func ExampleIntersects() {
 	a, _ := wkt.Unmarshal("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
@@ -69,12 +69,12 @@ func ExampleUnmarshal() {
 }
 
 // ExampleTransform reprojects a geometry from one CRS to another.
-// Terra never reprojects implicitly: predicates and overlays on
+// go-topology-suite never reprojects implicitly: predicates and overlays on
 // geometries with mismatched CRS pointers return ErrCRSMismatch.
 func ExampleTransform() {
 	pt := geom.NewPoint(epsg.WGS84, geom.XY{X: 0, Y: 0})
 
-	projected, err := terra.Transform(pt, epsg.WebMercator)
+	projected, err := gts.Transform(pt, epsg.WebMercator)
 	if err != nil {
 		fmt.Println("error:", err)
 		return

@@ -3,8 +3,8 @@ package epsg
 import (
 	"math"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/crs/proj"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/crs/proj"
 )
 
 // init populates the Definition pointer on every named CRS this package

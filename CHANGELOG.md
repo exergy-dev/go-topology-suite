@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Terra will be documented in this file.
+All notable changes to go-topology-suite will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - **CRS subsystem.** `crs.Definition`, `crs.Datum`, `crs.Ellipsoid`, `crs.Projection`, `crs.OperationFor`, plus the projection set under `crs/proj/` (Web Mercator, Transverse Mercator, Lambert Conformal Conic 2SP, Albers Equal-Area Conic, Lambert Azimuthal Equal-Area) and a 7-parameter Helmert datum shift. Validated against PROJ's GIE regression corpus.
-- **Root `terra.Transform` facade.** Reprojects a geometry through `crs.OperationFor` and rebrands via `geom.WithCRS`.
+- **Root `gts.Transform` facade.** Reprojects a geometry through `crs.OperationFor` and rebrands via `geom.WithCRS`.
 - **`geom.WithCRS`.** Shallow-copy rebrand for swapping the CRS pointer on a geometry without reallocating coordinates.
 - **`geom.NewLineStringOwned`, `geom.NewPolygonOwned`, `geom.NewEmptyLineString`.** Donate-ownership constructors for format decoders that have just allocated their own buffers.
 
@@ -29,7 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## Project history (pre-v1)
 
-Terra was developed over a series of waves driven by the JTS conformance harness and a parallel JTS-API parity sweep. Each wave landed against the JTS `testxml` corpus baseline; the running tally is preserved in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md). Highlights:
+go-topology-suite was developed over a series of waves driven by the JTS conformance harness and a parallel JTS-API parity sweep. Each wave landed against the JTS `testxml` corpus baseline; the running tally is preserved in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md). Highlights:
 
 - **Waves 1–6 (port build-out).** Geometry types, kernels, indexing, R-tree, snap-rounding, the OffsetSegmentGenerator buffer port, and the overlay-NG DCEL pipeline.
 - **Waves 7–10 (RelateNG).** Lazy DE-9IM build pipeline ported in 104 commits; `RelateGeometry`, `TopologyComputer`, `RelateNode`, `EdgeSegmentIntersector`, and the surrounding edge/node infrastructure.
@@ -41,4 +41,4 @@ Terra was developed over a series of waves driven by the JTS conformance harness
 
 The conformance baseline at HEAD is **8 940 / 8 951 (99.88 %)**; the 11 residual failures are all external-tracker known or fixture version drift, documented case-by-case in `KNOWN-DIVERGENCES.md`.
 
-[Unreleased]: https://github.com/terra-geo/terra/compare/HEAD
+[Unreleased]: https://github.com/exergy-dev/go-topology-suite/compare/HEAD

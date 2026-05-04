@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // line100 returns a horizontal LineString of total length 100 (two

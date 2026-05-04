@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // This file ports a subset of
 // org.locationtech.jts.operation.relateng.RelatePredicate — the

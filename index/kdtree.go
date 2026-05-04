@@ -4,7 +4,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // KdTree is a 2D KD-tree spatial index supporting tolerance-based

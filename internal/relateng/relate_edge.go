@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // RelateEdge represents a single half-edge incident at a node. Each
 // edge stores the (left, on, right) location in each input geometry.

@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 func TestMakeValid_UnclosedRing(t *testing.T) {
@@ -144,7 +144,7 @@ func TestMakeValid_PointPassthrough(t *testing.T) {
 func TestMakeValid_EmptyReturnsErrEmpty(t *testing.T) {
 	empty := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	g, err := MakeValid(empty)
-	assert.True(t, errors.Is(err, terra.ErrEmpty), "expected ErrEmpty, got err=%v g=%v", err, g)
+	assert.True(t, errors.Is(err, gts.ErrEmpty), "expected ErrEmpty, got err=%v g=%v", err, g)
 }
 
 func TestMakeValid_HolePreservedWhenInsideShell(t *testing.T) {

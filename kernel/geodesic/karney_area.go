@@ -3,7 +3,7 @@ package geodesic
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Karney exact ellipsoidal polygon area, following Karney (2013),

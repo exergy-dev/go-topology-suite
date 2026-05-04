@@ -1,6 +1,6 @@
 package overlayng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // classifyFacesByPolygons is the multi-aware classifier: it tags each
 // face with whether its interior lies inside any subj polygon (resp.

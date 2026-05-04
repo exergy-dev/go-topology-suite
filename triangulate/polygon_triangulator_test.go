@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // triangleArea returns the unsigned area of triangle t.

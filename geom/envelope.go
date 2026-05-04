@@ -2,7 +2,7 @@ package geom
 
 import "math"
 
-// Envelope is the 2D axis-aligned bounding box used throughout Terra.
+// Envelope is the 2D axis-aligned bounding box used throughout go-topology-suite.
 // Z and M coordinates are ignored. The zero value is the empty envelope:
 // MinX > MaxX signals "no extent yet."
 type Envelope struct {

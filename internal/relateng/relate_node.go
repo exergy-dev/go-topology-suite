@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // RelateNode is a node in the relate-topology graph: a single node
 // point plus the CCW-ordered list of incident half-edges. Port of

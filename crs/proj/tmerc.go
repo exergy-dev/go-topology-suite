@@ -3,7 +3,7 @@ package proj
 import (
 	"math"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // TransverseMercator is the ellipsoidal Transverse Mercator projection

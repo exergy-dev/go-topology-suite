@@ -16,8 +16,8 @@ import (
 	"container/list"
 	"errors"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // ErrNotSequenceable is returned by Sequence when no Eulerian

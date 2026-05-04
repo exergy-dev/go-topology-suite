@@ -7,9 +7,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
 	"pgregory.net/rapid"
 )
 
@@ -65,14 +65,14 @@ func TestMakeValid_Idempotent(t *testing.T) {
 
 		v1, err := MakeValid(g)
 		if err != nil {
-			if errors.Is(err, terra.ErrEmpty) {
+			if errors.Is(err, gts.ErrEmpty) {
 				t.Skipf("input collapsed to empty: %v", err)
 			}
 			require.NoError(t, err, "first MakeValid failed")
 		}
 		v2, err := MakeValid(v1)
 		if err != nil {
-			if errors.Is(err, terra.ErrEmpty) {
+			if errors.Is(err, gts.ErrEmpty) {
 				t.Skipf("first-pass result collapsed to empty: %v", err)
 			}
 			require.NoError(t, err, "second MakeValid failed")
@@ -104,7 +104,7 @@ func TestMakeValid_AlwaysValidates(t *testing.T) {
 		g := drawPolygon(t)
 		out, err := MakeValid(g)
 		if err != nil {
-			if errors.Is(err, terra.ErrEmpty) {
+			if errors.Is(err, gts.ErrEmpty) {
 				t.Skipf("input collapsed to empty: %v", err)
 			}
 			require.NoError(t, err, "MakeValid failed")

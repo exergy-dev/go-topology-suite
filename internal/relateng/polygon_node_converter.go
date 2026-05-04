@@ -3,7 +3,7 @@ package relateng
 import (
 	"sort"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // convertPolygonNodeSections takes the contiguous polygon sections that

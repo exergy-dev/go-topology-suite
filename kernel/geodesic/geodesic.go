@@ -3,9 +3,9 @@ package geodesic
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/spherical"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/spherical"
 )
 
 // Kernel is the geodesic implementation of kernel.Kernel using the WGS84

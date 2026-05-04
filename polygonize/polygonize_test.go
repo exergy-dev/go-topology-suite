@@ -3,7 +3,7 @@ package polygonize
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func line(pts ...geom.XY) *geom.LineString {

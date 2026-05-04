@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func TestVariableBuffer_Empty(t *testing.T) {

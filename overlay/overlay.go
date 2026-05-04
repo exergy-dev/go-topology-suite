@@ -1,9 +1,9 @@
 package overlay
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/xybuf"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/xybuf"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // Intersection returns subject ∩ clipper.

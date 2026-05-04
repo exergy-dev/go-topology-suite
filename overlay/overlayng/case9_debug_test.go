@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func TestCase9SymDiffTraceClassify(t *testing.T) {

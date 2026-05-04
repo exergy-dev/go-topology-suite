@@ -3,8 +3,8 @@ package measure
 import (
 	"math"
 
-	"github.com/terra-geo/terra/densify"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/densify"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // IntersectionFunc and UnionFunc are pluggable hooks used by
@@ -13,11 +13,11 @@ import (
 // already depends on measure (for Area / Centroid helpers), so a direct
 // import would form a cycle.
 //
-// Importing the github.com/terra-geo/terra/measure/match package wires
+// Importing the github.com/exergy-dev/go-topology-suite/measure/match package wires
 // these hooks via that package's init(); blank-importing it from a
 // build is the simplest way to enable AreaSimilarity:
 //
-//	import _ "github.com/terra-geo/terra/measure/match"
+//	import _ "github.com/exergy-dev/go-topology-suite/measure/match"
 //
 // Callers that do not register the hooks see NaN from AreaSimilarity.
 var (
@@ -98,7 +98,7 @@ func HausdorffSimilarity(a, b geom.Geometry) float64 {
 //
 // Returns NaN if either input is nil, or if the overlay hook
 // (IntersectionFunc / UnionFunc) has not been registered. Importing
-// the github.com/terra-geo/terra/overlay package wires the hook
+// the github.com/exergy-dev/go-topology-suite/overlay package wires the hook
 // automatically; otherwise the caller must set IntersectionFunc and
 // UnionFunc explicitly.
 //

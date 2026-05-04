@@ -4,10 +4,10 @@ import (
 	"container/heap"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/hull"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/hull"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // LargestEmptyCircle computes the largest circle whose interior is

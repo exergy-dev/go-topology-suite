@@ -4,7 +4,7 @@ import (
 	"container/heap"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // ItemDistance computes the distance between a query envelope and a

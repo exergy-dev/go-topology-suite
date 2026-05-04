@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // triState models the TRUE / FALSE / UNKNOWN state of a predicate
 // during incremental evaluation. Mirrors JTS BasicPredicate's

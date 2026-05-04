@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/overlay/overlayng"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/overlay/overlayng"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func mp(t *testing.T, s string) geom.Geometry {

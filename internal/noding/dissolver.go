@@ -1,7 +1,7 @@
 package noding
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // DissolveSegmentStrings removes duplicate and reverse-equal segment

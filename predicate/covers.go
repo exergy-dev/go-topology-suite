@@ -1,10 +1,10 @@
 package predicate
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
 // Covers reports whether every point of b lies in the closure of a — that
@@ -16,7 +16,7 @@ import (
 // of "T*****FF*", "*T****FF*", "***T**FF*", or "****T*FF*".
 func Covers(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return false, terra.ErrCRSMismatch
+		return false, gts.ErrCRSMismatch
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)

@@ -1,5 +1,5 @@
 // Package measure computes scalar measurements (distance, length, area,
-// centroid) on Terra geometries.
+// centroid) on go-topology-suite geometries.
 //
 // Every measurement is kernel-routed. When WithKernel is not provided
 // the kernel is chosen from the geometry's CRS:

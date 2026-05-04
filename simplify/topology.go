@@ -3,8 +3,8 @@ package simplify
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/overlay/overlayng"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/overlay/overlayng"
 )
 
 // TopologyPreserving returns a simplified copy of g that is guaranteed

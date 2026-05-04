@@ -5,7 +5,7 @@
 // JTS Location enum.
 package locate
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // Location classifies a point's relationship to a Geometry.
 //

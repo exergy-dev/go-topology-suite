@@ -15,7 +15,7 @@ var ErrUntransformable = errors.New("crs: CRS has no Definition; cannot transfor
 // coordinates: degrees for geographic CRSes, projection units (typically
 // metres) for projected CRSes, axis-order honoured.
 //
-// Used by terra.Transform (in the top-level package, which can import
+// Used by gts.Transform (in the top-level package, which can import
 // both crs and geom). The crs package itself stays free of any geom
 // dependency to avoid an import cycle.
 type Operation interface {

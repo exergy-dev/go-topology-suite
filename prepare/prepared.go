@@ -3,9 +3,9 @@ package prepare
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
-	"github.com/terra-geo/terra/kernel"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
+	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
 // edgeRef identifies a single directed edge of a prepared polygon by ring

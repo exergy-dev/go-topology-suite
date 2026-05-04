@@ -1,10 +1,10 @@
 package predicate
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/kernel/spherical"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/kernel/spherical"
 )
 
 // Option configures a predicate call.
@@ -26,7 +26,7 @@ type Option struct {
 }
 
 // preparedHandle is a thin interface so this package doesn't directly
-// depend on terra/prepare (which would create a cycle once prepare grows
+// depend on gts/prepare (which would create a cycle once prepare grows
 // to use predicates). Concrete instance: *prepare.PreparedPolygon.
 //
 // Methods beyond ContainsPoint/IntersectsEnvelope are reached via type

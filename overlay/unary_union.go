@@ -3,9 +3,9 @@ package overlay
 import (
 	"sort"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/predicate"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/predicate"
 )
 
 // UnaryUnion returns the union of g with itself: deduplicates and merges

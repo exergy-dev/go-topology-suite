@@ -3,8 +3,8 @@ package simplify
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/overlay/overlayng"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/overlay/overlayng"
 )
 
 // Simplify returns a Douglas-Peucker simplification of g with the given

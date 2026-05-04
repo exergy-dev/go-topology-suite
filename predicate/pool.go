@@ -9,8 +9,8 @@
 package predicate
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/xybuf"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/xybuf"
 )
 
 func borrowRingBuf() *[]geom.XY {

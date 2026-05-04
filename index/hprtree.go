@@ -3,7 +3,7 @@ package index
 import (
 	"sync"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // HPRtree is a Hilbert-Packed R-tree generic over its payload type. It is

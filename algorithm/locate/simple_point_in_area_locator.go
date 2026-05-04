@@ -8,9 +8,9 @@ package locate
 // IndexedPointInAreaLocator.
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // SimplePointLocator is a PointOnGeometryLocator backed by a single

@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // BenchmarkPolygonHull_ConcaveStar_N1000 builds a 1000-vertex star ring

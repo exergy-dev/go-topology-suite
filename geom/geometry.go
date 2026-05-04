@@ -1,8 +1,8 @@
 package geom
 
-import "github.com/terra-geo/terra/crs"
+import "github.com/exergy-dev/go-topology-suite/crs"
 
-// Geometry is the type-erased interface satisfied by every Terra shape.
+// Geometry is the type-erased interface satisfied by every go-topology-suite shape.
 // Concrete types (Point, LineString, ...) embed baseGeom and implement the
 // methods below.
 //

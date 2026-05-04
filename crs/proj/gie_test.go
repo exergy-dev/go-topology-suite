@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/crs/proj/internal/gie"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/crs/proj/internal/gie"
 )
 
-// TestGieFixtures runs PROJ's own gie regression suite against Terra's
+// TestGieFixtures runs PROJ's own gie regression suite against go-topology-suite's
 // pure-Go projection implementations. Coverage is restricted to the
-// projection families Terra ships (Mercator/WebMercator, Transverse
+// projection families go-topology-suite ships (Mercator/WebMercator, Transverse
 // Mercator including UTM, Lambert Conformal Conic 2SP, Albers
 // Equal-Area Conic, Lambert Azimuthal Equal-Area). Blocks for any
 // other +proj= are skipped.
@@ -51,7 +51,7 @@ func TestGieFixtures(t *testing.T) {
 }
 
 // buildProjection translates a Proj4 parameter map into a Projection.
-// Returns ok=false if the projection family is outside Terra's scope or
+// Returns ok=false if the projection family is outside go-topology-suite's scope or
 // any required parameter is missing.
 func buildProjection(p map[string]string) (crs.Projection, bool) {
 	a, e2, sphereOnly, ok := resolveEllipsoid(p)

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func TestPointPointNeverTouches(t *testing.T) {

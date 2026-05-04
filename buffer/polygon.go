@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/overlay"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/overlay"
 )
 
 // bufferPolygon implements positive/negative buffering of a single Polygon

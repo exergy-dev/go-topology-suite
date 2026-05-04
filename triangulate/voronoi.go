@@ -3,8 +3,8 @@ package triangulate
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/triangulate/quadedge"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/triangulate/quadedge"
 )
 
 // Voronoi computes the Voronoi diagram of the input point set and returns

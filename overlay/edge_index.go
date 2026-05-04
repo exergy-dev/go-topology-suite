@@ -1,8 +1,8 @@
 package overlay
 
 import (
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
 )
 
 // edgeIdxItem is the payload type stored in the per-overlay R-tree.

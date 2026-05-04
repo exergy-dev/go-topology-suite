@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/prepare"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/prepare"
 )
 
 // zigZag builds an open polyline with n segments, each of unit dx step,

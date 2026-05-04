@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // TestSpurLineUnionCollapsedSpike covers the JTS TestNGOverlayAPrec

@@ -3,8 +3,8 @@ package spherical
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
 // Kernel is the spherical implementation of kernel.Kernel.

@@ -5,7 +5,7 @@
 package quadedge
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Vertex models a site (node) in a QuadEdgeSubdivision.

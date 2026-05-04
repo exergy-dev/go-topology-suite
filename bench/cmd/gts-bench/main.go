@@ -1,9 +1,9 @@
-// Command terra-bench runs the bench package's workloads via testing.Benchmark
+// Command gts-bench runs the bench package's workloads via testing.Benchmark
 // and prints a single comparison table (workload | ns/op | B/op | allocs/op).
 //
 // Usage:
 //
-//	go run ./bench/cmd/terra-bench
+//	go run ./bench/cmd/gts-bench
 //
 // Benchmark sizing is governed by the constants in bench/fixtures.go; see
 // bench/doc.go for the scaling factor and rationale.
@@ -15,7 +15,7 @@ import (
 	"testing"
 	"text/tabwriter"
 
-	"github.com/terra-geo/terra/bench"
+	"github.com/exergy-dev/go-topology-suite/bench"
 )
 
 func main() {

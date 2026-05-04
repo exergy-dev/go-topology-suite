@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // IteratedNoder repeatedly applies an inner noder until the output set

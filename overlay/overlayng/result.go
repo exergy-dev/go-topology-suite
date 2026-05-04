@@ -1,6 +1,6 @@
 package overlayng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // extractResultRings walks the boundary of the kept region — the union
 // of all faces marked keep=true. A boundary half-edge e satisfies:

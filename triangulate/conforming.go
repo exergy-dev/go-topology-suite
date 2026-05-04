@@ -4,9 +4,9 @@ import (
 	"errors"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
-	"github.com/terra-geo/terra/triangulate/quadedge"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
+	"github.com/exergy-dev/go-topology-suite/triangulate/quadedge"
 )
 
 // ConformingDelaunayMaxSplits caps the number of segment-split iterations

@@ -3,8 +3,8 @@ package relateng
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func TestAdjacentEdgeLocator_SharedBoundary_Interior(t *testing.T) {

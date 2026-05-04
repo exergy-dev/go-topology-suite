@@ -3,7 +3,7 @@ package epsg
 import (
 	"sync"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // registry maps EPSG codes to their *crs.CRS entry. It is populated by

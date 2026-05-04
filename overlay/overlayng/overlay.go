@@ -1,11 +1,11 @@
 package overlayng
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/internal/snap"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/internal/snap"
 )
 
 // Op identifies which boolean polygon operation to perform.
@@ -128,7 +128,7 @@ func commonCRS(subj, clip []*geom.Polygon) (*crs.CRS, error) {
 			continue
 		}
 		if !crs.Equal(c, p.CRS()) {
-			return nil, terra.ErrCRSMismatch
+			return nil, gts.ErrCRSMismatch
 		}
 	}
 	for _, p := range clip {
@@ -138,7 +138,7 @@ func commonCRS(subj, clip []*geom.Polygon) (*crs.CRS, error) {
 			continue
 		}
 		if !crs.Equal(c, p.CRS()) {
-			return nil, terra.ErrCRSMismatch
+			return nil, gts.ErrCRSMismatch
 		}
 	}
 	return c, nil

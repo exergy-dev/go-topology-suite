@@ -1,6 +1,6 @@
 package linearref
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // linearIterator iterates over the components and vertices of a linear
 // geometry. Port of org.locationtech.jts.linearref.LinearIterator.

@@ -1,9 +1,9 @@
 package predicate
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Overlaps reports whether two geometries of the same dimension share
@@ -17,7 +17,7 @@ import (
 // Mixed-dimension inputs return false.
 func Overlaps(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return false, terra.ErrCRSMismatch
+		return false, gts.ErrCRSMismatch
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)

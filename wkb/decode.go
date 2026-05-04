@@ -6,8 +6,8 @@ import (
 	"io"
 	"math"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Unmarshal parses a WKB byte slice. Both EWKB (with high-bit Z/M/SRID

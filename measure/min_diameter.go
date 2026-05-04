@@ -3,8 +3,8 @@ package measure
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/hull"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/hull"
 )
 
 // MinimumDiameter returns the shortest segment that "fits" inside the

@@ -3,7 +3,7 @@ package geom
 import (
 	"iter"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // LineString is an ordered sequence of two or more vertices joined by

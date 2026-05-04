@@ -13,7 +13,7 @@
 // fixpoint has not converged by then, Node returns the best-effort
 // result with Stats.Converged == false and ErrNotConverged.
 //
-// This package is internal to terra: callers are overlay/overlayng (for
+// This package is internal to go-topology-suite: callers are overlay/overlayng (for
 // SR overlays) and buffer (for offset-curve cleanup). It reuses
 // internal/snap.HotPixelSet for the R-tree-backed pixel index and
 // internal/noding for the underlying segment intersection primitive.
@@ -22,9 +22,9 @@ package snaprounding
 import (
 	"errors"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/internal/snap"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/internal/snap"
 )
 
 // Noder is a snap-rounding noder. The zero value is invalid (Tolerance

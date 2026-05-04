@@ -9,7 +9,7 @@
 // without further geometric work.
 //
 // This package is internal — it is consumed by the overlay-NG port
-// (Pillar A1 of the Terra roadmap) and is not part of the public API.
+// (Pillar A1 of the go-topology-suite roadmap) and is not part of the public API.
 //
 // Exposed types:
 //

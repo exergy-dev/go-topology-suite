@@ -5,9 +5,9 @@ import (
 	"errors"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // PolygonHull computes a topology-preserving simplified hull of a polygonal

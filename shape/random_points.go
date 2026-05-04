@@ -6,7 +6,7 @@ package shape
 import (
 	"math/rand/v2"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Option configures a generator. Options are accepted as variadic

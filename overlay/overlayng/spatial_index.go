@@ -1,8 +1,8 @@
 package overlayng
 
 import (
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/internal/snaprounding"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/internal/snaprounding"
 )
 
 // indexThreshold is the total-segment count at and above which we route

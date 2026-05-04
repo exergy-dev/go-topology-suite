@@ -6,11 +6,11 @@ import (
 	"math"
 	"sort"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/overlay"
-	"github.com/terra-geo/terra/predicate"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/overlay"
+	"github.com/exergy-dev/go-topology-suite/predicate"
 )
 
 // equalsTopologicalApprox returns true if a and b are topologically
@@ -100,7 +100,7 @@ func isAreal(g geom.Geometry) bool {
 // areas agree within ~1% AND every vertex of one geometry lies within
 // a small Hausdorff tolerance of the other. This accommodates the
 // principal source of buffer-test divergence — different round-cap
-// vertex sampling rates between Terra and JTS produce geometrically
+// vertex sampling rates between go-topology-suite and JTS produce geometrically
 // equivalent shapes whose vertex sets do not snap-match.
 //
 // Returns true iff:

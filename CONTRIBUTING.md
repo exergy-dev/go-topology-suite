@@ -1,12 +1,12 @@
-# Contributing to Terra
+# Contributing to go-topology-suite
 
 Thanks for your interest. This document covers the practical mechanics: how to get the tests running, how PRs are reviewed, and how to keep the JTS-port discipline that the codebase depends on.
 
 ## Setup
 
 ```sh
-git clone https://github.com/terra-geo/terra.git
-cd terra
+git clone https://github.com/exergy-dev/go-topology-suite.git
+cd go-topology-suite
 go test ./...
 ```
 
@@ -47,7 +47,7 @@ go test -tags=jts ./internal/jtstest/...
 - Identifier names follow JTS where the JTS name is a common term of art (`DE9IM`, `IntervalRTree`, `HPRtree`); otherwise Go-idiomatic.
 - Functional options use `WithFoo(value)` and a value-typed `Option`. See `predicate.Option`, `wkb.Option` for templates.
 - No global mutable state on the hot path (this is a v1 promise — see [`README.md`](./README.md)). Configure per-call via `Option`.
-- Doc comments on exported symbols start with the symbol name (`// Foo does X.`). Run `go doc github.com/terra-geo/terra/<pkg>` to spot drift.
+- Doc comments on exported symbols start with the symbol name (`// Foo does X.`). Run `go doc github.com/exergy-dev/go-topology-suite/<pkg>` to spot drift.
 - Don't add comments that just restate the code. Save the comment budget for non-obvious invariants.
 
 ## Commit and PR style
@@ -77,7 +77,7 @@ KNOWN-DIVERGENCES.md.
 
 ## JTS porting discipline
 
-Terra is a *port*, not a fork. When a JTS algorithm is ported:
+go-topology-suite is a *port*, not a fork. When a JTS algorithm is ported:
 
 1. Cite the source file and method names in the Go doc comment or commit message. "Mirrors `BufferOp.bufferReducedPrecision`" is a useful breadcrumb for the next person to revisit the algorithm.
 2. Preserve JTS's *behaviour* in edge cases, even when a Go-idiomatic refactor is tempting. Behavioural divergences from JTS belong in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md) with a documented rationale, not silently in code.
@@ -102,7 +102,7 @@ Open an issue with:
 1. The geometries involved as **WKT** (the simplest faithful repro). If WKT is too lossy, attach a short Go test.
 2. The operation, with options.
 3. Expected vs actual.
-4. Terra version (`go.mod` line) and Go version.
+4. go-topology-suite version (`go.mod` line) and Go version.
 
 For correctness bugs, a JTS reference output is hugely useful — run the same WKT through JTS or the JTS Sandbox and paste the comparison.
 

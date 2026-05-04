@@ -1,11 +1,11 @@
 // TODO(c-pillar): cross-implementation comparison against simplefeatures and
 // go-geos is deferred. Those libraries pull in cgo (go-geos) or expand the
 // dependency surface (simplefeatures), which complicates CI matrix builds.
-// When that work lands it should target bench/cmd/terra-bench/cross_impl.go
+// When that work lands it should target bench/cmd/gts-bench/cross_impl.go
 // (a new file, kept behind a `cross_impl` build tag) so the default
-// `go run ./bench/cmd/terra-bench` invocation stays cgo-free.
+// `go run ./bench/cmd/gts-bench` invocation stays cgo-free.
 //
-// Package bench hosts terra's macro-benchmark harness — fixed workloads that
+// Package bench hosts go-topology-suite's macro-benchmark harness — fixed workloads that
 // exercise the public API end-to-end, intended as the measurable baseline for
 // the C-pillar performance work.
 //
@@ -41,5 +41,5 @@
 // Or invoke the CLI which runs the three workloads via testing.Benchmark and
 // prints a single comparison table:
 //
-//	go run ./bench/cmd/terra-bench
+//	go run ./bench/cmd/gts-bench
 package bench

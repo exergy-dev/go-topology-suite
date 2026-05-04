@@ -1,6 +1,6 @@
 package kernel
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // Orientation classifies the turn formed by three points a, b, c when
 // traversed in that order.
@@ -63,7 +63,7 @@ type SegmentIntersectionResult struct {
 }
 
 // Kernel is the strategy interface implemented by planar, spherical, and
-// geodesic kernels. Every higher-level Terra operation that needs a
+// geodesic kernels. Every higher-level go-topology-suite operation that needs a
 // geometric primitive — overlay, predicates, measurements — calls through
 // this interface (with the option of generic specialisation for hot paths).
 //

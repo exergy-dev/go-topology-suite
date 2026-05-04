@@ -1,7 +1,7 @@
 package geom
 
 import (
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // Polygon is a planar region bounded by an outer ring and zero or more
@@ -80,7 +80,7 @@ func (p *Polygon) Ring(i int) []XY {
 //
 // The append-in-place pattern lets hot loops reuse a pooled scratch
 // buffer across calls — internal/xybuf is the canonical pool inside
-// terra (see predicate, overlay, etc.). Typical use:
+// go-topology-suite (see predicate, overlay, etc.). Typical use:
 //
 //	buf := xybuf.Borrow()
 //	defer xybuf.Release(buf)

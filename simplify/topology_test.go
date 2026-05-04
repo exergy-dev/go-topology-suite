@@ -5,9 +5,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/validate"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/validate"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func TestTopologyPreservingStraightLine(t *testing.T) {

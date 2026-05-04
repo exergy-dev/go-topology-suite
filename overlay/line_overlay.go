@@ -5,12 +5,12 @@ import (
 	"math"
 	"slices"
 
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 type overlayOp string
@@ -84,7 +84,7 @@ func canon(a, b geom.XY) canonicalEdge {
 //  5. Stitch filtered edges into LineStrings via greedy chain walk.
 func lineLineOverlay(a, b geom.Geometry, op overlayOp) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	c := a.CRS()
 
@@ -308,7 +308,7 @@ func assembleLinealResult(c *crs.CRS, lines []*geom.LineString, points []geom.XY
 // inclusion per op rule.
 func linePolygonOverlay(a, b geom.Geometry, op overlayOp) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	// Identify which side is lineal vs polygonal. The op semantics
 	// depend on direction: for `intersection`/`union`/`symdifference`

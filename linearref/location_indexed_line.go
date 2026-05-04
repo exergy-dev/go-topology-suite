@@ -3,7 +3,7 @@ package linearref
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // LocationIndexedLine supports linear referencing along a linear

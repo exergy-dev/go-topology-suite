@@ -1,7 +1,7 @@
 package linearref
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // LengthIndexedLine supports linear referencing along a linear Geometry

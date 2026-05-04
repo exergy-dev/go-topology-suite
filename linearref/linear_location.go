@@ -14,7 +14,7 @@ package linearref
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // LinearLocation is a position on a LineString or MultiLineString.

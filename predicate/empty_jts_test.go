@@ -3,7 +3,7 @@ package predicate
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // TestEmptyInputSemantics verifies our 10 predicates against JTS spec

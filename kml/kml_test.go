@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // xmlDecodes confirms the fragment parses without error. KML fragments

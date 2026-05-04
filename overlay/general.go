@@ -3,11 +3,11 @@ package overlay
 import (
 	"math"
 
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/overlay/overlayng"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/overlay/overlayng"
 )
 
 // tryOverlayNG runs the overlay-NG path on polygonal inputs (single
@@ -556,7 +556,7 @@ func maxCoordMagnitude(polys []*geom.Polygon) float64 {
 
 func requireSameCRS(a, b geom.Geometry) error {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return terra.ErrCRSMismatch
+		return gts.ErrCRSMismatch
 	}
 	return nil
 }
@@ -598,7 +598,7 @@ func IntersectionGeneral(subject, clipper geom.Geometry) (geom.Geometry, error) 
 	}
 	// Greiner-Hormann fallback only handles single-polygon inputs.
 	if len(subj) != 1 || len(clip) != 1 {
-		return nil, terra.ErrUnsupportedKernel
+		return nil, gts.ErrUnsupportedKernel
 	}
 	sp, cp := subj[0], clip[0]
 	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(cp), string(opIntersection))
@@ -645,7 +645,7 @@ func Union(subject, other geom.Geometry) (geom.Geometry, error) {
 		return g, nil
 	}
 	if len(subj) != 1 || len(oth) != 1 {
-		return nil, terra.ErrUnsupportedKernel
+		return nil, gts.ErrUnsupportedKernel
 	}
 	sp, op := subj[0], oth[0]
 	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(op), string(opUnion))
@@ -696,7 +696,7 @@ func Difference(subject, other geom.Geometry) (geom.Geometry, error) {
 		return g, nil
 	}
 	if len(subj) != 1 || len(oth) != 1 {
-		return nil, terra.ErrUnsupportedKernel
+		return nil, gts.ErrUnsupportedKernel
 	}
 	sp, op := subj[0], oth[0]
 	rings, hadIx := runGreinerHormann(outerRing(sp), outerRing(op), string(opDifference))
@@ -861,7 +861,7 @@ func polygonsOf(g geom.Geometry) ([]*geom.Polygon, error) {
 		}
 		return out, nil
 	}
-	return nil, terra.ErrUnsupportedKernel
+	return nil, gts.ErrUnsupportedKernel
 }
 
 // polygonsToGeometry returns a single polygon, multipolygon, or empty

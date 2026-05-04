@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Type codes per OGC SFS 1.2.1 + PostGIS EWKB extension.

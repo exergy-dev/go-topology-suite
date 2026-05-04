@@ -1,12 +1,12 @@
 package overlay
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/predicate"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/predicate"
 )
 
 // simplifyGCPair detects GeometryCollection operands and replaces
@@ -121,7 +121,7 @@ func pointCoveredBy(p geom.XY, g geom.Geometry, k kernel.Kernel) bool {
 //     to ErrUnsupportedKernel — line-overlay is a separate engine.
 func intersectionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	if as, bs, ok := simplifyGCPair(a, b); ok {
 		return Intersection(as, bs)
@@ -150,7 +150,7 @@ func intersectionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if isPolygonal(a) && isLineal(b) {
 		return linePolygonOverlay(a, b, opIntersection)
 	}
-	return nil, terra.ErrUnsupportedKernel
+	return nil, gts.ErrUnsupportedKernel
 }
 
 // unionNonPolygonal handles union with at least one non-polygonal
@@ -159,7 +159,7 @@ func intersectionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 // containing the polygonal geometry plus the points NOT covered by it.
 func unionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	if as, bs, ok := simplifyGCPair(a, b); ok {
 		return Union(as, bs)
@@ -199,7 +199,7 @@ func unionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 		if (isLineal(a) && isPolygonal(b)) || (isPolygonal(a) && isLineal(b)) {
 			return linePolygonOverlay(a, b, opUnion)
 		}
-		return nil, terra.ErrUnsupportedKernel
+		return nil, gts.ErrUnsupportedKernel
 	}
 	pts := extractPoints(pointsSide)
 	uncovered := pts[:0]
@@ -222,7 +222,7 @@ func unionNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 // Linear-A: not yet supported.
 func differenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	if as, bs, ok := simplifyGCPair(a, b); ok {
 		return Difference(as, bs)
@@ -261,14 +261,14 @@ func differenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 		// LineStrings.
 		return linePolygonOverlay(a, b, opDifference)
 	}
-	return nil, terra.ErrUnsupportedKernel
+	return nil, gts.ErrUnsupportedKernel
 }
 
 // symDifferenceNonPolygonal handles symmetric difference with at least
 // one non-polygonal operand.
 func symDifferenceNonPolygonal(a, b geom.Geometry) (geom.Geometry, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	if as, bs, ok := simplifyGCPair(a, b); ok {
 		return SymmetricDifference(as, bs)

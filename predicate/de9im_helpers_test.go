@@ -3,7 +3,7 @@ package predicate
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func TestDE9IMNamedHelpers(t *testing.T) {

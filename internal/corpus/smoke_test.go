@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra/buffer"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/overlay"
-	"github.com/terra-geo/terra/validate"
+	"github.com/exergy-dev/go-topology-suite/buffer"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/overlay"
+	"github.com/exergy-dev/go-topology-suite/validate"
 )
 
 // dimension reports the topological dimension of g (point=0, line=1,

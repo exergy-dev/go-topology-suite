@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // LinearBoundary determines the boundary points of a linear geometry,
 // using a BoundaryNodeRule. Port of

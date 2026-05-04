@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 func BenchmarkUTMForward(b *testing.B) {

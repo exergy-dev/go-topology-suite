@@ -13,7 +13,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // InteriorPoint returns a point that lies in the interior of g, as

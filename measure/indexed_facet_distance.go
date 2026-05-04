@@ -3,8 +3,8 @@ package measure
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/index"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
 )
 
 // IndexedFacetDistance pre-builds an R-tree over the facets (segments and

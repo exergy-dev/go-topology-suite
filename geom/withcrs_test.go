@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // TestWithCRS_PointSwapsCRSWithoutMutatingSource regression-tests the

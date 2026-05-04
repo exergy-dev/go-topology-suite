@@ -1,7 +1,7 @@
 package shape
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // hilbertMaxLevel is the maximum Hilbert curve order representable in

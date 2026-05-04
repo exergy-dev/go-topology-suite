@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
 )
 
 // ss is a shorthand for building a SegmentString from raw XY pairs.

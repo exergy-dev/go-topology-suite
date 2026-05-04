@@ -3,7 +3,7 @@ package relateng
 import (
 	"sort"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // NodeSections is the per-coordinate aggregator built by the topology

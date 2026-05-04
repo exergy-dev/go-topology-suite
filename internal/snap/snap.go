@@ -3,7 +3,7 @@ package snap
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Rounder snaps vertices and segments to a regular grid whose cell side

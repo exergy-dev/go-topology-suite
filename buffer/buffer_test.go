@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func TestBufferPointRing(t *testing.T) {
@@ -189,13 +189,13 @@ func TestBufferEmptyPoint(t *testing.T) {
 
 func TestBufferNilGeometry(t *testing.T) {
 	_, err := Buffer(nil, 1)
-	require.True(t, errors.Is(err, terra.ErrInvalidGeometry), "err = %v, want ErrInvalidGeometry", err)
+	require.True(t, errors.Is(err, gts.ErrInvalidGeometry), "err = %v, want ErrInvalidGeometry", err)
 }
 
 func TestBufferNaNDistance(t *testing.T) {
 	p := geom.NewPoint(nil, geom.XY{})
 	_, err := Buffer(p, math.NaN())
-	require.True(t, errors.Is(err, terra.ErrInvalidGeometry), "err = %v, want ErrInvalidGeometry", err)
+	require.True(t, errors.Is(err, gts.ErrInvalidGeometry), "err = %v, want ErrInvalidGeometry", err)
 }
 
 func TestBufferMitreLimitFallsBackToBevel(t *testing.T) {

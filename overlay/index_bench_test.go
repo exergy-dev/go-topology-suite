@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func makeNgon(n int, cx, cy, r float64) *geom.Polygon {

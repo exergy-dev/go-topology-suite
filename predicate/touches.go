@@ -1,9 +1,9 @@
 package predicate
 
 import (
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Touches reports whether a and b share at least one boundary point but
@@ -14,7 +14,7 @@ import (
 // OGC: II=F AND any of {IB, BI, BB} is non-F.
 func Touches(a, b geom.Geometry, opts ...Option) (bool, error) {
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return false, terra.ErrCRSMismatch
+		return false, gts.ErrCRSMismatch
 	}
 	a = unwrapLinearRing(a)
 	b = unwrapLinearRing(b)

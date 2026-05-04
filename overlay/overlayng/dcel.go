@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // vertex is a node in the planar subdivision. A vertex is uniquely keyed

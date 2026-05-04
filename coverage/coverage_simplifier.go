@@ -3,7 +3,7 @@ package coverage
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Simplify simplifies the boundaries of a polygonal coverage while

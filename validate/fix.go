@@ -13,7 +13,7 @@
 package validate
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // FixOptions controls Fix behaviour. The zero value matches JTS

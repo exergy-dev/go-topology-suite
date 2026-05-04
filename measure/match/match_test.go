@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
 )
 
 func TestAreaSimilarity_Identical(t *testing.T) {

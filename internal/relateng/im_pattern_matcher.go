@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // IMPatternMatcher is a TopologyPredicate that matches a DE-9IM
 // pattern string. Port of

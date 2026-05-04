@@ -14,19 +14,19 @@ import (
 
 	"encoding/hex"
 
-	"github.com/terra-geo/terra/buffer"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/hull"
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/overlay"
-	"github.com/terra-geo/terra/overlay/overlayng"
-	"github.com/terra-geo/terra/polygonize"
-	"github.com/terra-geo/terra/precision"
-	"github.com/terra-geo/terra/predicate"
-	"github.com/terra-geo/terra/simplify"
-	"github.com/terra-geo/terra/validate"
-	"github.com/terra-geo/terra/wkb"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/buffer"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/hull"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/overlay"
+	"github.com/exergy-dev/go-topology-suite/overlay/overlayng"
+	"github.com/exergy-dev/go-topology-suite/polygonize"
+	"github.com/exergy-dev/go-topology-suite/precision"
+	"github.com/exergy-dev/go-topology-suite/predicate"
+	"github.com/exergy-dev/go-topology-suite/simplify"
+	"github.com/exergy-dev/go-topology-suite/validate"
+	"github.com/exergy-dev/go-topology-suite/wkb"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // run is the top-level <run> element in a JTS XML test file.
@@ -244,7 +244,7 @@ func compareApproxGeometry(opName string, got geom.Geometry, op xmlOp) dispatchR
 	return fail(fmt.Sprintf("%s: expected %s, got %s", opName, op.Expected, geomString(got)))
 }
 
-// runOp dispatches an op to the appropriate terra function and compares
+// runOp dispatches an op to the appropriate gts function and compares
 // the result against the expected XML payload. tolerance, when > 0,
 // is the file-level <precisionModel> grid spacing applied to overlay
 // ops (mirroring JTS's fixed-precision overlay path).
@@ -255,7 +255,7 @@ func runOp(c *xmlCase, op xmlOp, tolerance float64) dispatchResult {
 	case "intersection", "union", "difference", "symdifference":
 		return runOverlayOp(c, op, name, tolerance)
 
-	// NG-suffixed ops are JTS's overlay-NG path. Terra always uses
+	// NG-suffixed ops are JTS's overlay-NG path. go-topology-suite always uses
 	// overlay-NG for polygonal overlays, so map these to the same
 	// implementation as their non-suffixed counterparts.
 	case "intersectionng":
@@ -267,7 +267,7 @@ func runOp(c *xmlCase, op xmlOp, tolerance float64) dispatchResult {
 	case "symdifferenceng":
 		return runOverlayOp(c, op, "symdifference", tolerance)
 
-	// SR-suffixed ops are JTS's snap-rounding overlay. Terra has no
+	// SR-suffixed ops are JTS's snap-rounding overlay. go-topology-suite has no
 	// snap-rounding noder, but we approximate by snapping each
 	// operand's coordinates to the precision scale (arg3) before
 	// dispatching to the standard overlay engine. This handles the
@@ -947,7 +947,7 @@ func runGetCentroid(c *xmlCase, op xmlOp) dispatchResult {
 		return dispatchResult{Detail: "parse expected: " + err.Error()}
 	}
 	// Compare as points with a small tolerance — JTS's centroid
-	// algorithm differs from terra's planar Bashein-Detmer formula by
+	// algorithm differs from go-topology-suite's planar Bashein-Detmer formula by
 	// rounding noise on real-data inputs.
 	expectedPt, ok := expected.(*geom.Point)
 	if !ok {

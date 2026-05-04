@@ -1,8 +1,8 @@
 package linearref
 
 import (
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // linearGeometryBuilder incrementally builds a LineString or

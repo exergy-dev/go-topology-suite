@@ -1,5 +1,5 @@
 // Package proptest provides shared rapid generators for property-based
-// tests across Terra. Property tests are NOT a substitute for unit tests
+// tests across go-topology-suite. Property tests are NOT a substitute for unit tests
 // — they catch invariant violations that unit tests miss, but rapid's
 // shrinking is what makes them ergonomic when they fire.
 //
@@ -15,7 +15,7 @@
 package proptest
 
 import (
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 	"pgregory.net/rapid"
 )
 

@@ -1,16 +1,16 @@
-# Terra
+# go-topology-suite
 
 A Go port of the [JTS Topology Suite](https://github.com/locationtech/jts) — geometry types, spatial predicates, overlay, buffer, simplification, indexing, and the surrounding ecosystem of geospatial primitives.
 
 ```go
-import "github.com/terra-geo/terra"
+import "github.com/exergy-dev/go-topology-suite"
 ```
 
-The module path is `github.com/terra-geo/terra`. The directory name in this repository (`go-topology-suite`) is historical; the import path is what users depend on.
+The module path is `github.com/exergy-dev/go-topology-suite`. The top-level package is named `gts`.
 
-## Why Terra
+## Why go-topology-suite
 
-JTS is the de-facto reference implementation for 2D vector geometry on the JVM. Terra ports it to idiomatic Go: explicit CRS attachment on every geometry, no globals on the hot path, value-typed coordinates, sealed `Geometry` interface, and a robust planar kernel built on Shewchuk-style adaptive predicates with a `math/big` exact fallback.
+JTS is the de-facto reference implementation for 2D vector geometry on the JVM. go-topology-suite ports it to idiomatic Go: explicit CRS attachment on every geometry, no globals on the hot path, value-typed coordinates, sealed `Geometry` interface, and a robust planar kernel built on Shewchuk-style adaptive predicates with a `math/big` exact fallback.
 
 Conformance against JTS's own `testxml` corpus (8 951 cases) is **99.88 %**; the 11 residual failures are tracked in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md) and are either external-tracker known (GEOS upstream), JTS-`failure/` flagged, or fixture version drift.
 
@@ -22,10 +22,10 @@ package main
 import (
 	"fmt"
 
-	"github.com/terra-geo/terra/buffer"
-	"github.com/terra-geo/terra/geojson"
-	"github.com/terra-geo/terra/predicate"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/buffer"
+	"github.com/exergy-dev/go-topology-suite/geojson"
+	"github.com/exergy-dev/go-topology-suite/predicate"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func main() {
@@ -67,7 +67,7 @@ The `internal/` packages — `relateng`, `noding`, `snap`, `snaprounding`, `corp
 
 ## Coordinate reference systems
 
-Every geometry holds a `*crs.CRS` pointer. Operations between two geometries with different CRS pointers return `terra.ErrCRSMismatch`; there is no implicit reprojection. Use `terra.Transform(g, target)` (or `crs.OperationFor(src, dst)`) to reproject explicitly.
+Every geometry holds a `*crs.CRS` pointer. Operations between two geometries with different CRS pointers return `gts.ErrCRSMismatch`; there is no implicit reprojection. Use `gts.Transform(g, target)` (or `crs.OperationFor(src, dst)`) to reproject explicitly.
 
 The CRS subsystem is **deliberately narrower than PROJ**:
 
@@ -75,7 +75,7 @@ The CRS subsystem is **deliberately narrower than PROJ**:
 - Datum shifts use the 7-parameter Helmert (Bursa-Wolf) transformation in either PositionVector or CoordinateFrame convention, with closed-form geodetic↔geocentric conversion via Bowring 1985 + 2× Newton refinement.
 - Common EPSG codes (4326 WGS84, 3857 Web Mercator, 4269 NAD83, the UTM zones for the families above) are populated. Codes outside this set return `crs.ErrUntransformable`.
 
-For full PROJ feature parity (150+ projection families, polynomial grid shifts, pipeline composition), wrap PROJ via cgo or a shell-out — Terra does not aim to replace it.
+For full PROJ feature parity (150+ projection families, polynomial grid shifts, pipeline composition), wrap PROJ via cgo or a shell-out — go-topology-suite does not aim to replace it.
 
 ## Testing
 
@@ -103,13 +103,13 @@ Property-based tests via `pgregory.net/rapid` cover predicates, overlay, buffer,
 
 ## Versioning and stability
 
-Terra follows [Semantic Versioning](https://semver.org/). The public API surface — every exported symbol outside `internal/` — is covered by the v1 stability promise. Packages explicitly marked **experimental** in their `doc.go` (notably parts of `crs/proj/` and `kernel/spherical/`) may evolve within a major version with a release-note entry.
+go-topology-suite follows [Semantic Versioning](https://semver.org/). The public API surface — every exported symbol outside `internal/` — is covered by the v1 stability promise. Packages explicitly marked **experimental** in their `doc.go` (notably parts of `crs/proj/` and `kernel/spherical/`) may evolve within a major version with a release-note entry.
 
 Breaking changes require a major-version bump. Deprecations are announced one minor version ahead of removal.
 
 ## Acknowledgments
 
-Terra is a Go port of [JTS](https://github.com/locationtech/jts), authored by Martin Davis and contributors and maintained at LocationTech. Behavioral fidelity to JTS is a design goal; documented divergences live in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md).
+go-topology-suite is a Go port of [JTS](https://github.com/locationtech/jts), authored by Martin Davis and contributors and maintained at LocationTech. Behavioral fidelity to JTS is a design goal; documented divergences live in [`KNOWN-DIVERGENCES.md`](./KNOWN-DIVERGENCES.md).
 
 The `crs/proj/testdata/gie/` corpus is derived from the [PROJ project](https://github.com/OSGeo/PROJ) and retains its X/MIT license.
 

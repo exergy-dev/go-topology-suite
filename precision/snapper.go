@@ -12,7 +12,7 @@ package precision
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // SnapPrecisionFactor is the JTS SNAP_PRECISION_FACTOR used in the

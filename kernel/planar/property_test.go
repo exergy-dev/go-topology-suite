@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/proptest"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/proptest"
 	"pgregory.net/rapid"
 )
 

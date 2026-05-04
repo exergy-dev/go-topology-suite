@@ -1,10 +1,10 @@
 package relateng
 
 import (
-	"github.com/terra-geo/terra/algorithm/locate"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/algorithm/locate"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // PointLocator is the RelateNG point-on-geometry locator, with

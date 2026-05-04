@@ -7,7 +7,7 @@
 // Importers that need AreaSimilarity to work should blank-import this
 // package, typically from main:
 //
-//	import _ "github.com/terra-geo/terra/measure/match"
+//	import _ "github.com/exergy-dev/go-topology-suite/measure/match"
 //
 // The init() below is then run before any caller's code, registering
 // overlay.Intersection / overlay.Union as the implementation backing
@@ -15,8 +15,8 @@
 package match
 
 import (
-	"github.com/terra-geo/terra/measure"
-	"github.com/terra-geo/terra/overlay"
+	"github.com/exergy-dev/go-topology-suite/measure"
+	"github.com/exergy-dev/go-topology-suite/overlay"
 )
 
 func init() {

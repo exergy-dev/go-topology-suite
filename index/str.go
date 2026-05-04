@@ -5,7 +5,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Sort-Tile-Recursive bulk loading (Leutenegger, Edgington, Lopez 1997).

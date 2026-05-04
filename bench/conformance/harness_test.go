@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/measure"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/measure"
 
-	"github.com/terra-geo/terra/internal/corpus"
+	"github.com/exergy-dev/go-topology-suite/internal/corpus"
 )
 
 // pairsPerFixture caps the number of (a, b) pairs taken from each
@@ -21,7 +21,7 @@ import (
 const pairsPerFixture = 3
 
 // newDefaultImpls returns the impls compared in TestConformance under
-// the default build (no `postgis`, no `cgo`). The Terra impl is the
+// the default build (no `postgis`, no `cgo`). The go-topology-suite impl is the
 // reference; other entries are compared against it.
 //
 // Adding a new pure-Go impl: append it here. Adding an impl behind a
@@ -30,12 +30,12 @@ const pairsPerFixture = 3
 // build-tagged init()).
 func newDefaultImpls() []Impl {
 	return []Impl{
-		NewTerra(),
+		NewGTS(),
 		NewSimplefeatures(),
 	}
 }
 
-// pairList is the set of (a, b) Terra geometry pairs the harness runs
+// pairList is the set of (a, b) go-topology-suite geometry pairs the harness runs
 // against every Op.
 type pairList struct {
 	a, b  geom.Geometry
@@ -72,12 +72,12 @@ func buildPairs() []pairList {
 //
 // It is intentionally NOT a pass/fail test: divergences between
 // independent geometry libraries are documented behaviour, not bugs in
-// Terra. Every disagreement is recorded via t.Logf so a developer can
+// go-topology-suite. Every disagreement is recorded via t.Logf so a developer can
 // audit the discrepancies (and append accepted ones to
 // KNOWN-DIVERGENCES.md at the repo root).
 //
-// The test prints one summary line per (terra, other) pairing per Op
-// at the end: "[conformance] terra vs simplefeatures: 87/100 ops
+// The test prints one summary line per (gts, other) pairing per Op
+// at the end: "[conformance] gts vs simplefeatures: 87/100 ops
 // agreed". This baseline is what future work tracks.
 func TestConformance(t *testing.T) {
 	impls := newDefaultImpls()

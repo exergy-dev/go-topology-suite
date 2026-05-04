@@ -3,7 +3,7 @@ package geom
 import (
 	"math"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 // OctagonalEnvelope is a tight bounding container shaped like a general

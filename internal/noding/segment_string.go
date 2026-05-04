@@ -1,6 +1,6 @@
 package noding
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // SegmentString is a sequence of vertices defining a connected polyline.
 // When the first and last vertices are equal the string represents a

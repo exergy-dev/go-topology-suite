@@ -5,9 +5,9 @@ import (
 	"errors"
 	"math"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/triangulate"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/triangulate"
 )
 
 // ConcaveHull computes a concave hull polygon for the vertices of g

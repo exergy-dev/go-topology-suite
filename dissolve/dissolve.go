@@ -18,8 +18,8 @@ package dissolve
 import (
 	"sort"
 
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // LineDissolver dissolves the linear components in geometries and returns

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Default fanout. Higher values speed up bulk insertion but slow point

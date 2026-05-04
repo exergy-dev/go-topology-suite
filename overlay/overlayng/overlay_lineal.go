@@ -4,11 +4,11 @@ import (
 	"cmp"
 	"slices"
 
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/internal/noding"
-	"github.com/terra-geo/terra/internal/snap"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/exergy-dev/go-topology-suite/internal/snap"
 )
 
 // OverlayLinealWithTolerance computes a boolean overlay between two
@@ -36,10 +36,10 @@ import (
 // route through the float lineal-overlay path instead.
 func OverlayLinealWithTolerance(a, b geom.Geometry, op Op, tolerance float64) (geom.Geometry, error) {
 	if tolerance <= 0 {
-		return nil, terra.ErrUnsupportedKernel
+		return nil, gts.ErrUnsupportedKernel
 	}
 	if !crs.Equal(a.CRS(), b.CRS()) {
-		return nil, terra.ErrCRSMismatch
+		return nil, gts.ErrCRSMismatch
 	}
 	c := a.CRS()
 

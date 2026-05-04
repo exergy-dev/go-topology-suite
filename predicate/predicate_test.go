@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	terra "github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 func mustParse(t *testing.T, s string) geom.Geometry {
@@ -109,5 +109,5 @@ func TestCRSMismatch(t *testing.T) {
 	a := geom.NewPoint(crs.WGS84, geom.XY{X: 1, Y: 2})
 	b := geom.NewPoint(crs.WebMercator, geom.XY{X: 1, Y: 2})
 	_, err := Intersects(a, b)
-	assert.ErrorIs(t, err, terra.ErrCRSMismatch)
+	assert.ErrorIs(t, err, gts.ErrCRSMismatch)
 }

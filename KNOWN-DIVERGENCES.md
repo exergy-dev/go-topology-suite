@@ -1,6 +1,6 @@
 # Known Divergences
 
-This document lists accepted differences between Terra and other geometry
+This document lists accepted differences between go-topology-suite and other geometry
 libraries surfaced by the `bench/conformance` harness (Pillar B2). A
 divergence here is "documented behaviour, not a bug": both implementations
 have considered the input and produced a self-consistent output, and the
@@ -17,7 +17,7 @@ Each entry should record:
 
 - **Op:** the operation under test (`intersection`, `union`,
   `difference`, `area`, `length`, `relate`).
-- **Other impl:** the library Terra is being compared against.
+- **Other impl:** the library go-topology-suite is being compared against.
 - **Trigger:** the input shape that surfaces the divergence (corpus
   fixture name + feature indices, or a minimal repro WKT).
 - **Resolution:** the rationale for accepting the difference (e.g.
@@ -204,7 +204,7 @@ Cases closed:
 
 ---
 
-**Total parity round (Waves 1–20)**: **143 commits**, 12 new top-level packages, RelateNG promoted to default, **conformance reduced from 60 → 11 failures (99.88%)**. Every meaningful JTS class has been ported, and **all 11 remaining failures are external-tracker known or JTS version-drift** — zero algorithmic gaps remain on the Terra side:
+**Total parity round (Waves 1–20)**: **143 commits**, 12 new top-level packages, RelateNG promoted to default, **conformance reduced from 60 → 11 failures (99.88%)**. Every meaningful JTS class has been ported, and **all 11 remaining failures are external-tracker known or JTS version-drift** — zero algorithmic gaps remain on the go-topology-suite side:
 
 - 5 `failure/TestReducePrecisionFailure` (JTS-known: "Result provided is approximately correct")
 - 2 `failure/TestOverlayNGFailure` (JTS-known approximate)
@@ -216,7 +216,7 @@ Cases closed:
 - **Trigger:** `upstream/misc/TestOverlay.xml` case#4
   (https://trac.osgeo.org/geos/ticket/737). Two polygons in UTM-scale
   coordinates (~5e6 magnitude) with sliver overlaps; expected output
-  is a 4-component MultiPolygon, Terra emits a 3-component MultiPolygon
+  is a 4-component MultiPolygon, go-topology-suite emits a 3-component MultiPolygon
   from the floating-precision path and the auto-tolerance retry's
   output (1e-9 grid) is also valid 3-poly so the retry's
   cheap-validity probe accepts it without noticing the missing sliver.
@@ -272,12 +272,12 @@ Closing the remaining four would require either a polygon-repair pass
 (cases 10/13) or replicating JTS's exact tie-breaker on
 already-minimal rings (cases 15/16). Both are deferred.
 
-### `length` on polygonal geometries — terra vs simplefeatures
+### `length` on polygonal geometries — go-topology-suite vs simplefeatures
 
 - **Op:** `length`
 - **Other impl:** `simplefeatures` (v0.59.0)
 - **Trigger:** every Polygon / MultiPolygon input in the corpus.
-- **Resolution:** Terra's `measure.Length` returns the perimeter for
+- **Resolution:** go-topology-suite's `measure.Length` returns the perimeter for
   polygonal geometries (sum of edge lengths across outer ring + holes),
   matching the JTS / GEOS convention. simplefeatures' `Geometry.Length`
   returns `0` for `Polygon` and `MultiPolygon`, restricting Length to
@@ -309,7 +309,7 @@ reviewed rather than missed.
 
 - **`XY.Equal` treats NaN as equal; JTS `Coordinate.equals2D` treats
   NaN as not equal.** Documented as by-design in `MEMORY.md` —
-  Terra inserts `math.NaN()` as the absent-data marker for missing
+  go-topology-suite inserts `math.NaN()` as the absent-data marker for missing
   Z/M (and rarely as a missing-coord placeholder), and round-tripping
   those through dedup/snap requires NaN==NaN. Callers needing JTS
   semantics use `XY.EqualBitwise`, which matches `Coordinate.equals2D`
@@ -317,7 +317,7 @@ reviewed rather than missed.
 
 - **No standalone `Triangle`, `Quadrant`, `PrecisionModel`, or
   `IntersectionMatrix` types in `geom/`.** JTS exports these as
-  public utility classes. Terra inlines or relocates the math:
+  public utility classes. go-topology-suite inlines or relocates the math:
   - `Triangle` (signedArea, centroid, circumcentre, area3D,
     interpolateZ): used internally by area/centroid/Delaunay code,
     no central package. Lifting into `geom/triangle.go` would be

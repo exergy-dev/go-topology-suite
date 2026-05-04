@@ -1,6 +1,6 @@
 package noding
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // MonotoneChain is a contiguous run of segments within a SegmentString
 // whose direction lies in a single quadrant — i.e. dx and dy each have

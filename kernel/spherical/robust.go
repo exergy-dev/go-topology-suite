@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/terra-geo/terra/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
 // adaptiveOrient3D returns the sign of det(a, b, c) where a, b, c are

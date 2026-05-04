@@ -1,5 +1,5 @@
 // Package snap provides snap-rounding infrastructure used by the overlay-NG
-// port (Pillars A1/A2 in the Terra parallel-implementation plan).
+// port (Pillars A1/A2 in the go-topology-suite parallel-implementation plan).
 //
 // # What snap rounding does
 //
@@ -61,5 +61,5 @@
 // this is invisible; document any user-surfaced divergence in
 // KNOWN-DIVERGENCES.md as it appears.
 //
-// The package is internal: only Terra packages can import it.
+// The package is internal: only go-topology-suite packages can import it.
 package snap

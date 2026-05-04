@@ -1,6 +1,6 @@
 package overlayng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // extractResultLines walks the DCEL after applyOp and harvests lineal
 // components of the overlay result: chains of half-edges that satisfy

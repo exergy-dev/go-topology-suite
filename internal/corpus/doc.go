@@ -1,5 +1,5 @@
 // Package corpus exposes a small bundle of real-world-style GeoJSON
-// FeatureCollections that ship with the Terra source tree, plus a smoke
+// FeatureCollections that ship with the go-topology-suite source tree, plus a smoke
 // harness that runs the core pipeline (validate, measure, buffer, overlay)
 // across every feature.
 //

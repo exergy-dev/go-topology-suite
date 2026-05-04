@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // Impl is the contract every implementation under test must satisfy.
@@ -12,11 +12,11 @@ import (
 // The interface is intentionally narrow: six operations cover the
 // overlay engine (Intersection / Union / Difference), scalar measure
 // (Area / Length), and the boolean predicate stack (Relate, returning
-// the DE-9IM matrix). Each method takes Terra geometries and returns
-// either a result expressed in Terra terms (so the harness can compare
+// the DE-9IM matrix). Each method takes go-topology-suite geometries and returns
+// either a result expressed in go-topology-suite terms (so the harness can compare
 // without knowing the implementation's native types) or an error.
 //
-// Implementations are responsible for converting between Terra and
+// Implementations are responsible for converting between go-topology-suite and
 // their own native form. The standard path is wkt.Marshal -> the
 // implementation's WKT parser -> the implementation's operation -> WKT
 // again -> wkt.Unmarshal. WKT is the lingua franca and avoids any
@@ -167,7 +167,7 @@ func agree(op Op, ref, other result, areaOf func(geom.Geometry) float64) (bool, 
 	return false, fmt.Sprintf("unknown op %q", op)
 }
 
-// safeArea returns 0 for nil geometries (which both Terra's overlay and
+// safeArea returns 0 for nil geometries (which both go-topology-suite's overlay and
 // simplefeatures occasionally produce on disjoint inputs), and
 // otherwise delegates to the supplied area function.
 func safeArea(areaOf func(geom.Geometry) float64, g geom.Geometry) float64 {

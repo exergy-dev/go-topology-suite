@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
 // bitEqual checks that two float64 values have identical bit patterns.

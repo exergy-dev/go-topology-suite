@@ -3,8 +3,8 @@ package predicate_test
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/predicate"
-	"github.com/terra-geo/terra/wkt"
+	"github.com/exergy-dev/go-topology-suite/predicate"
+	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
 // TestRelateNG_DeterministicNodeOrder regression-tests the EvaluateNodes

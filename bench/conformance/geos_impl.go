@@ -5,7 +5,7 @@ package conformance
 import (
 	"errors"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // TODO(b2-geos): wire this stub up to github.com/twpayne/go-geos. The
@@ -19,10 +19,10 @@ import (
 //       return &geosImpl{ctx: goeos.NewContext()}
 //   }
 //
-// Each operation marshals the Terra input to WKT (or WKB), constructs
+// Each operation marshals the go-topology-suite input to WKT (or WKB), constructs
 // a geos.Geom via ctx.NewGeomFromWKT, runs the corresponding method
 // (Intersection / Union / Difference / Area / Length / Relate), and
-// converts back to Terra via the resulting ToWKT.
+// converts back to go-topology-suite via the resulting ToWKT.
 //
 // Build incantation (note cgo and the libgeos-dev system package):
 //

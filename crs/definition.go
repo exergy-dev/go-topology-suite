@@ -4,7 +4,7 @@ package crs
 //
 // Most data in the wild is stored as (longitude, latitude) — that is the
 // AxisLonLat default. EPSG, however, defines many geographic CRSes with
-// AxisLatLon order (4326 included, in its strict reading). Terra honours
+// AxisLatLon order (4326 included, in its strict reading). go-topology-suite honours
 // AxisOrder at the boundaries of Transform; nothing else inspects it.
 type AxisOrder uint8
 
@@ -24,7 +24,7 @@ const (
 //     frame (opposite sign). EPSG calls this "method 9607".
 //
 // The two differ only in the sign of the rotation triple. Mixing them up
-// is a classic data-integration bug; Terra requires the convention to be
+// is a classic data-integration bug; go-topology-suite requires the convention to be
 // stated explicitly.
 type HelmertConvention uint8
 
@@ -113,7 +113,7 @@ type Definition struct {
 	Projection Projection
 }
 
-// Pre-defined ellipsoids covering the datums Terra ships parameters for.
+// Pre-defined ellipsoids covering the datums go-topology-suite ships parameters for.
 var (
 	WGS84Ellipsoid       = Ellipsoid{Name: "WGS 84", A: 6378137.0, InvF: 298.257223563}
 	GRS80Ellipsoid       = Ellipsoid{Name: "GRS 1980", A: 6378137.0, InvF: 298.257222101}

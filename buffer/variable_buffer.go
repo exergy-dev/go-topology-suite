@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/terra-geo/terra"
-	"github.com/terra-geo/terra/crs"
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/overlay"
+	"github.com/exergy-dev/go-topology-suite"
+	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/overlay"
 )
 
 // minCapSegLenFactor mirrors JTS VariableBuffer.MIN_CAP_SEG_LEN_FACTOR.
@@ -23,24 +23,24 @@ const minCapSegLenFactor = 4
 //
 // Direct port of JTS org.locationtech.jts.operation.buffer.VariableBuffer.
 //
-// The function returns terra.ErrInvalidGeometry when:
+// The function returns gts.ErrInvalidGeometry when:
 //   - line is nil or empty
 //   - distances has fewer/more entries than the line has vertices
 //   - any distance is NaN or +/-Inf, or negative
 func VariableBuffer(line *geom.LineString, distances []float64, opts ...Option) (geom.Geometry, error) {
 	if line == nil {
-		return nil, terra.ErrInvalidGeometry
+		return nil, gts.ErrInvalidGeometry
 	}
 	if line.IsEmpty() {
 		return geom.NewEmptyPolygon(line.CRS(), line.Layout()), nil
 	}
 	if len(distances) != line.NumPoints() {
 		return nil, fmt.Errorf("buffer.VariableBuffer: distances len=%d, expected %d: %w",
-			len(distances), line.NumPoints(), terra.ErrInvalidGeometry)
+			len(distances), line.NumPoints(), gts.ErrInvalidGeometry)
 	}
 	for _, d := range distances {
 		if math.IsNaN(d) || math.IsInf(d, 0) || d < 0 {
-			return nil, fmt.Errorf("buffer.VariableBuffer: invalid distance %v: %w", d, terra.ErrInvalidGeometry)
+			return nil, fmt.Errorf("buffer.VariableBuffer: invalid distance %v: %w", d, gts.ErrInvalidGeometry)
 		}
 	}
 
@@ -90,7 +90,7 @@ func VariableBuffer(line *geom.LineString, distances []float64, opts ...Option) 
 // Mirrors JTS VariableBuffer.buffer(line, startDistance, endDistance).
 func VariableBufferInterpolated(line *geom.LineString, startDistance, endDistance float64, opts ...Option) (geom.Geometry, error) {
 	if line == nil {
-		return nil, terra.ErrInvalidGeometry
+		return nil, gts.ErrInvalidGeometry
 	}
 	if line.IsEmpty() {
 		return geom.NewEmptyPolygon(line.CRS(), line.Layout()), nil

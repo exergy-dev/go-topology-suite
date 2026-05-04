@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // NodeSection is one half of a topology node in JTS RelateNG: a
 // node point plus its incident edge vertices. Port of

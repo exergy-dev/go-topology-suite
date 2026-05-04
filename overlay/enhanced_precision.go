@@ -25,8 +25,8 @@ package overlay
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/precision"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/precision"
 )
 
 // EnhancedPrecisionIntersection computes a ∩ b. If the raw Intersection

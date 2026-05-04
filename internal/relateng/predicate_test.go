@@ -3,7 +3,7 @@ package relateng
 import (
 	"testing"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // driveCells feeds a sequence of (locA, locB, dim) cells into a

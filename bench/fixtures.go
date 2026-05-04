@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/wkb"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/wkb"
 )
 
 // Scaled-down workload sizes. See doc.go for rationale.

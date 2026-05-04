@@ -1,6 +1,6 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import "github.com/exergy-dev/go-topology-suite/geom"
 
 // TopologyPredicate is the strategy interface implemented by all
 // RelateNG predicates. Port of

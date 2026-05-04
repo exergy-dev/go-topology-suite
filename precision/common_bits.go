@@ -15,7 +15,7 @@ package precision
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
+	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 // CommonBits accumulates the bitwise-common high-order prefix of a set

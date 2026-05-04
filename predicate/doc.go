@@ -1,8 +1,8 @@
-// Package predicate computes spatial predicates between Terra geometries.
+// Package predicate computes spatial predicates between go-topology-suite geometries.
 //
 // All predicate functions take two geometries and a variadic Option list
 // (functional options pattern). The kernel is selected via WithKernel; if
-// omitted, planar is used. CRS mismatches return terra.ErrCRSMismatch.
+// omitted, planar is used. CRS mismatches return gts.ErrCRSMismatch.
 //
 // Phase 1 ships the core predicates needed by typical workloads:
 // Intersects, Disjoint, Equals, and Contains. Within, Crosses, Overlaps,

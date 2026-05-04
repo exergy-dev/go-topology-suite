@@ -32,9 +32,9 @@ package coverage
 import (
 	"math"
 
-	"github.com/terra-geo/terra/geom"
-	"github.com/terra-geo/terra/kernel/planar"
-	"github.com/terra-geo/terra/precision"
+	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/exergy-dev/go-topology-suite/precision"
 )
 
 // Clean returns a coverage-clean slice of polygons constructed from

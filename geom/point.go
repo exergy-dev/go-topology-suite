@@ -3,7 +3,7 @@ package geom
 import (
 	"math"
 
-	"github.com/terra-geo/terra/crs"
+	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
 func nan() float64 { return math.NaN() }
