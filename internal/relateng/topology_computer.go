@@ -1,6 +1,10 @@
 package relateng
 
-import "github.com/terra-geo/terra/geom"
+import (
+	"sort"
+
+	"github.com/terra-geo/terra/geom"
+)
 
 // TopologyComputer is the orchestrator that drives a TopologyPredicate
 // to a final answer by exploring the topological interaction between
@@ -341,11 +345,31 @@ func (tc *TopologyComputer) updateNodeLocation(a, b *NodeSection) {
 // RelateNode for each AB-interacting node, and pushes the resulting
 // edge L/R/On classifications into the predicate. Mirrors
 // TopologyComputer.evaluateNodes.
+//
+// Nodes are visited in lexicographic (X, Y) order so that the early
+// exit on IsResultKnown is deterministic regardless of Go's randomised
+// map iteration. Without this sort, two predicate runs on the same
+// inputs could short-circuit on different nodes — same final answer
+// for the predicates we ship, but a debugging foot-gun for any future
+// predicate whose IM updates are not strictly order-independent.
 func (tc *TopologyComputer) EvaluateNodes() {
+	if len(tc.nodeMap) == 0 {
+		return
+	}
+	nss := make([]*NodeSections, 0, len(tc.nodeMap))
 	for _, ns := range tc.nodeMap {
-		if !ns.HasInteractionAB() {
-			continue
+		if ns.HasInteractionAB() {
+			nss = append(nss, ns)
 		}
+	}
+	sort.Slice(nss, func(i, j int) bool {
+		a, b := nss[i].NodePt, nss[j].NodePt
+		if a.X != b.X {
+			return a.X < b.X
+		}
+		return a.Y < b.Y
+	})
+	for _, ns := range nss {
 		tc.evaluateNode(ns)
 		if tc.IsResultKnown() {
 			return

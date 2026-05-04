@@ -36,8 +36,13 @@ func NewIntervalRTree[T any]() *IntervalRTree[T] {
 	return &IntervalRTree[T]{}
 }
 
-// Insert adds (min,max,value) to the index. Panics if called after the first
-// query (matching JTS's IllegalStateException).
+// Insert adds (min,max,value) to the index.
+//
+// Insert is a build-time operation. Once the tree has been queried (via
+// Query, QueryVisit, or any other read operation that triggers the
+// internal build), further Insert calls panic — the index is build-once
+// by design, mirroring JTS's IntervalRTree IllegalStateException
+// semantics. Bulk-load all items, then start querying.
 func (t *IntervalRTree[T]) Insert(min, max float64, value T) {
 	t.mu.Lock()
 	defer t.mu.Unlock()

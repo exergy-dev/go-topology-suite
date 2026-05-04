@@ -62,8 +62,13 @@ func NewHPRtreeWithCapacity[T any](nodeCapacity int) *HPRtree[T] {
 // Len returns the number of items in the index.
 func (t *HPRtree[T]) Len() int { return t.numItems }
 
-// Insert adds (env, value) to the index. Panics if the tree has already
-// been queried.
+// Insert adds (env, value) to the index.
+//
+// Insert is a build-time operation. Once the tree has been queried (via
+// Query, QueryVisit, or any other read operation that triggers the
+// internal build), further Insert calls panic — the index is build-once
+// by design, mirroring JTS's HPRtree IllegalStateException semantics.
+// Bulk-load all items, then start querying.
 func (t *HPRtree[T]) Insert(env geom.Envelope, value T) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
