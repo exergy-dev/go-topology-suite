@@ -19,7 +19,7 @@ var (
 	ErrEmpty = errors.New("terra: operation undefined on empty geometry")
 
 	// ErrCRSMismatch is returned when two operands have differing CRS.
-	// Callers must transform explicitly via crs.Transform.
+	// Callers must transform explicitly via terra.Transform.
 	ErrCRSMismatch = errors.New("terra: operands have different CRS")
 
 	// ErrUnsupportedKernel is returned when the requested kernel does not

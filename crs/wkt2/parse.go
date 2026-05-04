@@ -38,19 +38,6 @@ type parser struct {
 
 func newParser(s string) (*parser, error) { return &parser{lex: newLexer(s)}, nil }
 
-func (p *parser) lookahead() (token, error) {
-	if p.have {
-		return p.peek, nil
-	}
-	t, err := p.lex.next()
-	if err != nil {
-		return token{}, err
-	}
-	p.peek = t
-	p.have = true
-	return t, nil
-}
-
 func (p *parser) consume() (token, error) {
 	if p.have {
 		t := p.peek

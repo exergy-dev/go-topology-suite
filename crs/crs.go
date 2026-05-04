@@ -19,11 +19,16 @@ const (
 // In the common case (Authority+Code refers to a registered EPSG code),
 // the WKT2 field is empty and the Kind is supplied either by the registry
 // or — for ad-hoc CRSes — by the caller.
+//
+// Definition is optional: it carries the parameters needed by Transform
+// to actually convert coordinates (datum, projection). CRSes used only
+// for identity comparison can leave it nil.
 type CRS struct {
-	Authority string
-	Code      int
-	WKT2      string
-	Kind      Kind
+	Authority  string
+	Code       int
+	WKT2       string
+	Kind       Kind
+	Definition *Definition
 }
 
 // Equal reports whether two CRSes refer to the same coordinate reference

@@ -1,6 +1,9 @@
 package epsg
 
-import "github.com/terra-geo/terra/crs"
+import (
+	"github.com/terra-geo/terra/crs"
+	"github.com/terra-geo/terra/crs/proj"
+)
 
 // init registers the bulk EPSG ranges that aren't worth hand-naming:
 //
@@ -9,21 +12,30 @@ import "github.com/terra-geo/terra/crs"
 //   - NAD83  / UTM zones 1N..23N (26901..26923)
 //   - ETRS89 / UTM zones 32N..35N (25832..25835)
 //
-// Each entry is a fresh *crs.CRS with Kind=Projected and the conventional
-// EPSG authority code; WKT2 is left empty (callers can fetch the WKT from
-// the upstream EPSG dataset if they need it).
+// Definition is wired at registration time (rather than in a second
+// init in definitions.go) so the named CRS list and the UTM ranges can
+// each populate themselves without depending on init-order.
 func init() {
-	registerRange("EPSG", 32601, 32660, crs.Projected) // WGS84 UTM N
-	registerRange("EPSG", 32701, 32760, crs.Projected) // WGS84 UTM S
-	registerRange("EPSG", 26901, 26923, crs.Projected) // NAD83 UTM N
-	registerRange("EPSG", 25832, 25835, crs.Projected) // ETRS89 UTM N
+	registerUTMRange(32601, 32660, false, crs.DatumWGS84, 32600)
+	registerUTMRange(32701, 32760, true, crs.DatumWGS84, 32700)
+	registerUTMRange(26901, 26923, false, crs.DatumNAD83, 26900)
+	registerUTMRange(25832, 25835, false, crs.DatumETRS89, 25800)
 }
 
-// registerRange inserts a contiguous block of EPSG codes [first, last] with
-// the same authority and kind. It is used to declaratively register the UTM
-// zone families.
-func registerRange(authority string, first, last int, kind crs.Kind) {
+// registerUTMRange registers UTM zones in a contiguous EPSG code block.
+// codeBase is the value such that (code - codeBase) yields the zone
+// number (e.g. 32600 → zones 1..60 on the northern hemisphere).
+func registerUTMRange(first, last int, southern bool, datum crs.Datum, codeBase int) {
 	for code := first; code <= last; code++ {
-		register(&crs.CRS{Authority: authority, Code: code, Kind: kind})
+		zone := code - codeBase
+		register(&crs.CRS{
+			Authority: "EPSG",
+			Code:      code,
+			Kind:      crs.Projected,
+			Definition: &crs.Definition{
+				Datum:      datum,
+				Projection: proj.UTM(zone, southern, datum.Ellipsoid),
+			},
+		})
 	}
 }
