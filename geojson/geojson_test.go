@@ -91,6 +91,49 @@ func TestFeatureCollectionForeign(t *testing.T) {
 	assert.Truef(t, strings.Contains(string(out), `"title":"test"`), "foreign 'title' lost: %s", out)
 }
 
+func TestFeatureForeignRoundTrip(t *testing.T) {
+	src := `{"type":"Feature","geometry":null,"properties":null,"renderer":"web","priority":3}`
+	var f Feature
+	require.NoError(t, json.Unmarshal([]byte(src), &f))
+	assert.Equal(t, 2, len(f.Foreign), "Foreign len")
+	assert.Equal(t, json.RawMessage(`"web"`), f.Foreign["renderer"])
+	out, err := json.Marshal(&f)
+	require.NoError(t, err)
+	assert.Truef(t, strings.Contains(string(out), `"renderer":"web"`), "lost foreign: %s", out)
+	assert.Truef(t, strings.Contains(string(out), `"priority":3`), "lost foreign: %s", out)
+}
+
+// TestFeatureTypedProperties exercises FeatureG with a struct properties
+// type so callers get static typing on the Properties field.
+func TestFeatureTypedProperties(t *testing.T) {
+	type Props struct {
+		Name  string `json:"name"`
+		Score int    `json:"score"`
+	}
+	src := `{"type":"Feature","geometry":{"type":"Point","coordinates":[1,2]},` +
+		`"properties":{"name":"x","score":7},"author":"alice"}`
+	var f FeatureG[Props]
+	require.NoError(t, json.Unmarshal([]byte(src), &f))
+	assert.Equal(t, "x", f.Properties.Name)
+	assert.Equal(t, 7, f.Properties.Score)
+	assert.Equal(t, json.RawMessage(`"alice"`), f.Foreign["author"], "foreign survives")
+
+	out, err := json.Marshal(&f)
+	require.NoError(t, err)
+	assert.Truef(t, strings.Contains(string(out), `"properties":{"name":"x","score":7}`),
+		"properties not encoded from struct: %s", out)
+	assert.Truef(t, strings.Contains(string(out), `"author":"alice"`),
+		"foreign not encoded: %s", out)
+
+	// Round-trip through a typed FeatureCollection.
+	srcFC := `{"type":"FeatureCollection","features":[` + src + `],"layer":"L"}`
+	var fc FeatureCollectionG[Props]
+	require.NoError(t, json.Unmarshal([]byte(srcFC), &fc))
+	require.Equal(t, 1, len(fc.Features))
+	assert.Equal(t, "x", fc.Features[0].Properties.Name)
+	assert.Equal(t, json.RawMessage(`"L"`), fc.Foreign["layer"])
+}
+
 func TestUnmarshalEmptyPoint(t *testing.T) {
 	// Empty arrays decode to POINT EMPTY for cross-format compat.
 	g, err := Unmarshal([]byte(`{"type":"Point","coordinates":[]}`))

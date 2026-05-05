@@ -8,13 +8,15 @@ import (
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
-// Feature is the GeoJSON Feature type.
+// FeatureG is the GeoJSON Feature type, parameterised by the static
+// properties type P. Use P=map[string]any for arbitrary JSON, or a typed
+// struct for schema-validated properties.
 //
 // Foreign top-level members are stored verbatim and round-tripped through
 // MarshalJSON/UnmarshalJSON. ID may be string, number, or null per RFC 7946.
-type Feature struct {
+type FeatureG[P any] struct {
 	Geometry   geom.Geometry
-	Properties map[string]any
+	Properties P
 	ID         any
 	BBox       *geom.Envelope
 	// Foreign holds top-level members not part of the GeoJSON spec
@@ -23,15 +25,24 @@ type Feature struct {
 	Foreign map[string]json.RawMessage
 }
 
-// FeatureCollection is the GeoJSON FeatureCollection type.
-type FeatureCollection struct {
-	Features []*Feature
+// FeatureCollectionG is the GeoJSON FeatureCollection type, parameterised by
+// the per-feature properties type P.
+type FeatureCollectionG[P any] struct {
+	Features []*FeatureG[P]
 	BBox     *geom.Envelope
 	Foreign  map[string]json.RawMessage
 }
 
+// Feature is the default Feature with map[string]any properties, matching
+// pre-generics behaviour.
+type Feature = FeatureG[map[string]any]
+
+// FeatureCollection is the default FeatureCollection with map[string]any
+// per-feature properties.
+type FeatureCollection = FeatureCollectionG[map[string]any]
+
 // MarshalJSON encodes a Feature.
-func (f *Feature) MarshalJSON() ([]byte, error) {
+func (f *FeatureG[P]) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteString(`{"type":"Feature"`)
 	if f.ID != nil {
@@ -57,15 +68,11 @@ func (f *Feature) MarshalJSON() ([]byte, error) {
 		b.Write(geomJSON)
 	}
 	b.WriteString(`,"properties":`)
-	if f.Properties == nil {
-		b.WriteString("null")
-	} else {
-		propJSON, err := json.Marshal(f.Properties)
-		if err != nil {
-			return nil, fmt.Errorf("geojson: properties: %w", err)
-		}
-		b.Write(propJSON)
+	propJSON, err := json.Marshal(f.Properties)
+	if err != nil {
+		return nil, fmt.Errorf("geojson: properties: %w", err)
 	}
+	b.Write(propJSON)
 	for k, v := range f.Foreign {
 		if isReservedFeatureKey(k) {
 			continue
@@ -94,7 +101,7 @@ func writeBBox(b *bytes.Buffer, env geom.Envelope) {
 }
 
 // UnmarshalJSON decodes a Feature.
-func (f *Feature) UnmarshalJSON(data []byte) error {
+func (f *FeatureG[P]) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("geojson: %w", err)
@@ -114,11 +121,9 @@ func (f *Feature) UnmarshalJSON(data []byte) error {
 		f.Geometry = geo
 	}
 	if p, ok := raw["properties"]; ok && string(p) != "null" {
-		var props map[string]any
-		if err := json.Unmarshal(p, &props); err != nil {
-			return err
+		if err := json.Unmarshal(p, &f.Properties); err != nil {
+			return fmt.Errorf("geojson: properties: %w", err)
 		}
-		f.Properties = props
 	}
 	if id, ok := raw["id"]; ok {
 		var v any
@@ -161,7 +166,7 @@ func decodeBBox(raw json.RawMessage) (*geom.Envelope, error) {
 }
 
 // MarshalJSON encodes a FeatureCollection.
-func (fc *FeatureCollection) MarshalJSON() ([]byte, error) {
+func (fc *FeatureCollectionG[P]) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteString(`{"type":"FeatureCollection"`)
 	if fc.BBox != nil {
@@ -203,7 +208,7 @@ func isReservedCollectionKey(k string) bool {
 }
 
 // UnmarshalJSON decodes a FeatureCollection.
-func (fc *FeatureCollection) UnmarshalJSON(data []byte) error {
+func (fc *FeatureCollectionG[P]) UnmarshalJSON(data []byte) error {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
@@ -220,9 +225,9 @@ func (fc *FeatureCollection) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(features, &arr); err != nil {
 			return err
 		}
-		fc.Features = make([]*Feature, 0, len(arr))
+		fc.Features = make([]*FeatureG[P], 0, len(arr))
 		for _, fr := range arr {
-			f := &Feature{}
+			f := &FeatureG[P]{}
 			if err := f.UnmarshalJSON(fr); err != nil {
 				return err
 			}

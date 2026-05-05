@@ -12,4 +12,9 @@
 // Feature and FeatureCollection both round-trip foreign top-level members
 // via the Foreign map[string]json.RawMessage field, so non-RFC extensions
 // users sometimes attach (e.g. "title", "renderer") survive a round trip.
+//
+// Properties are statically typed via the generic FeatureG[P]/
+// FeatureCollectionG[P] types. The non-generic Feature and FeatureCollection
+// names are aliases for P=map[string]any and behave as before; callers who
+// want a typed schema can use FeatureG[MyProps] directly.
 package geojson
