@@ -60,27 +60,6 @@ func ringSignedArea(ring []geom.XY) float64 {
 	return sum
 }
 
-func reverseRing(ring []geom.XY) []geom.XY {
-	out := make([]geom.XY, len(ring))
-	for i, v := range ring {
-		out[len(ring)-1-i] = v
-	}
-	return out
-}
-
-// orientedRing returns ring rewound to the orientation required for ring
-// index r under RFC 7946 (outer CCW, holes CW). r==0 is the outer ring.
-// The original slice is returned unchanged when already correct.
-func orientedRing(ring []geom.XY, r int) []geom.XY {
-	area := ringSignedArea(ring)
-	wantCCW := r == 0
-	isCCW := area > 0
-	if isCCW == wantCCW {
-		return ring
-	}
-	return reverseRing(ring)
-}
-
 // Marshal returns the GeoJSON encoding of g. CRS is implicit WGS84 per
 // RFC 7946; any non-nil CRS attached to g is silently ignored on output.
 func Marshal(g geom.Geometry, opts ...Option) ([]byte, error) {
@@ -180,33 +159,86 @@ func writeLineString(b *strings.Builder, ls *geom.LineString, c *config) error {
 
 func writePolygon(b *strings.Builder, p *geom.Polygon, c *config) error {
 	b.WriteString(`{"type":"Polygon","coordinates":[`)
-	for r := 0; r < p.NumRings(); r++ {
-		if r > 0 {
-			b.WriteByte(',')
-		}
-		ring := p.Ring(r)
-		if c != nil && c.forceCCW {
-			ring = orientedRing(ring, r)
-		}
-		writeRing(b, ring, c)
-	}
+	writePolygonRings(b, p, c)
 	b.WriteString("]}")
 	return nil
 }
 
-func writeRing(b *strings.Builder, ring []geom.XY, c *config) {
+// writePolygonRings emits the contents of a Polygon's "coordinates" array
+// (without the surrounding brackets). Used by both Polygon and MultiPolygon
+// encoders so the layout-aware ring walk lives in one place.
+func writePolygonRings(b *strings.Builder, p *geom.Polygon, c *config) {
+	layout := p.Layout()
+	stride := layout.Stride()
+	if stride == 0 {
+		return
+	}
+	flat := p.FlatCoords()
+	vertexOff := 0
+	for r := 0; r < p.NumRings(); r++ {
+		if r > 0 {
+			b.WriteByte(',')
+		}
+		n := p.RingLen(r)
+		ringFlat := flat[vertexOff*stride : (vertexOff+n)*stride]
+		if c != nil && c.forceCCW {
+			ringFlat = orientedFlatRing(ringFlat, layout, r)
+		}
+		writeRingFlat(b, ringFlat, layout, c)
+		vertexOff += n
+	}
+}
+
+// writeRingFlat emits a single ring as `[[x,y],[x,y,z],...]`, honouring the
+// supplied layout (Z is preserved; M is dropped per RFC 7946 §3.1.1).
+func writeRingFlat(b *strings.Builder, flat []float64, layout geom.Layout, c *config) {
+	stride := layout.Stride()
+	n := 0
+	if stride > 0 {
+		n = len(flat) / stride
+	}
 	b.WriteByte('[')
-	for i, v := range ring {
+	for i := 0; i < n; i++ {
 		if i > 0 {
 			b.WriteByte(',')
 		}
-		b.WriteByte('[')
-		writeNumber(b, v.X, c)
-		b.WriteByte(',')
-		writeNumber(b, v.Y, c)
-		b.WriteByte(']')
+		writeVertex(b, flat, i*stride, layout, c)
 	}
 	b.WriteByte(']')
+}
+
+// orientedFlatRing returns a fresh stride-aware slice rewound to the
+// orientation required for ring index r under RFC 7946 (outer CCW, holes
+// CW); returns the original slice when no rewrite is needed. Operates on
+// flat coords directly so Z (and would-be M) survive the rewind.
+func orientedFlatRing(flat []float64, layout geom.Layout, r int) []float64 {
+	stride := layout.Stride()
+	if stride == 0 {
+		return flat
+	}
+	n := len(flat) / stride
+	if n < 4 {
+		return flat
+	}
+	var sum float64
+	for i := 0; i+1 < n; i++ {
+		x0, y0 := flat[i*stride], flat[i*stride+1]
+		x1, y1 := flat[(i+1)*stride], flat[(i+1)*stride+1]
+		sum += x0*y1 - x1*y0
+	}
+	wantCCW := r == 0
+	isCCW := sum > 0
+	if isCCW == wantCCW {
+		return flat
+	}
+	out := make([]float64, len(flat))
+	for i := 0; i < n; i++ {
+		src := (n - 1 - i) * stride
+		for k := 0; k < stride; k++ {
+			out[i*stride+k] = flat[src+k]
+		}
+	}
+	return out
 }
 
 func writeMultiPoint(b *strings.Builder, mp *geom.MultiPoint, c *config) error {
@@ -237,16 +269,7 @@ func writeMultiPolygon(b *strings.Builder, m *geom.MultiPolygon, c *config) erro
 		}
 		p := m.PolygonAt(i)
 		b.WriteByte('[')
-		for r := 0; r < p.NumRings(); r++ {
-			if r > 0 {
-				b.WriteByte(',')
-			}
-			ring := p.Ring(r)
-			if c != nil && c.forceCCW {
-				ring = orientedRing(ring, r)
-			}
-			writeRing(b, ring, c)
-		}
+		writePolygonRings(b, p, c)
 		b.WriteByte(']')
 	}
 	b.WriteString("]}")

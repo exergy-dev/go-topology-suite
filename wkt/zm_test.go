@@ -41,9 +41,8 @@ func TestGluedDimensionSuffix(t *testing.T) {
 		{"POINTZM (1 2 3 4)", geom.LayoutXYZM},
 		{"LINESTRINGZ (0 0 1, 1 1 2)", geom.LayoutXYZ},
 		{"LINESTRINGZM (0 0 1 5, 1 1 2 6)", geom.LayoutXYZM},
-		// POLYGON ring storage is intrinsically XY in this codebase, so
-		// we only assert the type token is recognised, not that Z is
-		// preserved on rings (matches the existing POLYGON Z behaviour).
+		{"POLYGONZ ((0 0 1, 1 0 1, 1 1 1, 0 0 1))", geom.LayoutXYZ},
+		{"MULTIPOLYGONZM (((0 0 1 5, 1 0 1 5, 1 1 1 5, 0 0 1 5)))", geom.LayoutXYZM},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
@@ -52,10 +51,24 @@ func TestGluedDimensionSuffix(t *testing.T) {
 			assert.Equal(t, tc.layout, g.Layout())
 		})
 	}
-	// POLYGONZ should at least parse without error even though the
-	// polygon model only retains XY ordinates.
-	_, err := Unmarshal("POLYGONZ ((0 0 1, 1 0 1, 1 1 1, 0 0 1))")
-	require.NoError(t, err)
-	_, err = Unmarshal("MULTIPOLYGONZM (((0 0 1 5, 1 0 1 5, 1 1 1 5, 0 0 1 5)))")
-	require.NoError(t, err)
+}
+
+// TestPolygonZRoundTrip locks in that 3D polygons preserve Z through
+// WKT decode→encode (regression for the historical XY-only ring storage).
+func TestPolygonZRoundTrip(t *testing.T) {
+	cases := []string{
+		"POLYGON Z ((0 0 1, 1 0 1, 1 1 2, 0 0 1))",
+		"POLYGON Z ((0 0 1, 0 10 1, 10 10 2, 10 0 2, 0 0 1), (2 2 3, 2 4 3, 4 4 4, 2 2 3))",
+		"MULTIPOLYGON Z (((0 0 1, 1 0 1, 1 1 2, 0 0 1)), ((2 2 3, 3 2 3, 3 3 4, 2 2 3)))",
+	}
+	for _, in := range cases {
+		t.Run(in, func(t *testing.T) {
+			g, err := Unmarshal(in)
+			require.NoError(t, err)
+			assert.Equal(t, geom.LayoutXYZ, g.Layout())
+			out, err := Marshal(g)
+			require.NoError(t, err)
+			assert.Equal(t, in, out)
+		})
+	}
 }

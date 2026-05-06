@@ -57,6 +57,41 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPolygonXYZRoundTrip(t *testing.T) {
+	// 3D polygon: each vertex has [x, y, z]. Round-trip must preserve Z and
+	// keep coords aligned to vertex boundaries (regression for the
+	// stride-2 decode bug that interleaved Z values into XY pairs).
+	src := `{"type":"Polygon","coordinates":[` +
+		`[[-49.88024,0.5,-75993.341684],` +
+		`[-1.5,-0.99999,-100000],` +
+		`[0,0.5,-0.333333],` +
+		`[-49.88024,0.5,-75993.341684]],` +
+		`[[-65.887123,2.00001,-100000],` +
+		`[0.333333,-53.017711,-79471.332949],` +
+		`[180,0,1852.616704],` +
+		`[-65.887123,2.00001,-100000]]` +
+		`]}`
+	g, err := Unmarshal([]byte(src))
+	require.NoError(t, err)
+	require.Equal(t, geom.LayoutXYZ, g.Layout())
+	out, err := Marshal(g)
+	require.NoError(t, err)
+	assert.Equal(t, src, string(out))
+}
+
+func TestMultiPolygonXYZRoundTrip(t *testing.T) {
+	src := `{"type":"MultiPolygon","coordinates":[` +
+		`[[[0,0,1],[1,0,2],[1,1,3],[0,0,1]]],` +
+		`[[[2,2,4],[3,2,5],[3,3,6],[2,2,4]]]` +
+		`]}`
+	g, err := Unmarshal([]byte(src))
+	require.NoError(t, err)
+	require.Equal(t, geom.LayoutXYZ, g.Layout())
+	out, err := Marshal(g)
+	require.NoError(t, err)
+	assert.Equal(t, src, string(out))
+}
+
 func TestPointXYZ(t *testing.T) {
 	p := geom.NewPointXYZ(nil, geom.XYZ{X: 1, Y: 2, Z: 3})
 	got, _ := Marshal(p)

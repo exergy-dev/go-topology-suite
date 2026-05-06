@@ -178,26 +178,43 @@ func appendPolygon(b *strings.Builder, p *geom.Polygon, c *config) error {
 		return nil
 	}
 	b.WriteString(" (")
-	for i := 0; i < p.NumRings(); i++ {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		ring := p.Ring(i)
-		writeRingXY(b, ring, c)
-	}
+	writePolygonRingsFlat(b, p, c)
 	b.WriteByte(')')
 	return nil
 }
 
-func writeRingXY(b *strings.Builder, ring []geom.XY, c *config) {
+// writePolygonRingsFlat emits comma-separated ring tuples using the
+// polygon's flat coordinate buffer and stride, so Z (and would-be M)
+// survive output instead of being dropped to XY.
+func writePolygonRingsFlat(b *strings.Builder, p *geom.Polygon, c *config) {
+	layout := p.Layout()
+	stride := layout.Stride()
+	if stride == 0 {
+		return
+	}
+	flat := p.FlatCoords()
+	vertexOff := 0
+	for r := 0; r < p.NumRings(); r++ {
+		if r > 0 {
+			b.WriteString(", ")
+		}
+		n := p.RingLen(r)
+		ringFlat := flat[vertexOff*stride : (vertexOff+n)*stride]
+		writeRingFlatWKT(b, ringFlat, stride, c)
+		vertexOff += n
+	}
+}
+
+// writeRingFlatWKT emits a single ring as `(x y z, x y z, ...)` using the
+// supplied stride.
+func writeRingFlatWKT(b *strings.Builder, flat []float64, stride int, c *config) {
+	n := len(flat) / stride
 	b.WriteByte('(')
-	for i, p := range ring {
+	for i := 0; i < n; i++ {
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		writeNumber(b, p.X, c)
-		b.WriteByte(' ')
-		writeNumber(b, p.Y, c)
+		writeFlatPoint(b, flat, i*stride, stride, c)
 	}
 	b.WriteByte(')')
 }
@@ -258,12 +275,7 @@ func appendMultiPolygon(b *strings.Builder, m *geom.MultiPolygon, c *config) err
 		}
 		p := m.PolygonAt(i)
 		b.WriteByte('(')
-		for j := 0; j < p.NumRings(); j++ {
-			if j > 0 {
-				b.WriteString(", ")
-			}
-			writeRingXY(b, p.Ring(j), c)
-		}
+		writePolygonRingsFlat(b, p, c)
 		b.WriteByte(')')
 	}
 	b.WriteByte(')')

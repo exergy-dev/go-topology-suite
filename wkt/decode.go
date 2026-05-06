@@ -378,7 +378,9 @@ func (p *parser) parsePolygon() (geom.Geometry, error) {
 		return nil, err
 	}
 	stride := layout.Stride()
-	var rings [][]geom.XY
+	var allFlat []float64
+	var ringStarts []int
+	vertexOff := 0
 	for {
 		if p.tryReadEmpty() {
 			// Skip empty ring; matches JTS POLYGON((..) EMPTY) semantics.
@@ -387,14 +389,18 @@ func (p *parser) parsePolygon() (geom.Geometry, error) {
 			if err != nil {
 				return nil, err
 			}
-			rings = append(rings, flatToXY(flat, stride))
+			ringStarts = append(ringStarts, vertexOff)
+			allFlat = append(allFlat, flat...)
+			if stride > 0 {
+				vertexOff += len(flat) / stride
+			}
 		}
 		done, err := p.consumeMemberSeparator("polygon")
 		if err != nil {
 			return nil, err
 		}
 		if done {
-			return geom.NewPolygon(p.crs, rings...), nil
+			return geom.NewPolygonOwned(layout, p.crs, allFlat, ringStarts), nil
 		}
 	}
 }
@@ -512,7 +518,9 @@ func (p *parser) parseMultiPolygon() (geom.Geometry, error) {
 		if err := p.consume('('); err != nil {
 			return nil, err
 		}
-		var rings [][]geom.XY
+		var allFlat []float64
+		var ringStarts []int
+		vertexOff := 0
 		for {
 			if p.tryReadEmpty() {
 				// Skip empty ring.
@@ -521,7 +529,11 @@ func (p *parser) parseMultiPolygon() (geom.Geometry, error) {
 				if err != nil {
 					return nil, err
 				}
-				rings = append(rings, flatToXY(flat, stride))
+				ringStarts = append(ringStarts, vertexOff)
+				allFlat = append(allFlat, flat...)
+				if stride > 0 {
+					vertexOff += len(flat) / stride
+				}
 			}
 			done, err := p.consumeMemberSeparator("multipolygon")
 			if err != nil {
@@ -532,7 +544,7 @@ func (p *parser) parseMultiPolygon() (geom.Geometry, error) {
 			}
 			break
 		}
-		polys = append(polys, geom.NewPolygon(p.crs, rings...))
+		polys = append(polys, geom.NewPolygonOwned(layout, p.crs, allFlat, ringStarts))
 		done, err := p.consumeMemberSeparator("multipolygon")
 		if err != nil {
 			return nil, err

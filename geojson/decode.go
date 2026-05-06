@@ -137,19 +137,66 @@ func decodePolygon(coords json.RawMessage, c *crs.CRS) (geom.Geometry, error) {
 	if err := json.Unmarshal(coords, &ringRaws); err != nil {
 		return nil, err
 	}
-	rings := make([][]geom.XY, 0, len(ringRaws))
-	for _, raw := range ringRaws {
-		flat, _, err := decodeFlatLine(raw)
-		if err != nil {
-			return nil, err
-		}
-		ring := make([]geom.XY, 0, len(flat)/2)
-		for i := 0; i+1 < len(flat); i += 2 {
-			ring = append(ring, geom.XY{X: flat[i], Y: flat[i+1]})
-		}
-		rings = append(rings, ring)
+	if len(ringRaws) == 0 {
+		return geom.NewEmptyPolygon(c, geom.LayoutXY), nil
 	}
-	return geom.NewPolygon(c, rings...), nil
+	flat, ringStarts, layout, err := decodePolygonRings(ringRaws)
+	if err != nil {
+		return nil, err
+	}
+	return geom.NewPolygonOwned(layout, c, flat, ringStarts), nil
+}
+
+// decodePolygonRings parses a polygon's ring array into a single flat
+// coordinate buffer + ringStarts vector, preserving each ring's layout.
+// The polygon's layout is inferred from the first ring's first vertex;
+// subsequent rings are normalised to that layout (extra dims dropped, missing
+// dims padded with zero) so the flat buffer has a single stride.
+func decodePolygonRings(ringRaws []json.RawMessage) (flat []float64, ringStarts []int, layout geom.Layout, err error) {
+	ringStarts = make([]int, 0, len(ringRaws))
+	vertexOff := 0
+	for i, raw := range ringRaws {
+		ringFlat, ringLayout, derr := decodeFlatLine(raw)
+		if derr != nil {
+			return nil, nil, geom.NoLayout, derr
+		}
+		if i == 0 {
+			layout = ringLayout
+		} else if ringLayout != layout {
+			ringFlat = relayoutFlat(ringFlat, ringLayout, layout)
+		}
+		stride := layout.Stride()
+		nVerts := 0
+		if stride > 0 {
+			nVerts = len(ringFlat) / stride
+		}
+		ringStarts = append(ringStarts, vertexOff)
+		flat = append(flat, ringFlat...)
+		vertexOff += nVerts
+	}
+	return flat, ringStarts, layout, nil
+}
+
+// relayoutFlat copies vertices from src (stride = from.Stride()) into a
+// fresh slice with stride = to.Stride(). Dimensions present in `to` but not
+// `from` are zero-padded; dimensions present in `from` but not `to` are
+// dropped. Used to normalise mixed-layout polygon rings to a single layout.
+func relayoutFlat(src []float64, from, to geom.Layout) []float64 {
+	fromStride := from.Stride()
+	toStride := to.Stride()
+	if fromStride == 0 || toStride == 0 {
+		return src
+	}
+	n := len(src) / fromStride
+	out := make([]float64, n*toStride)
+	for i := 0; i < n; i++ {
+		for k := 0; k < toStride; k++ {
+			if k < fromStride {
+				out[i*toStride+k] = src[i*fromStride+k]
+			}
+		}
+	}
+	return out
 }
 
 func decodeMultiPoint(coords json.RawMessage, c *crs.CRS) (geom.Geometry, error) {
@@ -191,19 +238,15 @@ func decodeMultiPolygon(coords json.RawMessage, c *crs.CRS) (geom.Geometry, erro
 		if err := json.Unmarshal(raw, &ringRaws); err != nil {
 			return nil, err
 		}
-		rings := make([][]geom.XY, 0, len(ringRaws))
-		for _, rraw := range ringRaws {
-			flat, _, err := decodeFlatLine(rraw)
-			if err != nil {
-				return nil, err
-			}
-			ring := make([]geom.XY, 0, len(flat)/2)
-			for i := 0; i+1 < len(flat); i += 2 {
-				ring = append(ring, geom.XY{X: flat[i], Y: flat[i+1]})
-			}
-			rings = append(rings, ring)
+		if len(ringRaws) == 0 {
+			polys = append(polys, geom.NewEmptyPolygon(c, geom.LayoutXY))
+			continue
 		}
-		polys = append(polys, geom.NewPolygon(c, rings...))
+		flat, ringStarts, layout, err := decodePolygonRings(ringRaws)
+		if err != nil {
+			return nil, err
+		}
+		polys = append(polys, geom.NewPolygonOwned(layout, c, flat, ringStarts))
 	}
 	return geom.NewMultiPolygon(c, polys...), nil
 }
