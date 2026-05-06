@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
@@ -54,14 +55,10 @@ func TestSimplifyPoint(t *testing.T) {
 func TestSimplifyDPSplitsFigure8(t *testing.T) {
 	g, err := wkt.Unmarshal(
 		"POLYGON ((40 240, 160 241, 280 240, 280 160, 160 240, 40 140, 40 240))")
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
+	require.NoError(t, err)
 	out := Simplify(g, 1)
 	mp, ok := out.(*geom.MultiPolygon)
-	if !ok {
-		t.Fatalf("expected MultiPolygon after figure-8 split, got %T: %v", out, out)
-	}
+	require.True(t, ok, "expected MultiPolygon after figure-8 split, got %T: %v", out, out)
 	assert.Equal(t, 2, mp.NumGeometries(),
 		"figure-8 should yield exactly 2 polygons, got %d", mp.NumGeometries())
 }
@@ -72,14 +69,10 @@ func TestSimplifyDPSplitsFigure8(t *testing.T) {
 func TestSimplifyDPMergesTouchingHole(t *testing.T) {
 	g, err := wkt.Unmarshal(
 		"POLYGON ((10 10, 10 80, 50 90, 90 80, 90 10, 10 10), (80 20, 20 20, 50 90, 80 20))")
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
+	require.NoError(t, err)
 	out := Simplify(g, 10)
 	p, ok := out.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("expected single Polygon after hole merge, got %T: %v", out, out)
-	}
+	require.True(t, ok, "expected single Polygon after hole merge, got %T: %v", out, out)
 	// Hole must be dissolved: result is a single ring.
 	assert.Equal(t, 1, p.NumRings(),
 		"touching hole should be merged into outer, expected 1 ring, got %d",

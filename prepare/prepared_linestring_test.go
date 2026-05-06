@@ -161,7 +161,7 @@ func TestPreparedLineString_ConcurrentReads(t *testing.T) {
 	wg.Wait()
 	close(errs)
 	for range errs {
-		t.Fatal("concurrent disagreement on IntersectsPoint")
+		require.Fail(t, "concurrent disagreement on IntersectsPoint")
 	}
 }
 

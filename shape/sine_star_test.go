@@ -5,29 +5,23 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSineStarVertexCountDefault(t *testing.T) {
 	poly := SineStar(geom.XY{X: 0, Y: 0}, 100, 8)
-	if poly.IsEmpty() {
-		t.Fatalf("SineStar returned empty polygon")
-	}
+	require.False(t, poly.IsEmpty(), "SineStar returned empty polygon")
 	ring := poly.Ring(0)
 	// Default nPts=100 plus closing vertex.
-	if len(ring) != 101 {
-		t.Errorf("default ring vertices: got %d, want 101", len(ring))
-	}
-	if ring[0] != ring[len(ring)-1] {
-		t.Errorf("ring not closed: first=%v last=%v", ring[0], ring[len(ring)-1])
-	}
+	assert.Equalf(t, 101, len(ring), "default ring vertices")
+	assert.Equalf(t, ring[0], ring[len(ring)-1], "ring not closed")
 }
 
 func TestSineStarVertexCountCustom(t *testing.T) {
 	poly := SineStarWithOptions(geom.XY{X: 0, Y: 0}, 50, 5, SineStarOptions{NumPoints: 60, ArmLengthRatio: 0.3})
 	ring := poly.Ring(0)
-	if len(ring) != 61 {
-		t.Errorf("custom ring vertices: got %d, want 61", len(ring))
-	}
+	assert.Equalf(t, 61, len(ring), "custom ring vertices")
 }
 
 func TestSineStarBoundingBoxAndShape(t *testing.T) {
@@ -64,12 +58,8 @@ func TestSineStarRadialSinusoid(t *testing.T) {
 			sawOuter = true
 		}
 	}
-	if !sawInner {
-		t.Errorf("no vertex near inner radius %.2f", innerR)
-	}
-	if !sawOuter {
-		t.Errorf("no vertex near outer radius %.2f", outerR)
-	}
+	assert.Truef(t, sawInner, "no vertex near inner radius %.2f", innerR)
+	assert.Truef(t, sawOuter, "no vertex near outer radius %.2f", outerR)
 }
 
 func TestSineStarOffsetCentre(t *testing.T) {
@@ -78,16 +68,11 @@ func TestSineStarOffsetCentre(t *testing.T) {
 	// Centre should be near (100, 200): envelope midpoint matches.
 	cx := (env.MinX + env.MaxX) / 2
 	cy := (env.MinY + env.MaxY) / 2
-	if math.Abs(cx-100) > 1e-6 || math.Abs(cy-200) > 1e-6 {
-		t.Errorf("centred at (%v,%v), expected near (100,200)", cx, cy)
-	}
+	assert.InDelta(t, 100.0, cx, 1e-6)
+	assert.InDelta(t, 200.0, cy, 1e-6)
 }
 
 func TestSineStarDegenerate(t *testing.T) {
-	if !SineStar(geom.XY{X: 0, Y: 0}, 0, 8).IsEmpty() {
-		t.Errorf("size=0 must yield empty polygon")
-	}
-	if !SineStar(geom.XY{X: 0, Y: 0}, 10, 0).IsEmpty() {
-		t.Errorf("nArms=0 must yield empty polygon")
-	}
+	assert.Truef(t, SineStar(geom.XY{X: 0, Y: 0}, 0, 8).IsEmpty(), "size=0 must yield empty polygon")
+	assert.Truef(t, SineStar(geom.XY{X: 0, Y: 0}, 10, 0).IsEmpty(), "nArms=0 must yield empty polygon")
 }

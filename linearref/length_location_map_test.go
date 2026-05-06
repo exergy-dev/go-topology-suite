@@ -1,23 +1,22 @@
 package linearref
 
 import (
-	"math"
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetLocationMidpoint(t *testing.T) {
 	ls := line100()
 	loc := GetLocation(ls, 50)
 	// length 50 falls exactly at the inner vertex (segment 1, frac 0).
-	if loc.ComponentIndex != 0 || loc.SegmentIndex != 1 || loc.SegmentFraction != 0 {
-		t.Fatalf("midpoint location: got %+v", loc)
-	}
+	assert.Equalf(t, 0, loc.ComponentIndex, "midpoint location: got %+v", loc)
+	assert.Equalf(t, 1, loc.SegmentIndex, "midpoint location: got %+v", loc)
+	assert.Equalf(t, 0.0, loc.SegmentFraction, "midpoint location: got %+v", loc)
 	got := loc.GetCoordinate(ls)
-	if got.X != 50 || got.Y != 0 {
-		t.Fatalf("midpoint coord: got %+v", got)
-	}
+	assert.Equalf(t, 50.0, got.X, "midpoint coord: got %+v", got)
+	assert.Equalf(t, 0.0, got.Y, "midpoint coord: got %+v", got)
 }
 
 func TestGetLocationFraction(t *testing.T) {
@@ -25,22 +24,17 @@ func TestGetLocationFraction(t *testing.T) {
 	// Length 25 -> midpoint of first segment.
 	loc := GetLocation(ls, 25)
 	got := loc.GetCoordinate(ls)
-	if got.X != 25 || got.Y != 0 {
-		t.Fatalf("quarter point: got %+v", got)
-	}
+	assert.Equalf(t, 25.0, got.X, "quarter point: got %+v", got)
+	assert.Equalf(t, 0.0, got.Y, "quarter point: got %+v", got)
 }
 
 func TestGetLocationOutOfRange(t *testing.T) {
 	ls := line100()
 	loc := GetLocation(ls, 1000)
-	if loc.GetCoordinate(ls).X != 100 {
-		t.Fatalf("over-range -> end")
-	}
+	assert.Equal(t, 100.0, loc.GetCoordinate(ls).X, "over-range -> end")
 	loc = GetLocation(ls, -10)
 	got := loc.GetCoordinate(ls)
-	if math.Abs(got.X-90) > 1e-9 {
-		t.Fatalf("negative measured from end: got %+v", got)
-	}
+	assert.InDeltaf(t, 90.0, got.X, 1e-9, "negative measured from end: got %+v", got)
 }
 
 func TestGetLengthRoundTrip(t *testing.T) {
@@ -48,9 +42,7 @@ func TestGetLengthRoundTrip(t *testing.T) {
 	for _, want := range []float64{0, 12.5, 25, 50, 75, 99.9} {
 		loc := GetLocation(ls, want)
 		got := GetLength(ls, loc)
-		if math.Abs(got-want) > 1e-9 {
-			t.Fatalf("round-trip %v: got %v", want, got)
-		}
+		assert.InDeltaf(t, want, got, 1e-9, "round-trip %v: got %v", want, got)
 	}
 }
 
@@ -60,11 +52,8 @@ func TestGetLocationOnMulti(t *testing.T) {
 	mls := geom.NewMultiLineString(nil, a, b)
 	// total length = 100; index 75 is 25 into the second component.
 	loc := GetLocation(mls, 75)
-	if loc.ComponentIndex != 1 {
-		t.Fatalf("expected component 1, got %+v", loc)
-	}
+	assert.Equalf(t, 1, loc.ComponentIndex, "expected component 1, got %+v", loc)
 	got := loc.GetCoordinate(mls)
-	if got.X != 25 || got.Y != 100 {
-		t.Fatalf("coord: got %+v", got)
-	}
+	assert.Equalf(t, 25.0, got.X, "coord: got %+v", got)
+	assert.Equalf(t, 100.0, got.Y, "coord: got %+v", got)
 }

@@ -40,9 +40,7 @@ func TestAngleBetweenOriented_Range(t *testing.T) {
 		rad := deg * math.Pi / 180
 		tip1 := xy(math.Cos(rad), math.Sin(rad))
 		got := k.AngleBetweenOriented(tip0, vertex, tip1)
-		if got <= -math.Pi || got > math.Pi {
-			t.Errorf("AngleBetweenOriented out of range at deg=%v: got %v", deg, got)
-		}
+		assert.Falsef(t, got <= -math.Pi || got > math.Pi, "AngleBetweenOriented out of range at deg=%v: got %v", deg, got)
 	}
 }
 

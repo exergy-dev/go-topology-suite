@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
@@ -23,16 +25,10 @@ func TestSpurLineUnionCollapsedSpike(t *testing.T) {
 		{X: 1, Y: 0.4}, {X: 1, Y: 3},
 	})
 	got, err := OverlayPolygonalMixedDim([]*geom.Polygon{a}, []*geom.Polygon{b}, OpUnion, 1.0)
-	if err != nil {
-		t.Fatalf("Overlay: %v", err)
-	}
+	require.NoError(t, err, "Overlay")
 	w, _ := wkt.Marshal(got)
-	if !strings.Contains(w, "GEOMETRYCOLLECTION") {
-		t.Errorf("expected GeometryCollection (polygon + line); got %s", w)
-	}
-	if !strings.Contains(w, "LINESTRING") {
-		t.Errorf("expected residual LINESTRING; got %s", w)
-	}
+	assert.Containsf(t, w, "GEOMETRYCOLLECTION", "expected GeometryCollection (polygon + line); got %s", w)
+	assert.Containsf(t, w, "LINESTRING", "expected residual LINESTRING; got %s", w)
 	// The residual spike must be the (1 1)-(1 0) segment.
 	if !strings.Contains(w, "LINESTRING (1 1, 1 0)") &&
 		!strings.Contains(w, "LINESTRING (1 0, 1 1)") {
@@ -53,9 +49,7 @@ func TestSpurLineDifferenceNoLine(t *testing.T) {
 		{X: 1, Y: 0.4}, {X: 1, Y: 3},
 	})
 	got, err := OverlayPolygonalMixedDim([]*geom.Polygon{a}, []*geom.Polygon{b}, OpDifference, 1.0)
-	if err != nil {
-		t.Fatalf("Overlay: %v", err)
-	}
+	require.NoError(t, err, "Overlay")
 	if !got.IsEmpty() {
 		w, _ := wkt.Marshal(got)
 		t.Errorf("expected POLYGON EMPTY; got %s", w)
@@ -75,9 +69,7 @@ func TestSpurLineIntersectionEmitsLine(t *testing.T) {
 		{X: 1, Y: 0.4}, {X: 1, Y: 3},
 	})
 	got, err := OverlayPolygonalMixedDim([]*geom.Polygon{a}, []*geom.Polygon{b}, OpIntersection, 1.0)
-	if err != nil {
-		t.Fatalf("Overlay: %v", err)
-	}
+	require.NoError(t, err, "Overlay")
 	w, _ := wkt.Marshal(got)
 	// Intersection of a snapped-collapsed pair is purely lineal here.
 	if !strings.Contains(w, "LINESTRING") && !strings.Contains(w, "MULTILINESTRING") {

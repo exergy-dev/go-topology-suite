@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func approxXY(a, b geom.XY, tol float64) bool {
@@ -13,9 +15,8 @@ func approxXY(a, b geom.XY, tol float64) bool {
 
 func TestCentroidBuilderEmpty(t *testing.T) {
 	b := NewCentroidBuilder()
-	if _, ok := b.Centroid(); ok {
-		t.Errorf("empty builder must report no centroid")
-	}
+	_, ok := b.Centroid()
+	assert.False(t, ok, "empty builder must report no centroid")
 }
 
 func TestCentroidBuilderSinglePolygonAgreesWithOneShot(t *testing.T) {
@@ -24,18 +25,12 @@ func TestCentroidBuilderSinglePolygonAgreesWithOneShot(t *testing.T) {
 	b := NewCentroidBuilder()
 	b.Add(poly)
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("Centroid() returned !ok")
-	}
+	require.True(t, ok, "Centroid() returned !ok")
 	want := geom.XY{X: 5, Y: 5}
-	if !approxXY(got, want, 1e-12) {
-		t.Errorf("centroid: got %v, want %v", got, want)
-	}
+	assert.True(t, approxXY(got, want, 1e-12), "centroid: got %v, want %v", got, want)
 	// One-shot Centroid agrees.
 	one := Centroid(poly)
-	if !approxXY(got, one.XY(), 1e-9) {
-		t.Errorf("builder %v vs one-shot %v disagree", got, one.XY())
-	}
+	assert.True(t, approxXY(got, one.XY(), 1e-9), "builder %v vs one-shot %v disagree", got, one.XY())
 }
 
 func TestCentroidBuilderPointsOnly(t *testing.T) {
@@ -44,13 +39,9 @@ func TestCentroidBuilderPointsOnly(t *testing.T) {
 	b.Add(geom.NewPoint(nil, geom.XY{X: 10, Y: 0}))
 	b.Add(geom.NewPoint(nil, geom.XY{X: 5, Y: 6}))
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("expected centroid")
-	}
+	require.True(t, ok, "expected centroid")
 	want := geom.XY{X: 5, Y: 2}
-	if !approxXY(got, want, 1e-12) {
-		t.Errorf("3-point average: got %v, want %v", got, want)
-	}
+	assert.True(t, approxXY(got, want, 1e-12), "3-point average: got %v, want %v", got, want)
 }
 
 func TestCentroidBuilderLineString(t *testing.T) {
@@ -58,13 +49,9 @@ func TestCentroidBuilderLineString(t *testing.T) {
 	b := NewCentroidBuilder()
 	b.Add(ls)
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("expected centroid")
-	}
+	require.True(t, ok, "expected centroid")
 	want := geom.XY{X: 5, Y: 0}
-	if !approxXY(got, want, 1e-12) {
-		t.Errorf("linestring centroid: got %v, want %v", got, want)
-	}
+	assert.True(t, approxXY(got, want, 1e-12), "linestring centroid: got %v, want %v", got, want)
 }
 
 func TestCentroidBuilderMixedDimensionsAreaWins(t *testing.T) {
@@ -77,13 +64,9 @@ func TestCentroidBuilderMixedDimensionsAreaWins(t *testing.T) {
 	b.Add(geom.NewPoint(nil, geom.XY{X: 1000, Y: 1000}))
 	b.Add(geom.NewLineString(nil, []geom.XY{{X: -100, Y: -100}, {X: -200, Y: -200}}))
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("expected centroid")
-	}
+	require.True(t, ok, "expected centroid")
 	want := geom.XY{X: 5, Y: 5}
-	if !approxXY(got, want, 1e-9) {
-		t.Errorf("mixed-dim: areal must dominate, got %v want %v", got, want)
-	}
+	assert.True(t, approxXY(got, want, 1e-9), "mixed-dim: areal must dominate, got %v want %v", got, want)
 }
 
 func TestCentroidBuilderTwoPolygonsCombined(t *testing.T) {
@@ -95,13 +78,9 @@ func TestCentroidBuilderTwoPolygonsCombined(t *testing.T) {
 	b.Add(p1)
 	b.Add(p2)
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("expected centroid")
-	}
+	require.True(t, ok, "expected centroid")
 	want := geom.XY{X: 15, Y: 5}
-	if !approxXY(got, want, 1e-9) {
-		t.Errorf("two-square combined: got %v, want %v", got, want)
-	}
+	assert.True(t, approxXY(got, want, 1e-9), "two-square combined: got %v, want %v", got, want)
 }
 
 func TestCentroidBuilderPolygonWithHole(t *testing.T) {
@@ -113,13 +92,9 @@ func TestCentroidBuilderPolygonWithHole(t *testing.T) {
 	b := NewCentroidBuilder()
 	b.Add(poly)
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("expected centroid")
-	}
+	require.True(t, ok, "expected centroid")
 	want := geom.XY{X: 5, Y: 5}
-	if !approxXY(got, want, 1e-9) {
-		t.Errorf("with hole: got %v, want %v", got, want)
-	}
+	assert.True(t, approxXY(got, want, 1e-9), "with hole: got %v, want %v", got, want)
 }
 
 func TestCentroidBuilderLinealOnlyAgreesWithOneShot(t *testing.T) {
@@ -127,11 +102,7 @@ func TestCentroidBuilderLinealOnlyAgreesWithOneShot(t *testing.T) {
 	b := NewCentroidBuilder()
 	b.Add(ls)
 	got, ok := b.Centroid()
-	if !ok {
-		t.Fatalf("expected centroid")
-	}
+	require.True(t, ok, "expected centroid")
 	one := Centroid(ls)
-	if !approxXY(got, one.XY(), 1e-9) {
-		t.Errorf("lineal one-shot vs builder: got %v vs %v", got, one.XY())
-	}
+	assert.True(t, approxXY(got, one.XY(), 1e-9), "lineal one-shot vs builder: got %v vs %v", got, one.XY())
 }

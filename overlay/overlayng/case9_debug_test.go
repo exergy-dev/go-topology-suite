@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/internal/noding"
 	"github.com/exergy-dev/go-topology-suite/measure"
@@ -78,13 +79,9 @@ func TestCase9SymDiff(t *testing.T) {
 	aWKT := `MULTIPOLYGON(((120 340, 120 200, 140 200, 140 280, 160 280, 160 200, 180 200, 180 280, 200 280, 200 200, 220 200, 220 340, 120 340)),((360 200, 220 200, 220 180, 300 180, 300 160, 220 160, 220 140, 300 140, 300 120, 220 120, 220 100, 360 100, 360 200)))`
 	bWKT := `MULTIPOLYGON(((100 220, 100 200, 300 200, 300 220, 100 220)),((280 180, 280 160, 300 160, 300 180, 280 180)),((220 140, 220 120, 240 120, 240 140, 220 140)),((180 220, 160 240, 200 240, 180 220)))`
 	a, err := wkt.Unmarshal(aWKT)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	b, err := wkt.Unmarshal(bWKT)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	subj := unwrapPoly(a)
 	clip := unwrapPoly(b)
 	for _, op := range []Op{OpUnion, OpIntersection, OpDifference, OpSymDiff} {

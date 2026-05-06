@@ -3,6 +3,9 @@ package relateng
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
@@ -28,18 +31,14 @@ func TestIntersectsPredicate(t *testing.T) {
 	got := driveCells(p, [][3]int{
 		{LocInterior, LocInterior, DimP},
 	})
-	if !got {
-		t.Errorf("II hit: got false, want true")
-	}
+	assert.True(t, got, "II hit should be true")
 	// No interaction → false.
 	p2 := NewIntersectsPredicate()
 	got = driveCells(p2, [][3]int{
 		{LocInterior, LocExterior, DimA},
 		{LocExterior, LocInterior, DimA},
 	})
-	if got {
-		t.Errorf("disjoint cells: got true, want false")
-	}
+	assert.False(t, got, "disjoint cells should be false")
 }
 
 func TestIntersectsPredicate_EnvelopeShortCircuit(t *testing.T) {
@@ -47,12 +46,8 @@ func TestIntersectsPredicate_EnvelopeShortCircuit(t *testing.T) {
 	envA := geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1}
 	envB := geom.Envelope{MinX: 10, MinY: 10, MaxX: 11, MaxY: 11}
 	p.InitEnv(envA, envB)
-	if !p.IsKnown() {
-		t.Fatal("envelope short-circuit: predicate should be known")
-	}
-	if p.Value() {
-		t.Error("envelope short-circuit: value should be false")
-	}
+	require.True(t, p.IsKnown(), "envelope short-circuit: predicate should be known")
+	assert.False(t, p.Value(), "envelope short-circuit: value should be false")
 }
 
 func TestDisjointPredicate(t *testing.T) {
@@ -60,24 +55,19 @@ func TestDisjointPredicate(t *testing.T) {
 	got := driveCells(p, [][3]int{
 		{LocInterior, LocInterior, DimP},
 	})
-	if got {
-		t.Errorf("interaction → disjoint should be false")
-	}
+	assert.False(t, got, "interaction → disjoint should be false")
 	p2 := NewDisjointPredicate()
 	envA := geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1}
 	envB := geom.Envelope{MinX: 10, MinY: 10, MaxX: 11, MaxY: 11}
 	p2.InitEnv(envA, envB)
-	if !p2.IsKnown() || !p2.Value() {
-		t.Error("disjoint envelopes → predicate should resolve true")
-	}
+	assert.True(t, p2.IsKnown(), "disjoint envelopes → predicate should be known")
+	assert.True(t, p2.Value(), "disjoint envelopes → value should be true")
 }
 
 func TestIMPatternMatcher_Equals(t *testing.T) {
 	// Pattern "T*F**FFF*" — topological equality.
 	p := NewMatchesPredicate("T*F**FFF*")
-	if p == nil {
-		t.Fatal("matcher construction failed")
-	}
+	require.NotNil(t, p, "matcher construction failed")
 	// Feed an exact-equality matrix:
 	//   II=2, IB=F, IE=F, BI=F, BB=1, BE=F, EI=F, EB=F, EE=2
 	cells := [][3]int{
@@ -86,57 +76,39 @@ func TestIMPatternMatcher_Equals(t *testing.T) {
 		// E/E set in NewIMPredicate to 2.
 	}
 	got := driveCells(p, cells)
-	if !got {
-		t.Errorf("equality: got false, want true")
-	}
+	assert.True(t, got, "equality should be true")
 }
 
 func TestIMPatternMatcher_RejectsViaShortCircuit(t *testing.T) {
 	// Pattern requires II=F (disjoint interiors). Feeding II>=0
 	// should resolve to false at first such cell.
 	p := NewMatchesPredicate("FF*FF****")
-	if p == nil {
-		t.Fatal("matcher construction failed")
-	}
+	require.NotNil(t, p, "matcher construction failed")
 	p.UpdateDimension(LocInterior, LocInterior, DimP)
-	if !p.IsKnown() {
-		t.Fatal("expected short-circuit when II exceeds pattern bound")
-	}
-	if p.Value() {
-		t.Error("II>=0 with pattern II=F should be false")
-	}
+	require.True(t, p.IsKnown(), "expected short-circuit when II exceeds pattern bound")
+	assert.False(t, p.Value(), "II>=0 with pattern II=F should be false")
 }
 
 func TestIntersectionMatrix_PatternParseAndMatch(t *testing.T) {
 	pm := NewPatternMatrix("T*F**FFF*")
-	if pm == nil {
-		t.Fatal("pattern parse failed")
-	}
+	require.NotNil(t, pm, "pattern parse failed")
 	// Set II=2, BB=1, leave others at default (DimFalse).
 	im := NewIntersectionMatrix()
 	im.Set(LocInterior, LocInterior, DimA)
 	im.Set(LocBoundary, LocBoundary, DimL)
 	im.Set(LocExterior, LocExterior, DimA)
-	if !im.Matches("T*F**FFF*") {
-		t.Errorf("matrix should match equals pattern: %s", im)
-	}
+	assert.True(t, im.Matches("T*F**FFF*"),
+		"matrix should match equals pattern: %s", im)
 }
 
 func TestIsDimsCompatibleWithCovers(t *testing.T) {
 	// Same dim: ok.
-	if !IsDimsCompatibleWithCovers(DimA, DimA) {
-		t.Error("A covers A: should be compatible")
-	}
+	assert.True(t, IsDimsCompatibleWithCovers(DimA, DimA), "A covers A")
 	// Bigger covers smaller: ok.
-	if !IsDimsCompatibleWithCovers(DimA, DimL) {
-		t.Error("A covers L: should be compatible")
-	}
+	assert.True(t, IsDimsCompatibleWithCovers(DimA, DimL), "A covers L")
 	// Smaller covers bigger: not ok.
-	if IsDimsCompatibleWithCovers(DimL, DimA) {
-		t.Error("L cannot cover A")
-	}
+	assert.False(t, IsDimsCompatibleWithCovers(DimL, DimA), "L cannot cover A")
 	// Special case: P covers L (zero-length line).
-	if !IsDimsCompatibleWithCovers(DimP, DimL) {
-		t.Error("P covers L should be compatible (zero-length line case)")
-	}
+	assert.True(t, IsDimsCompatibleWithCovers(DimP, DimL),
+		"P covers L should be compatible (zero-length line case)")
 }

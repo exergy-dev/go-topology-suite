@@ -3,6 +3,8 @@ package relateng
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
@@ -11,24 +13,12 @@ func TestNodeSection_Basic(t *testing.T) {
 	v1 := geom.XY{X: 2, Y: 0}
 	pt := geom.XY{X: 1, Y: 0}
 	s := NewNodeSection(true, DimL, 0, 0, nil, false, &v0, pt, &v1)
-	if !s.IsA {
-		t.Error("IsA expected true")
-	}
-	if !s.IsShell() {
-		t.Error("ringId 0 should be shell")
-	}
-	if s.IsArea() {
-		t.Error("dim=L should not be area")
-	}
-	if !s.IsProper() {
-		t.Error("isNodeAtVertex=false should be proper")
-	}
-	if got := s.Vertex(0); got != &v0 {
-		t.Errorf("Vertex(0) = %v, want &v0", got)
-	}
-	if got := s.Vertex(1); got != &v1 {
-		t.Errorf("Vertex(1) = %v, want &v1", got)
-	}
+	assert.True(t, s.IsA, "IsA expected true")
+	assert.True(t, s.IsShell(), "ringId 0 should be shell")
+	assert.False(t, s.IsArea(), "dim=L should not be area")
+	assert.True(t, s.IsProper(), "isNodeAtVertex=false should be proper")
+	assert.Equal(t, &v0, s.Vertex(0), "Vertex(0)")
+	assert.Equal(t, &v1, s.Vertex(1), "Vertex(1)")
 }
 
 func TestNodeSection_SamePolygon(t *testing.T) {
@@ -37,27 +27,14 @@ func TestNodeSection_SamePolygon(t *testing.T) {
 	b := NewNodeSection(true, DimA, 1, 1, nil, true, nil, pt, nil)
 	c := NewNodeSection(true, DimA, 2, 0, nil, true, nil, pt, nil)
 	d := NewNodeSection(false, DimA, 1, 0, nil, true, nil, pt, nil)
-	if !a.IsSamePolygon(b) {
-		t.Error("same A.id=1 should be same polygon")
-	}
-	if a.IsSamePolygon(c) {
-		t.Error("different ids → not same polygon")
-	}
-	if a.IsSamePolygon(d) {
-		t.Error("different geometries → not same polygon")
-	}
-	if !a.IsSameGeometry(b) || !a.IsSameGeometry(c) {
-		t.Error("a/b/c all in A → same geometry")
-	}
-	if a.IsSameGeometry(d) {
-		t.Error("d in B → not same geometry")
-	}
-	if !IsAreaArea(a, b) {
-		t.Error("two area sections → IsAreaArea")
-	}
-	if IsProperPair(a, b) {
-		t.Error("both isNodeAtVertex=true → IsProperPair should be false")
-	}
+	assert.True(t, a.IsSamePolygon(b), "same A.id=1 should be same polygon")
+	assert.False(t, a.IsSamePolygon(c), "different ids → not same polygon")
+	assert.False(t, a.IsSamePolygon(d), "different geometries → not same polygon")
+	assert.True(t, a.IsSameGeometry(b), "a/b in A → same geometry")
+	assert.True(t, a.IsSameGeometry(c), "a/c in A → same geometry")
+	assert.False(t, a.IsSameGeometry(d), "d in B → not same geometry")
+	assert.True(t, IsAreaArea(a, b), "two area sections → IsAreaArea")
+	assert.False(t, IsProperPair(a, b), "both isNodeAtVertex=true → IsProperPair should be false")
 }
 
 func TestNodeSection_LineEndpoint_NilVertex(t *testing.T) {
@@ -65,7 +42,5 @@ func TestNodeSection_LineEndpoint_NilVertex(t *testing.T) {
 	v0 := geom.XY{X: 4, Y: 4}
 	// Line ending at pt: V1 = nil
 	s := NewNodeSection(true, DimL, 0, 0, nil, true, &v0, pt, nil)
-	if s.Vertex(1) != nil {
-		t.Error("V1 should be nil for line endpoint")
-	}
+	assert.Nil(t, s.Vertex(1), "V1 should be nil for line endpoint")
 }

@@ -1,10 +1,11 @@
 package measure
 
 import (
-	"math"
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // triangleAreaOf is a small helper to compute the area of a returned MBT.
@@ -23,22 +24,19 @@ func pointInsideTriangle(p, a, b, c geom.XY) bool {
 }
 
 func TestMinimumBoundingTriangle_Empty(t *testing.T) {
-	if _, ok := MinimumBoundingTriangle(geom.NewEmptyPolygon(nil, geom.LayoutXY)); ok {
-		t.Fatalf("empty: expected ok=false")
-	}
+	_, ok := MinimumBoundingTriangle(geom.NewEmptyPolygon(nil, geom.LayoutXY))
+	require.False(t, ok, "empty: expected ok=false")
 }
 
 func TestMinimumBoundingTriangle_DegeneratePoint(t *testing.T) {
-	if _, ok := MinimumBoundingTriangle(geom.NewPoint(nil, geom.XY{X: 1, Y: 2})); ok {
-		t.Fatalf("point: expected ok=false")
-	}
+	_, ok := MinimumBoundingTriangle(geom.NewPoint(nil, geom.XY{X: 1, Y: 2}))
+	require.False(t, ok, "point: expected ok=false")
 }
 
 func TestMinimumBoundingTriangle_DegenerateLine(t *testing.T) {
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 4, Y: 0}})
-	if _, ok := MinimumBoundingTriangle(ls); ok {
-		t.Fatalf("line: expected ok=false")
-	}
+	_, ok := MinimumBoundingTriangle(ls)
+	require.False(t, ok, "line: expected ok=false")
 }
 
 func TestMinimumBoundingTriangle_AlreadyTriangle(t *testing.T) {
@@ -46,13 +44,9 @@ func TestMinimumBoundingTriangle_AlreadyTriangle(t *testing.T) {
 		{X: 0, Y: 0}, {X: 6, Y: 0}, {X: 0, Y: 6}, {X: 0, Y: 0},
 	})
 	v, ok := MinimumBoundingTriangle(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	want := 0.5 * 6 * 6
-	if math.Abs(triangleAreaOf(v)-want) > 1e-9 {
-		t.Fatalf("area=%v want %v", triangleAreaOf(v), want)
-	}
+	assert.InDelta(t, want, triangleAreaOf(v), 1e-9)
 }
 
 func TestMinimumBoundingTriangle_Square(t *testing.T) {
@@ -61,22 +55,16 @@ func TestMinimumBoundingTriangle_Square(t *testing.T) {
 		{X: 0, Y: 0}, {X: 4, Y: 0}, {X: 4, Y: 4}, {X: 0, Y: 4}, {X: 0, Y: 0},
 	})
 	v, ok := MinimumBoundingTriangle(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	area := triangleAreaOf(v)
 	want := 2.0 * 4 * 4
-	if math.Abs(area-want) > 0.5 {
-		// Klee–Laskowski guarantees ≤ 2× polygon area for convex polygons,
-		// and equality is attained for a triangle. For a square the answer
-		// is 2 × s² (theoretical optimum).
-		t.Fatalf("square MBT area=%v want %v", area, want)
-	}
+	// Klee–Laskowski guarantees ≤ 2× polygon area for convex polygons,
+	// and equality is attained for a triangle. For a square the answer
+	// is 2 × s² (theoretical optimum).
+	assert.InDelta(t, want, area, 0.5, "square MBT area=%v want %v", area, want)
 	// Verify all square corners lie inside the returned triangle.
 	for _, p := range []geom.XY{{X: 0, Y: 0}, {X: 4, Y: 0}, {X: 4, Y: 4}, {X: 0, Y: 4}} {
-		if !pointInsideTriangle(p, v[0], v[1], v[2]) {
-			t.Fatalf("square corner %v not inside MBT %v", p, v)
-		}
+		assert.True(t, pointInsideTriangle(p, v[0], v[1], v[2]), "square corner %v not inside MBT %v", p, v)
 	}
 }
 
@@ -87,17 +75,12 @@ func TestMinimumBoundingTriangle_ScatteredPoints(t *testing.T) {
 	}
 	mp := geom.NewMultiPoint(nil, pts)
 	v, ok := MinimumBoundingTriangle(mp)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	for _, p := range pts {
-		if !pointInsideTriangle(p, v[0], v[1], v[2]) {
-			t.Fatalf("point %v not enclosed by MBT %v", p, v)
-		}
+		assert.True(t, pointInsideTriangle(p, v[0], v[1], v[2]), "point %v not enclosed by MBT %v", p, v)
 	}
 	// Triangle area must be at most 2× hull area (Klee bound). Hull
 	// area here is 79.5 (manual computation), so MBT ≤ 159.
-	if a := triangleAreaOf(v); a > 200 {
-		t.Fatalf("scattered MBT area=%v unreasonably large", a)
-	}
+	a := triangleAreaOf(v)
+	assert.LessOrEqual(t, a, 200.0, "scattered MBT area=%v unreasonably large", a)
 }

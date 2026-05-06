@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func ls(pts ...geom.XY) *geom.LineString {
@@ -14,9 +16,7 @@ func TestDissolve_NoSharedSegments(t *testing.T) {
 	a := ls(geom.XY{X: 0, Y: 0}, geom.XY{X: 1, Y: 0})
 	b := ls(geom.XY{X: 2, Y: 0}, geom.XY{X: 3, Y: 0})
 	out := LineDissolver([]geom.Geometry{a, b})
-	if len(out) != 2 {
-		t.Fatalf("got %d, want 2 (disjoint inputs)", len(out))
-	}
+	require.Equalf(t, 2, len(out), "got %d, want 2 (disjoint inputs)", len(out))
 }
 
 func TestDissolve_SharedSegmentDeduped(t *testing.T) {
@@ -24,12 +24,8 @@ func TestDissolve_SharedSegmentDeduped(t *testing.T) {
 	a := ls(geom.XY{X: 0, Y: 0}, geom.XY{X: 1, Y: 0})
 	b := ls(geom.XY{X: 0, Y: 0}, geom.XY{X: 1, Y: 0})
 	out := LineDissolver([]geom.Geometry{a, b})
-	if len(out) != 1 {
-		t.Fatalf("got %d, want 1", len(out))
-	}
-	if out[0].NumPoints() != 2 {
-		t.Errorf("npoints %d", out[0].NumPoints())
-	}
+	require.Equalf(t, 1, len(out), "got %d, want 1", len(out))
+	assert.Equalf(t, 2, out[0].NumPoints(), "npoints %d", out[0].NumPoints())
 }
 
 func TestDissolve_ChainMergedThroughDegree2(t *testing.T) {
@@ -37,12 +33,8 @@ func TestDissolve_ChainMergedThroughDegree2(t *testing.T) {
 	a := ls(geom.XY{X: 0, Y: 0}, geom.XY{X: 1, Y: 0})
 	b := ls(geom.XY{X: 1, Y: 0}, geom.XY{X: 2, Y: 0})
 	out := LineDissolver([]geom.Geometry{a, b})
-	if len(out) != 1 {
-		t.Fatalf("got %d, want 1 (merged chain)", len(out))
-	}
-	if out[0].NumPoints() != 3 {
-		t.Errorf("expected 3 points after merge, got %d", out[0].NumPoints())
-	}
+	require.Equalf(t, 1, len(out), "got %d, want 1 (merged chain)", len(out))
+	assert.Equalf(t, 3, out[0].NumPoints(), "expected 3 points after merge, got %d", out[0].NumPoints())
 }
 
 func TestDissolve_BranchingNotMerged(t *testing.T) {
@@ -51,24 +43,16 @@ func TestDissolve_BranchingNotMerged(t *testing.T) {
 	b := ls(geom.XY{X: 1, Y: 0}, geom.XY{X: 2, Y: 0})
 	c := ls(geom.XY{X: 1, Y: 0}, geom.XY{X: 1, Y: 1})
 	out := LineDissolver([]geom.Geometry{a, b, c})
-	if len(out) != 3 {
-		t.Fatalf("got %d, want 3 (T-junction)", len(out))
-	}
+	require.Equalf(t, 3, len(out), "got %d, want 3 (T-junction)", len(out))
 }
 
 func TestDissolve_IsolatedRing(t *testing.T) {
 	// Closed square — every node degree 2, emit single ring.
 	a := ls(geom.XY{X: 0, Y: 0}, geom.XY{X: 1, Y: 0}, geom.XY{X: 1, Y: 1}, geom.XY{X: 0, Y: 1}, geom.XY{X: 0, Y: 0})
 	out := LineDissolver([]geom.Geometry{a})
-	if len(out) != 1 {
-		t.Fatalf("got %d, want 1 ring", len(out))
-	}
-	if out[0].NumPoints() != 5 {
-		t.Errorf("expected closed ring of 5 points, got %d", out[0].NumPoints())
-	}
-	if !out[0].IsClosed() {
-		t.Errorf("ring should be closed")
-	}
+	require.Equalf(t, 1, len(out), "got %d, want 1 ring", len(out))
+	assert.Equalf(t, 5, out[0].NumPoints(), "expected closed ring of 5 points, got %d", out[0].NumPoints())
+	assert.True(t, out[0].IsClosed(), "ring should be closed")
 }
 
 func TestDissolve_PolygonBoundary(t *testing.T) {
@@ -82,13 +66,10 @@ func TestDissolve_PolygonBoundary(t *testing.T) {
 	left := geom.NewPolygon(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0}})
 	right := geom.NewPolygon(nil, []geom.XY{{X: 1, Y: 0}, {X: 2, Y: 0}, {X: 2, Y: 1}, {X: 1, Y: 1}, {X: 1, Y: 0}})
 	out := LineDissolver([]geom.Geometry{left, right})
-	if len(out) != 3 {
-		t.Fatalf("got %d chains, want 3", len(out))
-	}
+	require.Equalf(t, 3, len(out), "got %d chains, want 3", len(out))
 }
 
 func TestDissolve_EmptyInput(t *testing.T) {
-	if got := LineDissolver(nil); got != nil {
-		t.Errorf("nil input should give nil, got %v", got)
-	}
+	got := LineDissolver(nil)
+	assert.Nilf(t, got, "nil input should give nil, got %v", got)
 }

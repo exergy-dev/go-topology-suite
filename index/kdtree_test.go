@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestKdTree_InsertAndQueryPoint(t *testing.T) {
@@ -19,51 +21,31 @@ func TestKdTree_InsertAndQueryPoint(t *testing.T) {
 	}
 	for i, p := range pts {
 		n, isNew := tree.Insert(p, i)
-		if !isNew {
-			t.Errorf("Insert(%v): expected isNew=true on first insert", p)
-		}
-		if !n.Coordinate.EqualBitwise(p) {
-			t.Errorf("inserted node coord = %v, want %v", n.Coordinate, p)
-		}
+		assert.Truef(t, isNew, "Insert(%v): expected isNew=true on first insert", p)
+		assert.Truef(t, n.Coordinate.EqualBitwise(p), "inserted node coord = %v, want %v", n.Coordinate, p)
 	}
-	if got := tree.Len(); got != len(pts) {
-		t.Fatalf("Len = %d, want %d", got, len(pts))
-	}
+	require.Equal(t, len(pts), tree.Len())
 	for _, p := range pts {
 		n := tree.QueryPoint(p)
 		if n == nil {
 			t.Errorf("QueryPoint(%v) = nil, want hit", p)
 			continue
 		}
-		if !n.Coordinate.EqualBitwise(p) {
-			t.Errorf("QueryPoint(%v).Coordinate = %v", p, n.Coordinate)
-		}
+		assert.Truef(t, n.Coordinate.EqualBitwise(p), "QueryPoint(%v).Coordinate = %v", p, n.Coordinate)
 	}
-	if got := tree.QueryPoint(geom.XY{X: 99, Y: 99}); got != nil {
-		t.Errorf("QueryPoint miss returned %v, want nil", got)
-	}
+	assert.Nil(t, tree.QueryPoint(geom.XY{X: 99, Y: 99}))
 }
 
 func TestKdTree_ToleranceDedup(t *testing.T) {
 	tree := NewKdTree[string](0.5)
 	a, _ := tree.Insert(geom.XY{X: 1, Y: 1}, "a")
 	b, isNewB := tree.Insert(geom.XY{X: 1.2, Y: 1.1}, "b")
-	if isNewB {
-		t.Fatalf("near-duplicate insert allocated new node")
-	}
-	if a != b {
-		t.Fatalf("dedup did not return same node")
-	}
-	if a.Count != 2 {
-		t.Errorf("a.Count = %d, want 2", a.Count)
-	}
+	require.False(t, isNewB, "near-duplicate insert allocated new node")
+	require.Equal(t, a, b, "dedup did not return same node")
+	assert.Equal(t, 2, a.Count)
 	c, isNewC := tree.Insert(geom.XY{X: 5, Y: 5}, "c")
-	if !isNewC || c == a {
-		t.Fatalf("far insert should create a new node")
-	}
-	if got := tree.Len(); got != 2 {
-		t.Errorf("Len = %d, want 2", got)
-	}
+	require.True(t, isNewC && c != a, "far insert should create a new node")
+	assert.Equal(t, 2, tree.Len())
 }
 
 func TestKdTree_QueryEnvelope(t *testing.T) {
@@ -78,13 +60,9 @@ func TestKdTree_QueryEnvelope(t *testing.T) {
 	}
 	env := geom.Envelope{MinX: 1, MinY: 1, MaxX: 3, MaxY: 3}
 	got := tree.QueryAll(env)
-	if len(got) != 3 {
-		t.Errorf("QueryAll = %d nodes, want 3", len(got))
-	}
+	assert.Equal(t, 3, len(got))
 	for _, n := range got {
-		if !env.ContainsXY(n.Coordinate) {
-			t.Errorf("QueryAll returned %v outside env", n.Coordinate)
-		}
+		assert.Truef(t, env.ContainsXY(n.Coordinate), "QueryAll returned %v outside env", n.Coordinate)
 	}
 }
 
@@ -99,13 +77,9 @@ func TestKdTree_NearestNeighbor(t *testing.T) {
 	}
 	q := geom.XY{X: 6, Y: 6}
 	n, ok := tree.NearestNeighbor(q)
-	if !ok {
-		t.Fatalf("NearestNeighbor(empty?) returned false")
-	}
+	require.True(t, ok, "NearestNeighbor(empty?) returned false")
 	want := geom.XY{X: 5, Y: 5}
-	if !n.Coordinate.EqualBitwise(want) {
-		t.Errorf("NearestNeighbor = %v, want %v", n.Coordinate, want)
-	}
+	assert.Truef(t, n.Coordinate.EqualBitwise(want), "NearestNeighbor = %v, want %v", n.Coordinate, want)
 }
 
 func TestKdTree_NearestNeighbor_Random(t *testing.T) {
@@ -120,9 +94,7 @@ func TestKdTree_NearestNeighbor_Random(t *testing.T) {
 	for q := 0; q < 50; q++ {
 		query := geom.XY{X: rng.Float64() * 100, Y: rng.Float64() * 100}
 		got, ok := tree.NearestNeighbor(query)
-		if !ok {
-			t.Fatal("nearest empty")
-		}
+		require.True(t, ok, "nearest empty")
 		// Brute-force verify
 		bestSq := math.Inf(+1)
 		var want geom.XY
@@ -135,15 +107,12 @@ func TestKdTree_NearestNeighbor_Random(t *testing.T) {
 				want = p
 			}
 		}
-		if !got.Coordinate.EqualBitwise(want) {
-			t.Errorf("query=%v: got %v, want %v", query, got.Coordinate, want)
-		}
+		assert.Truef(t, got.Coordinate.EqualBitwise(want), "query=%v: got %v, want %v", query, got.Coordinate, want)
 	}
 }
 
 func TestKdTree_NearestNeighborEmpty(t *testing.T) {
 	tree := NewKdTree[int](0)
-	if _, ok := tree.NearestNeighbor(geom.XY{X: 0, Y: 0}); ok {
-		t.Errorf("NearestNeighbor on empty tree returned ok=true")
-	}
+	_, ok := tree.NearestNeighbor(geom.XY{X: 0, Y: 0})
+	assert.False(t, ok, "NearestNeighbor on empty tree returned ok=true")
 }

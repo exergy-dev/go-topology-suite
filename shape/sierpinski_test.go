@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSierpinskiCarpetHoleCount(t *testing.T) {
@@ -20,14 +22,10 @@ func TestSierpinskiCarpetHoleCount(t *testing.T) {
 	env := geom.Envelope{MinX: 0, MinY: 0, MaxX: 9, MaxY: 9}
 	for _, c := range cases {
 		mp := SierpinskiCarpet(c.level, env)
-		if mp.NumGeometries() != 1 {
-			t.Fatalf("level=%d: expected 1 polygon, got %d", c.level, mp.NumGeometries())
-		}
+		require.Equalf(t, 1, mp.NumGeometries(), "level=%d: expected 1 polygon", c.level)
 		p := mp.PolygonAt(0)
 		holes := p.NumRings() - 1 // subtract shell
-		if holes != c.want {
-			t.Fatalf("level=%d holes=%d want=%d", c.level, holes, c.want)
-		}
+		require.Equalf(t, c.want, holes, "level=%d", c.level)
 	}
 }
 
@@ -35,17 +33,16 @@ func TestSierpinskiCarpetEnvelope(t *testing.T) {
 	env := geom.Envelope{MinX: 0, MinY: 0, MaxX: 9, MaxY: 9}
 	mp := SierpinskiCarpet(2, env)
 	got := mp.Envelope()
-	if got.MinX < env.MinX-1e-9 || got.MaxX > env.MaxX+1e-9 ||
-		got.MinY < env.MinY-1e-9 || got.MaxY > env.MaxY+1e-9 {
+	const eps = 1e-9
+	if got.MinX < env.MinX-eps || got.MaxX > env.MaxX+eps ||
+		got.MinY < env.MinY-eps || got.MaxY > env.MaxY+eps {
 		t.Fatalf("carpet env %v escapes target %v", got, env)
 	}
 }
 
 func TestSierpinskiCarpetEmpty(t *testing.T) {
 	mp := SierpinskiCarpet(2, geom.EmptyEnvelope())
-	if mp.NumGeometries() != 0 {
-		t.Fatalf("expected empty MultiPolygon")
-	}
+	require.Equalf(t, 0, mp.NumGeometries(), "expected empty MultiPolygon")
 }
 
 func TestSierpinskiCarpetDeterministic(t *testing.T) {
@@ -54,19 +51,13 @@ func TestSierpinskiCarpetDeterministic(t *testing.T) {
 	b := SierpinskiCarpet(2, env)
 	pa := a.PolygonAt(0)
 	pb := b.PolygonAt(0)
-	if pa.NumRings() != pb.NumRings() {
-		t.Fatal("ring count mismatch")
-	}
+	require.Equal(t, pa.NumRings(), pb.NumRings(), "ring count mismatch")
 	for i := 0; i < pa.NumRings(); i++ {
 		ra := pa.Ring(i)
 		rb := pb.Ring(i)
-		if len(ra) != len(rb) {
-			t.Fatalf("ring %d len mismatch", i)
-		}
+		require.Equalf(t, len(ra), len(rb), "ring %d len mismatch", i)
 		for j := range ra {
-			if ra[j] != rb[j] {
-				t.Fatalf("ring %d vertex %d differs", i, j)
-			}
+			assert.Equalf(t, ra[j], rb[j], "ring %d vertex %d differs", i, j)
 		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func line(pts ...geom.XY) *geom.LineString {
@@ -18,16 +20,12 @@ func TestPolygonizeClosedRing(t *testing.T) {
 		geom.XY{X: 0, Y: 0},
 	)
 	polys, dangles, cuts, invalid := Polygonize([]geom.Geometry{ls})
-	if len(polys) != 1 {
-		t.Fatalf("expected 1 polygon, got %d", len(polys))
-	}
-	if len(dangles) != 0 || len(cuts) != 0 || len(invalid) != 0 {
-		t.Errorf("expected no dangles/cuts/invalid; got %d/%d/%d", len(dangles), len(cuts), len(invalid))
-	}
+	require.Equalf(t, 1, len(polys), "expected 1 polygon, got %d", len(polys))
+	assert.Equalf(t, 0, len(dangles), "expected no dangles; got %d", len(dangles))
+	assert.Equalf(t, 0, len(cuts), "expected no cuts; got %d", len(cuts))
+	assert.Equalf(t, 0, len(invalid), "expected no invalid; got %d", len(invalid))
 	p := polys[0].(*geom.Polygon)
-	if p.NumRings() != 1 {
-		t.Errorf("expected 1 ring, got %d", p.NumRings())
-	}
+	assert.Equalf(t, 1, p.NumRings(), "expected 1 ring, got %d", p.NumRings())
 }
 
 func TestPolygonizeTwoAdjacentBoxes(t *testing.T) {
@@ -46,12 +44,9 @@ func TestPolygonizeTwoAdjacentBoxes(t *testing.T) {
 	g := line(geom.XY{X: 10, Y: 10}, geom.XY{X: 20, Y: 10}) // top-right edge
 
 	polys, dangles, cuts, invalid := Polygonize([]geom.Geometry{a, b, c, d, e, f, g})
-	if len(polys) != 2 {
-		t.Fatalf("expected 2 polygons, got %d", len(polys))
-	}
-	if len(dangles) != 0 || len(invalid) != 0 {
-		t.Errorf("expected no dangles/invalid; got %d/%d", len(dangles), len(invalid))
-	}
+	require.Equalf(t, 2, len(polys), "expected 2 polygons, got %d", len(polys))
+	assert.Equalf(t, 0, len(dangles), "expected no dangles; got %d", len(dangles))
+	assert.Equalf(t, 0, len(invalid), "expected no invalid; got %d", len(invalid))
 	_ = cuts // shared edge is a ring boundary for both polygons → not a cut
 }
 
@@ -64,12 +59,8 @@ func TestPolygonizeDangle(t *testing.T) {
 	)
 	stub := line(geom.XY{X: 10, Y: 10}, geom.XY{X: 15, Y: 15})
 	polys, dangles, _, _ := Polygonize([]geom.Geometry{ring, stub})
-	if len(polys) != 1 {
-		t.Errorf("expected 1 polygon, got %d", len(polys))
-	}
-	if len(dangles) != 1 {
-		t.Errorf("expected 1 dangle, got %d", len(dangles))
-	}
+	assert.Equalf(t, 1, len(polys), "expected 1 polygon, got %d", len(polys))
+	assert.Equalf(t, 1, len(dangles), "expected 1 dangle, got %d", len(dangles))
 }
 
 func TestPolygonizeInvalidRing(t *testing.T) {
@@ -84,14 +75,10 @@ func TestPolygonizeInvalidRing(t *testing.T) {
 		geom.XY{X: 0, Y: 0},
 	)
 	polys, _, _, invalid := Polygonize([]geom.Geometry{bowtie})
-	if len(invalid) != 1 {
-		t.Errorf("expected 1 invalid ring, got %d (polys=%d)", len(invalid), len(polys))
-	}
+	assert.Equalf(t, 1, len(invalid), "expected 1 invalid ring, got %d (polys=%d)", len(invalid), len(polys))
 }
 
 func TestPolygonizeEmpty(t *testing.T) {
 	polys, dangles, cuts, invalid := Polygonize(nil)
-	if len(polys)+len(dangles)+len(cuts)+len(invalid) != 0 {
-		t.Errorf("empty input should yield empty output")
-	}
+	assert.Equalf(t, 0, len(polys)+len(dangles)+len(cuts)+len(invalid), "empty input should yield empty output")
 }

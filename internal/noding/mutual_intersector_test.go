@@ -3,6 +3,7 @@ package noding
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
@@ -43,9 +44,7 @@ func TestMutualIntersectorParallelChainsNoHit(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &recordingIntersector{}
 			isect.Process(query, r)
-			if r.hits != 0 {
-				t.Errorf("parallel chains: expected 0 hits, got %d", r.hits)
-			}
+			assert.Equal(t, 0, r.hits, "parallel chains")
 		})
 	}
 }
@@ -62,9 +61,7 @@ func TestMutualIntersectorCrossingChains(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &recordingIntersector{}
 			isect.Process(query, r)
-			if r.hits != 1 {
-				t.Errorf("crossing chains: expected 1 hit, got %d", r.hits)
-			}
+			assert.Equal(t, 1, r.hits, "crossing chains")
 		})
 	}
 }
@@ -86,9 +83,7 @@ func TestMutualIntersectorSharedEndpointVsInterior(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &recordingIntersector{}
 			isect.Process(query, r)
-			if r.hits != 2 {
-				t.Errorf("shared endpoint + interior: expected 2 hits, got %d", r.hits)
-			}
+			assert.Equal(t, 2, r.hits, "shared endpoint + interior")
 		})
 	}
 }
@@ -97,9 +92,7 @@ func TestMutualIntersectorEmptyBase(t *testing.T) {
 	mc := NewMCIndexSegmentSetMutualIntersector(nil)
 	r := &recordingIntersector{}
 	mc.Process([]*SegmentString{ss(geom.XY{X: 0, Y: 0}, geom.XY{X: 1, Y: 1})}, r)
-	if r.hits != 0 {
-		t.Errorf("empty base: expected 0 hits, got %d", r.hits)
-	}
+	assert.Equal(t, 0, r.hits, "empty base")
 }
 
 // earlyExitIntersector signals done after the first hit; verifies the
@@ -126,7 +119,5 @@ func TestMutualIntersectorEarlyExit(t *testing.T) {
 	mc := NewMCIndexSegmentSetMutualIntersector(base)
 	e := &earlyExitIntersector{}
 	mc.Process(query, e)
-	if e.count != 1 {
-		t.Errorf("early-exit: expected count=1, got %d", e.count)
-	}
+	assert.Equal(t, 1, e.count, "early-exit")
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
@@ -60,9 +61,7 @@ func TestVisvalingamPolygonRetainsRingMinimum(t *testing.T) {
 		"POLYGON ((0 0, 5 0, 10 0, 10 10, 0 10, 0 0))")
 	out := Visvalingam(g, 1.0)
 	p, ok := out.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("expected Polygon, got %T", out)
-	}
+	require.True(t, ok, "expected Polygon, got %T", out)
 	assert.GreaterOrEqual(t, len(p.Ring(0)), 4,
 		"ring must retain at least 4 points")
 }

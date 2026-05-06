@@ -6,6 +6,8 @@ import (
 
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/internal/noding"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ss is a shorthand for building a SegmentString from raw XY pairs.
@@ -39,16 +41,10 @@ func TestNodeSimpleX(t *testing.T) {
 		ss(1, xy(0, 0), xy(10, 10)),
 		ss(2, xy(0, 10), xy(10, 0)),
 	})
-	if err != nil {
-		t.Fatalf("Node returned error: %v", err)
-	}
-	if !stats.Converged {
-		t.Errorf("expected Converged=true, got %+v", stats)
-	}
+	require.NoErrorf(t, err, "Node returned error")
+	assert.Truef(t, stats.Converged, "expected Converged=true, got %+v", stats)
 	mid := xy(5, 5)
-	if vertexCount(out, mid) < 2 {
-		t.Errorf("expected (5,5) shared by both segments; got %d occurrences\n  out=%v", vertexCount(out, mid), dump(out))
-	}
+	assert.GreaterOrEqualf(t, vertexCount(out, mid), 2, "expected (5,5) shared by both segments; got %d occurrences\n  out=%v", vertexCount(out, mid), dump(out))
 }
 
 // TestNodeNearMissSnapsTogether verifies two nearly-touching segments
@@ -63,19 +59,13 @@ func TestNodeNearMissSnapsTogether(t *testing.T) {
 		ss(1, xy(0, 0), xy(10, 0)),
 		ss(2, xy(5, 0.4), xy(5, 10)),
 	})
-	if err != nil {
-		t.Fatalf("Node returned error: %v", err)
-	}
-	if !stats.Converged {
-		t.Errorf("expected convergence, got %+v", stats)
-	}
+	require.NoErrorf(t, err, "Node returned error")
+	assert.Truef(t, stats.Converged, "expected convergence, got %+v", stats)
 	// After snap, the second segment's endpoint (5, 0.4) snaps to
 	// (5, 0); the first segment passes through (5, 0). The hot pixel
 	// at (5, 0) must therefore be a vertex of both strings.
 	pix := xy(5, 0)
-	if vertexCount(out, pix) < 2 {
-		t.Errorf("expected hot pixel (5,0) shared; out=%v", dump(out))
-	}
+	assert.GreaterOrEqualf(t, vertexCount(out, pix), 2, "expected hot pixel (5,0) shared; out=%v", dump(out))
 }
 
 // TestNodeT verifies a T-intersection (one segment ending on another's
@@ -88,9 +78,7 @@ func TestNodeT(t *testing.T) {
 		ss(1, xy(0, 0), xy(10, 0)),
 		ss(2, xy(5, 0), xy(5, 5)),
 	})
-	if err != nil {
-		t.Fatalf("Node returned error: %v", err)
-	}
+	require.NoErrorf(t, err, "Node returned error")
 	pix := xy(5, 0)
 	// The crossing point must appear in the horizontal segment as an
 	// internal vertex (i.e. the original [0..10] string is split there).
@@ -112,9 +100,7 @@ func TestNodeT(t *testing.T) {
 			pieces++
 		}
 	}
-	if !splitFound && pieces < 2 {
-		t.Errorf("expected horizontal segment to be split at (5,0); out=%v", dump(out))
-	}
+	assert.Truef(t, splitFound || pieces >= 2, "expected horizontal segment to be split at (5,0); out=%v", dump(out))
 }
 
 // TestNodeIdempotent verifies running the noder a second time on its
@@ -126,43 +112,27 @@ func TestNodeIdempotent(t *testing.T) {
 		ss(1, xy(0, 0), xy(10, 10)),
 		ss(2, xy(0, 10), xy(10, 0)),
 	})
-	if err != nil {
-		t.Fatalf("first Node: %v", err)
-	}
+	require.NoErrorf(t, err, "first Node")
 	second, stats, err := n.Node(first)
-	if err != nil {
-		t.Fatalf("second Node: %v", err)
-	}
-	if stats.Splits != 0 {
-		t.Errorf("expected 0 splits on idempotent re-noding; got %d (stats=%+v)", stats.Splits, stats)
-	}
-	if !stats.Converged {
-		t.Errorf("expected converged on second pass; got %+v", stats)
-	}
-	if len(second) != len(first) {
-		t.Errorf("expected stable string count: first=%d second=%d", len(first), len(second))
-	}
+	require.NoErrorf(t, err, "second Node")
+	assert.Equalf(t, 0, stats.Splits, "expected 0 splits on idempotent re-noding; got %d (stats=%+v)", stats.Splits, stats)
+	assert.Truef(t, stats.Converged, "expected converged on second pass; got %+v", stats)
+	assert.Equalf(t, len(first), len(second), "expected stable string count: first=%d second=%d", len(first), len(second))
 }
 
 // TestNodeNoTolerance verifies the API rejects Tolerance <= 0.
 func TestNodeNoTolerance(t *testing.T) {
 	n := &Noder{Tolerance: 0}
 	_, _, err := n.Node([]*noding.SegmentString{ss(1, xy(0, 0), xy(1, 1))})
-	if err == nil {
-		t.Fatal("expected error for Tolerance=0")
-	}
+	require.Error(t, err, "expected error for Tolerance=0")
 }
 
 // TestNodeEmpty returns an empty result with Converged=true.
 func TestNodeEmpty(t *testing.T) {
 	n := &Noder{Tolerance: 1.0}
 	out, stats, err := n.Node(nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(out) != 0 || !stats.Converged {
-		t.Errorf("expected empty result and converged; got out=%d stats=%+v", len(out), stats)
-	}
+	require.NoErrorf(t, err, "unexpected error")
+	assert.Truef(t, len(out) == 0 && stats.Converged, "expected empty result and converged; got out=%d stats=%+v", len(out), stats)
 }
 
 // TestNodePreservesTags verifies output strings carry their input Tag.
@@ -172,9 +142,7 @@ func TestNodePreservesTags(t *testing.T) {
 		ss(7, xy(0, 0), xy(10, 0)),
 		ss(11, xy(5, -5), xy(5, 5)),
 	})
-	if err != nil {
-		t.Fatalf("Node: %v", err)
-	}
+	require.NoErrorf(t, err, "Node")
 	saw7, saw11 := false, false
 	for _, s := range out {
 		switch s.Tag {
@@ -183,12 +151,10 @@ func TestNodePreservesTags(t *testing.T) {
 		case 11:
 			saw11 = true
 		default:
-			t.Errorf("unexpected tag in output: %d", s.Tag)
+			assert.Failf(t, "unexpected tag in output", "%d", s.Tag)
 		}
 	}
-	if !saw7 || !saw11 {
-		t.Errorf("missing tag in output: saw7=%v saw11=%v", saw7, saw11)
-	}
+	assert.Truef(t, saw7 && saw11, "missing tag in output: saw7=%v saw11=%v", saw7, saw11)
 }
 
 // TestNodeSliverPrecision verifies a sliver-precision input (an
@@ -200,17 +166,11 @@ func TestNodeSliverPrecision(t *testing.T) {
 		ss(1, xy(0, 0), xy(10, 0)),
 		ss(2, xy(5.05, -3), xy(5.05, 3)),
 	})
-	if err != nil {
-		t.Fatalf("Node: %v", err)
-	}
-	if !stats.Converged {
-		t.Errorf("expected convergence on sliver case; got %+v", stats)
-	}
+	require.NoErrorf(t, err, "Node")
+	assert.Truef(t, stats.Converged, "expected convergence on sliver case; got %+v", stats)
 	// The vertical segment's (5.05, *) endpoints round to (5, *), so
 	// after snap the crossing is at (5, 0) — shared by both strings.
-	if vertexCount(out, xy(5, 0)) < 2 {
-		t.Errorf("expected (5,0) shared after snap; out=%v", dump(out))
-	}
+	assert.GreaterOrEqualf(t, vertexCount(out, xy(5, 0)), 2, "expected (5,0) shared after snap; out=%v", dump(out))
 }
 
 // TestNodeMaxIterRespected verifies that MaxIter > 0 is honoured.
@@ -222,11 +182,9 @@ func TestNodeMaxIterRespected(t *testing.T) {
 	})
 	// Simple X converges in one iteration so this should still succeed.
 	if err != nil && !errors.Is(err, ErrNotConverged) {
-		t.Fatalf("Node: %v", err)
+		require.NoErrorf(t, err, "Node")
 	}
-	if stats.Iterations > 1 {
-		t.Errorf("expected ≤1 iteration with MaxIter=1; got %d", stats.Iterations)
-	}
+	assert.LessOrEqualf(t, stats.Iterations, 1, "expected ≤1 iteration with MaxIter=1; got %d", stats.Iterations)
 }
 
 // dump returns a compact representation of a noded result for test
@@ -259,16 +217,10 @@ func TestNodeSeedIntersections(t *testing.T) {
 		ss(1, xy(0, 0), xy(10, 10)),
 		ss(2, xy(0, 10), xy(10, 0)),
 	})
-	if err != nil {
-		t.Fatalf("Node returned error: %v", err)
-	}
-	if !stats.Converged {
-		t.Errorf("expected Converged=true, got %+v", stats)
-	}
+	require.NoErrorf(t, err, "Node returned error")
+	assert.Truef(t, stats.Converged, "expected Converged=true, got %+v", stats)
 	mid := xy(5, 5)
-	if vertexCount(out, mid) < 2 {
-		t.Errorf("expected (5,5) shared by both segments, got %d occurrences", vertexCount(out, mid))
-	}
+	assert.GreaterOrEqualf(t, vertexCount(out, mid), 2, "expected (5,5) shared by both segments, got %d occurrences", vertexCount(out, mid))
 }
 
 func itoa(n int) string {

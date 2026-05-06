@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIndexedLocate_Polygon(t *testing.T) {
@@ -22,9 +24,7 @@ func TestIndexedLocate_Polygon(t *testing.T) {
 		{geom.XY{X: 20, Y: 20}, Exterior},
 	}
 	for _, c := range cases {
-		if got := loc.Locate(c.p); got != c.want {
-			t.Errorf("Locate(%v): got %s want %s", c.p, got, c.want)
-		}
+		assert.Equalf(t, c.want, loc.Locate(c.p), "Locate(%v)", c.p)
 	}
 }
 
@@ -40,9 +40,7 @@ func TestIndexedLocate_Hole(t *testing.T) {
 		{geom.XY{X: 6, Y: 5}, Boundary},
 	}
 	for _, c := range cases {
-		if got := loc.Locate(c.p); got != c.want {
-			t.Errorf("Locate(%v): got %s want %s", c.p, got, c.want)
-		}
+		assert.Equalf(t, c.want, loc.Locate(c.p), "Locate(%v)", c.p)
 	}
 }
 
@@ -77,9 +75,7 @@ func TestIndexedMatchesSimple_Random(t *testing.T) {
 		p := geom.XY{X: r.Float64() * 100, Y: r.Float64() * 100}
 		want := simple.Locate(p)
 		got := indexed.Locate(p)
-		if got != want {
-			t.Fatalf("disagree at %v: indexed=%s simple=%s", p, got, want)
-		}
+		require.Equalf(t, want, got, "disagree at %v", p)
 	}
 }
 
@@ -88,23 +84,15 @@ func TestIndexedLocate_MultiPolygon(t *testing.T) {
 	b := geom.NewPolygon(nil, []geom.XY{{X: 10, Y: 10}, {X: 12, Y: 10}, {X: 12, Y: 12}, {X: 10, Y: 12}, {X: 10, Y: 10}})
 	mp := geom.NewMultiPolygon(nil, a, b)
 	loc := NewIndexedPointLocator(mp)
-	if got := loc.Locate(geom.XY{X: 1, Y: 1}); got != Interior {
-		t.Errorf("inside A: got %s", got)
-	}
-	if got := loc.Locate(geom.XY{X: 11, Y: 11}); got != Interior {
-		t.Errorf("inside B: got %s", got)
-	}
-	if got := loc.Locate(geom.XY{X: 5, Y: 5}); got != Exterior {
-		t.Errorf("between: got %s", got)
-	}
+	assert.Equalf(t, Interior, loc.Locate(geom.XY{X: 1, Y: 1}), "inside A")
+	assert.Equalf(t, Interior, loc.Locate(geom.XY{X: 11, Y: 11}), "inside B")
+	assert.Equalf(t, Exterior, loc.Locate(geom.XY{X: 5, Y: 5}), "between")
 }
 
 func TestIndexedLocate_Empty(t *testing.T) {
 	empty := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	loc := NewIndexedPointLocator(empty)
-	if got := loc.Locate(geom.XY{X: 0, Y: 0}); got != Exterior {
-		t.Errorf("empty: got %s", got)
-	}
+	assert.Equalf(t, Exterior, loc.Locate(geom.XY{X: 0, Y: 0}), "empty")
 }
 
 // Both locators should satisfy the PointOnGeometryLocator interface.

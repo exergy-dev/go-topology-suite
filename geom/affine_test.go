@@ -3,6 +3,9 @@ package geom
 import (
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func approxEqualXY(a, b XY, tol float64) bool {
@@ -11,14 +14,10 @@ func approxEqualXY(a, b XY, tol float64) bool {
 
 func TestAffineIdentity(t *testing.T) {
 	id := NewAffineTransformation()
-	if !id.IsIdentity() {
-		t.Errorf("NewAffineTransformation() must be identity, got %s", id)
-	}
+	assert.True(t, id.IsIdentity(), "NewAffineTransformation() must be identity, got %s", id)
 	for _, p := range []XY{{1, 2}, {-3, 5}, {0, 0}, {1.25, 1e6}} {
 		got := id.TransformXY(p)
-		if got != p {
-			t.Errorf("identity.Transform(%v) = %v, want %v", p, got, p)
-		}
+		assert.Equal(t, p, got, "identity.Transform(%v)", p)
 	}
 }
 
@@ -26,9 +25,7 @@ func TestAffineTranslation(t *testing.T) {
 	tr := AffineTranslation(10, -5)
 	got := tr.TransformXY(XY{1, 2})
 	want := XY{11, -3}
-	if got != want {
-		t.Errorf("translate: got %v, want %v", got, want)
-	}
+	assert.Equal(t, want, got, "translate")
 }
 
 func TestAffineRotationOrigin(t *testing.T) {
@@ -36,9 +33,7 @@ func TestAffineRotationOrigin(t *testing.T) {
 	r := AffineRotation(math.Pi / 2)
 	got := r.TransformXY(XY{1, 0})
 	want := XY{0, 1}
-	if !approxEqualXY(got, want, 1e-12) {
-		t.Errorf("rotation: got %v, want %v", got, want)
-	}
+	assert.True(t, approxEqualXY(got, want, 1e-12), "rotation: got %v, want %v", got, want)
 }
 
 func TestAffineRotationAround(t *testing.T) {
@@ -46,18 +41,14 @@ func TestAffineRotationAround(t *testing.T) {
 	r := AffineRotationAround(math.Pi, 1, 1)
 	got := r.TransformXY(XY{2, 2})
 	want := XY{0, 0}
-	if !approxEqualXY(got, want, 1e-9) {
-		t.Errorf("rotation around point: got %v, want %v", got, want)
-	}
+	assert.True(t, approxEqualXY(got, want, 1e-9), "rotation around point: got %v, want %v", got, want)
 }
 
 func TestAffineScale(t *testing.T) {
 	s := AffineScale(2, 3)
 	got := s.TransformXY(XY{1, 2})
 	want := XY{2, 6}
-	if got != want {
-		t.Errorf("scale: got %v, want %v", got, want)
-	}
+	assert.Equal(t, want, got, "scale")
 }
 
 func TestAffineComposition(t *testing.T) {
@@ -67,9 +58,7 @@ func TestAffineComposition(t *testing.T) {
 	tr.Compose(AffineRotation(math.Pi / 2))
 	got := tr.TransformXY(XY{0, 0})
 	want := XY{0, 10}
-	if !approxEqualXY(got, want, 1e-12) {
-		t.Errorf("compose translate+rotate: got %v, want %v", got, want)
-	}
+	assert.True(t, approxEqualXY(got, want, 1e-12), "compose translate+rotate: got %v, want %v", got, want)
 }
 
 func TestAffineCompositionScale(t *testing.T) {
@@ -78,9 +67,7 @@ func TestAffineCompositionScale(t *testing.T) {
 	tr.Compose(AffineScale(2, 3))
 	got := tr.TransformXY(XY{0, 0})
 	want := XY{2, 6}
-	if !approxEqualXY(got, want, 1e-12) {
-		t.Errorf("compose translate+scale: got %v, want %v", got, want)
-	}
+	assert.True(t, approxEqualXY(got, want, 1e-12), "compose translate+scale: got %v, want %v", got, want)
 }
 
 func TestAffineInverseRoundTrip(t *testing.T) {
@@ -88,23 +75,18 @@ func TestAffineInverseRoundTrip(t *testing.T) {
 	tr.Compose(AffineRotation(0.4))
 	tr.Compose(AffineScale(2, 0.5))
 	inv, err := tr.Inverse()
-	if err != nil {
-		t.Fatalf("inverse: %v", err)
-	}
+	require.NoError(t, err)
 	for _, p := range []XY{{1, 2}, {-3, 5}, {1e3, -1e2}} {
 		mapped := tr.TransformXY(p)
 		back := inv.TransformXY(mapped)
-		if !approxEqualXY(p, back, 1e-9) {
-			t.Errorf("round-trip: %v -> %v -> %v", p, mapped, back)
-		}
+		assert.True(t, approxEqualXY(p, back, 1e-9), "round-trip: %v -> %v -> %v", p, mapped, back)
 	}
 }
 
 func TestAffineInverseSingular(t *testing.T) {
 	t1 := AffineScale(0, 1)
-	if _, err := t1.Inverse(); err == nil {
-		t.Errorf("expected non-invertible error for scale(0,1)")
-	}
+	_, err := t1.Inverse()
+	assert.Error(t, err, "expected non-invertible error for scale(0,1)")
 }
 
 func TestAffineTransformGeometry(t *testing.T) {
@@ -113,26 +95,18 @@ func TestAffineTransformGeometry(t *testing.T) {
 	tr := AffineTranslation(10, 20)
 	out := tr.Transform(poly)
 	op, ok := out.(*Polygon)
-	if !ok {
-		t.Fatalf("Transform returned %T, want *Polygon", out)
-	}
+	require.True(t, ok, "Transform returned %T, want *Polygon", out)
 	ring := op.Ring(0)
 	wantFirst := XY{10, 20}
-	if !approxEqualXY(ring[0], wantFirst, 1e-12) {
-		t.Errorf("ring[0] = %v, want %v", ring[0], wantFirst)
-	}
+	assert.True(t, approxEqualXY(ring[0], wantFirst, 1e-12), "ring[0] = %v, want %v", ring[0], wantFirst)
 }
 
 func TestAffineEqualsAndClone(t *testing.T) {
 	a := AffineTranslation(1, 2)
 	b := a.Clone()
-	if !a.Equals(b) {
-		t.Errorf("clone should equal original")
-	}
+	assert.True(t, a.Equals(b), "clone should equal original")
 	b.Translate(1, 0)
-	if a.Equals(b) {
-		t.Errorf("post-modification should not equal")
-	}
+	assert.False(t, a.Equals(b), "post-modification should not equal")
 }
 
 func TestAffineReflection(t *testing.T) {
@@ -140,9 +114,7 @@ func TestAffineReflection(t *testing.T) {
 	r := AffineReflection(0, 0, 1, 0)
 	got := r.TransformXY(XY{3, 4})
 	want := XY{3, -4}
-	if !approxEqualXY(got, want, 1e-9) {
-		t.Errorf("reflection: got %v, want %v", got, want)
-	}
+	assert.True(t, approxEqualXY(got, want, 1e-9), "reflection: got %v, want %v", got, want)
 }
 
 func TestAffineReflectionVectorXY(t *testing.T) {
@@ -150,7 +122,5 @@ func TestAffineReflectionVectorXY(t *testing.T) {
 	r := AffineReflectionVector(1, 1)
 	got := r.TransformXY(XY{3, 4})
 	want := XY{4, 3}
-	if !approxEqualXY(got, want, 1e-12) {
-		t.Errorf("reflection y=x: got %v, want %v", got, want)
-	}
+	assert.True(t, approxEqualXY(got, want, 1e-12), "reflection y=x: got %v, want %v", got, want)
 }

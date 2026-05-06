@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
@@ -21,12 +22,12 @@ func TestMinimumClearance_FacetTreeParity_RandomPolygons(t *testing.T) {
 		fast, _ := MinimumClearance(poly)
 		ref := NewSimpleMinimumClearance(poly).Distance()
 
-		switch {
-		case math.IsInf(fast, +1) && math.IsInf(ref, +1):
+		if math.IsInf(fast, +1) && math.IsInf(ref, +1) {
 			// Both report "no clearance" — fine.
-		case math.Abs(fast-ref) > 1e-9*math.Max(math.Abs(ref), 1):
-			t.Fatalf("run %d: fast=%v ref=%v ring=%v", run, fast, ref, ring)
+			continue
 		}
+		require.InDeltaf(t, ref, fast, 1e-9*math.Max(math.Abs(ref), 1),
+			"run %d: fast=%v ref=%v ring=%v", run, fast, ref, ring)
 	}
 }
 

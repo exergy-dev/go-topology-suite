@@ -36,9 +36,7 @@ func TestBoundaryChainNoder_TwoAdjacentSquares(t *testing.T) {
 		for j := 0; j < ss.NumSegments(); j++ {
 			a, b := ss.Segment(j)
 			key := canonicalSegKey(a, b)
-			if key == canonicalSegKey(geom.XY{X: 1, Y: 0}, geom.XY{X: 1, Y: 1}) {
-				t.Fatalf("shared interior edge present in output")
-			}
+			require.NotEqual(t, canonicalSegKey(geom.XY{X: 1, Y: 0}, geom.XY{X: 1, Y: 1}), key, "shared interior edge present in output")
 		}
 	}
 }

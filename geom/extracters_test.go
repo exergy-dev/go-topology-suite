@@ -1,6 +1,11 @@
 package geom
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestPointsOf(t *testing.T) {
 	gc := NewGeometryCollection(nil,
@@ -9,9 +14,7 @@ func TestPointsOf(t *testing.T) {
 		NewMultiPoint(nil, []XY{{2, 2}, {3, 3}}),
 	)
 	pts := PointsOf(gc)
-	if len(pts) != 3 {
-		t.Fatalf("got %d points, want 3", len(pts))
-	}
+	require.Equal(t, 3, len(pts))
 }
 
 func TestLineStringsOf(t *testing.T) {
@@ -21,9 +24,7 @@ func TestLineStringsOf(t *testing.T) {
 	)
 	gc := NewGeometryCollection(nil, mls, NewPoint(nil, XY{5, 5}))
 	ls := LineStringsOf(gc)
-	if len(ls) != 2 {
-		t.Fatalf("got %d, want 2", len(ls))
-	}
+	require.Equal(t, 2, len(ls))
 }
 
 func TestPolygonsOf(t *testing.T) {
@@ -31,17 +32,11 @@ func TestPolygonsOf(t *testing.T) {
 	mp := NewMultiPolygon(nil, p, p)
 	gc := NewGeometryCollection(nil, mp, p)
 	got := PolygonsOf(gc)
-	if len(got) != 3 {
-		t.Fatalf("got %d, want 3", len(got))
-	}
+	require.Equal(t, 3, len(got))
 }
 
 func TestExtracters_Empty(t *testing.T) {
-	if pts := PointsOf(nil); pts != nil {
-		t.Errorf("nil should give nil, got %v", pts)
-	}
+	assert.Nil(t, PointsOf(nil), "nil should give nil")
 	gc := NewGeometryCollection(nil)
-	if len(PolygonsOf(gc)) != 0 {
-		t.Errorf("empty collection should give zero polygons")
-	}
+	assert.Equal(t, 0, len(PolygonsOf(gc)), "empty collection should give zero polygons")
 }

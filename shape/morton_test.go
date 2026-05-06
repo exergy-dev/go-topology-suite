@@ -4,15 +4,15 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMortonCurveCount(t *testing.T) {
 	for order := 0; order <= 5; order++ {
 		ls := MortonCurve(order, geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1})
 		want := 1 << (2 * order)
-		if ls.NumPoints() != want {
-			t.Fatalf("order=%d points=%d want=%d", order, ls.NumPoints(), want)
-		}
+		require.Equalf(t, want, ls.NumPoints(), "order=%d", order)
 	}
 }
 
@@ -20,8 +20,9 @@ func TestMortonCurveContainment(t *testing.T) {
 	env := geom.Envelope{MinX: -2, MinY: 3, MaxX: 8, MaxY: 13}
 	ls := MortonCurve(4, env)
 	got := ls.Envelope()
-	if got.MinX < env.MinX-1e-9 || got.MaxX > env.MaxX+1e-9 ||
-		got.MinY < env.MinY-1e-9 || got.MaxY > env.MaxY+1e-9 {
+	const eps = 1e-9
+	if got.MinX < env.MinX-eps || got.MaxX > env.MaxX+eps ||
+		got.MinY < env.MinY-eps || got.MaxY > env.MaxY+eps {
 		t.Fatalf("curve env %v escapes target %v", got, env)
 	}
 }
@@ -50,26 +51,19 @@ func TestMortonLevel(t *testing.T) {
 		{17, 3}, {64, 3},
 	}
 	for _, c := range cases {
-		if got := MortonLevel(c.n); got != c.want {
-			t.Fatalf("MortonLevel(%d)=%d, want %d", c.n, got, c.want)
-		}
+		assert.Equalf(t, c.want, MortonLevel(c.n), "MortonLevel(%d)", c.n)
 	}
 }
 
 func TestMortonCurveEmptyEnvelope(t *testing.T) {
 	ls := MortonCurve(2, geom.EmptyEnvelope())
-	if ls.NumPoints() != 16 {
-		t.Fatalf("got %d points", ls.NumPoints())
-	}
+	require.Equal(t, 16, ls.NumPoints())
 	// First point at integer origin (0,0).
-	if p := ls.PointAt(0); p.X != 0 || p.Y != 0 {
-		t.Fatalf("first point: %v, want (0,0)", p)
-	}
+	p := ls.PointAt(0)
+	require.Truef(t, p.X == 0 && p.Y == 0, "first point: %v, want (0,0)", p)
 }
 
 func TestMortonCurveOrderZero(t *testing.T) {
 	ls := MortonCurve(0, geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1})
-	if ls.NumPoints() != 1 {
-		t.Fatalf("order=0: want 1 point, got %d", ls.NumPoints())
-	}
+	require.Equalf(t, 1, ls.NumPoints(), "order=0: want 1 point")
 }

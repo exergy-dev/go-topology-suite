@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConformingDelaunayOf_SquareWithDiagonal(t *testing.T) {
@@ -16,17 +18,11 @@ func TestConformingDelaunayOf_SquareWithDiagonal(t *testing.T) {
 	}
 	diag := [2]geom.XY{{X: 0, Y: 0}, {X: 1, Y: 1}}
 	tris, err := ConformingDelaunayOf(corners, [][2]geom.XY{diag})
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if len(tris) != 2 {
-		t.Fatalf("want 2 triangles, got %d", len(tris))
-	}
+	require.NoError(t, err)
+	require.Equal(t, 2, len(tris))
 	// Both triangles must share the diagonal as one of their edges.
 	for _, tri := range tris {
-		if !triangleHasEdge(tri, diag[0], diag[1]) {
-			t.Fatalf("triangle %v does not contain the constraint diagonal", tri)
-		}
+		require.Truef(t, triangleHasEdge(tri, diag[0], diag[1]), "triangle %v does not contain the constraint diagonal", tri)
 	}
 }
 
@@ -38,12 +34,8 @@ func TestConformingDelaunayOf_NoConstraints(t *testing.T) {
 		{X: 1, Y: 1}, {X: 0, Y: 1},
 	}
 	tris, err := ConformingDelaunayOf(pts, nil)
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if len(tris) != 2 {
-		t.Fatalf("want 2 triangles, got %d", len(tris))
-	}
+	require.NoError(t, err)
+	require.Equal(t, 2, len(tris))
 }
 
 func TestConformingDelaunayOf_SplitsEncroachingSegment(t *testing.T) {
@@ -58,18 +50,12 @@ func TestConformingDelaunayOf_SplitsEncroachingSegment(t *testing.T) {
 	}
 	seg := [2]geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}}
 	tris, err := ConformingDelaunayOf(pts, [][2]geom.XY{seg})
-	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
+	require.NoError(t, err)
 	// The encroached segment should be split. The resulting triangulation
 	// must include both sub-segments as edges.
 	mid := geom.XY{X: 0.5, Y: 0}
-	if !anyTriangleHasEdge(tris, geom.XY{X: 0, Y: 0}, mid) {
-		t.Fatal("expected sub-segment (0,0)-(0.5,0) to appear as an edge")
-	}
-	if !anyTriangleHasEdge(tris, mid, geom.XY{X: 1, Y: 0}) {
-		t.Fatal("expected sub-segment (0.5,0)-(1,0) to appear as an edge")
-	}
+	assert.True(t, anyTriangleHasEdge(tris, geom.XY{X: 0, Y: 0}, mid), "expected sub-segment (0,0)-(0.5,0) to appear as an edge")
+	assert.True(t, anyTriangleHasEdge(tris, mid, geom.XY{X: 1, Y: 0}), "expected sub-segment (0.5,0)-(1,0) to appear as an edge")
 }
 
 // triangleHasEdge reports whether triangle tri has p-q (in either

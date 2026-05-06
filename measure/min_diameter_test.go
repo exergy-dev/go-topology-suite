@@ -6,13 +6,14 @@ import (
 
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMinimumDiameter_Empty(t *testing.T) {
 	g := geom.NewEmptyPolygon(nil, geom.LayoutXY)
-	if _, _, ok := MinimumDiameter(g); ok {
-		t.Fatalf("expected ok=false for empty input")
-	}
+	_, _, ok := MinimumDiameter(g)
+	require.False(t, ok, "expected ok=false for empty input")
 }
 
 func TestMinimumDiameter_Square(t *testing.T) {
@@ -20,12 +21,8 @@ func TestMinimumDiameter_Square(t *testing.T) {
 		{X: 0, Y: 0}, {X: 4, Y: 0}, {X: 4, Y: 4}, {X: 0, Y: 4}, {X: 0, Y: 0},
 	})
 	_, length, ok := MinimumDiameter(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
-	if math.Abs(length-4) > 1e-9 {
-		t.Fatalf("length=%v want 4", length)
-	}
+	require.True(t, ok)
+	assert.InDelta(t, 4.0, length, 1e-9)
 }
 
 func TestMinimumDiameter_Rectangle(t *testing.T) {
@@ -34,9 +31,7 @@ func TestMinimumDiameter_Rectangle(t *testing.T) {
 		{X: 0, Y: 0}, {X: 6, Y: 0}, {X: 6, Y: 2}, {X: 0, Y: 2}, {X: 0, Y: 0},
 	})
 	_, length, _ := MinimumDiameter(g)
-	if math.Abs(length-2) > 1e-9 {
-		t.Fatalf("length=%v want 2", length)
-	}
+	assert.InDelta(t, 2.0, length, 1e-9)
 }
 
 func TestMinimumDiameter_RotatedRectangle(t *testing.T) {
@@ -50,17 +45,14 @@ func TestMinimumDiameter_RotatedRectangle(t *testing.T) {
 	}
 	g := geom.NewPolygon(nil, append(append([]geom.XY{}, pts...), pts[0]))
 	_, length, _ := MinimumDiameter(g)
-	if math.Abs(length-2) > 1e-7 {
-		t.Fatalf("length=%v want 2", length)
-	}
+	assert.InDelta(t, 2.0, length, 1e-7)
 }
 
 func TestMinimumDiameter_Point(t *testing.T) {
 	g := geom.NewPoint(nil, geom.XY{X: 1, Y: 1})
 	_, length, ok := MinimumDiameter(g)
-	if !ok || length != 0 {
-		t.Fatalf("got length=%v ok=%v", length, ok)
-	}
+	require.True(t, ok)
+	assert.Equal(t, 0.0, length)
 }
 
 func TestMinimumDiameterRectangle_Square(t *testing.T) {
@@ -68,12 +60,8 @@ func TestMinimumDiameterRectangle_Square(t *testing.T) {
 		{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 1, Y: 1}, {X: 0, Y: 1}, {X: 0, Y: 0},
 	})
 	rect, ok := MinimumDiameterRectangle(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	// Rectangle should have area approximately 1.
 	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
-	if math.Abs(a-1) > 1e-9 {
-		t.Fatalf("area=%v want 1", a)
-	}
+	assert.InDelta(t, 1.0, a, 1e-9)
 }

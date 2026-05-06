@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHausdorffSimilarity_Identical(t *testing.T) {
 	p := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
-	if got := HausdorffSimilarity(p, p); math.Abs(got-1) > 1e-9 {
-		t.Fatalf("identical: want 1, got %v", got)
-	}
+	got := HausdorffSimilarity(p, p)
+	assert.InDelta(t, 1.0, got, 1e-9, "identical: want 1, got %v", got)
 }
 
 func TestHausdorffSimilarity_Disjoint(t *testing.T) {
@@ -20,9 +20,7 @@ func TestHausdorffSimilarity_Disjoint(t *testing.T) {
 	got := HausdorffSimilarity(a, b)
 	// Two points: the combined envelope is degenerate (height 0) so
 	// diagonal = 10. Hausdorff distance = 10. Similarity = 1 - 10/10 = 0.
-	if math.Abs(got) > 1e-9 {
-		t.Fatalf("disjoint points: want 0, got %v", got)
-	}
+	assert.InDelta(t, 0.0, got, 1e-9, "disjoint points: want 0, got %v", got)
 }
 
 func TestHausdorffSimilarity_NearlyIdentical(t *testing.T) {
@@ -31,42 +29,36 @@ func TestHausdorffSimilarity_NearlyIdentical(t *testing.T) {
 	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
 	b := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10.1}})
 	got := HausdorffSimilarity(a, b)
-	if got <= 0.95 || got >= 1 {
-		t.Fatalf("nearly identical: want in (0.95, 1), got %v", got)
-	}
+	assert.Greater(t, got, 0.95, "nearly identical: want > 0.95, got %v", got)
+	assert.Less(t, got, 1.0, "nearly identical: want < 1, got %v", got)
 }
 
 func TestHausdorffSimilarity_BothEmpty(t *testing.T) {
 	a := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	b := geom.NewEmptyPolygon(nil, geom.LayoutXY)
-	if got := HausdorffSimilarity(a, b); got != 1 {
-		t.Fatalf("both empty: want 1, got %v", got)
-	}
+	got := HausdorffSimilarity(a, b)
+	assert.Equal(t, 1.0, got, "both empty: want 1, got %v", got)
 }
 
 func TestHausdorffSimilarity_OneEmpty(t *testing.T) {
 	a := geom.NewEmptyPolygon(nil, geom.LayoutXY)
 	b := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
-	if got := HausdorffSimilarity(a, b); got != 0 {
-		t.Fatalf("one empty: want 0, got %v", got)
-	}
+	got := HausdorffSimilarity(a, b)
+	assert.Equal(t, 0.0, got, "one empty: want 0, got %v", got)
 }
 
 func TestHausdorffSimilarity_NilInputs(t *testing.T) {
 	a := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
-	if got := HausdorffSimilarity(nil, a); !math.IsNaN(got) {
-		t.Fatalf("nil input: want NaN, got %v", got)
-	}
-	if got := HausdorffSimilarity(a, nil); !math.IsNaN(got) {
-		t.Fatalf("nil input: want NaN, got %v", got)
-	}
+	got := HausdorffSimilarity(nil, a)
+	assert.True(t, math.IsNaN(got), "nil input: want NaN, got %v", got)
+	got = HausdorffSimilarity(a, nil)
+	assert.True(t, math.IsNaN(got), "nil input: want NaN, got %v", got)
 }
 
 func TestFrechetSimilarity_Identical(t *testing.T) {
 	p := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
-	if got := FrechetSimilarity(p, p); math.Abs(got-1) > 1e-9 {
-		t.Fatalf("identical: want 1, got %v", got)
-	}
+	got := FrechetSimilarity(p, p)
+	assert.InDelta(t, 1.0, got, 1e-9, "identical: want 1, got %v", got)
 }
 
 func TestFrechetSimilarity_OrderSensitive(t *testing.T) {
@@ -76,22 +68,18 @@ func TestFrechetSimilarity_OrderSensitive(t *testing.T) {
 	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})
 	b := geom.NewLineString(nil, []geom.XY{{X: 10, Y: 10}, {X: 10, Y: 0}, {X: 0, Y: 0}})
 	got := FrechetSimilarity(a, b)
-	if got >= 1 {
-		t.Fatalf("reversed order should be < 1, got %v", got)
-	}
+	assert.Less(t, got, 1.0, "reversed order should be < 1, got %v", got)
 }
 
 func TestFrechetSimilarity_BothEmpty(t *testing.T) {
 	a := geom.NewLineString(nil, nil)
 	b := geom.NewLineString(nil, nil)
-	if got := FrechetSimilarity(a, b); got != 1 {
-		t.Fatalf("both empty: want 1, got %v", got)
-	}
+	got := FrechetSimilarity(a, b)
+	assert.Equal(t, 1.0, got, "both empty: want 1, got %v", got)
 }
 
 func TestFrechetSimilarity_NilInputs(t *testing.T) {
 	a := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}})
-	if got := FrechetSimilarity(nil, a); !math.IsNaN(got) {
-		t.Fatalf("nil input: want NaN, got %v", got)
-	}
+	got := FrechetSimilarity(nil, a)
+	assert.True(t, math.IsNaN(got), "nil input: want NaN, got %v", got)
 }

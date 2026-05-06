@@ -3,6 +3,8 @@ package predicate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
@@ -30,19 +32,11 @@ func TestShortCircuitDimMismatch(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := Contains(tc.a, tc.b)
-			if err != nil {
-				t.Fatalf("Contains: %v", err)
-			}
-			if got != tc.contains {
-				t.Errorf("Contains: want %v got %v", tc.contains, got)
-			}
+			require.NoError(t, err, "Contains")
+			assert.Equal(t, tc.contains, got, "Contains")
 			gotC, err := Covers(tc.a, tc.b)
-			if err != nil {
-				t.Fatalf("Covers: %v", err)
-			}
-			if gotC != tc.covers {
-				t.Errorf("Covers: want %v got %v", tc.covers, gotC)
-			}
+			require.NoError(t, err, "Covers")
+			assert.Equal(t, tc.covers, gotC, "Covers")
 		})
 	}
 }
@@ -53,12 +47,8 @@ func TestShortCircuitOverlapsDimMismatch(t *testing.T) {
 	pt := geom.NewPoint(nil, geom.XY{X: 1, Y: 1})
 	line := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 2, Y: 2}})
 	got, err := Overlaps(pt, line)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got {
-		t.Errorf("Overlaps(point, line): want false got true")
-	}
+	require.NoError(t, err)
+	assert.False(t, got, "Overlaps(point, line): want false")
 }
 
 // TestShortCircuitCrossesPP exercises P/P short-circuit (always false
@@ -67,12 +57,8 @@ func TestShortCircuitCrossesPP(t *testing.T) {
 	a := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
 	b := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
 	got, err := Crosses(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got {
-		t.Errorf("Crosses(point, point): want false got true")
-	}
+	require.NoError(t, err)
+	assert.False(t, got, "Crosses(point, point): want false")
 }
 
 // TestShortCircuitTouchesPP: two pure points cannot touch.
@@ -80,12 +66,8 @@ func TestShortCircuitTouchesPP(t *testing.T) {
 	a := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
 	b := geom.NewPoint(nil, geom.XY{X: 0, Y: 0})
 	got, err := Touches(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got {
-		t.Errorf("Touches(point, point): want false got true")
-	}
+	require.NoError(t, err)
+	assert.False(t, got, "Touches(point, point): want false")
 }
 
 // TestShortCircuitEnvelopeDisjoint verifies the envelope-disjoint
@@ -94,21 +76,16 @@ func TestShortCircuitEnvelopeDisjoint(t *testing.T) {
 	a := scTestPoly()
 	b := scTestPolyAt(10, 10)
 
-	if got, _ := Intersects(a, b); got {
-		t.Errorf("Intersects: want false")
-	}
-	if got, _ := Disjoint(a, b); !got {
-		t.Errorf("Disjoint: want true")
-	}
-	if got, _ := Touches(a, b); got {
-		t.Errorf("Touches: want false")
-	}
-	if got, _ := Overlaps(a, b); got {
-		t.Errorf("Overlaps: want false")
-	}
-	if got, _ := Crosses(a, b); got {
-		t.Errorf("Crosses: want false")
-	}
+	got, _ := Intersects(a, b)
+	assert.False(t, got, "Intersects: want false")
+	got, _ = Disjoint(a, b)
+	assert.True(t, got, "Disjoint: want true")
+	got, _ = Touches(a, b)
+	assert.False(t, got, "Touches: want false")
+	got, _ = Overlaps(a, b)
+	assert.False(t, got, "Overlaps: want false")
+	got, _ = Crosses(a, b)
+	assert.False(t, got, "Crosses: want false")
 }
 
 // TestShortCircuitEqualsEnvelopeDiff: differing envelopes resolve
@@ -117,12 +94,8 @@ func TestShortCircuitEqualsEnvelopeDiff(t *testing.T) {
 	a := scTestPoly()
 	b := scTestPolyAt(0, 0) // larger
 	got, err := Equals(a, b)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got {
-		t.Errorf("Equals(envelope-diff polygons): want false got true")
-	}
+	require.NoError(t, err)
+	assert.False(t, got, "Equals(envelope-diff polygons): want false")
 }
 
 // TestRelateNGSurface exercises the experimental RelateNG type to
@@ -135,18 +108,14 @@ func TestRelateNGSurface(t *testing.T) {
 	pOut := geom.NewPoint(nil, geom.XY{X: 9, Y: 9})
 
 	r := NewRelateNG(a)
-	if got, _ := r.Contains(pIn); !got {
-		t.Errorf("RelateNG.Contains(inner point): want true")
-	}
-	if got, _ := r.Contains(pOut); got {
-		t.Errorf("RelateNG.Contains(outer point): want false")
-	}
-	if got, _ := r.Disjoint(pOut); !got {
-		t.Errorf("RelateNG.Disjoint(outer point): want true")
-	}
-	if got, _ := r.Intersects(pIn); !got {
-		t.Errorf("RelateNG.Intersects(inner point): want true")
-	}
+	got, _ := r.Contains(pIn)
+	assert.True(t, got, "RelateNG.Contains(inner point): want true")
+	got, _ = r.Contains(pOut)
+	assert.False(t, got, "RelateNG.Contains(outer point): want false")
+	got, _ = r.Disjoint(pOut)
+	assert.True(t, got, "RelateNG.Disjoint(outer point): want true")
+	got, _ = r.Intersects(pIn)
+	assert.True(t, got, "RelateNG.Intersects(inner point): want true")
 }
 
 func scTestPoly() *geom.Polygon {

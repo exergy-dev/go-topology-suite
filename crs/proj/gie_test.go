@@ -9,6 +9,8 @@ import (
 
 	"github.com/exergy-dev/go-topology-suite/crs"
 	"github.com/exergy-dev/go-topology-suite/crs/proj/internal/gie"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestGieFixtures runs PROJ's own gie regression suite against go-topology-suite's
@@ -28,9 +30,7 @@ func TestGieFixtures(t *testing.T) {
 		t.Run(f, func(t *testing.T) {
 			path := filepath.Join("testdata", "gie", f)
 			blocks, err := gie.ParseFile(path)
-			if err != nil {
-				t.Fatalf("parse %s: %v", path, err)
-			}
+			require.NoErrorf(t, err, "parse %s", path)
 			runs := 0
 			skipped := 0
 			for _, b := range blocks {
@@ -230,6 +230,12 @@ func runBlock(t *testing.T, b gie.Block, p crs.Projection, params map[string]str
 		if tol > 0 && tol < 1e-12 {
 			continue
 		}
+		// `tolerance 0 m` cases (e.g. merc(0,0)→(0,0)) are unsatisfiable
+		// in FP across platforms; floor to 1 µm to absorb libm/FMA noise
+		// while still catching any meaningful projection bug.
+		if tol == 0 {
+			tol = 1e-6
+		}
 		// Skip TM cases at extreme latitudes (within 0.01° of either
 		// pole) where the Krüger n^6 series asymptotically saturates.
 		if params["proj"] == "tmerc" {
@@ -250,9 +256,12 @@ func runBlock(t *testing.T, b gie.Block, p crs.Projection, params map[string]str
 				if !blockTagged(params) {
 					continue
 				}
-				t.Errorf("%s line %d (%s, fwd): got (%g, %g) want (%g, %g) tol=%g",
-					strings.TrimSpace(b.Operation), c.LineNum, params["proj"],
-					gotE, gotN, expE, expN, tol)
+				assert.InDeltaf(t, expE, gotE, tol,
+					"%s line %d (%s, fwd) easting",
+					strings.TrimSpace(b.Operation), c.LineNum, params["proj"])
+				assert.InDeltaf(t, expN, gotN, tol,
+					"%s line %d (%s, fwd) northing",
+					strings.TrimSpace(b.Operation), c.LineNum, params["proj"])
 				allOK = false
 			}
 		case gie.Inverse:
@@ -264,9 +273,12 @@ func runBlock(t *testing.T, b gie.Block, p crs.Projection, params map[string]str
 				if !blockTagged(params) {
 					continue
 				}
-				t.Errorf("%s line %d (%s, inv): got (%g, %g) want (%g, %g) tol=%g°",
-					strings.TrimSpace(b.Operation), c.LineNum, params["proj"],
-					gotLon, gotLat, expLon, expLat, tolDeg)
+				assert.InDeltaf(t, expLon, gotLon, tolDeg,
+					"%s line %d (%s, inv) lon",
+					strings.TrimSpace(b.Operation), c.LineNum, params["proj"])
+				assert.InDeltaf(t, expLat, gotLat, tolDeg,
+					"%s line %d (%s, inv) lat",
+					strings.TrimSpace(b.Operation), c.LineNum, params["proj"])
 				allOK = false
 			}
 		}

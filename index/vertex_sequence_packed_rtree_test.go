@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // queryAll collects all hits via the callback Query API, for use in
@@ -38,9 +40,7 @@ func TestVSPR_Query_Exhaustive(t *testing.T) {
 		got := queryAll(tree, q)
 		want := bruteQuery(pts, q, nil)
 		sort.Ints(got)
-		if !equalInts(got, want) {
-			t.Errorf("query %v: got %v want %v", q, got, want)
-		}
+		assert.Truef(t, equalInts(got, want), "query %v: got %v want %v", q, got, want)
 	}
 }
 
@@ -63,9 +63,7 @@ func TestVSPR_QueryParity_Random(t *testing.T) {
 			got := queryAll(tree, env)
 			want := bruteQuery(pts, env, nil)
 			sort.Ints(got)
-			if !equalInts(got, want) {
-				t.Fatalf("trial %d: env=%v got=%v want=%v", trial, env, got, want)
-			}
+			require.Truef(t, equalInts(got, want), "trial %d: env=%v got=%v want=%v", trial, env, got, want)
 		}
 	}
 }
@@ -79,25 +77,20 @@ func TestVSPR_Remove(t *testing.T) {
 	}
 	tree := NewVertexSequencePackedRtree(pts)
 	full := geom.Envelope{MinX: -1, MinY: -1, MaxX: 100, MaxY: 100}
-	if got := queryAll(tree, full); len(got) != len(pts) {
-		t.Fatalf("pre-remove: got %d want %d", len(got), len(pts))
-	}
+	require.Equal(t, len(pts), len(queryAll(tree, full)), "pre-remove count")
 	tree.Remove(3)
 	tree.Remove(7)
 	got := queryAll(tree, full)
 	sort.Ints(got)
 	want := []int{0, 1, 2, 4, 5, 6, 8, 9}
-	if !equalInts(got, want) {
-		t.Errorf("post-remove: got %v want %v", got, want)
-	}
+	assert.Truef(t, equalInts(got, want), "post-remove: got %v want %v", got, want)
 }
 
 // TestVSPR_Empty handles the corner case of an empty point sequence.
 func TestVSPR_Empty(t *testing.T) {
 	tree := NewVertexSequencePackedRtree(nil)
-	if got := queryAll(tree, geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1}); len(got) != 0 {
-		t.Errorf("empty: got %v", got)
-	}
+	got := queryAll(tree, geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1})
+	assert.Emptyf(t, got, "empty: got %v", got)
 }
 
 func bruteQuery(pts []geom.XY, env geom.Envelope, _ []int) []int {

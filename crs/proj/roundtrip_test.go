@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/crs"
+	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 )
 
@@ -21,10 +22,12 @@ func TestRoundTrips(t *testing.T) {
 			p := NewWebMercator()
 			x, y := p.Forward(lon, lat)
 			lon2, lat2 := p.Inverse(x, y)
-			if math.Abs(lon2-lon) > 1e-12 || math.Abs(lat2-lat) > 1e-12 {
-				rt.Errorf("WebMercator rt: in (%v, %v) → (%v, %v) → (%v, %v)",
-					lon, lat, x, y, lon2, lat2)
-			}
+			assert.InDeltaf(rt, lon, lon2, 1e-12,
+				"WebMercator rt lon: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
+			assert.InDeltaf(rt, lat, lat2, 1e-12,
+				"WebMercator rt lat: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
 		})
 	})
 
@@ -36,10 +39,12 @@ func TestRoundTrips(t *testing.T) {
 			lat := rapid.Float64Range(-80, 80).Draw(rt, "lat") * d2r
 			x, y := p.Forward(lon, lat)
 			lon2, lat2 := p.Inverse(x, y)
-			if math.Abs(lon2-lon) > 1e-11 || math.Abs(lat2-lat) > 1e-11 {
-				rt.Errorf("UTM30 rt: in (%v, %v) → (%v, %v) → (%v, %v)",
-					lon, lat, x, y, lon2, lat2)
-			}
+			assert.InDeltaf(rt, lon, lon2, 1e-11,
+				"UTM30 rt lon: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
+			assert.InDeltaf(rt, lat, lat2, 1e-11,
+				"UTM30 rt lat: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
 		})
 	})
 
@@ -54,10 +59,12 @@ func TestRoundTrips(t *testing.T) {
 			lat := rapid.Float64Range(40, 52).Draw(rt, "lat") * d2r
 			x, y := p.Forward(lon, lat)
 			lon2, lat2 := p.Inverse(x, y)
-			if math.Abs(lon2-lon) > 1e-11 || math.Abs(lat2-lat) > 1e-11 {
-				rt.Errorf("Lambert93 rt: in (%v, %v) → (%v, %v) → (%v, %v)",
-					lon, lat, x, y, lon2, lat2)
-			}
+			assert.InDeltaf(rt, lon, lon2, 1e-11,
+				"Lambert93 rt lon: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
+			assert.InDeltaf(rt, lat, lat2, 1e-11,
+				"Lambert93 rt lat: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
 		})
 	})
 
@@ -72,10 +79,12 @@ func TestRoundTrips(t *testing.T) {
 			lat := rapid.Float64Range(20, 55).Draw(rt, "lat") * d2r
 			x, y := p.Forward(lon, lat)
 			lon2, lat2 := p.Inverse(x, y)
-			if math.Abs(lon2-lon) > 1e-11 || math.Abs(lat2-lat) > 1e-11 {
-				rt.Errorf("ConusAlbers rt: in (%v, %v) → (%v, %v) → (%v, %v)",
-					lon, lat, x, y, lon2, lat2)
-			}
+			assert.InDeltaf(rt, lon, lon2, 1e-11,
+				"ConusAlbers rt lon: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
+			assert.InDeltaf(rt, lat, lat2, 1e-11,
+				"ConusAlbers rt lat: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
 		})
 	})
 
@@ -90,10 +99,12 @@ func TestRoundTrips(t *testing.T) {
 			lat := rapid.Float64Range(34, 71).Draw(rt, "lat") * d2r
 			x, y := p.Forward(lon, lat)
 			lon2, lat2 := p.Inverse(x, y)
-			if math.Abs(lon2-lon) > 1e-10 || math.Abs(lat2-lat) > 1e-10 {
-				rt.Errorf("EuropeLAEA rt: in (%v, %v) → (%v, %v) → (%v, %v)",
-					lon, lat, x, y, lon2, lat2)
-			}
+			assert.InDeltaf(rt, lon, lon2, 1e-10,
+				"EuropeLAEA rt lon: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
+			assert.InDeltaf(rt, lat, lat2, 1e-10,
+				"EuropeLAEA rt lat: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
 		})
 	})
 
@@ -118,10 +129,12 @@ func TestRoundTrips(t *testing.T) {
 			for dLon < -math.Pi {
 				dLon += 2 * math.Pi
 			}
-			if math.Abs(dLon) > 1e-10 || math.Abs(lat2-lat) > 1e-10 {
-				rt.Errorf("LAEA polar rt: in (%v, %v) → (%v, %v) → (%v, %v)",
-					lon, lat, x, y, lon2, lat2)
-			}
+			assert.InDeltaf(rt, 0.0, dLon, 1e-10,
+				"LAEA polar rt lon: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
+			assert.InDeltaf(rt, lat, lat2, 1e-10,
+				"LAEA polar rt lat: in (%v, %v) → (%v, %v) → (%v, %v)",
+				lon, lat, x, y, lon2, lat2)
 		})
 	})
 }

@@ -6,6 +6,8 @@ import (
 
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVoronoi_FourCorners(t *testing.T) {
@@ -19,30 +21,22 @@ func TestVoronoi_FourCorners(t *testing.T) {
 	}
 	clip := geom.Envelope{MinX: 0, MinY: 0, MaxX: 1, MaxY: 1}
 	cells := Voronoi(pts, &clip)
-	if len(cells) != 4 {
-		t.Fatalf("want 4 Voronoi cells, got %d", len(cells))
-	}
+	require.Equal(t, 4, len(cells))
 	// Each cell should have area 0.25.
 	totalArea := 0.0
 	for _, p := range cells {
 		ring := p.Ring(0)
 		a := math.Abs((planar.Kernel{}).RingArea(ring))
-		if math.Abs(a-0.25) > 1e-9 {
-			t.Fatalf("cell area: want 0.25, got %v (%v)", a, ring)
-		}
+		assert.InDeltaf(t, 0.25, a, 1e-9, "cell area: want 0.25, got %v (%v)", a, ring)
 		totalArea += a
 	}
-	if math.Abs(totalArea-1.0) > 1e-9 {
-		t.Fatalf("total Voronoi area: want 1.0, got %v", totalArea)
-	}
+	assert.InDelta(t, 1.0, totalArea, 1e-9)
 }
 
 func TestVoronoi_SingleSite(t *testing.T) {
 	// A single site degenerate case has no Delaunay edges to dual.
 	cells := Voronoi([]geom.XY{{X: 0, Y: 0}}, nil)
-	if cells != nil {
-		t.Fatalf("expected nil for single site, got %d cells", len(cells))
-	}
+	require.Nilf(t, cells, "expected nil for single site, got %d cells", len(cells))
 }
 
 func TestVoronoi_NoClipBox(t *testing.T) {
@@ -54,9 +48,7 @@ func TestVoronoi_NoClipBox(t *testing.T) {
 		{X: 0, Y: 1},
 	}
 	cells := Voronoi(pts, nil)
-	if len(cells) != 3 {
-		t.Fatalf("want 3 cells, got %d", len(cells))
-	}
+	require.Equal(t, 3, len(cells))
 }
 
 func TestVoronoi_CellsCoverClipBox(t *testing.T) {
@@ -65,15 +57,11 @@ func TestVoronoi_CellsCoverClipBox(t *testing.T) {
 	pts := randomPoints(20, 7)
 	clip := geom.Envelope{MinX: -5, MinY: -5, MaxX: 105, MaxY: 105}
 	cells := Voronoi(pts, &clip)
-	if len(cells) == 0 {
-		t.Fatal("expected some cells")
-	}
+	require.NotEmpty(t, cells, "expected some cells")
 	total := 0.0
 	for _, p := range cells {
 		total += math.Abs((planar.Kernel{}).RingArea(p.Ring(0)))
 	}
 	want := clip.Width() * clip.Height()
-	if math.Abs(total-want) > 1e-6 {
-		t.Fatalf("total cell area %v, want %v (clip box area)", total, want)
-	}
+	assert.InDeltaf(t, want, total, 1e-6, "total cell area %v, want %v (clip box area)", total, want)
 }

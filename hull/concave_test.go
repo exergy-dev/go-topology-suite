@@ -5,29 +5,24 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func TestConcaveHull_Empty(t *testing.T) {
 	g := geom.NewMultiPoint(nil, nil)
 	got, err := ConcaveHull(g, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got == nil {
-		t.Fatal("nil result")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, got, "nil result")
 }
 
 func TestConcaveHull_SinglePoint(t *testing.T) {
 	g := geom.NewMultiPoint(nil, []geom.XY{{X: 1, Y: 2}})
 	got, err := ConcaveHull(g, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := got.(*geom.Point); !ok {
-		t.Fatalf("want *Point, got %T", got)
-	}
+	require.NoError(t, err)
+	_, ok := got.(*geom.Point)
+	require.Truef(t, ok, "want *Point, got %T", got)
 }
 
 func TestConcaveHull_Triangle(t *testing.T) {
@@ -35,16 +30,10 @@ func TestConcaveHull_Triangle(t *testing.T) {
 		{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 5, Y: 10},
 	})
 	got, err := ConcaveHull(g, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	p, ok := got.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("want *Polygon, got %T", got)
-	}
-	if p.IsEmpty() {
-		t.Fatal("polygon is empty")
-	}
+	require.Truef(t, ok, "want *Polygon, got %T", got)
+	require.False(t, p.IsEmpty(), "polygon is empty")
 }
 
 func TestConcaveHull_LargeMaxLength_IsConvex(t *testing.T) {
@@ -56,17 +45,11 @@ func TestConcaveHull_LargeMaxLength_IsConvex(t *testing.T) {
 	}
 	g := geom.NewMultiPoint(nil, pts)
 	got, err := ConcaveHull(g, 1e6)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	p, ok := got.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("want *Polygon, got %T", got)
-	}
+	require.Truef(t, ok, "want *Polygon, got %T", got)
 	// 4 corners + closing vertex = 5
-	if got := len(p.ExteriorRing()); got != 5 {
-		t.Fatalf("want 5 ring points, got %d", got)
-	}
+	require.Equal(t, 5, len(p.ExteriorRing()), "ring points")
 }
 
 func TestConcaveHull_ContainsAllInputPoints(t *testing.T) {
@@ -78,18 +61,12 @@ func TestConcaveHull_ContainsAllInputPoints(t *testing.T) {
 	}
 	g := geom.NewMultiPoint(nil, pts)
 	got, err := ConcaveHull(g, 25.0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	p, ok := got.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("want *Polygon, got %T", got)
-	}
+	require.Truef(t, ok, "want *Polygon, got %T", got)
 	ringPts := p.ExteriorRing()
 	for _, q := range pts {
-		if !pointInPolygon(q, ringPts) {
-			t.Fatalf("input point %v not contained in hull", q)
-		}
+		require.Truef(t, pointInPolygon(q, ringPts), "input point %v not contained in hull", q)
 	}
 }
 
@@ -100,26 +77,18 @@ func TestConcaveHullByLengthRatio_One_IsConvex(t *testing.T) {
 	}
 	g := geom.NewMultiPoint(nil, pts)
 	got, err := ConcaveHullByLengthRatio(g, 1.0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	p, ok := got.(*geom.Polygon)
-	if !ok {
-		t.Fatalf("want *Polygon, got %T", got)
-	}
-	if got := len(p.ExteriorRing()); got != 5 {
-		t.Fatalf("want 5 ring points, got %d", got)
-	}
+	require.Truef(t, ok, "want *Polygon, got %T", got)
+	assert.Equal(t, 5, len(p.ExteriorRing()), "ring points")
 }
 
 func TestConcaveHullByLengthRatio_OutOfRange(t *testing.T) {
 	g := geom.NewMultiPoint(nil, []geom.XY{{X: 0, Y: 0}, {X: 1, Y: 0}, {X: 0, Y: 1}})
-	if _, err := ConcaveHullByLengthRatio(g, -0.1); err == nil {
-		t.Fatal("expected error")
-	}
-	if _, err := ConcaveHullByLengthRatio(g, 1.1); err == nil {
-		t.Fatal("expected error")
-	}
+	_, err := ConcaveHullByLengthRatio(g, -0.1)
+	require.Error(t, err)
+	_, err = ConcaveHullByLengthRatio(g, 1.1)
+	require.Error(t, err)
 }
 
 // pointInPolygon is a simple ray-cast test against ring used to verify

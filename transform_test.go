@@ -1,8 +1,10 @@
 package gts_test
 
 import (
-	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/exergy-dev/go-topology-suite"
 	"github.com/exergy-dev/go-topology-suite/crs"
@@ -22,34 +24,23 @@ func TestTransformWGS84ToWebMercatorRoundTrip(t *testing.T) {
 	)
 
 	projected, err := gts.Transform(poly, dst)
-	if err != nil {
-		t.Fatalf("Transform forward: %v", err)
-	}
-	if !crs.Equal(projected.CRS(), dst) {
-		t.Fatalf("projected.CRS() = %+v; want %+v", projected.CRS(), dst)
-	}
+	require.NoError(t, err)
+	require.True(t, crs.Equal(projected.CRS(), dst), "projected.CRS() = %+v; want %+v", projected.CRS(), dst)
 
 	// (1°, 0°) on WGS84 web-mercators to roughly (111319.49, 0). We
 	// don't pin the exact value here — round-trip is the contract.
 	roundTrip, err := gts.Transform(projected, src)
-	if err != nil {
-		t.Fatalf("Transform back: %v", err)
-	}
-	if !crs.Equal(roundTrip.CRS(), src) {
-		t.Fatalf("roundTrip.CRS() = %+v; want %+v", roundTrip.CRS(), src)
-	}
+	require.NoError(t, err)
+	require.True(t, crs.Equal(roundTrip.CRS(), src), "roundTrip.CRS() = %+v; want %+v", roundTrip.CRS(), src)
 
 	got := roundTrip.(*geom.Polygon)
 	want := poly
-	if got.RingLen(0) != want.RingLen(0) {
-		t.Fatalf("ring length: got %d want %d", got.RingLen(0), want.RingLen(0))
-	}
+	require.Equal(t, want.RingLen(0), got.RingLen(0))
 	for i := 0; i < got.RingLen(0); i++ {
 		g := got.RingVertex(0, i)
 		w := want.RingVertex(0, i)
-		if math.Abs(g.X-w.X) > 1e-9 || math.Abs(g.Y-w.Y) > 1e-9 {
-			t.Errorf("vertex %d: got (%v, %v) want (%v, %v)", i, g.X, g.Y, w.X, w.Y)
-		}
+		assert.InDelta(t, w.X, g.X, 1e-9, "vertex %d X", i)
+		assert.InDelta(t, w.Y, g.Y, 1e-9, "vertex %d Y", i)
 	}
 }
 
@@ -59,31 +50,23 @@ func TestTransformWGS84ToWebMercatorRoundTrip(t *testing.T) {
 func TestTransformWGS84ToUTM(t *testing.T) {
 	src := epsg.WGS84
 	dst := epsg.Lookup(32632) // WGS84 / UTM zone 32N
-	if dst == nil {
-		t.Fatal("EPSG:32632 not registered")
-	}
+	require.NotNil(t, dst, "EPSG:32632 not registered")
 
 	pt := geom.NewPoint(src, geom.XY{X: 12, Y: 56})
 	projected, err := gts.Transform(pt, dst)
-	if err != nil {
-		t.Fatalf("Transform: %v", err)
-	}
+	require.NoError(t, err)
 	out := projected.(*geom.Point).XY()
 
 	const wantE, wantN = 687071.43910944, 6210141.32674801
-	if math.Abs(out.X-wantE) > 1e-3 || math.Abs(out.Y-wantN) > 1e-3 {
-		t.Errorf("UTM32N: got (%v, %v) want (%v, %v)", out.X, out.Y, wantE, wantN)
-	}
+	assert.InDelta(t, wantE, out.X, 1e-3, "UTM32N easting")
+	assert.InDelta(t, wantN, out.Y, 1e-3, "UTM32N northing")
 
 	// Round-trip back.
 	back, err := gts.Transform(projected, src)
-	if err != nil {
-		t.Fatalf("inverse: %v", err)
-	}
+	require.NoError(t, err)
 	bp := back.(*geom.Point).XY()
-	if math.Abs(bp.X-12) > 1e-8 || math.Abs(bp.Y-56) > 1e-8 {
-		t.Errorf("round-trip: got (%v, %v) want (12, 56)", bp.X, bp.Y)
-	}
+	assert.InDelta(t, 12.0, bp.X, 1e-8, "round-trip X")
+	assert.InDelta(t, 56.0, bp.Y, 1e-8, "round-trip Y")
 }
 
 // TestTransformErrUntransformable verifies that a Transform attempt
@@ -91,9 +74,8 @@ func TestTransformWGS84ToUTM(t *testing.T) {
 func TestTransformErrUntransformable(t *testing.T) {
 	bare := &crs.CRS{Authority: "EPSG", Code: 12345, Kind: crs.Projected}
 	pt := geom.NewPoint(epsg.WGS84, geom.XY{X: 1, Y: 1})
-	if _, err := gts.Transform(pt, bare); err != crs.ErrUntransformable {
-		t.Errorf("got err=%v, want %v", err, crs.ErrUntransformable)
-	}
+	_, err := gts.Transform(pt, bare)
+	assert.Equal(t, crs.ErrUntransformable, err)
 }
 
 // TestTransformIdentity verifies that transforming to the same CRS
@@ -101,14 +83,8 @@ func TestTransformErrUntransformable(t *testing.T) {
 func TestTransformIdentity(t *testing.T) {
 	pt := geom.NewPoint(epsg.WGS84, geom.XY{X: 1, Y: 1})
 	out, err := gts.Transform(pt, epsg.WGS84)
-	if err != nil {
-		t.Fatalf("Transform: %v", err)
-	}
-	if !crs.Equal(out.CRS(), epsg.WGS84) {
-		t.Errorf("CRS mismatch")
-	}
+	require.NoError(t, err)
+	assert.True(t, crs.Equal(out.CRS(), epsg.WGS84), "CRS mismatch")
 	op := out.(*geom.Point)
-	if op.XY() != (geom.XY{X: 1, Y: 1}) {
-		t.Errorf("XY changed: %v", op.XY())
-	}
+	assert.Equal(t, geom.XY{X: 1, Y: 1}, op.XY())
 }

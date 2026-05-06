@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestKochSnowflakeVertexCount(t *testing.T) {
@@ -20,18 +22,14 @@ func TestKochSnowflakeVertexCount(t *testing.T) {
 	for _, c := range cases {
 		p := KochSnowflake(c.level, geom.XY{X: 0, Y: 0}, 10)
 		ring := p.ExteriorRing()
-		if len(ring) != c.want {
-			t.Fatalf("level=%d vertices=%d want=%d", c.level, len(ring), c.want)
-		}
+		require.Equalf(t, c.want, len(ring), "level=%d", c.level)
 	}
 }
 
 func TestKochSnowflakeClosed(t *testing.T) {
 	p := KochSnowflake(2, geom.XY{X: 5, Y: 5}, 4)
 	ring := p.ExteriorRing()
-	if ring[0] != ring[len(ring)-1] {
-		t.Fatalf("ring not closed: %v vs %v", ring[0], ring[len(ring)-1])
-	}
+	require.Equal(t, ring[0], ring[len(ring)-1], "ring not closed")
 }
 
 func TestKochSnowflakeApproxCentred(t *testing.T) {
@@ -53,19 +51,13 @@ func TestKochSnowflakeDeterministic(t *testing.T) {
 	b := KochSnowflake(2, c, 5)
 	ra := a.ExteriorRing()
 	rb := b.ExteriorRing()
-	if len(ra) != len(rb) {
-		t.Fatal("len mismatch")
-	}
+	require.Equal(t, len(ra), len(rb), "len mismatch")
 	for i := range ra {
-		if ra[i] != rb[i] {
-			t.Fatalf("differ at %d", i)
-		}
+		assert.Equalf(t, ra[i], rb[i], "differ at %d", i)
 	}
 }
 
 func TestKochSnowflakeZeroSize(t *testing.T) {
 	p := KochSnowflake(2, geom.XY{X: 0, Y: 0}, 0)
-	if !p.IsEmpty() {
-		t.Fatal("expected empty polygon")
-	}
+	require.True(t, p.IsEmpty(), "expected empty polygon")
 }

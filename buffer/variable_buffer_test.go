@@ -4,32 +4,28 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/geom"
 )
 
 func TestVariableBuffer_Empty(t *testing.T) {
 	ls := geom.NewLineString(nil, nil)
 	got, err := VariableBuffer(ls, []float64{})
-	if err != nil {
-		t.Fatalf("err=%v", err)
-	}
-	if !got.IsEmpty() {
-		t.Fatalf("expected empty result")
-	}
+	require.NoError(t, err)
+	require.True(t, got.IsEmpty(), "expected empty result")
 }
 
 func TestVariableBuffer_DistanceCountMismatch(t *testing.T) {
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}})
-	if _, err := VariableBuffer(ls, []float64{1, 2, 3}); err == nil {
-		t.Fatalf("expected error for length mismatch")
-	}
+	_, err := VariableBuffer(ls, []float64{1, 2, 3})
+	require.Error(t, err, "expected error for length mismatch")
 }
 
 func TestVariableBuffer_NegativeDistance(t *testing.T) {
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}})
-	if _, err := VariableBuffer(ls, []float64{1, -2}); err == nil {
-		t.Fatalf("expected error for negative distance")
-	}
+	_, err := VariableBuffer(ls, []float64{1, -2})
+	require.Error(t, err, "expected error for negative distance")
 }
 
 // totalArea returns the sum of |signed area| of the polygon's exterior ring,
@@ -66,17 +62,11 @@ func TestVariableBuffer_ConstantDistance_ApproxRectangle(t *testing.T) {
 	// ≈ 10*2 + π*1² (two circular caps), well-approximated by 4 quads.
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}})
 	got, err := VariableBuffer(ls, []float64{1, 1})
-	if err != nil {
-		t.Fatalf("err=%v", err)
-	}
-	if got.IsEmpty() {
-		t.Fatalf("got empty")
-	}
+	require.NoError(t, err)
+	require.False(t, got.IsEmpty(), "got empty")
 	want := 20.0 + math.Pi
 	a := geomArea(got)
-	if math.Abs(a-want) > 0.6 {
-		t.Fatalf("constant buffer area=%v want ~%v", a, want)
-	}
+	assert.InDelta(t, want, a, 0.6, "constant buffer area")
 }
 
 func TestVariableBuffer_IncreasingWedge(t *testing.T) {
@@ -85,18 +75,12 @@ func TestVariableBuffer_IncreasingWedge(t *testing.T) {
 	// the area of a triangle of base 2*d1 + circular cap.
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}})
 	got, err := VariableBuffer(ls, []float64{0, 4})
-	if err != nil {
-		t.Fatalf("err=%v", err)
-	}
-	if got.IsEmpty() {
-		t.Fatalf("got empty")
-	}
+	require.NoError(t, err)
+	require.False(t, got.IsEmpty(), "got empty")
 	// Lower bound: triangle of base 8, height 10 → area 40 (ignores end cap);
 	// upper bound: trapezoid + cap ≈ 40 + π*16/2 ≈ 65.
 	a := geomArea(got)
-	if a < 30 || a > 80 {
-		t.Fatalf("wedge area=%v outside [30,80]", a)
-	}
+	require.True(t, a >= 30 && a <= 80, "wedge area=%v outside [30,80]", a)
 }
 
 func TestVariableBuffer_DecreasingTaperedCap(t *testing.T) {
@@ -104,27 +88,17 @@ func TestVariableBuffer_DecreasingTaperedCap(t *testing.T) {
 	// (modulo the linear taper direction).
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}})
 	got, err := VariableBuffer(ls, []float64{4, 0})
-	if err != nil {
-		t.Fatalf("err=%v", err)
-	}
-	if got.IsEmpty() {
-		t.Fatalf("got empty")
-	}
+	require.NoError(t, err)
+	require.False(t, got.IsEmpty(), "got empty")
 	a := geomArea(got)
-	if a < 30 || a > 80 {
-		t.Fatalf("tapered area=%v outside [30,80]", a)
-	}
+	require.True(t, a >= 30 && a <= 80, "tapered area=%v outside [30,80]", a)
 }
 
 func TestVariableBuffer_AllZeroDistance_Empty(t *testing.T) {
 	ls := geom.NewLineString(nil, []geom.XY{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 20, Y: 0}})
 	got, err := VariableBuffer(ls, []float64{0, 0, 0})
-	if err != nil {
-		t.Fatalf("err=%v", err)
-	}
-	if !got.IsEmpty() {
-		t.Fatalf("expected empty result for all-zero distances; got %T", got)
-	}
+	require.NoError(t, err)
+	require.True(t, got.IsEmpty(), "expected empty result for all-zero distances; got %T", got)
 }
 
 func TestVariableBufferInterpolated_Linear(t *testing.T) {
@@ -132,20 +106,12 @@ func TestVariableBufferInterpolated_Linear(t *testing.T) {
 		{X: 0, Y: 0}, {X: 5, Y: 0}, {X: 10, Y: 0},
 	})
 	got, err := VariableBufferInterpolated(ls, 0, 4)
-	if err != nil {
-		t.Fatalf("err=%v", err)
-	}
-	if got.IsEmpty() {
-		t.Fatalf("got empty")
-	}
+	require.NoError(t, err)
+	require.False(t, got.IsEmpty(), "got empty")
 	// Should match VariableBuffer with explicit values [0, 2, 4].
 	want, err := VariableBuffer(ls, []float64{0, 2, 4})
-	if err != nil {
-		t.Fatalf("explicit err=%v", err)
-	}
+	require.NoError(t, err)
 	gA := geomArea(got)
 	wA := geomArea(want)
-	if math.Abs(gA-wA) > 0.5 {
-		t.Fatalf("interpolated area=%v explicit area=%v", gA, wA)
-	}
+	assert.InDelta(t, wA, gA, 0.5, "interpolated vs explicit area")
 }

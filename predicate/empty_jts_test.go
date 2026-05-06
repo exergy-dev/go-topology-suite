@@ -3,6 +3,7 @@ package predicate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
 
@@ -48,12 +49,9 @@ func TestEmptyInputSemantics(t *testing.T) {
 	}
 	for _, c := range cases {
 		got, err := c.pred()
-		if err != nil {
-			t.Errorf("%s: error %v", c.name, err)
+		if !assert.NoError(t, err, c.name) {
 			continue
 		}
-		if got != c.want {
-			t.Errorf("%s: got %v want %v", c.name, got, c.want)
-		}
+		assert.Equal(t, c.want, got, c.name)
 	}
 }

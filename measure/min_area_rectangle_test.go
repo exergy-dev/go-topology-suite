@@ -6,13 +6,14 @@ import (
 
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMinimumAreaRectangle_Empty(t *testing.T) {
 	g := geom.NewEmptyPolygon(nil, geom.LayoutXY)
-	if _, ok := MinimumAreaRectangle(g); ok {
-		t.Fatalf("expected ok=false")
-	}
+	_, ok := MinimumAreaRectangle(g)
+	require.False(t, ok, "expected ok=false")
 }
 
 func TestMinimumAreaRectangle_Square(t *testing.T) {
@@ -20,13 +21,9 @@ func TestMinimumAreaRectangle_Square(t *testing.T) {
 		{X: 0, Y: 0}, {X: 4, Y: 0}, {X: 4, Y: 4}, {X: 0, Y: 4}, {X: 0, Y: 0},
 	})
 	rect, ok := MinimumAreaRectangle(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
-	if math.Abs(a-16) > 1e-9 {
-		t.Fatalf("area=%v want 16", a)
-	}
+	assert.InDelta(t, 16.0, a, 1e-9)
 }
 
 func TestMinimumAreaRectangle_RotatedSquare(t *testing.T) {
@@ -40,13 +37,9 @@ func TestMinimumAreaRectangle_RotatedSquare(t *testing.T) {
 	}
 	g := geom.NewPolygon(nil, append(append([]geom.XY{}, pts...), pts[0]))
 	rect, ok := MinimumAreaRectangle(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
-	if math.Abs(a-16) > 1e-7 {
-		t.Fatalf("area=%v want 16", a)
-	}
+	assert.InDelta(t, 16.0, a, 1e-7)
 }
 
 func TestMinimumAreaRectangle_LongDiagonalRectangle(t *testing.T) {
@@ -60,18 +53,13 @@ func TestMinimumAreaRectangle_LongDiagonalRectangle(t *testing.T) {
 	}
 	g := geom.NewPolygon(nil, append(append([]geom.XY{}, pts...), pts[0]))
 	rect, ok := MinimumAreaRectangle(g)
-	if !ok {
-		t.Fatalf("ok=false")
-	}
+	require.True(t, ok)
 	a := math.Abs((planar.Kernel{}).RingArea(rect.Ring(0)))
-	if math.Abs(a-16) > 1e-6 {
-		t.Fatalf("area=%v want 16", a)
-	}
+	assert.InDelta(t, 16.0, a, 1e-6)
 }
 
 func TestMinimumAreaRectangle_PointDegenerate(t *testing.T) {
 	g := geom.NewPoint(nil, geom.XY{X: 1, Y: 2})
-	if _, ok := MinimumAreaRectangle(g); ok {
-		t.Fatalf("expected ok=false for point")
-	}
+	_, ok := MinimumAreaRectangle(g)
+	require.False(t, ok, "expected ok=false for point")
 }

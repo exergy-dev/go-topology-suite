@@ -5,6 +5,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
@@ -54,9 +57,7 @@ func TestEdgeSetIntersector_RequireSelfNodingGuard(t *testing.T) {
 			es := NewEdgeSetIntersector(edgesA, edgesB, env)
 			counter := &countingProcessor{}
 			es.Process(counter, tc.requireSelfNoding)
-			if counter.count != tc.wantPairs {
-				t.Errorf("dispatched pairs = %d, want %d", counter.count, tc.wantPairs)
-			}
+			assert.Equal(t, tc.wantPairs, counter.count, "dispatched pairs")
 		})
 	}
 }
@@ -86,13 +87,9 @@ func TestEdgeSetIntersector_GuardDoesNotChangeAnswer(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			a, err := wkt.Unmarshal(c.a)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			b, err := wkt.Unmarshal(c.b)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			rng := NewRelateNG(a, OGCSFSBoundaryRule)
 			matrix := rng.EvaluateMatrix(b)
 			intersects := rng.Evaluate(b, NewIntersectsPredicate())
@@ -104,13 +101,10 @@ func TestEdgeSetIntersector_GuardDoesNotChangeAnswer(t *testing.T) {
 				matrix.Matches("*T*******") ||
 				matrix.Matches("***T*****") ||
 				matrix.Matches("****T****")
-			if intersects != matrixIntersects {
-				t.Errorf("Intersects=%v, but matrix=%s implies %v",
-					intersects, matrix.String(), matrixIntersects)
-			}
-			if disjoint == intersects {
-				t.Errorf("Disjoint=%v, Intersects=%v: should be opposite", disjoint, intersects)
-			}
+			assert.Equal(t, matrixIntersects, intersects,
+				"Intersects vs matrix=%s", matrix.String())
+			assert.NotEqual(t, intersects, disjoint,
+				"Disjoint and Intersects should be opposite")
 		})
 	}
 }

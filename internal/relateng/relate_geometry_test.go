@@ -3,6 +3,9 @@ package relateng
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
@@ -10,9 +13,7 @@ import (
 func mustParse(t *testing.T, s string) geom.Geometry {
 	t.Helper()
 	g, err := wkt.Unmarshal(s)
-	if err != nil {
-		t.Fatalf("wkt: %v", err)
-	}
+	require.NoError(t, err, "wkt")
 	return g
 }
 
@@ -34,27 +35,17 @@ func TestRelateGeometry_Dimension(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.wkt, func(t *testing.T) {
 			rg := NewGeometry(mustParse(t, tc.wkt))
-			if rg.Dimension() != tc.dim {
-				t.Errorf("dim = %d, want %d", rg.Dimension(), tc.dim)
-			}
-			if rg.HasDimension(DimP) != tc.hasP {
-				t.Errorf("hasP = %v, want %v", rg.HasDimension(DimP), tc.hasP)
-			}
-			if rg.HasDimension(DimL) != tc.hasL {
-				t.Errorf("hasL = %v, want %v", rg.HasDimension(DimL), tc.hasL)
-			}
-			if rg.HasDimension(DimA) != tc.hasA {
-				t.Errorf("hasA = %v, want %v", rg.HasDimension(DimA), tc.hasA)
-			}
+			assert.Equal(t, tc.dim, rg.Dimension(), "dim")
+			assert.Equal(t, tc.hasP, rg.HasDimension(DimP), "hasP")
+			assert.Equal(t, tc.hasL, rg.HasDimension(DimL), "hasL")
+			assert.Equal(t, tc.hasA, rg.HasDimension(DimA), "hasA")
 		})
 	}
 }
 
 func TestRelateGeometry_DimensionReal_ZeroLengthLine(t *testing.T) {
 	rg := NewGeometry(mustParse(t, "LINESTRING (5 5, 5 5)"))
-	if got := rg.DimensionReal(); got != DimP {
-		t.Errorf("zero-length line: DimensionReal = %d, want %d", got, DimP)
-	}
+	assert.Equal(t, DimP, rg.DimensionReal(), "zero-length line: DimensionReal")
 }
 
 func TestRelateGeometry_HasBoundary(t *testing.T) {
@@ -70,9 +61,7 @@ func TestRelateGeometry_HasBoundary(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.wkt, func(t *testing.T) {
 			rg := NewGeometry(mustParse(t, tc.wkt))
-			if got := rg.HasBoundary(); got != tc.want {
-				t.Errorf("HasBoundary = %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, rg.HasBoundary(), "HasBoundary")
 		})
 	}
 }
@@ -91,9 +80,7 @@ func TestRelateGeometry_IsSelfNodingRequired(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.wkt, func(t *testing.T) {
 			rg := NewGeometry(mustParse(t, tc.wkt))
-			if got := rg.IsSelfNodingRequired(); got != tc.want {
-				t.Errorf("IsSelfNodingRequired = %v, want %v", got, tc.want)
-			}
+			assert.Equal(t, tc.want, rg.IsSelfNodingRequired(), "IsSelfNodingRequired")
 		})
 	}
 }

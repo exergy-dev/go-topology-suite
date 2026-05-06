@@ -3,6 +3,7 @@ package predicate_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/exergy-dev/go-topology-suite/predicate"
 	"github.com/exergy-dev/go-topology-suite/wkt"
 )
@@ -49,25 +50,15 @@ func TestRelateNG_DeterministicNodeOrder(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			a, err := wkt.Unmarshal(tc.a)
-			if err != nil {
-				t.Fatalf("WKT a: %v", err)
-			}
+			require.NoError(t, err, "WKT a")
 			b, err := wkt.Unmarshal(tc.b)
-			if err != nil {
-				t.Fatalf("WKT b: %v", err)
-			}
+			require.NoError(t, err, "WKT b")
 			first, err := predicate.Relate(a, b)
-			if err != nil {
-				t.Fatalf("Relate: %v", err)
-			}
+			require.NoError(t, err, "Relate")
 			for i := 0; i < runs; i++ {
 				got, err := predicate.Relate(a, b)
-				if err != nil {
-					t.Fatalf("Relate run %d: %v", i, err)
-				}
-				if string(got) != string(first) {
-					t.Fatalf("run %d: got %s, want %s (non-deterministic node iteration)", i, got, first)
-				}
+				require.NoError(t, err, "Relate run %d", i)
+				require.Equal(t, string(first), string(got), "run %d: non-deterministic node iteration", i)
 			}
 		})
 	}

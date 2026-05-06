@@ -1,28 +1,25 @@
 package geom
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestEdit_Point(t *testing.T) {
 	p := NewPoint(nil, XY{1, 2})
 	out := Edit(p, func(xy XY) XY { return XY{xy.X + 1, xy.Y * 2} })
 	got, ok := out.(*Point)
-	if !ok {
-		t.Fatalf("expected *Point, got %T", out)
-	}
-	if got.XY() != (XY{2, 4}) {
-		t.Errorf("got %v, want (2,4)", got.XY())
-	}
+	require.True(t, ok, "expected *Point, got %T", out)
+	assert.Equal(t, XY{2, 4}, got.XY())
 }
 
 func TestEdit_LineString(t *testing.T) {
 	ls := NewLineString(nil, []XY{{0, 0}, {1, 1}, {2, 0}})
 	out := Edit(ls, func(xy XY) XY { return XY{xy.X * 10, xy.Y * 10} }).(*LineString)
-	if out.NumPoints() != 3 {
-		t.Fatalf("npoints %d", out.NumPoints())
-	}
-	if out.PointAt(1) != (XY{10, 10}) {
-		t.Errorf("got %v", out.PointAt(1))
-	}
+	require.Equal(t, 3, out.NumPoints())
+	assert.Equal(t, XY{10, 10}, out.PointAt(1))
 }
 
 func TestEdit_Polygon(t *testing.T) {
@@ -30,15 +27,9 @@ func TestEdit_Polygon(t *testing.T) {
 	hole := []XY{{2, 2}, {4, 2}, {4, 4}, {2, 4}, {2, 2}}
 	p := NewPolygon(nil, shell, hole)
 	out := Edit(p, func(xy XY) XY { return XY{xy.X + 100, xy.Y + 100} }).(*Polygon)
-	if out.NumRings() != 2 {
-		t.Fatalf("rings %d", out.NumRings())
-	}
-	if out.Ring(0)[0] != (XY{100, 100}) {
-		t.Errorf("shell[0] = %v", out.Ring(0)[0])
-	}
-	if out.Ring(1)[0] != (XY{102, 102}) {
-		t.Errorf("hole[0] = %v", out.Ring(1)[0])
-	}
+	require.Equal(t, 2, out.NumRings())
+	assert.Equal(t, XY{100, 100}, out.Ring(0)[0])
+	assert.Equal(t, XY{102, 102}, out.Ring(1)[0])
 }
 
 func TestEdit_GeometryCollection(t *testing.T) {
@@ -46,11 +37,7 @@ func TestEdit_GeometryCollection(t *testing.T) {
 		NewPoint(nil, XY{1, 1}),
 		NewLineString(nil, []XY{{0, 0}, {2, 2}}))
 	out := Edit(gc, func(xy XY) XY { return XY{-xy.X, -xy.Y} }).(*GeometryCollection)
-	if out.NumGeometries() != 2 {
-		t.Fatalf("ngeoms %d", out.NumGeometries())
-	}
+	require.Equal(t, 2, out.NumGeometries())
 	pt := out.GeometryAt(0).(*Point)
-	if pt.XY() != (XY{-1, -1}) {
-		t.Errorf("pt = %v", pt.XY())
-	}
+	assert.Equal(t, XY{-1, -1}, pt.XY())
 }

@@ -4,6 +4,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/exergy-dev/go-topology-suite/crs"
 )
 
@@ -16,12 +18,8 @@ func TestWithCRS_PointSwapsCRSWithoutMutatingSource(t *testing.T) {
 	src := NewPoint(crs.WGS84, XY{X: 1, Y: 2})
 	dst := WithCRS(src, crs.WebMercator).(*Point)
 
-	if dst.CRS() != crs.WebMercator {
-		t.Fatalf("dst.CRS = %v, want WebMercator", dst.CRS())
-	}
-	if src.CRS() != crs.WGS84 {
-		t.Fatalf("src.CRS mutated to %v, want WGS84", src.CRS())
-	}
+	require.Equal(t, crs.WebMercator, dst.CRS(), "dst.CRS")
+	require.Equal(t, crs.WGS84, src.CRS(), "src.CRS must not mutate")
 }
 
 // TestWithCRS_PointConcurrentReadsAreSafe ensures that after WithCRS,
@@ -41,7 +39,5 @@ func TestWithCRS_PointConcurrentReadsAreSafe(t *testing.T) {
 
 // TestWithCRS_NilReturnsNil documents the nil-passthrough contract.
 func TestWithCRS_NilReturnsNil(t *testing.T) {
-	if got := WithCRS(nil, crs.WGS84); got != nil {
-		t.Fatalf("WithCRS(nil) = %v, want nil", got)
-	}
+	require.Nil(t, WithCRS(nil, crs.WGS84), "WithCRS(nil) must be nil")
 }
