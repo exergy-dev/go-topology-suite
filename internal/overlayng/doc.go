@@ -23,7 +23,7 @@
 //  6. Output the boundary: edges separating a kept face from a not-kept
 //     face (or the outer face). Trace those edges into rings.
 //
-// v1.0 status: this is the foundation for the full JTS overlay-NG port.
+// Status: this is the foundation for the full JTS overlay-NG port.
 // Holes are supported on input and output: the noder includes every
 // ring, the classifier tests interior points against the original
 // (multi-ring) polygons, and the assembler distinguishes outer rings
@@ -31,7 +31,7 @@
 // suite lives in holes_test.go and exercises intersection, union,
 // difference, hole-creating-difference, and both-inputs-have-holes.
 //
-// Remaining v1.0 limitations:
+// Remaining limitations:
 //
 //   - When this pipeline bails out (snap-round non-convergence), the
 //     Greiner-Hormann fallback in overlay/general.go handles only

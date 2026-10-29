@@ -12,7 +12,7 @@ import (
 
 // rotatedSquare returns a square of side `s` at center (cx, cy) rotated
 // by angle `rot` radians. Rotation avoids axis-aligned coincident-edge
-// pathologies; for v1.0 production these are handled by snap rounding,
+// pathologies; in production these are handled by snap rounding,
 // but this stress test focuses on the topology graph itself.
 func rotatedSquare(cx, cy, s, rot float64) *geom.Polygon {
 	half := s / 2

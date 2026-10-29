@@ -109,9 +109,9 @@ Property-based tests via `pgregory.net/rapid` cover predicates, overlay, buffer,
 
 ## Versioning and stability
 
-go-topology-suite follows [Semantic Versioning](https://semver.org/). The public API surface — every exported symbol outside `internal/` — is covered by the v1 stability promise. Packages explicitly marked **experimental** in their `doc.go` (currently `crs/proj` and `kernel/spherical`) may evolve within a major version with a release-note entry.
+go-topology-suite follows [Semantic Versioning](https://semver.org/) and is pre-1.0 (v0.x). Until v1.0.0 is tagged, a minor or patch release may change the public API — every exported symbol outside `internal/` — and every such change is marked **breaking** in the [CHANGELOG](./CHANGELOG.md). Pin an exact version if you need stability.
 
-Breaking changes require a major-version bump. Deprecations are announced one minor version ahead of removal.
+From v1.0.0 onward, breaking changes will require a major-version bump and deprecations will be announced one minor version ahead of removal. Packages explicitly marked **experimental** in their `doc.go` (currently `crs/proj` and `kernel/spherical`) are exempt and may change in a minor release with a release-note entry.
 
 ## Design notes
 
