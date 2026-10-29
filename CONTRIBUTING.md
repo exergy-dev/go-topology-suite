@@ -87,7 +87,7 @@ The `maxKnownDivergences` baseline in `internal/jtstest/harness_test.go` is the 
 
 - **Unit tests** live alongside their packages.
 - **Property tests** use `pgregory.net/rapid` and live in `*_property_test.go`.
-- **Fuzz tests** are native Go fuzz targets in `wkt/`, `wkb/`, `geojson/`, `crs/wkt2/`. To extend: add a `func FuzzX(f *testing.F)` and seed it with a few representative inputs. CI runs each target nightly for 10 minutes via `.github/workflows/fuzz.yml`.
+- **Fuzz tests** are native Go fuzz targets in `wkt/`, `wkb/`, `geojson/`, `crs/wkt2/`. To extend: add a `func FuzzX(f *testing.F)` and seed it with a few representative inputs. Run one locally with `go test -run=^$ -fuzz=FuzzX ./pkg/`; the seed corpus also runs as part of plain `go test`.
 - **JTS conformance** lives under `internal/jtstest/`, gated on `-tags=jts`. The corpus itself is under `internal/jtstest/testdata/upstream/` and is sourced from the LocationTech JTS repository.
 - **Cross-impl conformance** lives under `bench/conformance/` (a separate Go module — run with `go test -C bench ./conformance/...`). It records divergences with `t.Logf`, not `t.Errorf`; the test always passes, but reviewers read the artefact.
 
