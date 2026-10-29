@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-29
+
 ### Added
 
 - **`geom.EqualsExact(a, b geom.Geometry) bool`** — structural, tolerance-free geometry equality (JTS `Geometry.equalsExact`): true when both operands have the same concrete type, layout, and vertices in the same order with the same structure (Polygon ring boundaries, collection member sequence). Every ordinate at full stride is compared, so Z and M participate; NaN equals NaN, consistent with `XY.Equal`. A LineString never equals a LinearRing with the same coordinates, and the same coordinates split into different rings are not equal. The CRS is deliberately ignored, matching JTS's treatment of the SRID. Two nils (interface or typed-nil) are equal; nil never equals a non-nil geometry. Reads the coordinate buffers in place — no copying — replacing hand-written walkers that relied on the removed `FlatCoords`.
@@ -120,7 +122,8 @@ go-topology-suite was developed over a series of waves driven by the JTS conform
 
 The conformance baseline at v0.1.1 is **8 942 / 8 951 (99.90 %)**; the 9 residual failures are all rooted in JTS's own `failure/` corpus or externally tracked GEOS bugs, pinned as the harness baseline (see `internal/jtstest`).
 
-[Unreleased]: https://github.com/exergy-dev/go-topology-suite/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/exergy-dev/go-topology-suite/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/exergy-dev/go-topology-suite/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/exergy-dev/go-topology-suite/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/exergy-dev/go-topology-suite/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/exergy-dev/go-topology-suite/releases/tag/v0.1.0
