@@ -14,14 +14,24 @@ const (
 //
 // Used by Mercator and Transverse Mercator. e is first eccentricity (not
 // squared).
+//
+// It is evaluated in the algebraically identical isometric-latitude form
+//
+//	ψ = atanh(sin φ) - e·atanh(e·sin φ),  χ = atan(sinh ψ)
+//
+// (the same ψ that inverseConformalLatitudeKr solves for). The tan(π/4 +
+// φ/2) form cancels catastrophically near the equator: at φ = 0 it
+// returned ±ulp noise depending on how math.Tan(π/4) rounds (1 on amd64,
+// 1-2⁻⁵² on arm64 where tan's argument reduction is FMA-fused), giving
+// UTM northings of -1.4e-9 m instead of 0. This form is odd in φ and
+// exact (+0) at φ = 0.
 func conformalLatitude(phi, e float64) float64 {
 	if e == 0 {
 		return phi
 	}
 	sinPhi := math.Sin(phi)
-	t := math.Tan(piOver4+phi/2) *
-		math.Pow((1-e*sinPhi)/(1+e*sinPhi), e/2)
-	return 2*math.Atan(t) - piOver2
+	psi := math.Atanh(sinPhi) - e*math.Atanh(e*sinPhi)
+	return math.Atan(math.Sinh(psi))
 }
 
 // normaliseLon wraps a longitude in radians to [-π, π].

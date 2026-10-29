@@ -138,3 +138,42 @@ func TestRoundTrips(t *testing.T) {
 		})
 	})
 }
+
+// TestWebMercatorOriginIsPositiveZero pins the projection origin to an
+// exact +0. The textbook ln(tan(π/4 + φ/2)) form gave n ≈ -1.4e-9 m at
+// φ = 0 on arm64 (ulp noise from math.Tan(π/4), whose argument reduction
+// is FMA-fused there but not on amd64), which surfaced as "-0" when
+// formatted and made results platform-dependent.
+func TestWebMercatorOriginIsPositiveZero(t *testing.T) {
+	p := NewWebMercator()
+	e, n := p.Forward(0, 0)
+	assert.Equal(t, 0.0, e, "easting at origin")
+	assert.Equal(t, 0.0, n, "northing at origin")
+	assert.False(t, math.Signbit(e), "easting at origin must be +0, got %v", e)
+	assert.False(t, math.Signbit(n), "northing at origin must be +0, got %v", n)
+
+	// Forward is odd in latitude: mirrored latitudes give exactly
+	// negated northings, so the equator is not biased to either side.
+	for _, deg := range []float64{1e-9, 0.5, 10, 45, 60, 85} {
+		lat := deg * math.Pi / 180
+		_, nPos := p.Forward(0, lat)
+		_, nNeg := p.Forward(0, -lat)
+		assert.Equalf(t, nPos, -nNeg, "northing not odd at ±%v°", deg)
+	}
+}
+
+// TestTransverseMercatorEquatorIsPositiveZero is the conformalLatitude
+// counterpart of TestWebMercatorOriginIsPositiveZero: a point on the
+// equator must map to a northing of exactly +0 (false northing 0), on
+// every GOARCH.
+func TestTransverseMercatorEquatorIsPositiveZero(t *testing.T) {
+	assert.Equal(t, 0.0, conformalLatitude(0, math.Sqrt(crs.WGS84Ellipsoid.E2())))
+	assert.False(t, math.Signbit(conformalLatitude(0, math.Sqrt(crs.WGS84Ellipsoid.E2()))))
+
+	p := UTM(31, false, crs.WGS84Ellipsoid) // CM = 3°
+	for _, lonDeg := range []float64{3, 0, 6} {
+		_, n := p.Forward(lonDeg*math.Pi/180, 0)
+		assert.Equalf(t, 0.0, n, "UTM31 northing on equator at lon %v°", lonDeg)
+		assert.Falsef(t, math.Signbit(n), "UTM31 northing on equator at lon %v° must be +0, got %v", lonDeg, n)
+	}
+}

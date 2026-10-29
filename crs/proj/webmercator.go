@@ -21,7 +21,15 @@ func (p WebMercator) Name() string { return "Web Mercator" }
 
 func (p WebMercator) Forward(lonRad, latRad float64) (e, n float64) {
 	e = p.A * lonRad
-	n = p.A * math.Log(math.Tan(piOver4+latRad/2))
+	// asinh(tan φ) is the inverse Gudermannian, identical in exact
+	// arithmetic to the textbook ln(tan(π/4 + φ/2)) and the form PROJ's
+	// spherical merc uses. The textbook form evaluates tan near π/4 and
+	// then log near 1, so it cancels catastrophically at the equator: at
+	// φ = 0 it yields ±ulp noise (math.Tan(π/4) is 1 on amd64 but
+	// 1-2⁻⁵² on arm64, where the compiler fuses tan's argument reduction
+	// into FMAs), i.e. n ≈ -1.4e-9 m instead of 0. asinh(tan φ) is odd,
+	// exact (+0) at φ = 0, and keeps full relative precision near it.
+	n = p.A * math.Asinh(math.Tan(latRad))
 	return
 }
 
