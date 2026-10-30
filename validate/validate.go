@@ -1,15 +1,15 @@
 package validate
 
 import (
+	"cmp"
 	"fmt"
 	"math"
-	"sort"
+	"slices"
 	"strings"
 
 	gts "github.com/exergy-dev/go-topology-suite"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/internal/geomath"
-	"github.com/exergy-dev/go-topology-suite/internal/noding"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
@@ -835,20 +835,114 @@ func ringSelfIntersectionBrute(collapsed []geom.XY) (geom.XY, bool) {
 	return geom.XY{}, false
 }
 
+// ringChain is a monotone run of ring segments [start, end] (vertex
+// indices) with its bounding box. Chains are held by value in one slab.
+type ringChain struct {
+	start, end             int32
+	minX, maxX, minY, maxY float64
+}
+
+// ringSearch carries the state of one indexed ring scan; using a struct
+// with methods avoids per-call closures.
+type ringSearch struct {
+	c            []geom.XY
+	tol          float64
+	bestI, bestJ int
+	bestP        geom.XY
+}
+
+// ringChainEnd returns the last vertex of the monotone chain starting at
+// start (every segment shares the first segment's quadrant).
+func ringChainEnd(c []geom.XY, start int) int {
+	q := ringQuadrant(c[start], c[start+1])
+	end := start + 1
+	for end+1 < len(c) && ringQuadrant(c[end], c[end+1]) == q {
+		end++
+	}
+	return end
+}
+
+func ringQuadrant(p0, p1 geom.XY) int {
+	dx, dy := p1.X-p0.X, p1.Y-p0.Y
+	switch {
+	case dx >= 0 && dy >= 0:
+		return 0
+	case dx < 0 && dy >= 0:
+		return 1
+	case dx < 0 && dy < 0:
+		return 2
+	}
+	return 3
+}
+
+func (s *ringSearch) visit(a, b int) {
+	i, j := a, b
+	if i > j {
+		i, j = j, i
+	}
+	if j < i+2 {
+		return
+	}
+	if s.bestI >= 0 && (i > s.bestI || (i == s.bestI && j >= s.bestJ)) {
+		return
+	}
+	if p, ok := ringPairIntersects(s.c, i, j); ok {
+		s.bestI, s.bestJ, s.bestP = i, j, p
+	}
+}
+
+func ringRangesOverlap(p1, p2, q1, q2 geom.XY, tol float64) bool {
+	if math.Min(p1.X, p2.X) > math.Max(q1.X, q2.X)+tol || math.Max(p1.X, p2.X) < math.Min(q1.X, q2.X)-tol {
+		return false
+	}
+	return !(math.Min(p1.Y, p2.Y) > math.Max(q1.Y, q2.Y)+tol || math.Max(p1.Y, p2.Y) < math.Min(q1.Y, q2.Y)-tol)
+}
+
+// overlaps mirrors noding.MonotoneChain.ComputeOverlaps on index ranges.
+func (s *ringSearch) overlaps(s0, e0, s1, e1 int) {
+	if e0-s0 == 1 && e1-s1 == 1 {
+		s.visit(s0, s1)
+		return
+	}
+	if !ringRangesOverlap(s.c[s0], s.c[e0], s.c[s1], s.c[e1], s.tol) {
+		return
+	}
+	m0, m1 := (s0+e0)/2, (s1+e1)/2
+	if s0 < m0 {
+		if s1 < m1 {
+			s.overlaps(s0, m0, s1, m1)
+		}
+		if m1 < e1 {
+			s.overlaps(s0, m0, m1, e1)
+		}
+	}
+	if m0 < e0 {
+		if s1 < m1 {
+			s.overlaps(m0, e0, s1, m1)
+		}
+		if m1 < e1 {
+			s.overlaps(m0, e0, m1, e1)
+		}
+	}
+}
+
 // ringSelfIntersectionIndexed finds candidate segment pairs via monotone
 // chains and a sweep over chain envelopes, then reports the intersecting
 // pair with the lexicographically smallest (i, j), matching the brute
-// force scan exactly.
+// force scan exactly. collapsed has no zero-length segments.
 func ringSelfIntersectionIndexed(collapsed []geom.XY) (geom.XY, bool) {
-	chains := noding.BuildMonotoneChains(&noding.SegmentString{Coords: collapsed})
-	type ce struct {
-		c                      *noding.MonotoneChain
-		minX, maxX, minY, maxY float64
+	n := len(collapsed)
+	nChains := 0
+	for start := 0; start < n-1; nChains++ {
+		start = ringChainEnd(collapsed, start)
 	}
-	es := make([]ce, len(chains))
-	for i, c := range chains {
-		a, b := collapsed[c.Start], collapsed[c.End]
-		es[i] = ce{c, math.Min(a.X, b.X), math.Max(a.X, b.X), math.Min(a.Y, b.Y), math.Max(a.Y, b.Y)}
+	chains := make([]ringChain, 0, nChains)
+	for start := 0; start < n-1; {
+		end := ringChainEnd(collapsed, start)
+		a, b := collapsed[start], collapsed[end]
+		chains = append(chains, ringChain{int32(start), int32(end),
+			min(a.X, b.X), max(a.X, b.X), min(a.Y, b.Y), max(a.Y, b.Y)})
+		start = end
 	}
 	// The pair predicate is evaluated in floating point and can report
 	// contact for pairs whose envelopes miss by a few ULPs, so the
@@ -857,41 +951,31 @@ func ringSelfIntersectionIndexed(collapsed []geom.XY) (geom.XY, bool) {
 	for _, q := range collapsed {
 		ext = math.Max(ext, math.Max(math.Abs(q.X), math.Abs(q.Y)))
 	}
-	tol := ext * 1e-9
-	sort.Slice(es, func(i, j int) bool { return es[i].minX < es[j].minX })
-	bestI, bestJ := -1, -1
-	var bestP geom.XY
-	visit := func(_ *noding.MonotoneChain, s1 int, _ *noding.MonotoneChain, s2 int) {
-		i, j := s1, s2
-		if i > j {
-			i, j = j, i
-		}
-		if j < i+2 {
-			return
-		}
-		if bestI >= 0 && (i > bestI || (i == bestI && j >= bestJ)) {
-			return
-		}
-		if p, ok := ringPairIntersects(collapsed, i, j); ok {
-			bestI, bestJ, bestP = i, j, p
-		}
-	}
-	for a := range es {
+	s := ringSearch{c: collapsed, tol: ext * 1e-9, bestI: -1}
+	slices.SortFunc(chains, func(a, b ringChain) int {
+		return cmp.Compare(a.minX, b.minX)
+	})
+	for a := range chains {
+		ca := chains[a]
 		// Segments within one monotone chain cannot meet in exact
 		// arithmetic, but the floating-point predicate can disagree for
 		// near-collinear runs, so self-overlap each chain too (cheap:
 		// only adjacent sub-ranges touch).
-		if es[a].c.NumSegments() > 2 {
-			es[a].c.ComputeOverlaps(es[a].c, tol, visit)
+		if ca.end-ca.start > 2 {
+			s.overlaps(int(ca.start), int(ca.end), int(ca.start), int(ca.end))
 		}
-		for b := a + 1; b < len(es) && es[b].minX <= es[a].maxX+tol; b++ {
-			if es[b].minY > es[a].maxY+tol || es[b].maxY < es[a].minY-tol {
+		for b := a + 1; b < len(chains); b++ {
+			cb := chains[b]
+			if cb.minX > ca.maxX+s.tol {
+				break
+			}
+			if cb.minY > ca.maxY+s.tol || cb.maxY < ca.minY-s.tol {
 				continue
 			}
-			es[a].c.ComputeOverlaps(es[b].c, tol, visit)
+			s.overlaps(int(ca.start), int(ca.end), int(cb.start), int(cb.end))
 		}
 	}
-	return bestP, bestI >= 0
+	return s.bestP, s.bestI >= 0
 }
 
 func collapseConsecutiveDuplicates(ring []geom.XY) []geom.XY {
