@@ -5,6 +5,7 @@ import (
 
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/internal/geomath"
+	"github.com/exergy-dev/go-topology-suite/internal/xybuf"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
@@ -163,7 +164,10 @@ func polygonContains(p *geom.Polygon, other geom.Geometry, k kernel.Kernel) (geo
 	// per vertex of other avoids an O(vertices(other) * rings(p))
 	// allocation blow-up. Values are identical to before — p does not
 	// change across the visitVertices walk — so results are bit-identical.
-	shell := p.Ring(0)
+	shellp := xybuf.Borrow()
+	defer xybuf.Release(shellp)
+	*shellp = p.RingInto((*shellp)[:0], 0)
+	shell := *shellp
 	var holes [][]geom.XY
 	if n := p.NumRings(); n > 1 {
 		holes = make([][]geom.XY, n-1)

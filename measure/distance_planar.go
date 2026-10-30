@@ -1,11 +1,12 @@
 package measure
 
 import (
+	"cmp"
 	"math"
+	"slices"
+	"sync"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
-	"github.com/exergy-dev/go-topology-suite/index"
-	"github.com/exergy-dev/go-topology-suite/internal/xybuf"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
@@ -155,38 +156,64 @@ func pairMin(k planar.Kernel, f, g pfacet, min float64) (m float64, cross bool) 
 	return min, false
 }
 
+type planarScratch struct {
+	fa, fb []pfacet
+	pts    []geom.XY
+}
+
+const maxPooledFacets = 1 << 15
+
+var planarScratchPool = sync.Pool{New: func() any { return new(planarScratch) }}
+
+func facetMinX(f *pfacet) float64 { return math.Min(f.a.X, f.b.X) }
+func facetMaxX(f *pfacet) float64 { return math.Max(f.a.X, f.b.X) }
+
 // geometryDistancePlanar is the branch-and-bound form of
-// geometryDistanceRef. It returns ok=false when the operands need the
+// distanceBruteForce. It returns ok=false when the operands need the
 // reference path. Both compute the same minimum over the same candidate
 // set (order-independent); pruning only discards facet pairs whose
 // envelope gap, padded by a rounding margin, exceeds the current best, so
 // they provably cannot lower it or cross.
+//
+// The larger operand's facets are sorted by minX into pooled scratch; each
+// facet of the other operand scans only the x-slab that can lie within the
+// current best distance, found by binary search. The scan is seeded with
+// the query facet nearest the indexed envelope. Scratch is pooled, so
+// steady-state calls allocate nothing.
 func geometryDistancePlanar(a, b geom.Geometry, k planar.Kernel) (float64, bool) {
-	bufp := xybuf.Borrow()
-	defer xybuf.Release(bufp)
+	sc := planarScratchPool.Get().(*planarScratch)
+	defer func() {
+		if cap(sc.fa) <= maxPooledFacets && cap(sc.fb) <= maxPooledFacets {
+			planarScratchPool.Put(sc)
+		}
+	}()
 	envA, envB := geom.EmptyEnvelope(), geom.EmptyEnvelope()
-	fa, ok := collectFacets(a, nil, &envA, bufp)
+	fa, ok := collectFacets(a, sc.fa[:0], &envA, &sc.pts)
+	sc.fa = fa
 	if !ok {
 		return 0, false
 	}
-	fb, ok := collectFacets(b, nil, &envB, bufp)
+	fb, ok := collectFacets(b, sc.fb[:0], &envB, &sc.pts)
+	sc.fb = fb
 	if !ok {
 		return 0, false
 	}
 	if len(fa) == 0 || len(fb) == 0 {
 		return 0, true
 	}
-	// Index the larger side.
 	if len(fa) < len(fb) {
 		fa, fb = fb, fa
 		envA, envB = envB, envA
 	}
-	items := make([]index.Item[pfacet], len(fa))
-	for i, f := range fa {
-		items[i] = index.Item[pfacet]{Env: facetEnv(f), Value: f}
+	slices.SortFunc(fa, func(x, y pfacet) int {
+		return cmp.Compare(facetMinX(&x), facetMinX(&y))
+	})
+	maxW := 0.0
+	for i := range fa {
+		if w := facetMaxX(&fa[i]) - facetMinX(&fa[i]); w > maxW {
+			maxW = w
+		}
 	}
-	tree := index.New[pfacet]()
-	tree.Bulk(items)
 
 	scale := 0.0
 	for _, e := range [2]geom.Envelope{envA, envB} {
@@ -195,54 +222,64 @@ func geometryDistancePlanar(a, b geom.Geometry, k planar.Kernel) (float64, bool)
 	slack := 1e-9 * scale
 
 	min := math.Inf(+1)
-	cross := false
 
-	// Seed with a few nearest-neighbour pairs so the search envelopes
-	// start tight. Seed values are genuine candidates (pairMin results).
-	step := len(fb)/16 + 1
-	for i := 0; i < len(fb); i += step {
-		q := fb[i]
-		it, found := tree.Nearest(facetEnv(q), index.ItemDistanceFunc[pfacet](func(_ geom.Envelope, it index.Item[pfacet]) float64 {
-			return envGap(facetEnv(q), it.Env)
-		}))
-		if !found {
-			continue
-		}
-		var c bool
-		if min, c = pairMin(k, q, it.Value, min); c {
-			return 0, true
-		}
-	}
-	if min == 0 {
-		return 0, true
-	}
-
-	for _, q := range fb {
-		qe := facetEnv(q)
-		if envGap(qe, envA) > min+slack {
-			continue
-		}
+	// scan evaluates query facet q against every indexed facet that may be
+	// within the current best. Returns true on a crossing.
+	scan := func(q *pfacet) bool {
+		qe := facetEnv(*q)
 		pad := min + slack
 		if math.IsInf(pad, +1) {
 			pad = math.MaxFloat64
 		}
-		search := geom.Envelope{MinX: qe.MinX - pad, MinY: qe.MinY - pad, MaxX: qe.MaxX + pad, MaxY: qe.MaxY + pad}
-		tree.Search(search, func(it index.Item[pfacet]) bool {
-			if envGap(qe, it.Env) > min+slack {
-				return true
+		lo, hi := qe.MinX-pad-maxW, qe.MaxX+pad
+		// first index with minX >= lo
+		l, h := 0, len(fa)
+		for l < h {
+			m := int(uint(l+h) >> 1)
+			if facetMinX(&fa[m]) < lo {
+				l = m + 1
+			} else {
+				h = m
+			}
+		}
+		for i := l; i < len(fa); i++ {
+			f := &fa[i]
+			if facetMinX(f) > hi {
+				break
+			}
+			if envGap(qe, facetEnv(*f)) > min+slack {
+				continue
 			}
 			var c bool
-			if min, c = pairMin(k, q, it.Value, min); c {
-				cross = true
-				return false
+			if min, c = pairMin(k, *q, *f, min); c {
+				return true
 			}
-			return true
-		})
-		if cross || min == 0 {
+		}
+		return false
+	}
+
+	// Seed: the query facet nearest the indexed envelope.
+	seed, seedGap := 0, math.Inf(+1)
+	for i := range fb {
+		if g := envGap(facetEnv(fb[i]), envA); g < seedGap {
+			seed, seedGap = i, g
+		}
+	}
+	if scan(&fb[seed]) {
+		return 0, true
+	}
+	for i := range fb {
+		if min == 0 {
+			return 0, true
+		}
+		if i == seed || envGap(facetEnv(fb[i]), envA) > min+slack {
+			continue
+		}
+		if scan(&fb[i]) {
 			return 0, true
 		}
 	}
-	if math.IsInf(min, +1) {
+	if min == 0 || math.IsInf(min, +1) {
 		return 0, true
 	}
 	return min, true
