@@ -88,6 +88,17 @@ func geometryDistance(a, b geom.Geometry, k kernel.Kernel) float64 {
 		return 0
 	}
 
+	if pk, ok := k.(planar.Kernel); ok {
+		if d, ok := geometryDistancePlanar(a, b, pk); ok {
+			return d
+		}
+	}
+	return distanceBruteForce(a, b, k)
+}
+
+// distanceBruteForce is the quadratic reference implementation; it is the
+// general-kernel path and the oracle for the planar branch-and-bound.
+func distanceBruteForce(a, b geom.Geometry, k kernel.Kernel) float64 {
 	min := math.Inf(+1)
 	// Vertex-segment crosses (a's vertex to b's edges, and vice versa).
 	visitVertices(a, func(p geom.XY) {

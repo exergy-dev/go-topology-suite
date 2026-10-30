@@ -172,10 +172,23 @@ func polygonContains(p *geom.Polygon, other geom.Geometry, k kernel.Kernel) (geo
 		}
 	}
 
+	// Planar only: a point outside the shell's bounding box is strictly
+	// outside the ring, so the O(ring) PointInRing walk can be skipped.
+	_, isPlanar := k.(planar.Kernel)
+	shellEnv := geom.EmptyEnvelope()
+	if isPlanar {
+		for _, v := range shell {
+			shellEnv = shellEnv.ExpandToInclude(geom.Envelope{MinX: v.X, MinY: v.Y, MaxX: v.X, MaxY: v.Y})
+		}
+	}
+
 	var found geom.XY
 	hit := false
 	visitVertices(other, func(q geom.XY) {
 		if hit {
+			return
+		}
+		if isPlanar && (q.X < shellEnv.MinX || q.X > shellEnv.MaxX || q.Y < shellEnv.MinY || q.Y > shellEnv.MaxY) {
 			return
 		}
 		if c := k.PointInRing(q, shell); c != kernel.Outside {
