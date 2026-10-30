@@ -103,11 +103,12 @@ func layoutSuffix(l geom.Layout) string {
 }
 
 func writeNumber(b *strings.Builder, f float64, c *config) {
+	var buf [32]byte
 	if c != nil && c.precision >= 0 {
-		b.WriteString(strconv.FormatFloat(f, 'f', c.precision, 64))
+		b.Write(strconv.AppendFloat(buf[:0], f, 'f', c.precision, 64))
 		return
 	}
-	b.WriteString(strconv.FormatFloat(f, 'g', -1, 64))
+	b.Write(strconv.AppendFloat(buf[:0], f, 'g', -1, 64))
 }
 
 // writeFlatPoint writes one stride-sized vertex starting at coords[off].

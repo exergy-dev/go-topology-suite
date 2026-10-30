@@ -343,34 +343,41 @@ func (p *parser) parsePoint() (geom.Geometry, error) {
 // stride 0 (untagged layout) reads numbers until the vertex ends at ',',
 // ')', or EOF, and the caller derives the layout from the returned length.
 func (p *parser) readCoord(stride int) ([]float64, error) {
+	return p.appendCoord(nil, stride)
+}
+
+// appendCoord is readCoord appending the ordinates to dst, so a caller
+// building a flat buffer allocates once rather than per vertex. On error
+// the returned slice is nil.
+func (p *parser) appendCoord(dst []float64, stride int) ([]float64, error) {
 	if stride == 0 {
 		start := p.pos
-		var out []float64
+		n := 0
 		for {
 			v, err := p.readNumber()
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, v)
+			dst = append(dst, v)
+			n++
 			p.skipWhitespace()
 			if p.pos >= len(p.src) || p.src[p.pos] == ',' || p.src[p.pos] == ')' {
 				break
 			}
 		}
-		if _, err := layoutForStride(len(out), start); err != nil {
+		if _, err := layoutForStride(n, start); err != nil {
 			return nil, err
 		}
-		return out, nil
+		return dst, nil
 	}
-	out := make([]float64, stride)
 	for i := 0; i < stride; i++ {
 		v, err := p.readNumber()
 		if err != nil {
 			return nil, err
 		}
-		out[i] = v
+		dst = append(dst, v)
 	}
-	return out, nil
+	return dst, nil
 }
 
 // readCoordSequence reads a parenthesised vertex list. stride 0 infers the
@@ -381,15 +388,24 @@ func (p *parser) readCoordSequence(stride int) ([]float64, int, error) {
 		return nil, 0, err
 	}
 	var out []float64
+	if stride > 0 {
+		// Pre-size from the comma count of the run up to the closing ')'.
+		end := strings.IndexByte(p.src[p.pos:], ')')
+		if end < 0 {
+			end = len(p.src) - p.pos
+		}
+		out = make([]float64, 0, (strings.Count(p.src[p.pos:p.pos+end], ",")+1)*stride)
+	}
 	for {
-		c, err := p.readCoord(stride)
+		before := len(out)
+		var err error
+		out, err = p.appendCoord(out, stride)
 		if err != nil {
 			return nil, 0, err
 		}
 		if stride == 0 {
-			stride = len(c)
+			stride = len(out) - before
 		}
-		out = append(out, c...)
 		p.skipWhitespace()
 		if p.pos >= len(p.src) {
 			return nil, 0, errors.New("wkt: unexpected EOF in coord sequence")
