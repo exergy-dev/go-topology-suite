@@ -4,18 +4,9 @@ import (
 	"math"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
-	"github.com/exergy-dev/go-topology-suite/index"
 	"github.com/exergy-dev/go-topology-suite/internal/geomath"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 )
-
-// edgeRef identifies a single directed edge of a prepared polygon by ring
-// index and the index of its first vertex within that ring (so the edge is
-// ring[vertex] -> ring[vertex+1]).
-type edgeRef struct {
-	ring   int32
-	vertex int32
-}
 
 // PreparedPolygon wraps a polygon with a pre-computed R-tree of its edges
 // to amortise the cost of repeated point-in-polygon and envelope-intersect
@@ -29,11 +20,11 @@ type edgeRef struct {
 type PreparedPolygon struct {
 	poly  *geom.Polygon
 	rings [][]geom.XY // cached per-ring vertex slices (avoids re-allocating)
-	tree  *index.RTree[edgeRef]
+	tree  *segTree
 	env   geom.Envelope
 }
 
-// Polygon builds a prepared form of p. Construction is O(n log n) in the
+// Polygon builds a prepared form of p. Construction is O(n) in the
 // total vertex count; subsequent queries are amortised O(log n + k) where
 // k is the number of edges actually intersected by the query envelope.
 //
@@ -46,7 +37,6 @@ func Polygon(p *geom.Polygon) *PreparedPolygon {
 	}
 	pp := &PreparedPolygon{
 		poly: p,
-		tree: index.New[edgeRef](),
 		env:  p.Envelope(),
 	}
 	numRings := p.NumRings()
@@ -64,22 +54,13 @@ func Polygon(p *geom.Polygon) *PreparedPolygon {
 	if totalEdges == 0 {
 		return pp
 	}
-	items := make([]index.Item[edgeRef], 0, totalEdges)
-	for ri, ring := range pp.rings {
-		if len(ring) < 2 {
-			continue
-		}
-		for vi := 0; vi < len(ring)-1; vi++ {
-			items = append(items, index.Item[edgeRef]{
-				Env: geom.SegmentEnvelope(ring[vi], ring[vi+1]),
-				Value: edgeRef{
-					ring:   int32(ri),
-					vertex: int32(vi),
-				},
-			})
+	segs := make([]seg, 0, totalEdges)
+	for _, ring := range pp.rings {
+		for vi := 0; vi+1 < len(ring); vi++ {
+			segs = append(segs, seg{ring[vi], ring[vi+1]})
 		}
 	}
-	pp.tree.Bulk(items)
+	pp.tree = newSegTree(segs)
 	return pp
 }
 
@@ -121,11 +102,8 @@ func (pp *PreparedPolygon) ContainsPoint(p geom.XY) kernel.Containment {
 	inside := false
 	onBoundary := false
 
-	pp.tree.Search(slab, func(it index.Item[edgeRef]) bool {
-		ring := pp.rings[it.Value.ring]
-		vi := int(it.Value.vertex)
-		a := ring[vi]
-		b := ring[vi+1]
+	pp.tree.query(slab, func(sg *seg) bool {
+		a, b := sg.a, sg.b
 
 		// Boundary coincidence first; this is a hard "OnBoundary" answer.
 		if geomath.OnSegment(p, a, b) {
@@ -177,7 +155,7 @@ func (pp *PreparedPolygon) IntersectsEnvelope(e geom.Envelope) bool {
 
 	// (a) any edge envelope hits e?
 	hit := false
-	pp.tree.Search(e, func(_ index.Item[edgeRef]) bool {
+	pp.tree.query(e, func(_ *seg) bool {
 		hit = true
 		return false
 	})

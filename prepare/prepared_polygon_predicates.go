@@ -2,7 +2,6 @@ package prepare
 
 import (
 	"github.com/exergy-dev/go-topology-suite/geom"
-	"github.com/exergy-dev/go-topology-suite/index"
 	"github.com/exergy-dev/go-topology-suite/internal/geomath"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
@@ -178,10 +177,8 @@ func (pp *PreparedPolygon) anySegmentOfHits(g geom.Geometry) bool {
 func (pp *PreparedPolygon) anyProperSegmentCrossing(g geom.Geometry) bool {
 	cross := false
 	walkSegments(g, func(a, b geom.XY) bool {
-		pp.tree.Search(geom.SegmentEnvelope(a, b), func(it index.Item[edgeRef]) bool {
-			ring := pp.rings[it.Value.ring]
-			vi := int(it.Value.vertex)
-			c, d := ring[vi], ring[vi+1]
+		pp.tree.query(geom.SegmentEnvelope(a, b), func(sg *seg) bool {
+			c, d := sg.a, sg.b
 			ip, ok := planar.Default().SegmentIntersection(a, b, c, d)
 			if !ok {
 				return true
@@ -201,10 +198,8 @@ func (pp *PreparedPolygon) anyProperSegmentCrossing(g geom.Geometry) bool {
 // segmentHitsAnyEdge: any candidate edge from the R-tree intersects [a,b].
 func (pp *PreparedPolygon) segmentHitsAnyEdge(a, b geom.XY) bool {
 	hit := false
-	pp.tree.Search(geom.SegmentEnvelope(a, b), func(it index.Item[edgeRef]) bool {
-		ring := pp.rings[it.Value.ring]
-		vi := int(it.Value.vertex)
-		if segmentsTouch(a, b, ring[vi], ring[vi+1]) {
+	pp.tree.query(geom.SegmentEnvelope(a, b), func(sg *seg) bool {
+		if segmentsTouch(a, b, sg.a, sg.b) {
 			hit = true
 			return false
 		}
