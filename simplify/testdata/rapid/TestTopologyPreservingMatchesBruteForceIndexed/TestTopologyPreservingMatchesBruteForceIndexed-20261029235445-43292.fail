@@ -1,0 +1,157 @@
+# 2026/10/29 23:54:45.634380 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw lines: 1
+# 2026/10/29 23:54:45.634397 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw n: 17
+# 2026/10/29 23:54:45.634398 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634398 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634398 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 2
+# 2026/10/29 23:54:45.634399 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 1
+# 2026/10/29 23:54:45.634399 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634399 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 1
+# 2026/10/29 23:54:45.634400 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634400 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 4
+# 2026/10/29 23:54:45.634401 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634401 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634402 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634402 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634403 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 1
+# 2026/10/29 23:54:45.634403 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 2
+# 2026/10/29 23:54:45.634403 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634403 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634404 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634404 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634405 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634405 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634406 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634406 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634406 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634407 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634407 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634407 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634407 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634408 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634408 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634408 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634409 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634409 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634409 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw x: 0
+# 2026/10/29 23:54:45.634410 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw y: 0
+# 2026/10/29 23:54:45.634411 [TestTopologyPreservingMatchesBruteForceIndexed] [rapid] draw tol: 1.75
+# 2026/10/29 23:54:45.634420 [TestTopologyPreservingMatchesBruteForceIndexed] differ tol=1.75
+# new MULTILINESTRING ((0 0, 2 1, 0 4, 0 0))
+# old MULTILINESTRING ((0 0, 2 1, 0 1, 0 4, 0 0, 0 0, 1 2, 0 0, 0 0))
+# 
+v0.4.8#9803935856522824954
+0x0
+0x0
+0x0
+0x0
+0x9867f1f40f739
+0xf
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x38e38e38e38e4
+0x2
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x6b74f03291620
+0x4
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x38e38e38e38e4
+0x2
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x2
+0xc000000000000
