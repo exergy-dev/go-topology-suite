@@ -898,10 +898,11 @@ func injectRingSelfContacts(ring []geom.XY) ([]geom.XY, bool) {
 	}
 	cur := ring
 	owned := false
+	var t ringSegTree // bounds buffer reused across passes
 	// Repeat until stable: each insertion may create new contacts. The
 	// pass cap bounds the number of insertions exactly as before.
 	for pass := 0; pass < 8; pass++ {
-		vi, si, ok := firstRingSelfContact(cur)
+		vi, si, ok := t.firstContact(cur)
 		if !ok {
 			break
 		}
@@ -919,68 +920,131 @@ func injectRingSelfContacts(ring []geom.XY) ([]geom.XY, bool) {
 	return cur, true
 }
 
-// firstRingSelfContact returns the lowest vertex index vi whose point
-// lies strictly inside some non-adjacent segment, and the lowest such
-// segment index si for that vertex. It is the index-accelerated
-// equivalent of a brute-force vi-then-si scan: segment envelopes are
-// bulk-loaded into an R-tree and each vertex probes only candidate
-// segments, which are then filtered with the original predicates.
-func firstRingSelfContact(out []geom.XY) (vi, si int, ok bool) {
-	nseg := len(out) - 1
-	items := make([]index.Item[int32], 0, nseg)
-	// Segments so small that cross-product underflow could make the
-	// exact test accept points far outside the envelope are always
-	// probed.
-	var tiny []int32
-	for s := 0; s < nseg; s++ {
-		a, b := out[s], out[s+1]
-		env := geom.SegmentEnvelope(a, b)
-		ext := math.Max(env.MaxX-env.MinX, env.MaxY-env.MinY)
-		if ext < 1e-100 {
-			tiny = append(tiny, int32(s))
-		}
-		mag := math.Max(math.Max(math.Abs(env.MinX), math.Abs(env.MaxX)),
-			math.Max(math.Abs(env.MinY), math.Abs(env.MaxY)))
-		pad := (mag + ext) * 1e-9
-		env.MinX -= pad
-		env.MinY -= pad
-		env.MaxX += pad
-		env.MaxY += pad
-		items = append(items, index.Item[int32]{Env: env, Value: int32(s)})
-	}
-	tree := index.New[int32]()
-	tree.Bulk(items)
+const ringSegFan = 16
 
-	check := func(vi, s int) bool {
-		// Skip segments that include this vertex as an endpoint.
-		if s == vi || s == vi-1 || (vi == 0 && s == len(out)-2) {
-			return false
-		}
-		a, b := out[s], out[s+1]
-		v := out[vi]
-		if a == v || b == v {
-			return false
-		}
-		return pointOnSegmentInterior(v, a, b)
+// ringSegTree is a flat, sort-free packed bounding tree over a ring's
+// consecutive segments (segment s = vertices s, s+1). Consecutive
+// segments are spatially coherent, so grouping them 16 at a time gives
+// a useful tree in O(n) with a single reusable float64 buffer. Bounds
+// are padded by a small relative epsilon so no candidate for the exact
+// pointOnSegmentInterior test is missed; segments so small that
+// cross-product underflow could accept far-away points get infinite
+// bounds and are therefore always probed.
+type ringSegTree struct {
+	buf  []float64 // 4 floats (minx,miny,maxx,maxy) per node, level 0 first
+	off  [16]int   // node offset of each level
+	cnt  [16]int   // node count of each level
+	nlev int
+	pts  []geom.XY
+}
+
+func ringSegBounds(a, b geom.XY) (minX, minY, maxX, maxY float64) {
+	minX, maxX = math.Min(a.X, b.X), math.Max(a.X, b.X)
+	minY, maxY = math.Min(a.Y, b.Y), math.Max(a.Y, b.Y)
+	ext := math.Max(maxX-minX, maxY-minY)
+	if ext < 1e-100 {
+		inf := math.Inf(1)
+		return -inf, -inf, inf, inf
 	}
-	for vi = 0; vi < len(out)-1; vi++ {
-		v := out[vi]
-		best := -1
-		tree.Search(geom.Envelope{MinX: v.X, MinY: v.Y, MaxX: v.X, MaxY: v.Y}, func(it index.Item[int32]) bool {
-			s := int(it.Value)
-			if (best < 0 || s < best) && check(vi, s) {
-				best = s
+	mag := math.Max(math.Max(math.Abs(minX), math.Abs(maxX)),
+		math.Max(math.Abs(minY), math.Abs(maxY)))
+	pad := (mag + ext) * 1e-9
+	return minX - pad, minY - pad, maxX + pad, maxY + pad
+}
+
+func (t *ringSegTree) build(pts []geom.XY) {
+	t.pts = pts
+	nseg := len(pts) - 1
+	n := (nseg + ringSegFan - 1) / ringSegFan
+	total := 0
+	t.nlev = 0
+	for {
+		t.off[t.nlev] = total
+		t.cnt[t.nlev] = n
+		total += n
+		t.nlev++
+		if n == 1 {
+			break
+		}
+		n = (n + ringSegFan - 1) / ringSegFan
+	}
+	if cap(t.buf) < total*4 {
+		t.buf = make([]float64, total*4)
+	}
+	t.buf = t.buf[:total*4]
+	inf := math.Inf(1)
+	for i := 0; i < t.cnt[0]; i++ {
+		mnx, mny, mxx, mxy := inf, inf, -inf, -inf
+		end := min((i+1)*ringSegFan, nseg)
+		for s := i * ringSegFan; s < end; s++ {
+			a, b, c, d := ringSegBounds(pts[s], pts[s+1])
+			mnx, mny = math.Min(mnx, a), math.Min(mny, b)
+			mxx, mxy = math.Max(mxx, c), math.Max(mxy, d)
+		}
+		o := (t.off[0] + i) * 4
+		t.buf[o], t.buf[o+1], t.buf[o+2], t.buf[o+3] = mnx, mny, mxx, mxy
+	}
+	for l := 1; l < t.nlev; l++ {
+		for i := 0; i < t.cnt[l]; i++ {
+			mnx, mny, mxx, mxy := inf, inf, -inf, -inf
+			end := min((i+1)*ringSegFan, t.cnt[l-1])
+			for c := i * ringSegFan; c < end; c++ {
+				o := (t.off[l-1] + c) * 4
+				mnx, mny = math.Min(mnx, t.buf[o]), math.Min(mny, t.buf[o+1])
+				mxx, mxy = math.Max(mxx, t.buf[o+2]), math.Max(mxy, t.buf[o+3])
 			}
-			return true
-		})
-		for _, t := range tiny {
-			s := int(t)
-			if (best < 0 || s < best) && check(vi, s) {
-				best = s
+			o := (t.off[l] + i) * 4
+			t.buf[o], t.buf[o+1], t.buf[o+2], t.buf[o+3] = mnx, mny, mxx, mxy
+		}
+	}
+}
+
+// find returns the lowest segment index whose interior contains
+// pts[vi] under the adjacency/endpoint rules, or -1. Children are
+// visited in ascending order, so the first hit is the minimum.
+func (t *ringSegTree) find(vi, level, node int) int {
+	v := t.pts[vi]
+	o := (t.off[level] + node) * 4
+	if v.X < t.buf[o] || v.X > t.buf[o+2] || v.Y < t.buf[o+1] || v.Y > t.buf[o+3] {
+		return -1
+	}
+	if level > 0 {
+		end := min((node+1)*ringSegFan, t.cnt[level-1])
+		for c := node * ringSegFan; c < end; c++ {
+			if r := t.find(vi, level-1, c); r >= 0 {
+				return r
 			}
 		}
-		if best >= 0 {
-			return vi, best, true
+		return -1
+	}
+	nseg := len(t.pts) - 1
+	end := min((node+1)*ringSegFan, nseg)
+	for s := node * ringSegFan; s < end; s++ {
+		// Skip segments that include this vertex as an endpoint.
+		if s == vi || s == vi-1 || (vi == 0 && s == len(t.pts)-2) {
+			continue
+		}
+		a, b := t.pts[s], t.pts[s+1]
+		if a == v || b == v {
+			continue
+		}
+		if pointOnSegmentInterior(v, a, b) {
+			return s
+		}
+	}
+	return -1
+}
+
+// firstContact returns the lowest vertex index vi whose point lies
+// strictly inside some non-adjacent segment, and the lowest such
+// segment index si for that vertex: the index-accelerated equivalent
+// of a brute-force vi-then-si scan.
+func (t *ringSegTree) firstContact(pts []geom.XY) (vi, si int, ok bool) {
+	t.build(pts)
+	top := t.nlev - 1
+	for vi = 0; vi < len(pts)-1; vi++ {
+		if s := t.find(vi, top, 0); s >= 0 {
+			return vi, s, true
 		}
 	}
 	return 0, 0, false
