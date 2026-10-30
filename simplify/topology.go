@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/index"
 	"github.com/exergy-dev/go-topology-suite/internal/geomath"
 	"github.com/exergy-dev/go-topology-suite/internal/overlayng"
 )
@@ -87,6 +88,7 @@ type taggedLine struct {
 	minSize int          // minimum result size in points: 4 for rings, 2 for open lines
 	alive   []bool       // alive[k]: input segment pts[k]..pts[k+1] still indexed
 	result  [][2]geom.XY // ordered result segments
+	resIDs  []int        // resIDs[i]: id of result[i] in the output index
 }
 
 // resultSize returns the result size in points, mirroring
@@ -98,8 +100,72 @@ func (t *taggedLine) resultSize() int {
 	return len(t.result) + 1
 }
 
-func (t *taggedLine) addToResult(a, b geom.XY) {
+func (t *taggedLine) addToResult(x *topoIndex, a, b geom.XY) {
 	t.result = append(t.result, [2]geom.XY{a, b})
+	t.resIDs = append(t.resIDs, x.addOutput(a, b))
+}
+
+// vref names a vertex or input segment: line index in topoIndex.all
+// and position within that line.
+type vref struct{ line, k int32 }
+
+// topoIndex holds the spatial indexes that prune the topology checks
+// to envelope-overlapping candidates. Results are identical to the
+// brute-force scans: pairs with disjoint envelopes can neither touch
+// nor have a vertex inside the loop.
+type topoIndex struct {
+	all     []*taggedLine
+	verts   *index.RTree[vref] // every vertex of every line (static)
+	input   *index.RTree[vref] // every input segment; filtered by alive[]
+	output  *index.RTree[int]  // packed snapshot of result segments, ids into outSegs
+	outBuf  []int              // result segments added since the last snapshot
+	outIdxN int                // number of ids covered by the snapshot
+	outSegs [][2]geom.XY
+	outDead []bool
+}
+
+func newTopoIndex(all []*taggedLine) *topoIndex {
+	x := &topoIndex{all: all, verts: index.New[vref](), input: index.New[vref](), output: index.New[int]()}
+	var vi, si []index.Item[vref]
+	for li, m := range all {
+		for k, p := range m.pts {
+			vi = append(vi, index.Item[vref]{Env: geom.Envelope{MinX: p.X, MinY: p.Y, MaxX: p.X, MaxY: p.Y}, Value: vref{int32(li), int32(k)}})
+			if k+1 < len(m.pts) {
+				si = append(si, index.Item[vref]{Env: geom.SegmentEnvelope(p, m.pts[k+1]), Value: vref{int32(li), int32(k)}})
+			}
+		}
+	}
+	x.verts.Bulk(vi)
+	x.input.Bulk(si)
+	return x
+}
+
+func (x *topoIndex) addOutput(a, b geom.XY) int {
+	id := len(x.outSegs)
+	x.outSegs = append(x.outSegs, [2]geom.XY{a, b})
+	x.outDead = append(x.outDead, false)
+	// Result segments grow over time and dynamic R-tree inserts are
+	// costly, so recent ones sit in a small linear buffer and are
+	// folded into a freshly packed tree once the buffer outgrows
+	// ~4*sqrt(n).
+	x.outBuf = append(x.outBuf, id)
+	if len(x.outBuf) > 64+4*int(math.Sqrt(float64(x.outIdxN))) {
+		x.rebuildOutput()
+	}
+	return id
+}
+
+func (x *topoIndex) rebuildOutput() {
+	items := make([]index.Item[int], 0, len(x.outSegs))
+	for id, s := range x.outSegs {
+		if !x.outDead[id] {
+			items = append(items, index.Item[int]{Env: geom.SegmentEnvelope(s[0], s[1]), Value: id})
+		}
+	}
+	x.output = index.New[int]()
+	x.output.Bulk(items)
+	x.outIdxN = len(x.outSegs)
+	x.outBuf = x.outBuf[:0]
 }
 
 // resultCoords rebuilds the vertex sequence from the ordered result
@@ -133,14 +199,15 @@ func simplifyChains(chains []chain, tol float64) [][]geom.XY {
 		}
 		lines[i] = &taggedLine{pts: c.pts, isRing: c.closed, minSize: minSize, alive: alive}
 	}
+	x := newTopoIndex(lines)
 
 	for _, ln := range lines {
 		if len(ln.pts) < 2 {
 			continue
 		}
-		simplifySection(ln, lines, 0, len(ln.pts)-1, 0, tol)
+		simplifySection(ln, x, 0, len(ln.pts)-1, 0, tol)
 		if ln.isRing && len(ln.pts) >= 4 && ln.pts[0] == ln.pts[len(ln.pts)-1] {
-			simplifyRingEndpoint(ln, lines, tol)
+			simplifyRingEndpoint(ln, x, tol)
 		}
 	}
 
@@ -161,10 +228,10 @@ func simplifyChains(chains []chain, tol float64) [][]geom.XY {
 // root when the ring minimum could not be guaranteed, even when a
 // precise count would allow it — fixture expectations depend on this
 // conservatism.
-func simplifySection(ln *taggedLine, all []*taggedLine, i, j, depth int, tol float64) {
+func simplifySection(ln *taggedLine, all *topoIndex, i, j, depth int, tol float64) {
 	depth++
 	if i+1 == j {
-		ln.addToResult(ln.pts[i], ln.pts[j])
+		ln.addToResult(all, ln.pts[i], ln.pts[j])
 		return
 	}
 
@@ -188,7 +255,7 @@ func simplifySection(ln *taggedLine, all []*taggedLine, i, j, depth int, tol flo
 		for k := i; k < j; k++ {
 			ln.alive[k] = false
 		}
-		ln.addToResult(ln.pts[i], ln.pts[j])
+		ln.addToResult(all, ln.pts[i], ln.pts[j])
 		return
 	}
 	simplifySection(ln, all, i, furthest, depth, tol)
@@ -199,7 +266,7 @@ func simplifySection(ln *taggedLine, all []*taggedLine, i, j, depth int, tol flo
 // TaggedLineStringSimplifier.simplifyRingEndpoint: after the main pass,
 // try to remove the (arbitrary) ring start/end vertex by replacing the
 // last and first result segments with their chord.
-func simplifyRingEndpoint(ln *taggedLine, all []*taggedLine, tol float64) {
+func simplifyRingEndpoint(ln *taggedLine, all *topoIndex, tol float64) {
 	if ln.resultSize() <= ln.minSize {
 		return
 	}
@@ -219,8 +286,12 @@ func simplifyRingEndpoint(ln *taggedLine, all []*taggedLine, tol float64) {
 	// them from the input set too.
 	retireInputSegment(ln, first)
 	retireInputSegment(ln, last)
+	all.outDead[ln.resIDs[0]] = true
+	all.outDead[ln.resIDs[len(ln.resIDs)-1]] = true
 	ln.result[0] = [2]geom.XY{simpA, simpB}
+	ln.resIDs[0] = all.addOutput(simpA, simpB)
 	ln.result = ln.result[:len(ln.result)-1]
+	ln.resIDs = ln.resIDs[:len(ln.resIDs)-1]
 }
 
 // retireInputSegment marks the input segment equal to s (if any) as no
@@ -256,7 +327,7 @@ func findFurthestPoint(pts []geom.XY, i, j int) (int, float64) {
 // segment, must not cross any still-alive input segment outside the
 // section being replaced, and must not jump over any other vertex
 // (winding-number sidedness check).
-func sectionTopologyValid(ln *taggedLine, all []*taggedLine, lo, hi int, a, b geom.XY) bool {
+func sectionTopologyValid(ln *taggedLine, all *topoIndex, lo, hi int, a, b geom.XY) bool {
 	if hasOutputIntersection(all, a, b) {
 		return false
 	}
@@ -274,7 +345,7 @@ func sectionTopologyValid(ln *taggedLine, all []*taggedLine, lo, hi int, a, b ge
 
 // ringEndpointTopologyValid ports the isTopologyValid overload used by
 // simplifyRingEndpoint. A collinear endpoint is trivially removable.
-func ringEndpointTopologyValid(ln *taggedLine, all []*taggedLine, endPt, a, b geom.XY) bool {
+func ringEndpointTopologyValid(ln *taggedLine, all *topoIndex, endPt, a, b geom.XY) bool {
 	if geomath.Orient(a, b, endPt) == 0 {
 		return true
 	}
@@ -288,53 +359,71 @@ func ringEndpointTopologyValid(ln *taggedLine, all []*taggedLine, endPt, a, b ge
 	return !hasJump(all, nil, 0, 0, loop)
 }
 
-func hasOutputIntersection(all []*taggedLine, a, b geom.XY) bool {
-	for _, m := range all {
-		for _, s := range m.result {
-			if geomath.SegmentsCrossOrTouch(a, b, s[0], s[1]) {
-				return true
-			}
+func hasOutputIntersection(x *topoIndex, a, b geom.XY) bool {
+	for _, id := range x.outBuf {
+		if x.outDead[id] {
+			continue
+		}
+		s := x.outSegs[id]
+		if geomath.SegmentsCrossOrTouch(a, b, s[0], s[1]) {
+			return true
 		}
 	}
-	return false
+	found := false
+	x.output.Search(geom.SegmentEnvelope(a, b), func(it index.Item[int]) bool {
+		if x.outDead[it.Value] {
+			return true
+		}
+		s := x.outSegs[it.Value]
+		if geomath.SegmentsCrossOrTouch(a, b, s[0], s[1]) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // hasInputIntersection scans still-alive input segments; segments of ln
 // inside [lo, hi) are the section being replaced and are excluded.
 // Pass ln == nil to scan every alive segment (ring-endpoint variant).
-func hasInputIntersection(all []*taggedLine, ln *taggedLine, lo, hi int, a, b geom.XY) bool {
-	for _, m := range all {
-		for k := 0; k+1 < len(m.pts); k++ {
-			if !m.alive[k] {
-				continue
-			}
-			if m == ln && k >= lo && k < hi {
-				continue
-			}
-			if geomath.SegmentsCrossOrTouch(a, b, m.pts[k], m.pts[k+1]) {
-				return true
-			}
+func hasInputIntersection(x *topoIndex, ln *taggedLine, lo, hi int, a, b geom.XY) bool {
+	found := false
+	x.input.Search(geom.SegmentEnvelope(a, b), func(it index.Item[vref]) bool {
+		m := x.all[it.Value.line]
+		k := int(it.Value.k)
+		if !m.alive[k] || (m == ln && k >= lo && k < hi) {
+			return true
 		}
-	}
-	return false
+		if geomath.SegmentsCrossOrTouch(a, b, m.pts[k], m.pts[k+1]) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // hasJump reports whether any vertex of any line (outside the section
 // being replaced) lies strictly inside the loop formed by the section
 // path plus the flattening chord — flattening would flip that vertex's
-// sidedness. Plays the role of JTS's ComponentJumpChecker.
-func hasJump(all []*taggedLine, ln *taggedLine, lo, hi int, loop []geom.XY) bool {
-	for _, m := range all {
-		for k, p := range m.pts {
-			if m == ln && k >= lo && k <= hi {
-				continue
-			}
-			if pointStrictlyInLoop(p, loop) {
-				return true
-			}
+// sidedness. Plays the role of JTS's ComponentJumpChecker. Only vertices
+// inside the loop's envelope can be strictly inside the loop.
+func hasJump(x *topoIndex, ln *taggedLine, lo, hi int, loop []geom.XY) bool {
+	found := false
+	x.verts.Search(geom.EnvelopeOfXY(loop), func(it index.Item[vref]) bool {
+		m := x.all[it.Value.line]
+		k := int(it.Value.k)
+		if m == ln && k >= lo && k <= hi {
+			return true
 		}
-	}
-	return false
+		if pointStrictlyInLoop(m.pts[k], loop) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
 }
 
 // pointStrictlyInLoop returns true if p has non-zero winding number
