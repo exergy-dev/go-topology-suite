@@ -40,19 +40,20 @@ func (Kernel) SegmentIntersection(a1, a2, b1, b2 geom.XY) (geom.XY, bool) {
 	sx := b2.X - b1.X
 	sy := b2.Y - b1.Y
 
-	denom := rx*sy - ry*sx
+	// float64(...) conversions forbid FMA fusion; see crossDiff.
+	denom := crossDiff(rx, sy, ry, sx)
 	if denom == 0 {
 		// Parallel or collinear; no unique intersection point.
 		return geom.XY{}, false
 	}
-	tNum := (b1.X-a1.X)*sy - (b1.Y-a1.Y)*sx
-	uNum := (b1.X-a1.X)*ry - (b1.Y-a1.Y)*rx
+	tNum := crossDiff(b1.X-a1.X, sy, b1.Y-a1.Y, sx)
+	uNum := crossDiff(b1.X-a1.X, ry, b1.Y-a1.Y, rx)
 	t := tNum / denom
 	u := uNum / denom
 	if t < 0 || t > 1 || u < 0 || u > 1 {
 		return geom.XY{}, false
 	}
-	return geom.XY{X: a1.X + t*rx, Y: a1.Y + t*ry}, true
+	return geom.XY{X: a1.X + float64(t*rx), Y: a1.Y + float64(t*ry)}, true
 }
 
 // SegmentIntersect is the structured form of SegmentIntersection. Unlike
@@ -76,11 +77,14 @@ func (k Kernel) SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersect
 	sx := b2.X - b1.X
 	sy := b2.Y - b1.Y
 
-	denom := rx*sy - ry*sx
+	// The parallel test (denom == 0) and the endpoint-snapping tests
+	// below (tNum == 0, tNum == denom, ...) are exact comparisons, so the
+	// products must be individually rounded; see crossDiff.
+	denom := crossDiff(rx, sy, ry, sx)
 	if denom != 0 {
 		// Single-point intersection candidate.
-		tNum := (b1.X-a1.X)*sy - (b1.Y-a1.Y)*sx
-		uNum := (b1.X-a1.X)*ry - (b1.Y-a1.Y)*rx
+		tNum := crossDiff(b1.X-a1.X, sy, b1.Y-a1.Y, sx)
+		uNum := crossDiff(b1.X-a1.X, ry, b1.Y-a1.Y, rx)
 		t := tNum / denom
 		u := uNum / denom
 		if t < 0 || t > 1 || u < 0 || u > 1 {
@@ -104,7 +108,7 @@ func (k Kernel) SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersect
 		}
 		return kernel.SegmentIntersectionResult{
 			Kind: kernel.PointIntersection,
-			P:    geom.XY{X: a1.X + t*rx, Y: a1.Y + t*ry},
+			P:    geom.XY{X: a1.X + float64(t*rx), Y: a1.Y + float64(t*ry)},
 		}
 	}
 
@@ -211,17 +215,20 @@ func SegmentIntersect(a1, a2, b1, b2 geom.XY) kernel.SegmentIntersectionResult {
 func (k Kernel) SegmentDistance(p, a, b geom.XY) float64 {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
-	lenSq := dx*dx + dy*dy
+	lenSq := float64(dx*dx) + float64(dy*dy)
 	if lenSq == 0 {
 		return k.Distance(p, a)
 	}
-	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / lenSq
+	// float64(...) conversions forbid FMA fusion (see crossDiff): callers
+	// test the result against exactly 0, and a fused a.X+t*dx can miss
+	// a point that lies exactly on the segment by one ulp.
+	t := (float64((p.X-a.X)*dx) + float64((p.Y-a.Y)*dy)) / lenSq
 	if t < 0 {
 		t = 0
 	} else if t > 1 {
 		t = 1
 	}
-	closest := geom.XY{X: a.X + t*dx, Y: a.Y + t*dy}
+	closest := geom.XY{X: a.X + float64(t*dx), Y: a.Y + float64(t*dy)}
 	return k.Distance(p, closest)
 }
 
@@ -233,8 +240,8 @@ func (k Kernel) SegmentDistance(p, a, b geom.XY) float64 {
 func (Kernel) PointToLinePerpendicular(p, a, b geom.XY) float64 {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
-	lenSq := dx*dx + dy*dy
-	s := ((a.Y-p.Y)*dx - (a.X-p.X)*dy) / lenSq
+	lenSq := float64(dx*dx) + float64(dy*dy)
+	s := crossDiff(a.Y-p.Y, dx, a.X-p.X, dy) / lenSq // unfused, as in JTS
 	return math.Abs(s) * math.Sqrt(lenSq)
 }
 
@@ -248,19 +255,20 @@ func (Kernel) PointToLinePerpendicular(p, a, b geom.XY) float64 {
 func (k Kernel) SegmentDistanceSq(p, a, b geom.XY) float64 {
 	dx := b.X - a.X
 	dy := b.Y - a.Y
-	lenSq := dx*dx + dy*dy
+	lenSq := float64(dx*dx) + float64(dy*dy)
 	if lenSq == 0 {
 		ex, ey := p.X-a.X, p.Y-a.Y
 		return ex*ex + ey*ey
 	}
-	t := ((p.X-a.X)*dx + (p.Y-a.Y)*dy) / lenSq
+	// Unfused like SegmentDistance; see crossDiff.
+	t := (float64((p.X-a.X)*dx) + float64((p.Y-a.Y)*dy)) / lenSq
 	if t < 0 {
 		t = 0
 	} else if t > 1 {
 		t = 1
 	}
-	cx := a.X + t*dx
-	cy := a.Y + t*dy
+	cx := a.X + float64(t*dx)
+	cy := a.Y + float64(t*dy)
 	ex, ey := p.X-cx, p.Y-cy
 	return ex*ex + ey*ey
 }
@@ -307,7 +315,7 @@ func (k Kernel) PointInRing(p geom.XY, ring []geom.XY) kernel.Containment {
 }
 
 func onSegment(p, a, b geom.XY) bool {
-	if (b.X-a.X)*(p.Y-a.Y)-(b.Y-a.Y)*(p.X-a.X) != 0 {
+	if crossDiff(b.X-a.X, p.Y-a.Y, b.Y-a.Y, p.X-a.X) != 0 {
 		return false
 	}
 	if p.X < math.Min(a.X, b.X) || p.X > math.Max(a.X, b.X) {
@@ -423,4 +431,21 @@ func (Kernel) AngleBetweenOriented(tip0, vertex, tip1 geom.XY) float64 {
 		return angDel - 2*math.Pi
 	}
 	return angDel
+}
+
+// crossDiff returns a*b - c*d with each product rounded to float64
+// before the subtraction.
+//
+// The explicit float64 conversions are NOT no-ops: the Go spec lets the
+// compiler fuse x*y - z into a single FMA (one rounding), and it does so
+// on arm64 (FMSUBD/FNMSUBD) but not on amd64. JTS, being Java, assumes
+// strict per-operation IEEE rounding, and so do the exact-equality tests
+// on the result here: for antiparallel or parallel inputs such as
+// (r, -r), round(rx*-ry) - round(ry*-rx) is exactly 0, while the fused
+// form returns the rounding error of rx*ry (e.g. -1.7e-11 instead of 0),
+// turning "parallel/collinear" into a spurious point intersection.
+// Converting each product forces it to be rounded, which makes the
+// arithmetic identical on every architecture.
+func crossDiff(a, b, c, d float64) float64 {
+	return float64(a*b) - float64(c*d)
 }

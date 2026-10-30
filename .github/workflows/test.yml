@@ -77,8 +77,14 @@ jobs:
           fi
 
   conformance:
-    name: JTS conformance (8951-case corpus)
-    runs-on: ubuntu-latest
+    name: JTS conformance (8951-case corpus, ${{ matrix.os }})
+    # macOS runners are arm64, where the compiler fuses x*y+z into FMA;
+    # running both catches arithmetic whose exact tests depend on that.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
