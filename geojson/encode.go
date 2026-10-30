@@ -99,11 +99,12 @@ func writeGeometry(b *strings.Builder, g geom.Geometry, c *config) error {
 }
 
 func writeNumber(b *strings.Builder, f float64, c *config) {
+	var scratch [40]byte
 	if c != nil && c.precision >= 0 {
-		b.WriteString(strconv.FormatFloat(f, 'f', c.precision, 64))
+		b.Write(strconv.AppendFloat(scratch[:0], f, 'f', c.precision, 64))
 		return
 	}
-	b.WriteString(strconv.FormatFloat(f, 'g', -1, 64))
+	b.Write(strconv.AppendFloat(scratch[:0], f, 'g', -1, 64))
 }
 
 // writeVertex writes [x, y] or [x, y, z] depending on layout. M is
