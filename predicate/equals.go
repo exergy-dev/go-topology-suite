@@ -3,6 +3,7 @@ package predicate
 import (
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/internal/flatref"
+	"github.com/exergy-dev/go-topology-suite/internal/relateng"
 )
 
 // Equals reports whether a and b describe the same point set.
@@ -44,7 +45,7 @@ func equalsWith[R relater](a, b geom.Geometry, c Option, r R) (bool, error) {
 	if pointZeroLengthLinePair(a, b) {
 		return false, nil
 	}
-	return r.relate(b).IsEquals(), nil
+	return r.evaluate(b, relateng.NewEqualsPredicate()), nil
 }
 
 func pointZeroLengthLinePair(a, b geom.Geometry) bool {

@@ -212,6 +212,10 @@ func relateViaNG(a, b geom.Geometry, rule BoundaryNodeRule) DE9IM {
 // costs nothing extra — no interface boxing, no heap-escaping closure.
 type relater interface {
 	relate(b geom.Geometry) DE9IM
+	// evaluate runs a single TopologyPredicate against b, stopping as
+	// soon as the predicate's value is known instead of building the
+	// whole matrix.
+	evaluate(b geom.Geometry, p relateng.TopologyPredicate) bool
 }
 
 // onceRelate is the free-function relater: relate(b) builds a fresh,
@@ -220,6 +224,14 @@ type relater interface {
 type onceRelate struct {
 	a   geom.Geometry
 	bnr BoundaryNodeRule
+}
+
+func (o onceRelate) evaluate(b geom.Geometry, p relateng.TopologyPredicate) bool {
+	return relateng.NewRelateNG(o.a, adaptBNR(o.bnr)).Evaluate(b, p)
+}
+
+func (r *RelateNG) evaluate(b geom.Geometry, p relateng.TopologyPredicate) bool {
+	return r.ng.Evaluate(b, p)
 }
 
 func (o onceRelate) relate(b geom.Geometry) DE9IM {

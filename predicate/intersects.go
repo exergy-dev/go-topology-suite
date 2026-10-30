@@ -2,6 +2,7 @@ package predicate
 
 import (
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/relateng"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
@@ -62,7 +63,7 @@ func intersectsWith[R relater](a, b geom.Geometry, c Option, r R) (bool, error) 
 	if hit, handled := pointArealIntersects(a, b, c.kernel); handled {
 		return hit, nil
 	}
-	return r.relate(b).IsIntersects(), nil
+	return r.evaluate(b, relateng.NewIntersectsPredicate()), nil
 }
 
 // Disjoint is the complement of Intersects.

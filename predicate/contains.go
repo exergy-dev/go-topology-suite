@@ -2,6 +2,7 @@ package predicate
 
 import (
 	"github.com/exergy-dev/go-topology-suite/geom"
+	"github.com/exergy-dev/go-topology-suite/internal/relateng"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 )
 
@@ -49,7 +50,7 @@ func containsWith[R relater](a, b geom.Geometry, c Option, r R) (bool, error) {
 			return pointInPolygon(pb.XY(), pa, c.kernel) == kernel.Inside, nil
 		}
 	}
-	return r.relate(b).IsContains(), nil
+	return r.evaluate(b, relateng.NewContainsPredicate()), nil
 }
 
 // Within is Contains with the operands swapped.
