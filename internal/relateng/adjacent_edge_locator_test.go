@@ -28,3 +28,16 @@ func TestAdjacentEdgeLocator_OuterBoundary_Boundary(t *testing.T) {
 	assert.Equal(t, LocBoundary, loc.Locate(geom.XY{X: 5, Y: 10}),
 		"Locate on outer edge should be LocBoundary(%d)", LocBoundary)
 }
+
+func TestAdjacentEdgeLocator_SharedBoundary_InexactProjection(t *testing.T) {
+	// JTS TestRelateGC.xml #11/#14: (4 2) is on the shared edge x=4 but
+	// its projection parameter on (4 6)-(4 1) is the inexact 0.8. A
+	// float-distance == 0 on-segment test missed it when the closest
+	// point computation was FMA-fused (arm64), reporting BOUNDARY.
+	g, err := wkt.Unmarshal("GEOMETRYCOLLECTION (POLYGON ((1 1, 1 6, 4 6, 4 1, 1 1)), POLYGON ((9 1, 4 1, 4 6, 9 6, 9 1)))")
+	require.NoError(t, err)
+	loc := NewAdjacentEdgeLocator(g)
+	for _, p := range []geom.XY{{X: 4, Y: 2}, {X: 4, Y: 3}, {X: 4, Y: 4}, {X: 4, Y: 5}} {
+		assert.Equal(t, LocInterior, loc.Locate(p), "Locate(%v)", p)
+	}
+}

@@ -2,7 +2,6 @@ package relateng
 
 import (
 	"github.com/exergy-dev/go-topology-suite/geom"
-	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
 
 // AdjacentEdgeLocator determines the location of a point that is known
@@ -106,9 +105,16 @@ func makeAdjacentSection(p, prev, next geom.XY) *NodeSection {
 // isOnSegmentStrict returns true when p lies strictly on the segment
 // (a, b), endpoints excluded. Endpoints are handled by the vertex case
 // in addSections.
+//
+// Uses the exact orientation + envelope test (isOnSegment), mirroring
+// JTS's PointLocation.isOnSegment, which decides via the robust
+// LineIntersector. A float distance compared against exactly 0 is not
+// a sound on-segment test: the closest-point reconstruction rounds
+// (e.g. p=(4,2) on (4,6)-(4,1) gives t=0.8, and 6 + 0.8*-5 is 2 or
+// 1.9999999999999998 depending on whether the compiler fuses it).
 func isOnSegmentStrict(p, a, b geom.XY) bool {
 	if p == a || p == b {
 		return false
 	}
-	return planar.Default().SegmentDistance(p, a, b) == 0
+	return isOnSegment(p, a, b)
 }
