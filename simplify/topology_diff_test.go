@@ -14,7 +14,7 @@ import (
 // brute-force implementation; the indexed version must match it exactly.
 
 func TestTopologyPreservingMatchesBruteForce(t *testing.T) {
-	for _, n := range []int{16, 64, 300, 1024} {
+	for _, n := range []int{16, 64, 300, 1024, 3000} {
 		g := benchfix.Star(n, 1000, 600)
 		for _, tol := range []float64{0.5, 5, 20, 100} {
 			a, b := TopologyPreserving(g, tol), TopologyPreservingOld(g, tol)
@@ -75,4 +75,14 @@ func ws(g geom.Geometry) string {
 		return err.Error()
 	}
 	return s
+}
+
+// TestTopologyPreservingMatchesBruteForceIndexed forces the indexed
+// path on small inputs by dropping the size gate to zero.
+func TestTopologyPreservingMatchesBruteForceIndexed(t *testing.T) {
+	old := indexThreshold
+	indexThreshold = 0
+	defer func() { indexThreshold = old }()
+	TestTopologyPreservingMatchesBruteForce(t)
+	TestTopologyPreservingMatchesBruteForceRandom(t)
 }
