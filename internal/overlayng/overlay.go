@@ -1,6 +1,7 @@
 package overlayng
 
 import (
+	"math"
 	"slices"
 
 	"github.com/exergy-dev/go-topology-suite"
@@ -895,47 +896,94 @@ func injectRingSelfContacts(ring []geom.XY) ([]geom.XY, bool) {
 	if len(ring) < 5 {
 		return ring, false
 	}
-	// Build a mutable copy.
-	out := append([]geom.XY(nil), ring...)
-	changed := false
-	// Repeat until stable: each insertion may create new contacts.
+	cur := ring
+	owned := false
+	// Repeat until stable: each insertion may create new contacts. The
+	// pass cap bounds the number of insertions exactly as before.
 	for pass := 0; pass < 8; pass++ {
-		passChanged := false
-		// For each vertex, find segments (not adjacent to it) whose
-		// interior it touches; insert into the first such segment.
-		for vi := 0; vi < len(out)-1; vi++ {
-			v := out[vi]
-			for si := 0; si+1 < len(out); si++ {
-				// Skip segments that include this vertex as an endpoint.
-				if si == vi || si == vi-1 || (vi == 0 && si == len(out)-2) {
-					continue
-				}
-				a, b := out[si], out[si+1]
-				if a == v || b == v {
-					continue
-				}
-				if !pointOnSegmentInterior(v, a, b) {
-					continue
-				}
-				// Insert v between si and si+1.
-				newRing := make([]geom.XY, 0, len(out)+1)
-				newRing = append(newRing, out[:si+1]...)
-				newRing = append(newRing, v)
-				newRing = append(newRing, out[si+1:]...)
-				out = newRing
-				passChanged = true
-				changed = true
-				break
-			}
-			if passChanged {
-				break
-			}
-		}
-		if !passChanged {
+		vi, si, ok := firstRingSelfContact(cur)
+		if !ok {
 			break
 		}
+		// Insert cur[vi] between si and si+1.
+		newRing := make([]geom.XY, 0, len(cur)+1)
+		newRing = append(newRing, cur[:si+1]...)
+		newRing = append(newRing, cur[vi])
+		newRing = append(newRing, cur[si+1:]...)
+		cur = newRing
+		owned = true
 	}
-	return out, changed
+	if !owned {
+		return ring, false
+	}
+	return cur, true
+}
+
+// firstRingSelfContact returns the lowest vertex index vi whose point
+// lies strictly inside some non-adjacent segment, and the lowest such
+// segment index si for that vertex. It is the index-accelerated
+// equivalent of a brute-force vi-then-si scan: segment envelopes are
+// bulk-loaded into an R-tree and each vertex probes only candidate
+// segments, which are then filtered with the original predicates.
+func firstRingSelfContact(out []geom.XY) (vi, si int, ok bool) {
+	nseg := len(out) - 1
+	items := make([]index.Item[int32], 0, nseg)
+	// Segments so small that cross-product underflow could make the
+	// exact test accept points far outside the envelope are always
+	// probed.
+	var tiny []int32
+	for s := 0; s < nseg; s++ {
+		a, b := out[s], out[s+1]
+		env := geom.SegmentEnvelope(a, b)
+		ext := math.Max(env.MaxX-env.MinX, env.MaxY-env.MinY)
+		if ext < 1e-100 {
+			tiny = append(tiny, int32(s))
+		}
+		mag := math.Max(math.Max(math.Abs(env.MinX), math.Abs(env.MaxX)),
+			math.Max(math.Abs(env.MinY), math.Abs(env.MaxY)))
+		pad := (mag + ext) * 1e-9
+		env.MinX -= pad
+		env.MinY -= pad
+		env.MaxX += pad
+		env.MaxY += pad
+		items = append(items, index.Item[int32]{Env: env, Value: int32(s)})
+	}
+	tree := index.New[int32]()
+	tree.Bulk(items)
+
+	check := func(vi, s int) bool {
+		// Skip segments that include this vertex as an endpoint.
+		if s == vi || s == vi-1 || (vi == 0 && s == len(out)-2) {
+			return false
+		}
+		a, b := out[s], out[s+1]
+		v := out[vi]
+		if a == v || b == v {
+			return false
+		}
+		return pointOnSegmentInterior(v, a, b)
+	}
+	for vi = 0; vi < len(out)-1; vi++ {
+		v := out[vi]
+		best := -1
+		tree.Search(geom.Envelope{MinX: v.X, MinY: v.Y, MaxX: v.X, MaxY: v.Y}, func(it index.Item[int32]) bool {
+			s := int(it.Value)
+			if (best < 0 || s < best) && check(vi, s) {
+				best = s
+			}
+			return true
+		})
+		for _, t := range tiny {
+			s := int(t)
+			if (best < 0 || s < best) && check(vi, s) {
+				best = s
+			}
+		}
+		if best >= 0 {
+			return vi, best, true
+		}
+	}
+	return 0, 0, false
 }
 
 // assemblePolygonResult turns a (first, rest) pair into a single
