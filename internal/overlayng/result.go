@@ -38,23 +38,25 @@ func extractResultRings(d *DCEL) [][]geom.XY {
 	// Union-find over kept faces. Faces are joined when they share an
 	// interior edge (both halves kept). Pinch-point-only contact does
 	// NOT join (no shared edge — only a shared vertex).
-	parent := map[*Face]*Face{}
+	// parent is dense, keyed by Face.index (set by traceFaceCycles);
+	// nil means "not yet seen", matching the former map's zero value.
+	parent := make([]*Face, len(d.Faces))
 	var find func(f *Face) *Face
 	find = func(f *Face) *Face {
-		if parent[f] == nil {
-			parent[f] = f
+		if parent[f.index] == nil {
+			parent[f.index] = f
 		}
-		if parent[f] == f {
+		if parent[f.index] == f {
 			return f
 		}
-		root := find(parent[f])
-		parent[f] = root
+		root := find(parent[f.index])
+		parent[f.index] = root
 		return root
 	}
 	union := func(a, b *Face) {
 		ra, rb := find(a), find(b)
 		if ra != rb {
-			parent[ra] = rb
+			parent[ra.index] = rb
 		}
 	}
 	for _, f := range d.Faces {
@@ -71,39 +73,64 @@ func extractResultRings(d *DCEL) [][]geom.XY {
 		}
 	}
 
-	var allBoundary []*HalfEdge
+	nBoundary := 0
+	for _, e := range d.Edges {
+		if isBoundary(e) {
+			nBoundary++
+		}
+	}
+	if nBoundary == 0 {
+		return nil
+	}
+	allBoundary := make([]*HalfEdge, 0, nBoundary)
 	for _, e := range d.Edges {
 		if isBoundary(e) {
 			allBoundary = append(allBoundary, e)
 		}
 	}
-	if len(allBoundary) == 0 {
-		return nil
-	}
 
-	visited := map[*HalfEdge]bool{}
+	// visited is dense over half-edges (HalfEdge.index == position in
+	// d.Edges). Ring coordinates are gathered in a reused scratch
+	// buffer and copied into a shared arena, each ring handed out as a
+	// 3-index slice (cap == len). A ring has len(points)+1 entries and
+	// at least 3 points, so 2*nBoundary bounds the arena; the make
+	// fallback is unreachable but keeps the code obviously safe.
+	visited := make([]bool, len(d.Edges))
 	var rings [][]geom.XY
+	arena := make([]geom.XY, 0, 2*nBoundary)
+	var scratch []geom.XY
 	for _, start := range allBoundary {
-		if visited[start] {
+		if visited[start.index] {
 			continue
 		}
-		var ring []geom.XY
+		scratch = scratch[:0]
 		cur := start
 		const maxSteps = 1 << 20
 		for steps := 0; steps < maxSteps; steps++ {
-			if visited[cur] {
+			if visited[cur.index] {
 				break
 			}
-			visited[cur] = true
-			ring = append(ring, cur.Origin.P)
+			visited[cur.index] = true
+			scratch = append(scratch, cur.Origin.P)
 			next := nextBoundaryAtVertex(cur, isBoundary, find)
 			if next == nil || next == start {
 				break
 			}
 			cur = next
 		}
-		if len(ring) >= 3 {
-			ring = append(ring, ring[0])
+		if len(scratch) >= 3 {
+			n := len(scratch) + 1
+			var ring []geom.XY
+			if len(arena)+n <= cap(arena) {
+				base := len(arena)
+				arena = append(arena, scratch...)
+				arena = append(arena, scratch[0])
+				ring = arena[base : base+n : base+n]
+			} else {
+				ring = make([]geom.XY, 0, n)
+				ring = append(ring, scratch...)
+				ring = append(ring, scratch[0])
+			}
 			rings = append(rings, ring)
 		}
 	}

@@ -387,9 +387,12 @@ func polygonRingsAreSimple(p *geom.Polygon) bool {
 	if p == nil || p.IsEmpty() {
 		return true
 	}
+	// ringHasUniqueInteriorVertices does not retain its argument, so one
+	// scratch buffer serves every ring.
+	var buf []geom.XY
 	for r := 0; r < p.NumRings(); r++ {
-		ring := p.Ring(r)
-		if !ringHasUniqueInteriorVertices(ring) {
+		buf = p.RingInto(buf, r)
+		if !ringHasUniqueInteriorVertices(buf) {
 			return false
 		}
 	}

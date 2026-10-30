@@ -159,6 +159,26 @@ func BuildMonotoneChains(ss *SegmentString) []*MonotoneChain {
 	return chains
 }
 
+// appendMonotoneChains is BuildMonotoneChains with value chains appended
+// to dst, so a caller building chains for many strings can carve them all
+// from one slab.
+func appendMonotoneChains(dst []MonotoneChain, ss *SegmentString) []MonotoneChain {
+	pts := ss.Coords
+	if len(pts) < 2 {
+		return dst
+	}
+	chainStart := 0
+	for {
+		chainEnd := findChainEnd(pts, chainStart)
+		dst = append(dst, MonotoneChain{Pts: pts, Start: chainStart, End: chainEnd, Tag: ss.Tag})
+		chainStart = chainEnd
+		if chainStart >= len(pts)-1 {
+			break
+		}
+	}
+	return dst
+}
+
 // findChainEnd returns the index of the last vertex of the monotone
 // chain starting at start. Mirrors JTS MonotoneChainBuilder.findChainEnd:
 // zero-length segments are silently absorbed (they cannot define a

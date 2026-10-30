@@ -47,112 +47,133 @@ func (n MCIndexNoder) Node(input []*SegmentString) []*SegmentString {
 		t float64
 		p geom.XY
 	}
-	splits := make([][][]split, len(input))
+	// Candidate splits are recorded in insertion order in one flat list
+	// (seg = global segment index) and bucketed per segment by a stable
+	// counting sort afterwards: O(1) allocations instead of a slice per
+	// segment, with each segment's splits in exactly the order a
+	// per-segment append would have produced.
+	type splitRec struct {
+		seg int
+		split
+	}
+	segOff := make([]int, len(input)+1)
 	totalSegs := 0
 	for i, ss := range input {
-		ns := ss.NumSegments()
-		splits[i] = make([][]split, ns)
-		totalSegs += ns
+		segOff[i] = totalSegs
+		totalSegs += ss.NumSegments()
 	}
+	segOff[len(input)] = totalSegs
 	if totalSegs == 0 {
 		return passThrough(input)
 	}
 
-	// totalSplits counts add()'s successful insertions as they happen —
-	// reused below to size the output arena slab without a second pass
-	// over the splits table.
-	totalSplits := 0
+	var recs []splitRec
 	add := func(i, j int, t float64, p geom.XY) {
 		const eps = 1e-12
 		if t <= eps || t >= 1-eps {
 			return
 		}
-		splits[i][j] = append(splits[i][j], split{t: t, p: p})
-		totalSplits++
+		recs = append(recs, splitRec{seg: segOff[i] + j, split: split{t: t, p: p}})
 	}
 
-	// Build chains and a map from chain-id -> (string-index, chain
-	// pointer). Chain ids are assigned sequentially so we can do
-	// pair-ordering ("only test chains where mine.id < other.id")
-	// inside the index callback.
-	type chainRef struct {
-		id        int
-		stringIdx int
-		mc        *MonotoneChain
-	}
-	var refs []*chainRef
-	items := make([]index.Item[*chainRef], 0, totalSegs)
-	idCounter := 0
+	// Build chains by value into one slab (indices are the chain ids,
+	// assigned sequentially so the pair-ordering test "target.id >
+	// query.id" below is a plain index comparison). Pointers into the
+	// slab are only taken after it is complete.
+	chains := make([]MonotoneChain, 0, len(input)+totalSegs/4)
+	chainStr := make([]int32, 0, cap(chains))
 	for i, ss := range input {
-		chains := BuildMonotoneChains(ss)
-		for _, mc := range chains {
-			ref := &chainRef{id: idCounter, stringIdx: i, mc: mc}
-			mc.ID = idCounter
-			idCounter++
-			refs = append(refs, ref)
-			items = append(items, index.Item[*chainRef]{
-				Env:   mc.EnvelopeExpanded(n.OverlapTolerance),
-				Value: ref,
-			})
+		before := len(chains)
+		chains = appendMonotoneChains(chains, ss)
+		for k := before; k < len(chains); k++ {
+			chains[k].ID = k
+			chainStr = append(chainStr, int32(i))
 		}
 	}
-	tree := index.New[*chainRef]()
+	items := make([]index.Item[int], len(chains))
+	for k := range chains {
+		items[k] = index.Item[int]{Env: chains[k].EnvelopeExpanded(n.OverlapTolerance), Value: k}
+	}
+	tree := index.New[int]()
 	tree.Bulk(items)
 
 	// For each chain query the index for chain envelopes that overlap
 	// (with tolerance), then drill into each candidate pair via the
 	// chain's own binary subdivision. The chain-pair overlap action
 	// passes a candidate segment pair to the precise intersection test.
-	for _, qref := range refs {
-		queryEnv := qref.mc.EnvelopeExpanded(n.OverlapTolerance)
-		tree.Search(queryEnv, func(it index.Item[*chainRef]) bool {
-			tref := it.Value
-			// Pair-ordering: only test chains where target.id > query.id.
-			// (JTS uses strict >, which also excludes self by definition.)
-			if tref.id <= qref.id {
-				return true
+	// The two callbacks are hoisted out of the per-chain loop (they read
+	// the current pair through qi/ti) so no closure is allocated per
+	// query or per candidate chain pair.
+	var qi, ti int
+	visit := func(mc1 *MonotoneChain, s1 int, mc2 *MonotoneChain, s2 int) {
+		i1 := int(chainStr[qi])
+		i2 := int(chainStr[ti])
+		j1 := s1
+		j2 := s2
+		ss1 := input[i1]
+		ss2 := input[i2]
+
+		// Intra-string adjacency: the binary-subdivision
+		// recursion can land on adjacent segments of the same
+		// string (when two chains in that string meet). Skip
+		// them: they share a vertex by construction.
+		if i1 == i2 && (j2 == j1+1 || j1 == j2+1) {
+			return
+		}
+		// Pair-ordering inside one string: avoid testing the
+		// same unordered (j1, j2) pair twice when the same
+		// chain pair is processed in both directions.
+		if i1 == i2 && j1 == j2 {
+			return
+		}
+
+		a1, a2 := ss1.Segment(j1)
+		b1, b2 := ss2.Segment(j2)
+		res := planar.SegmentIntersect(a1, a2, b1, b2)
+		switch res.Kind {
+		case kernel.NoIntersection:
+			return
+		case kernel.PointIntersection:
+			add(i1, j1, segmentParam(a1, a2, res.P), res.P)
+			add(i2, j2, segmentParam(b1, b2, res.P), res.P)
+		case kernel.CollinearOverlap:
+			for _, pt := range [2]geom.XY{res.P, res.Q} {
+				add(i1, j1, segmentParam(a1, a2, pt), pt)
+				add(i2, j2, segmentParam(b1, b2, pt), pt)
 			}
-			qref.mc.ComputeOverlaps(tref.mc, n.OverlapTolerance, func(mc1 *MonotoneChain, s1 int, mc2 *MonotoneChain, s2 int) {
-				i1 := qref.stringIdx
-				i2 := tref.stringIdx
-				j1 := s1
-				j2 := s2
-				ss1 := input[i1]
-				ss2 := input[i2]
-
-				// Intra-string adjacency: the binary-subdivision
-				// recursion can land on adjacent segments of the same
-				// string (when two chains in that string meet). Skip
-				// them — they share a vertex by construction.
-				if i1 == i2 && (j2 == j1+1 || j1 == j2+1) {
-					return
-				}
-				// Pair-ordering inside one string: avoid testing the
-				// same unordered (j1, j2) pair twice when the same
-				// chain pair is processed in both directions.
-				if i1 == i2 && j1 == j2 {
-					return
-				}
-
-				a1, a2 := ss1.Segment(j1)
-				b1, b2 := ss2.Segment(j2)
-				res := planar.SegmentIntersect(a1, a2, b1, b2)
-				switch res.Kind {
-				case kernel.NoIntersection:
-					return
-				case kernel.PointIntersection:
-					add(i1, j1, segmentParam(a1, a2, res.P), res.P)
-					add(i2, j2, segmentParam(b1, b2, res.P), res.P)
-				case kernel.CollinearOverlap:
-					for _, pt := range [2]geom.XY{res.P, res.Q} {
-						add(i1, j1, segmentParam(a1, a2, pt), pt)
-						add(i2, j2, segmentParam(b1, b2, pt), pt)
-					}
-				}
-			})
-			return true
-		})
+		}
 	}
+	search := func(it index.Item[int]) bool {
+		// Pair-ordering: only test chains where target.id > query.id.
+		// (JTS uses strict >, which also excludes self by definition.)
+		if it.Value <= qi {
+			return true
+		}
+		ti = it.Value
+		chains[qi].ComputeOverlaps(&chains[ti], n.OverlapTolerance, visit)
+		return true
+	}
+	for q := range chains {
+		qi = q
+		tree.Search(chains[q].EnvelopeExpanded(n.OverlapTolerance), search)
+	}
+
+	// Stable bucket of recs by segment: counts -> offsets -> placement.
+	totalSplits := len(recs)
+	cnt := make([]int32, totalSegs+1)
+	for _, r := range recs {
+		cnt[r.seg+1]++
+	}
+	for k := 1; k <= totalSegs; k++ {
+		cnt[k] += cnt[k-1]
+	}
+	bucketed := make([]split, len(recs))
+	fill := make([]int32, totalSegs)
+	for _, r := range recs {
+		bucketed[cnt[r.seg]+fill[r.seg]] = r.split
+		fill[r.seg]++
+	}
+	segSplits := func(g int) []split { return bucketed[cnt[g]:cnt[g+1]:cnt[g+1]] }
 
 	// Emit pieces — identical construction to SimpleNoder.
 	//
@@ -174,23 +195,35 @@ func (n MCIndexNoder) Node(input []*SegmentString) []*SegmentString {
 	// allocation, mirroring the DCEL slab's alloc* fallback pattern.
 	slab := make([]geom.XY, 0, totalSegs+len(input)+2*totalSplits)
 
-	out := make([]*SegmentString, 0, len(input))
+	// Output SegmentString headers come from one slab as well. Every
+	// emitted piece beyond a string's first is preceded by a retained
+	// split, so len(input)+totalSplits bounds the piece count; the
+	// capacity is fixed so the pointers handed out stay valid, and the
+	// heap-allocation fallback keeps it correct regardless.
+	ssSlab := make([]SegmentString, 0, len(input)+totalSplits)
+	newSS := func(coords []geom.XY, tag int) *SegmentString {
+		if len(ssSlab) < cap(ssSlab) {
+			ssSlab = append(ssSlab, SegmentString{Coords: coords, Tag: tag})
+			return &ssSlab[len(ssSlab)-1]
+		}
+		return &SegmentString{Coords: coords, Tag: tag}
+	}
+	out := make([]*SegmentString, 0, len(input)+totalSplits)
+	var nodes []geom.XY
+	var breaks []bool
 	for i, ss := range input {
 		ns := ss.NumSegments()
 		if ns == 0 {
-			out = append(out, &SegmentString{
-				Coords: append([]geom.XY(nil), ss.Coords...),
-				Tag:    ss.Tag,
-			})
+			out = append(out, newSS(append([]geom.XY(nil), ss.Coords...), ss.Tag))
 			continue
 		}
-		nodes := make([]geom.XY, 0, len(ss.Coords))
-		breaks := make([]bool, 0, len(ss.Coords))
+		nodes = nodes[:0]
+		breaks = breaks[:0]
 		for j := 0; j < ns; j++ {
 			a, _ := ss.Segment(j)
 			nodes = append(nodes, a)
 			breaks = append(breaks, false)
-			ints := splits[i][j]
+			ints := segSplits(segOff[i] + j)
 			if len(ints) > 0 {
 				slices.SortFunc(ints, func(a, b split) int { return cmp.Compare(a.t, b.t) })
 				for k, s := range ints {
@@ -218,7 +251,7 @@ func (n MCIndexNoder) Node(input []*SegmentString) []*SegmentString {
 					pieceCoords = make([]geom.XY, plen)
 					copy(pieceCoords, nodes[start:k+1])
 				}
-				out = append(out, &SegmentString{Coords: pieceCoords, Tag: ss.Tag})
+				out = append(out, newSS(pieceCoords, ss.Tag))
 				start = k
 			}
 		}

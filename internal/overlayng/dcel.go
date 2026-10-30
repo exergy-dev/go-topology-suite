@@ -462,21 +462,28 @@ func (d *DCEL) traceFaceCycles() {
 		d.faceBacking = make([]Face, 0, est)
 		d.Faces = make([]*Face, 0, est)
 	}
+	// Every half-edge belongs to exactly one face cycle, so all cycles
+	// together hold exactly len(d.Edges) entries: one shared backing
+	// array, carved into per-face 3-index slices (cap == len, so a
+	// later append reallocates instead of clobbering the next face).
+	arena := make([]*HalfEdge, 0, len(d.Edges))
 	for _, e := range d.Edges {
 		if e.Face != nil {
 			continue
 		}
 		f := d.allocFace()
 		f.index = len(d.Faces)
+		start := len(arena)
 		cur := e
 		for {
 			cur.Face = f
-			f.Edges = append(f.Edges, cur)
+			arena = append(arena, cur)
 			cur = cur.next
 			if cur == nil || cur == e {
 				break
 			}
 		}
+		f.Edges = arena[start:len(arena):len(arena)]
 		d.Faces = append(d.Faces, f)
 	}
 }

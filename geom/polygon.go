@@ -24,6 +24,28 @@ type Polygon struct {
 func NewPolygon[C Coord](c *crs.CRS, rings ...[]C) *Polygon {
 	layout := layoutOf[C]()
 	stride := layout.Stride()
+	if xyRings, ok := any(rings).([][]XY); ok {
+		// Fast path: write straight into the flat buffer instead of
+		// building a temporary flattened slice per ring.
+		totalVerts := 0
+		for _, r := range xyRings {
+			totalVerts += len(r)
+		}
+		flat := make([]float64, 0, 2*totalVerts)
+		starts := make([]int, 0, len(xyRings))
+		off := 0
+		for _, r := range xyRings {
+			starts = append(starts, off)
+			for _, p := range r {
+				flat = append(flat, p.X, p.Y)
+			}
+			off += len(r)
+		}
+		return &Polygon{
+			baseGeom:   baseGeom{layout: layout, coords: flat, crs: c},
+			ringStarts: starts,
+		}
+	}
 	totalVerts := 0
 	for _, r := range rings {
 		totalVerts += len(r)

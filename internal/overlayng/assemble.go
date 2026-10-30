@@ -255,8 +255,11 @@ func AssembleOutputPolygons(c *crs.CRS, rings [][]geom.XY) (*geom.Polygon, []*ge
 
 	// Build a polygon per group.
 	polys := make([]*geom.Polygon, 0, len(groups))
+	// NewPolygon copies its ring arguments, so the per-group ring lists
+	// can share one scratch slice.
+	var all [][]geom.XY
 	for _, g := range groups {
-		all := make([][]geom.XY, 0, 1+len(g.holes))
+		all = all[:0]
 		all = append(all, rings[g.outer])
 		for _, h := range g.holes {
 			all = append(all, rings[h])

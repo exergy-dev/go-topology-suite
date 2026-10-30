@@ -430,7 +430,17 @@ func needsCanonicalize(first *geom.Polygon, rest []*geom.Polygon) bool {
 		poly int32
 		hole bool
 	}
-	rings := make([]ringRec, 0, len(all))
+	nRingsTotal, nVertsTotal := 0, 0
+	for _, p := range all {
+		for r := 0; r < p.NumRings(); r++ {
+			nRingsTotal++
+			nVertsTotal += p.RingLen(r)
+		}
+	}
+	rings := make([]ringRec, 0, nRingsTotal)
+	// All rings are materialised into one arena (each handed out as a
+	// 3-index slice, so they stay disjoint) instead of one slice apiece.
+	arena := make([]geom.XY, 0, nVertsTotal)
 	anyHoles := false
 	totalSegs := 0
 	var scratch []vertexKey
@@ -440,7 +450,10 @@ func needsCanonicalize(first *geom.Polygon, rest []*geom.Polygon) bool {
 			anyHoles = true
 		}
 		for r := 0; r < nr; r++ {
-			ring := p.Ring(r)
+			base := len(arena)
+			ring := p.RingInto(arena[base:base], r)
+			arena = arena[:base+len(ring)]
+			ring = ring[:len(ring):len(ring)]
 			rings = append(rings, ringRec{pts: ring, poly: int32(pi), hole: r > 0})
 			totalSegs += len(ring) - 1
 			if r == 0 && ringRepeatsInteriorVertex(ring, &scratch) {
