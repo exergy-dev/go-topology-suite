@@ -41,6 +41,7 @@ not a result.
 |---|---|---|---|
 | Baseline | `2026-07-10-baseline/` | `06e534b0` (bench suite, pre-fix) | `27081c9c` |
 | Final | `2026-07-10-final/` | `11b2b019` (all 3 fixes) | `dbf73e22`; `compare.txt` recaptured as `86c2e95b` |
+| 2026-10-30 lean wave | `2026-10-30-m3-lean-wins/` | main `6c6d023` vs `perf/lean-wins` (9 changes) | this commit; Apple M3, interleaved |
 
 **GEOS crash caveat.** The first final `compare.txt` capture died mid-run
 with a **SIGFPE inside native GEOS 3.10.2** during
@@ -124,6 +125,250 @@ column: 4446.2ms at the 2026-07-10 baseline, 547.2ms after that pass
 (2026-07-10-final), 92.6ms after the 2026-07-11 wave below — from ~20.9x
 slower than simplefeatures to ~2.4x faster.
 ## Optimization log
+
+### 2026-10-30 wave — "lean wins": scaling fixes under a memory ceiling
+
+**Machine and method differ from the rest of this document.** Apple M3
+(8 cores, macOS), Go 1.23.1 for the main module and the go1.25 toolchain for
+the `bench` module via GOTOOLCHAIN=auto. Every table here is `benchstat` over
+count=6 of `main` (`6c6d023`) against branch `perf/lean-wins`. The macro and
+cross-implementation tables used *interleaved* runs of two prebuilt test
+binaries (main, branch, main, branch, ...) to cancel machine drift after a
+first pass was contaminated by an unrelated process; the micro tables were
+run back-to-back on an otherwise idle machine. Raw files:
+`bench/results/2026-10-30-m3-lean-wins/` (`micro-*.txt`, `macro-*.txt`,
+`compare-*.txt`, plus the `*-benchstat.txt` outputs quoted below).
+
+**Constraint.** The user's rule for this wave was "no improvement may balloon
+memory": bytes/op had to stay within 1.3x of main. Three changes that
+initially traded memory for time (indexed Distance at 20x bytes, indexed
+TopologyPreserving at 7x, indexed simplify repair at +62%) were reworked onto
+flat, pooled, sort-free structures until they met it; all three now *lower*
+bytes/op at the sizes benchmarked except TopologyPreserving n=8192 (+5%) and
+Validate on jagged stars (+15%). One candidate was **held out** for the same
+reason: capping the convex Sutherland–Hodgman fast path in
+`overlay/overlay.go` by segment-pair count (-48% at n=1024, -94% at n=8192 on
+Intersection/ngon) routes large inputs onto the general overlay path, whose
+allocation footprint is 18–37x the alloc-free fast path's. It is correct and
+measured (worktree branch `worktree-agent-af2bdae9ef6264284`, commit
+`21cedc4`) but not merged.
+
+**Process.** Profiling of the full suite (120 micro + 7 macro + compare)
+found six paths with quadratic or worse scaling, each pinned by a CPU profile
+to one brute-force loop. Each fix was implemented by a separate agent in its
+own worktree, gated on byte-identical output (a differential test against the
+retained old implementation, usually with `pgregory.net/rapid`), the full
+test suite, and the JTS corpus (8951/8942/9 throughout), then A/B-benchmarked
+by the orchestrator. Agent-reported numbers were treated as direction only;
+every figure below is from the orchestrator's runs.
+
+**What landed** (9 changes, 15 commits, in branch order):
+
+| Area | Mechanism | Headline (main → branch) | Bytes/op |
+|---|---|---|---|
+| `predicate` early exit | `Intersects`/`Disjoint`/`Contains`/`Within`/`Equals` evaluate their RelateNG predicate via `Evaluate`; scan stops when the result is known | IntersectsCold poly-poly n=1024 2.79 ms → 0.59 ms (-79%); RelateNGReuse -51% | -22% to -52% |
+| `wkt` codec | ordinates appended into one flat buffer; `AppendFloat` on encode | Unmarshal n=1024 1,043 → 18 allocs (-6%); Marshal 2,071 → 21 (-21%) | -12% to -57% |
+| `geojson` codec | streaming `coordinates` scanner; `AppendFloat` on encode | Unmarshal n=1024 988 µs → 380 µs (-62%), 6,198 → 20 allocs | -20% to -90% |
+| `overlayng`/`noding` allocs | face-edge arena, flat split records, chain slab, dense union-find, `NewPolygon` `[][]XY` fast path | star overlays -8% to -15% time, -85% to -90% allocs; Union/ngon -40% | -1% to -30% |
+| `prepare.Polygon` | sort-free packed segment tree, 8-edge leaves, precomputed envelopes | build n=1024 123 µs → 12 µs (-91%); ContainsPoint -38% | -40% to -70% |
+| `overlayng` simplify repair | flat packed segment tree for `injectRingSelfContacts`, reused across passes | Simplify n=1024 2.66 ms → 0.32 ms (-88%) | -10% to -19% |
+| `simplify.TopologyPreserving` | flat block trees for jump/crossing checks above 1,536 vertices; lazy build | n=8192 295 ms → 14 ms (-95%); n=1024 -87% (shared repair fix) | -12% (n=1024), +5% (n=8192) |
+| `measure.Distance` | pooled x-sorted facet sweep with envelope-gap pruning; bit-identical | n=1024 38 ms → 0.16 ms (-99.6%); 2 → 0 allocs | -100% |
+| `validate` self-intersection | slab-allocated monotone chains, closure-free sweep, brute force under 32 segments | ngon n=8192 108 ms → 2.3 ms (-98%); star -53% to -64% | 0% (ngon), +15% (star) |
+
+**Micro benchmarks** (`benchstat micro-main.txt micro-lean.txt`, condensed to
+the rows the wave touches; the full output is `micro-benchstat.txt`):
+
+```
+                                  │    main     │           perf/lean-wins            │
+                                  │   sec/op    │   sec/op     vs base                │
+Distance/near/n=1024-8             38382.4µ ± 1%   164.5µ ± 1%  -99.57% (p=0.002 n=6)
+Distance/disjoint/n=1024-8         38003.2µ ± 1%   162.1µ ± 1%  -99.57% (p=0.002 n=6)
+Distance/near/n=64-8               180.222µ ± 0%   8.314µ ± 0%  -95.39% (p=0.002 n=6)
+Validate/ngon/n=8192-8             111.792m ±11%   2.304m ±11%  -97.94% (p=0.002 n=6)
+Validate/ngon/n=1024-8             1671.6µ ± 0%    286.0µ ± 3%  -82.89% (p=0.002 n=6)
+Validate/star/n=8192-8             119.10m ± 4%    43.19m ±15%  -63.73% (p=0.002 n=6)
+Validate/star/n=1024-8             1664.5µ ± 0%    777.4µ ± 2%  -53.30% (p=0.002 n=6)
+Validate/multipoly=100-8           3.521m ± 3%     3.555m ±26%        ~ (p=0.937 n=6)
+TopologyPreserving/n=8192-8        294.99m ± 1%    13.98m ±30%  -95.26% (p=0.002 n=6)
+TopologyPreserving/n=1024-8        2695.3µ ± 0%    347.8µ ± 6%  -87.09% (p=0.002 n=6)
+Simplify/n=1024-8                  2664.5µ ± 0%    318.3µ ± 1%  -88.05% (p=0.002 n=6)
+Simplify/n=8192-8                  8.857m ± 0%     2.107m ± 6%  -76.21% (p=0.002 n=6)
+PolygonBuild/n=1024-8              140.29µ ±32%    11.69µ ±51%  -91.67% (p=0.002 n=6)
+PolygonBuild/n=8192-8              1694.00µ ±59%   76.51µ ±76%  -95.48% (p=0.002 n=6)
+PreparedContainsPoint/prepared-8   232.2n ± 0%     144.4n ± 1%  -37.79% (p=0.002 n=6)
+IntersectsCold/poly-poly/n=1024-8  2793.6µ ± 1%    592.4µ ± 0%  -78.80% (p=0.002 n=6)
+IntersectsCold/poly-poly/n=64-8    151.46µ ± 1%    79.11µ ± 0%  -47.77% (p=0.002 n=6)
+IntersectsCold/poly-point/n=1024-8 2.658µ ± 1%     2.560µ ± 1%   -3.69% (p=0.002 n=6)
+RelateNGReuse/n=1024-8             77.95µ ± 1%     38.07µ ± 1%  -51.17% (p=0.002 n=6)
+RelateNGOneShot/n=1024-8           165.5µ ± 0%     127.2µ ± 1%  -23.14% (p=0.002 n=6)
+Union/ngon/n=1024-8                1172.8µ ±15%    699.2µ ± 1%  -40.38% (p=0.002 n=6)
+Union/star/n=1024-8                53.64m ± 1%     45.77m ± 1%  -14.67% (p=0.002 n=6)
+Difference/ngon/n=1024-8           745.7µ ± 1%     657.8µ ± 1%  -11.79% (p=0.002 n=6)
+Difference/star/n=1024-8           94.19m ± 1%     86.79m ± 1%   -7.85% (p=0.002 n=6)
+Intersection/star/n=1024-8         41.32m ±11%     37.69m ± 1%   -8.78% (p=0.002 n=6)
+Intersection/ngon/n=1024-8         1.623m ± 0%     1.620m ± 0%        ~ (p=0.180 n=6)
+UnaryUnion/grid/n=256-8            2.483m ± 2%     2.209m ± 2%  -11.05% (p=0.002 n=6)
+geojson Unmarshal/n=1024-8         1000.4µ ± 8%    380.2µ ± 0%  -61.99% (p=0.002 n=6)
+geojson Unmarshal/multipoly=100-8  420.59µ ± 0%    77.95µ ± 4%  -81.47% (p=0.002 n=6)
+geojson Marshal/n=1024-8           176.4µ ±10%     135.9µ ± 0%  -22.98% (p=0.002 n=6)
+wkt Marshal/n=1024-8               173.9µ ±15%     136.7µ ± 2%  -21.41% (p=0.002 n=6)
+wkt Unmarshal/n=1024-8             238.2µ ± 9%     222.9µ ± 3%   -6.42% (p=0.002 n=6)
+
+                                  │     main     │          perf/lean-wins           │
+                                  │     B/op     │     B/op      vs base             │
+Distance/near/n=1024-8             36864.00 ± 0%     28.00 ± ?   -99.92% (p=0.002 n=6)
+Validate/star/n=8192-8             1.991Mi ± 0%    2.304Mi ± 0%  +15.70% (p=0.002 n=6)
+Validate/ngon/n=8192-8             1.991Mi ± 0%    1.991Mi ± 0%        ~ (p=0.394 n=6)
+TopologyPreserving/n=8192-8        973.5Ki ± 0%   1020.2Ki ± 0%   +4.80% (p=0.002 n=6)
+TopologyPreserving/n=1024-8        293.2Ki ± 0%    259.4Ki ± 0%  -11.51% (p=0.002 n=6)
+Simplify/n=1024-8                  176.5Ki ± 0%    142.8Ki ± 0%  -19.12% (p=0.002 n=6)
+PolygonBuild/n=1024-8              145.81Ki ± 0%   87.05Ki ± 0%  -40.30% (p=0.002 n=6)
+IntersectsCold/poly-poly/n=1024-8  2.300Mi ± 0%    1.114Mi ± 0%  -51.55% (p=0.002 n=6)
+Union/ngon/n=1024-8                1.641Mi ± 0%    1.442Mi ± 0%  -12.13% (p=0.002 n=6)
+Union/star/n=1024-8                28.44Mi ± 0%    27.45Mi ± 0%   -3.47% (p=0.002 n=6)
+Difference/star/n=1024-8           65.70Mi ± 0%    64.89Mi ± 0%   -1.23% (p=0.002 n=6)
+geojson Unmarshal/n=1024-8         423.74Ki ± 0%   58.94Ki ± 0%  -86.09% (p=0.002 n=6)
+wkt Unmarshal/n=1024-8             132.7Ki ± 0%    116.7Ki ± 0%  -12.07% (p=0.002 n=6)
+
+                                  │     main     │          perf/lean-wins           │
+                                  │  allocs/op   │  allocs/op    vs base             │
+Distance/near/n=1024-8             2.000 ± 0%       0.000 ± 0%  -100.00% (p=0.002 n=6)
+Validate/star/n=8192-8             621.5 ± 2%       624.0 ± 1%         ~ (p=0.682 n=6)
+TopologyPreserving/n=8192-8        1.146k ± 0%      1.211k ± 0%   +5.67% (p=0.002 n=6)
+Simplify/n=1024-8                  26.00 ± 0%       25.00 ± 0%   -3.85% (p=0.002 n=6)
+PolygonBuild/n=1024-8              148.00 ± 0%      10.00 ± 0%  -93.24% (p=0.002 n=6)
+IntersectsCold/poly-poly/n=1024-8  29.140k ± 0%     8.597k ± 0%  -70.50% (p=0.002 n=6)
+Union/star/n=1024-8                113.94k ± 0%     11.20k ± 0%  -90.17% (p=0.002 n=6)
+Difference/star/n=1024-8           244.67k ± 0%     36.19k ± 0%  -85.21% (p=0.002 n=6)
+Intersection/star/n=1024-8         120.68k ± 0%     17.93k ± 0%  -85.14% (p=0.002 n=6)
+geojson Unmarshal/n=1024-8         6198.00 ± 0%     20.00 ± 0%  -99.68% (p=0.002 n=6)
+wkt Unmarshal/n=1024-8             1043.00 ± 0%     18.00 ± 0%  -98.27% (p=0.002 n=6)
+wkt Marshal/n=1024-8               2071.00 ± 0%     21.00 ± 0%  -98.99% (p=0.002 n=6)
+```
+
+The wide `±` on `PolygonBuild` and `TopologyPreserving/n=8192` is spread in
+the *branch* column of sub-100µs or GC-heavy ops on a desktop machine, not
+disagreement about direction (both p=0.002). `Validate/multipoly=100` and
+`Intersection/ngon/n=1024` are the two touched-adjacent rows that did not
+move, as expected (small rings stay on brute force; the convex fast path is
+unchanged).
+
+**Macro workloads** (`bench/workloads.go`, interleaved prebuilt binaries,
+`benchstat macro-main.txt macro-lean.txt`):
+
+```
+                         │ macro-main.txt │ macro-lean.txt │
+                         │                                                              sec/op                                                               │                                                  sec/op                                                    vs base               │
+Buffer-8                                                                                                                                         28.08m ± 1%                                                                                                 27.13m ± 2%   -3.40% (p=0.002 n=6)
+GeographicIntersection-8                                                                                                                         1.467m ± 1%                                                                                                 1.467m ± 1%        ~ (p=0.937 n=6)
+IngestWKB-8                                                                                                                                      888.1µ ± 2%                                                                                                 877.0µ ± 1%        ~ (p=0.093 n=6)
+PairwiseIntersection-8                                                                                                                           63.54µ ± 1%                                                                                                 62.62µ ± 1%   -1.44% (p=0.002 n=6)
+PointInPolygon-8                                                                                                                                 20.54m ± 1%                                                                                                 19.83m ± 1%   -3.48% (p=0.002 n=6)
+PointInPolygonPrepared-8                                                                                                                         11.13m ± 1%                                                                                                 10.52m ± 1%   -5.50% (p=0.002 n=6)
+UnaryUnion-8                                                                                                                                     8.553m ± 2%                                                                                                 7.648m ± 1%  -10.58% (p=0.002 n=6)
+geomean                                                                                                                                          3.331m                                                                                                      3.207m        -3.72%
+
+                         │ macro-main.txt │ macro-lean.txt │
+                         │                                                               B/op                                                                │                                                   B/op                                                     vs base               │
+Buffer-8                                                                                                                                        22.90Mi ± 0%                                                                                                23.18Mi ± 0%   +1.22% (p=0.002 n=6)
+GeographicIntersection-8                                                                                                                        243.9Ki ± 0%                                                                                                241.0Ki ± 0%   -1.22% (p=0.002 n=6)
+IngestWKB-8                                                                                                                                     1.602Mi ± 0%                                                                                                1.602Mi ± 0%        ~ (p=0.675 n=6)
+PairwiseIntersection-8                                                                                                                          22.77Ki ± 0%                                                                                                19.82Ki ± 0%  -12.98% (p=0.002 n=6)
+PointInPolygon-8                                                                                                                                6.106Mi ± 0%                                                                                                6.106Mi ± 0%        ~ (p=0.818 n=6)
+PointInPolygonPrepared-8                                                                                                                        6.104Mi ± 0%                                                                                                6.104Mi ± 0%        ~ (p=0.563 n=6)
+UnaryUnion-8                                                                                                                                    26.57Mi ± 0%                                                                                                23.96Mi ± 0%   -9.80% (p=0.002 n=6)
+geomean                                                                                                                                         2.120Mi                                                                                                     2.048Mi        -3.40%
+
+                         │ macro-main.txt │ macro-lean.txt │
+                         │                                                             allocs/op                                                             │                                                allocs/op                                                 vs base                 │
+Buffer-8                                                                                                                                        56.924k ± 0%                                                                                               9.331k ± 0%  -83.61% (p=0.002 n=6)
+GeographicIntersection-8                                                                                                                         2.865k ± 0%                                                                                               2.828k ± 0%   -1.29% (p=0.002 n=6)
+IngestWKB-8                                                                                                                                      30.00k ± 0%                                                                                               30.00k ± 0%        ~ (p=1.000 n=6) ¹
+PairwiseIntersection-8                                                                                                                            317.0 ± 0%                                                                                                280.0 ± 0%  -11.67% (p=0.002 n=6)
+PointInPolygon-8                                                                                                                                 200.0k ± 0%                                                                                               200.0k ± 0%        ~ (p=1.000 n=6)
+PointInPolygonPrepared-8                                                                                                                         200.0k ± 0%                                                                                               200.0k ± 0%        ~ (p=1.000 n=6) ¹
+UnaryUnion-8                                                                                                                                    122.29k ± 0%                                                                                               94.95k ± 0%  -22.36% (p=0.002 n=6)
+geomean                                                                                                                                          25.79k                                                                                                    18.84k       -26.95%
+¹ all samples are equal
+```
+
+Only `UnaryUnion` moves by double digits in time; the other six are within a
+few percent, and none regress. The wave's macro effect is mostly memory:
+`Buffer` allocations -84% and `UnaryUnion` -22% at -10% bytes. `Buffer`
+bytes/op is +1.2% (the `NewPolygon` fast path writes directly into the flat
+buffer, which reserves slightly more up front) — the only macro memory
+increase, well inside the 1.3x ceiling.
+
+**Cross-implementation suite, gts column only** (`bench/compare`, same
+fixtures as the July tables, interleaved; simplefeatures and GEOS were not
+re-run — this machine has no libgeos — so compare against the gts column of
+the 2026-07-11 table only by ratio, not absolute):
+
+```
+                                     │ compare-main.txt │ compare-lean.txt │
+                                     │                                                               sec/op                                                                │                                                   sec/op                                                     vs base               │
+Intersection/impl=gts/n=1024-8                                                                                                                                 53.60m ± 1%                                                                                                   49.66m ± 1%   -7.35% (p=0.002 n=6)
+Union/impl=gts/n=1024-8                                                                                                                                        68.46m ± 1%                                                                                                   59.44m ± 0%  -13.17% (p=0.002 n=6)
+Difference/impl=gts/n=1024-8                                                                                                                                   120.9m ± 1%                                                                                                   113.7m ± 1%   -5.94% (p=0.002 n=6)
+Relate/impl=gts/n=1024-8                                                                                                                                       19.33m ± 1%                                                                                                   19.21m ± 2%        ~ (p=0.394 n=6)
+Area/impl=gts/n=1024-8                                                                                                                                         714.5n ± 1%                                                                                                   713.2n ± 0%        ~ (p=0.610 n=6)
+Length/impl=gts/n=1024-8                                                                                                                                       678.9n ± 0%                                                                                                   679.0n ± 1%        ~ (p=0.937 n=6)
+Buffer/impl=gts/n=256-8                                                                                                                                        1.377m ± 1%                                                                                                   1.336m ± 1%   -2.97% (p=0.002 n=6)
+Buffer/impl=gts/n=1024-8                                                                                                                                       26.31m ± 1%                                                                                                   25.57m ± 0%   -2.79% (p=0.002 n=6)
+PrepareBuild/impl=gts/n=1024-8                                                                                                                               104.902µ ± 1%                                                                                                   9.242µ ± 2%  -91.19% (p=0.002 n=6)
+PreparedIntersects/impl=gts/n=1024-8                                                                                                                           485.5µ ± 1%                                                                                                   372.6µ ± 1%  -23.25% (p=0.002 n=6)
+geomean                                                                                                                                                        1.226m                                                                                                        904.7µ       -26.21%
+
+                                     │ compare-main.txt │ compare-lean.txt │
+                                     │                                                                B/op                                                                 │                                                   B/op                                                     vs base                 │
+Intersection/impl=gts/n=1024-8                                                                                                                              40.52Mi ± 0%                                                                                                  39.42Mi ± 0%   -2.72% (p=0.002 n=6)
+Union/impl=gts/n=1024-8                                                                                                                                     37.75Mi ± 0%                                                                                                  35.49Mi ± 0%   -5.99% (p=0.002 n=6)
+Difference/impl=gts/n=1024-8                                                                                                                                86.85Mi ± 0%                                                                                                  84.54Mi ± 0%   -2.66% (p=0.002 n=6)
+Relate/impl=gts/n=1024-8                                                                                                                                    22.10Mi ± 0%                                                                                                  22.10Mi ± 0%        ~ (p=0.619 n=6)
+Area/impl=gts/n=1024-8                                                                                                                                        0.000 ± 0%                                                                                                    0.000 ± 0%        ~ (p=1.000 n=6) ¹
+Length/impl=gts/n=1024-8                                                                                                                                      0.000 ± 0%                                                                                                    0.000 ± 0%        ~ (p=1.000 n=6) ¹
+Buffer/impl=gts/n=256-8                                                                                                                                     2.382Mi ± 0%                                                                                                  2.204Mi ± 0%   -7.48% (p=0.002 n=6)
+Buffer/impl=gts/n=1024-8                                                                                                                                    19.41Mi ± 0%                                                                                                  19.89Mi ± 0%   +2.44% (p=0.002 n=6)
+PrepareBuild/impl=gts/n=1024-8                                                                                                                             145.83Ki ± 0%                                                                                                  87.06Ki ± 0%  -40.30% (p=0.002 n=6)
+PreparedIntersects/impl=gts/n=1024-8                                                                                                                          0.000 ± 0%                                                                                                    0.000 ± 0%        ~ (p=1.000 n=6) ¹
+geomean                                                                                                                                                                  ²                                                                                                               -6.63%               ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                                     │ compare-main.txt │ compare-lean.txt │
+                                     │                                                              allocs/op                                                              │                                                 allocs/op                                                  vs base                 │
+Intersection/impl=gts/n=1024-8                                                                                                                              160.37k ± 0%                                                                                                   24.80k ± 0%  -84.54% (p=0.002 n=6)
+Union/impl=gts/n=1024-8                                                                                                                                     154.05k ± 0%                                                                                                   13.91k ± 0%  -90.97% (p=0.002 n=6)
+Difference/impl=gts/n=1024-8                                                                                                                                324.08k ± 0%                                                                                                   50.14k ± 0%  -84.53% (p=0.002 n=6)
+Relate/impl=gts/n=1024-8                                                                                                                                     390.9k ± 0%                                                                                                   390.9k ± 0%        ~ (p=1.000 n=6)
+Area/impl=gts/n=1024-8                                                                                                                                        0.000 ± 0%                                                                                                    0.000 ± 0%        ~ (p=1.000 n=6) ¹
+Length/impl=gts/n=1024-8                                                                                                                                      0.000 ± 0%                                                                                                    0.000 ± 0%        ~ (p=1.000 n=6) ¹
+Buffer/impl=gts/n=256-8                                                                                                                                       998.0 ± 0%                                                                                                    212.0 ± 0%  -78.76% (p=0.002 n=6)
+Buffer/impl=gts/n=1024-8                                                                                                                                    46723.0 ± 0%                                                                                                    530.0 ± 0%  -98.87% (p=0.002 n=6)
+PrepareBuild/impl=gts/n=1024-8                                                                                                                               149.00 ± 0%                                                                                                    11.00 ± 0%  -92.62% (p=0.002 n=6)
+PreparedIntersects/impl=gts/n=1024-8                                                                                                                          0.000 ± 0%                                                                                                    0.000 ± 0%        ~ (p=1.000 n=6) ¹
+geomean                                                                                                                                                                  ²                                                                                                              -77.17%               ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+```
+
+`PrepareBuild` is the headline: 105µs → 9.2µs, which turns the one
+comparison simplefeatures led (52µs on this machine) into a ~5.6x gts lead.
+`Buffer/n=1024` bytes/op is +2.4%, the same `NewPolygon` reservation as the
+macro `Buffer` row.
+
+
+**Caveats specific to this wave.** The validator's indexed path pads chain
+envelopes by 1e-9 relative and additionally checks each chain against itself
+because the float predicate can report contact when envelopes miss by a few
+ULPs; a 50,000-case differential test found no mismatch, but this is a
+guard, not a proof. GeoJSON decode-error *text* for malformed coordinate
+arrays changed wording (accept/reject behaviour did not). The predicates
+change adds ~3% to the already sub-3µs poly-point path. Memory numbers for
+`Distance` show a few bytes/op from benchstat averaging cold `sync.Pool`
+refills; allocs/op is 0.
+
 
 ### 2026-07-11 wave — "beat simplefeatures everywhere it led"
 
@@ -397,8 +642,8 @@ swings on this machine as layout-sensitive until proven algorithmic.
 
 ## Deferred backlog
 
-- **`PrepareBuild` vs simplefeatures** (215µs vs 82µs) — the one remaining timed comparison where simplefeatures leads; prepared-structure construction cost, amortized away by `PreparedIntersects` (where gts leads 3x). Untouched by the 2026-07-11 wave.
-- **Parallel cascaded `UnaryUnion`** (`overlay/unary_union.go:133-159`, fork-join over halves) — clearest future parallelism win, but introduces goroutines, out of this pass's byte-identical/low-risk scope.
+- ~~**`PrepareBuild` vs simplefeatures**~~ — landed in the 2026-10-30 wave (sort-free packed segment tree; build 123µs → 12µs on M3, now ~4x faster than simplefeatures).
+- ~~**Parallel cascaded `UnaryUnion`**~~ — landed earlier (`overlay/unary_union.go`, bounded fork-join, commit 56084e3); this entry was stale.
 - **Envelope short-circuit for `measure.Distance` disjoint pairs** — explicitly left for later in the ring-traversal fix's commit message.
 - **`relateng` geomB caching** — not profiled in depth this pass.
 - **PGO** — needs a representative production profile corpus, not these synthetic fixtures, to be meaningful.

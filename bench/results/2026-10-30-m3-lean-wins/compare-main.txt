@@ -1,0 +1,90 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench/compare
+cpu: Apple M3
+BenchmarkIntersection/impl=gts/n=1024-8         	      21	  53603754 ns/op	42487872 B/op	  160365 allocs/op
+BenchmarkUnion/impl=gts/n=1024-8                	      16	  68167214 ns/op	39578559 B/op	  154052 allocs/op
+BenchmarkDifference/impl=gts/n=1024-8           	       9	 120882833 ns/op	91065129 B/op	  324082 allocs/op
+BenchmarkRelate/impl=gts/n=1024-8               	      58	  19183876 ns/op	23175663 B/op	  390921 allocs/op
+BenchmarkArea/impl=gts/n=1024-8                 	 1682029	       713.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLength/impl=gts/n=1024-8               	 1767598	       679.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuffer/impl=gts/n=256-8                	     830	   1381245 ns/op	 2497529 B/op	     998 allocs/op
+BenchmarkBuffer/impl=gts/n=1024-8               	      44	  26224074 ns/op	20356441 B/op	   46723 allocs/op
+BenchmarkPrepareBuild/impl=gts/n=1024-8         	   10000	    104890 ns/op	  149328 B/op	     149 allocs/op
+BenchmarkPreparedIntersects/impl=gts/n=1024-8   	    2455	    484015 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench/compare
+cpu: Apple M3
+BenchmarkIntersection/impl=gts/n=1024-8         	      21	  53330214 ns/op	42488208 B/op	  160367 allocs/op
+BenchmarkUnion/impl=gts/n=1024-8                	      16	  68074747 ns/op	39564688 B/op	  154051 allocs/op
+BenchmarkDifference/impl=gts/n=1024-8           	       9	 119876343 ns/op	91065197 B/op	  324082 allocs/op
+BenchmarkRelate/impl=gts/n=1024-8               	      56	  19218999 ns/op	23175640 B/op	  390920 allocs/op
+BenchmarkArea/impl=gts/n=1024-8                 	 1682796	       712.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLength/impl=gts/n=1024-8               	 1768100	       678.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuffer/impl=gts/n=256-8                	     842	   1373082 ns/op	 2497526 B/op	     998 allocs/op
+BenchmarkBuffer/impl=gts/n=1024-8               	      44	  26192764 ns/op	20356469 B/op	   46723 allocs/op
+BenchmarkPrepareBuild/impl=gts/n=1024-8         	   10000	    104642 ns/op	  149328 B/op	     149 allocs/op
+BenchmarkPreparedIntersects/impl=gts/n=1024-8   	    2446	    485511 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench/compare
+cpu: Apple M3
+BenchmarkIntersection/impl=gts/n=1024-8         	      21	  53595143 ns/op	42488400 B/op	  160366 allocs/op
+BenchmarkUnion/impl=gts/n=1024-8                	      16	  68754224 ns/op	39564717 B/op	  154051 allocs/op
+BenchmarkDifference/impl=gts/n=1024-8           	       9	 122492607 ns/op	91065113 B/op	  324081 allocs/op
+BenchmarkRelate/impl=gts/n=1024-8               	      58	  19550411 ns/op	23175680 B/op	  390921 allocs/op
+BenchmarkArea/impl=gts/n=1024-8                 	 1679320	       715.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLength/impl=gts/n=1024-8               	 1758583	       680.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuffer/impl=gts/n=256-8                	     846	   1384454 ns/op	 2497538 B/op	     998 allocs/op
+BenchmarkBuffer/impl=gts/n=1024-8               	      45	  26475951 ns/op	20356457 B/op	   46723 allocs/op
+BenchmarkPrepareBuild/impl=gts/n=1024-8         	   10000	    105734 ns/op	  149329 B/op	     149 allocs/op
+BenchmarkPreparedIntersects/impl=gts/n=1024-8   	    2443	    485496 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench/compare
+cpu: Apple M3
+BenchmarkIntersection/impl=gts/n=1024-8         	      21	  53656296 ns/op	42488487 B/op	  160367 allocs/op
+BenchmarkUnion/impl=gts/n=1024-8                	      16	  68934802 ns/op	39587784 B/op	  154053 allocs/op
+BenchmarkDifference/impl=gts/n=1024-8           	       9	 120882727 ns/op	91065080 B/op	  324081 allocs/op
+BenchmarkRelate/impl=gts/n=1024-8               	      60	  19399357 ns/op	23175636 B/op	  390920 allocs/op
+BenchmarkArea/impl=gts/n=1024-8                 	 1682133	       713.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLength/impl=gts/n=1024-8               	 1768232	       678.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuffer/impl=gts/n=256-8                	     846	   1368503 ns/op	 2497532 B/op	     998 allocs/op
+BenchmarkBuffer/impl=gts/n=1024-8               	      44	  26383625 ns/op	20356450 B/op	   46723 allocs/op
+BenchmarkPrepareBuild/impl=gts/n=1024-8         	   10000	    104914 ns/op	  149329 B/op	     149 allocs/op
+BenchmarkPreparedIntersects/impl=gts/n=1024-8   	    2439	    487954 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench/compare
+cpu: Apple M3
+BenchmarkIntersection/impl=gts/n=1024-8         	      21	  53241891 ns/op	42488401 B/op	  160366 allocs/op
+BenchmarkUnion/impl=gts/n=1024-8                	      16	  68065057 ns/op	39585464 B/op	  154053 allocs/op
+BenchmarkDifference/impl=gts/n=1024-8           	       9	 119994963 ns/op	91065122 B/op	  324082 allocs/op
+BenchmarkRelate/impl=gts/n=1024-8               	      57	  19362756 ns/op	23175730 B/op	  390920 allocs/op
+BenchmarkArea/impl=gts/n=1024-8                 	 1683184	       716.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLength/impl=gts/n=1024-8               	 1766748	       678.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuffer/impl=gts/n=256-8                	     843	   1373584 ns/op	 2497533 B/op	     998 allocs/op
+BenchmarkBuffer/impl=gts/n=1024-8               	      44	  26432602 ns/op	20356443 B/op	   46723 allocs/op
+BenchmarkPrepareBuild/impl=gts/n=1024-8         	   10000	    104545 ns/op	  149329 B/op	     149 allocs/op
+BenchmarkPreparedIntersects/impl=gts/n=1024-8   	    2470	    484201 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench/compare
+cpu: Apple M3
+BenchmarkIntersection/impl=gts/n=1024-8         	      21	  53719502 ns/op	42488415 B/op	  160366 allocs/op
+BenchmarkUnion/impl=gts/n=1024-8                	      16	  69220250 ns/op	39587833 B/op	  154054 allocs/op
+BenchmarkDifference/impl=gts/n=1024-8           	       9	 121175630 ns/op	91065110 B/op	  324081 allocs/op
+BenchmarkRelate/impl=gts/n=1024-8               	      58	  19290515 ns/op	23175651 B/op	  390920 allocs/op
+BenchmarkArea/impl=gts/n=1024-8                 	 1677537	       719.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLength/impl=gts/n=1024-8               	 1766722	       679.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuffer/impl=gts/n=256-8                	     844	   1385849 ns/op	 2497554 B/op	     998 allocs/op
+BenchmarkBuffer/impl=gts/n=1024-8               	      44	  26227288 ns/op	20356467 B/op	   46723 allocs/op
+BenchmarkPrepareBuild/impl=gts/n=1024-8         	   10000	    105675 ns/op	  149329 B/op	     149 allocs/op
+BenchmarkPreparedIntersects/impl=gts/n=1024-8   	    2436	    485898 ns/op	       0 B/op	       0 allocs/op
+PASS

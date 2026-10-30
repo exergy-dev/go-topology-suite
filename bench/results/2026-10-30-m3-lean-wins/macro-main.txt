@@ -1,0 +1,72 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench
+cpu: Apple M3
+BenchmarkBuffer-8                   	      42	  28142942 ns/op	24014089 B/op	   56923 allocs/op
+BenchmarkGeographicIntersection-8   	     814	   1469836 ns/op	  249796 B/op	    2865 allocs/op
+BenchmarkIngestWKB-8                	    1372	    877402 ns/op	 1680011 B/op	   30000 allocs/op
+BenchmarkPairwiseIntersection-8     	   18789	     63451 ns/op	   23321 B/op	     317 allocs/op
+BenchmarkPointInPolygon-8           	      56	  20583970 ns/op	 6402841 B/op	  200005 allocs/op
+BenchmarkPointInPolygonPrepared-8   	     100	  11148095 ns/op	 6400033 B/op	  200000 allocs/op
+BenchmarkUnaryUnion-8               	     142	   8720287 ns/op	27859545 B/op	  122288 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench
+cpu: Apple M3
+BenchmarkBuffer-8                   	      42	  28379772 ns/op	24014491 B/op	   56924 allocs/op
+BenchmarkGeographicIntersection-8   	     814	   1482385 ns/op	  249797 B/op	    2865 allocs/op
+BenchmarkIngestWKB-8                	    1358	    891705 ns/op	 1680010 B/op	   30000 allocs/op
+BenchmarkPairwiseIntersection-8     	   18715	     63930 ns/op	   23323 B/op	     317 allocs/op
+BenchmarkPointInPolygon-8           	      56	  20699059 ns/op	 6402731 B/op	  200005 allocs/op
+BenchmarkPointInPolygonPrepared-8   	     100	  11215549 ns/op	 6400025 B/op	  200000 allocs/op
+BenchmarkUnaryUnion-8               	     139	   8586114 ns/op	27859630 B/op	  122288 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench
+cpu: Apple M3
+BenchmarkBuffer-8                   	      42	  28050064 ns/op	24014587 B/op	   56924 allocs/op
+BenchmarkGeographicIntersection-8   	     823	   1466431 ns/op	  249788 B/op	    2865 allocs/op
+BenchmarkIngestWKB-8                	    1336	    891466 ns/op	 1680010 B/op	   30000 allocs/op
+BenchmarkPairwiseIntersection-8     	   18703	     64347 ns/op	   23322 B/op	     317 allocs/op
+BenchmarkPointInPolygon-8           	      57	  20561869 ns/op	 6402662 B/op	  200005 allocs/op
+BenchmarkPointInPolygonPrepared-8   	     100	  11127804 ns/op	 6400031 B/op	  200000 allocs/op
+BenchmarkUnaryUnion-8               	     139	   8491692 ns/op	27859333 B/op	  122288 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench
+cpu: Apple M3
+BenchmarkBuffer-8                   	      42	  28110674 ns/op	24014564 B/op	   56924 allocs/op
+BenchmarkGeographicIntersection-8   	     820	   1460121 ns/op	  249787 B/op	    2865 allocs/op
+BenchmarkIngestWKB-8                	    1362	    884747 ns/op	 1680010 B/op	   30000 allocs/op
+BenchmarkPairwiseIntersection-8     	   18889	     63565 ns/op	   23322 B/op	     317 allocs/op
+BenchmarkPointInPolygon-8           	      57	  20526684 ns/op	 6402798 B/op	  200005 allocs/op
+BenchmarkPointInPolygonPrepared-8   	     100	  11056019 ns/op	 6400038 B/op	  200000 allocs/op
+BenchmarkUnaryUnion-8               	     141	   8575413 ns/op	27859487 B/op	  122288 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench
+cpu: Apple M3
+BenchmarkBuffer-8                   	      42	  27924709 ns/op	24014484 B/op	   56924 allocs/op
+BenchmarkGeographicIntersection-8   	     819	   1460865 ns/op	  249796 B/op	    2865 allocs/op
+BenchmarkIngestWKB-8                	    1353	    903980 ns/op	 1680011 B/op	   30000 allocs/op
+BenchmarkPairwiseIntersection-8     	   18814	     63512 ns/op	   23321 B/op	     317 allocs/op
+BenchmarkPointInPolygon-8           	      57	  20462129 ns/op	 6402733 B/op	  200005 allocs/op
+BenchmarkPointInPolygonPrepared-8   	     100	  11098037 ns/op	 6400033 B/op	  200000 allocs/op
+BenchmarkUnaryUnion-8               	     141	   8497628 ns/op	27859490 B/op	  122288 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/bench
+cpu: Apple M3
+BenchmarkBuffer-8                   	      42	  28038030 ns/op	24014580 B/op	   56924 allocs/op
+BenchmarkGeographicIntersection-8   	     816	   1467004 ns/op	  249775 B/op	    2865 allocs/op
+BenchmarkIngestWKB-8                	    1366	    875984 ns/op	 1680011 B/op	   30000 allocs/op
+BenchmarkPairwiseIntersection-8     	   18970	     63305 ns/op	   23321 B/op	     317 allocs/op
+BenchmarkPointInPolygon-8           	      57	  20500154 ns/op	 6402491 B/op	  200004 allocs/op
+BenchmarkPointInPolygonPrepared-8   	     100	  11135304 ns/op	 6400040 B/op	  200000 allocs/op
+BenchmarkUnaryUnion-8               	     139	   8530675 ns/op	27859514 B/op	  122288 allocs/op
+PASS

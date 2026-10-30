@@ -6,6 +6,58 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-30
+
+Performance release. No API changes; every change is gated on byte-identical
+output (differential tests against the retained previous implementation) and
+on the JTS conformance corpus holding at 8951 total / 8942 passed / 9 known
+divergences. Memory was a hard constraint: no change may raise bytes/op above
+1.3x the previous value; most lower it. Numbers are Apple M3, interleaved
+`benchstat` with count=6; see BENCHMARKS.md "2026-10-30 wave".
+
+### Changed
+
+- **`measure.Distance` is no longer quadratic.** The planar path replaces four
+  nested vertex×segment passes with a pooled, x-sorted branch-and-bound sweep
+  over segment facets. Results are bit-identical (differentially tested).
+  1024-vertex polygon pairs: 38 ms → 0.16 ms (-99.6%); zero steady-state
+  allocations (was 2).
+- **`validate.Validate` ring self-intersection is indexed.** Rings of 32+
+  segments use a monotone-chain sweep (slab-allocated, closure-free) instead of
+  the all-pairs segment loop; smaller rings keep the brute-force path. Same
+  defect location is reported. n=8192 n-gon: 108 ms → 2.3 ms (-98%); star
+  rings -53% to -64% at +15% bytes.
+- **`simplify.Simplify` and `simplify.TopologyPreserving` are indexed.** The
+  shared post-pass `RepairSimplifiedPolygon` probes a flat packed segment tree
+  instead of scanning every segment per vertex (Simplify n=1024: 2.7 ms →
+  0.32 ms, -88%). TopologyPreserving indexes its jump and crossing checks with
+  flat block trees above 1,536 input vertices (n=8192: 295 ms → 14 ms, -95%;
+  n=1024 unchanged path, -87% via the shared repair fix). Bytes/op fall at
+  n=1024 and rise 5% at n=8192.
+- **`prepare.Polygon` builds a sort-free packed segment tree** (8-edge leaves,
+  precomputed edge envelopes) instead of bulk-loading the generic R-tree.
+  Build: 123 µs → 12 µs at n=1024 (-91%), 148 → 10 allocs; `ContainsPoint`
+  232 ns → 144 ns (-38%). Build is now ~4x faster than simplefeatures (was
+  2.3x slower).
+- **Boolean predicates short-circuit.** `Intersects`, `Disjoint`, `Contains`,
+  `Within`, `Equals` (free functions and `RelateNG` methods) evaluate their
+  specific RelateNG topology predicate and stop as soon as it resolves instead
+  of computing the full DE-9IM matrix. `Covers`, `CoveredBy`, `Touches`,
+  `Crosses`, `Overlaps`, and `Relate` are unchanged. Intersects on two crossing
+  1024-vertex polygons: 2.8 ms → 0.59 ms (-79%); `RelateNG` reuse -51%.
+- **Overlay hot-path allocations cut 85–90%** on fragment-heavy results (DCEL
+  face-edge arena, flat noder split records and chain slab, dense-index
+  union-find in ring extraction, `geom.NewPolygon` fast path for `[][]XY`).
+  Union/Difference/Intersection on 1024-vertex stars: -8% to -15% time;
+  n-gon Union -40%; `UnaryUnion` -11% to -15%; macro `Buffer` allocs -84%.
+- **WKT and GeoJSON codecs no longer allocate per coordinate.** WKT decode
+  1,043 → 18 allocs and encode 2,071 → 21 for a 1,024-vertex polygon
+  (-6% / -21% time). GeoJSON `coordinates` are decoded by a streaming scanner
+  into one flat buffer: 6,198 → 20 allocs, 988 µs → 380 µs (-62%); encode
+  2,069 → 19 allocs (-23%). GeoJSON decode-error *messages* for malformed
+  coordinate arrays are worded differently; which inputs are rejected is
+  unchanged (differentially tested against the previous decoder).
+
 ## [0.1.3] - 2026-10-29
 
 ### Added

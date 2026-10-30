@@ -1,0 +1,372 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/overlay
+cpu: Apple M3
+BenchmarkIntersection/ngon/n=1024-8       	     715	   1619589 ns/op	   47323 B/op	       6 allocs/op
+BenchmarkIntersection/ngon/n=1024-8       	     740	   1618827 ns/op	   47271 B/op	       6 allocs/op
+BenchmarkIntersection/ngon/n=1024-8       	     740	   1621640 ns/op	   47343 B/op	       6 allocs/op
+BenchmarkIntersection/ngon/n=1024-8       	     736	   1626772 ns/op	   47319 B/op	       6 allocs/op
+BenchmarkIntersection/ngon/n=1024-8       	     738	   1624868 ns/op	   47271 B/op	       6 allocs/op
+BenchmarkIntersection/ngon/n=1024-8       	     739	   1624416 ns/op	   47319 B/op	       6 allocs/op
+BenchmarkIntersection/star/n=1024-8       	      28	  40690153 ns/op	32655220 B/op	  120677 allocs/op
+BenchmarkIntersection/star/n=1024-8       	      28	  40867981 ns/op	32656102 B/op	  120680 allocs/op
+BenchmarkIntersection/star/n=1024-8       	      28	  40762817 ns/op	32655108 B/op	  120678 allocs/op
+BenchmarkIntersection/star/n=1024-8       	      30	  41773068 ns/op	32654513 B/op	  120671 allocs/op
+BenchmarkIntersection/star/n=1024-8       	      25	  45870327 ns/op	32655691 B/op	  120683 allocs/op
+BenchmarkIntersection/star/n=1024-8       	      25	  45960752 ns/op	32656135 B/op	  120677 allocs/op
+BenchmarkUnion/ngon/n=1024-8              	    1299	   1029025 ns/op	 1721192 B/op	     228 allocs/op
+BenchmarkUnion/ngon/n=1024-8              	    1024	   1172016 ns/op	 1721108 B/op	     227 allocs/op
+BenchmarkUnion/ngon/n=1024-8              	    1074	   1111807 ns/op	 1721154 B/op	     228 allocs/op
+BenchmarkUnion/ngon/n=1024-8              	     967	   1192949 ns/op	 1721177 B/op	     228 allocs/op
+BenchmarkUnion/ngon/n=1024-8              	     990	   1173515 ns/op	 1721206 B/op	     228 allocs/op
+BenchmarkUnion/ngon/n=1024-8              	    1438	   1348069 ns/op	 1721139 B/op	     228 allocs/op
+BenchmarkUnion/star/n=1024-8              	      21	  53421833 ns/op	29823100 B/op	  113941 allocs/op
+BenchmarkUnion/star/n=1024-8              	      21	  53495609 ns/op	29823917 B/op	  113949 allocs/op
+BenchmarkUnion/star/n=1024-8              	      21	  53478220 ns/op	29822847 B/op	  113939 allocs/op
+BenchmarkUnion/star/n=1024-8              	      21	  53774734 ns/op	29823039 B/op	  113939 allocs/op
+BenchmarkUnion/star/n=1024-8              	      21	  54128077 ns/op	29822750 B/op	  113942 allocs/op
+BenchmarkUnion/star/n=1024-8              	      21	  53822946 ns/op	29823276 B/op	  113943 allocs/op
+BenchmarkDifference/ngon/n=1024-8         	    1584	    746070 ns/op	 1712860 B/op	     227 allocs/op
+BenchmarkDifference/ngon/n=1024-8         	    1604	    743191 ns/op	 1712837 B/op	     227 allocs/op
+BenchmarkDifference/ngon/n=1024-8         	    1606	    742027 ns/op	 1712784 B/op	     226 allocs/op
+BenchmarkDifference/ngon/n=1024-8         	    1609	    745347 ns/op	 1712853 B/op	     227 allocs/op
+BenchmarkDifference/ngon/n=1024-8         	    1611	    747357 ns/op	 1712845 B/op	     227 allocs/op
+BenchmarkDifference/ngon/n=1024-8         	    1597	    751458 ns/op	 1712857 B/op	     227 allocs/op
+BenchmarkDifference/star/n=1024-8         	      12	  93819125 ns/op	68886012 B/op	  244667 allocs/op
+BenchmarkDifference/star/n=1024-8         	      12	  93966833 ns/op	68883086 B/op	  244642 allocs/op
+BenchmarkDifference/star/n=1024-8         	      12	  95003365 ns/op	68890136 B/op	  244683 allocs/op
+BenchmarkDifference/star/n=1024-8         	      12	  94435705 ns/op	68888110 B/op	  244664 allocs/op
+BenchmarkDifference/star/n=1024-8         	      12	  94098385 ns/op	68887346 B/op	  244675 allocs/op
+BenchmarkDifference/star/n=1024-8         	      12	  94277517 ns/op	68886809 B/op	  244671 allocs/op
+BenchmarkUnaryUnion/grid/n=16-8           	    7380	    157588 ns/op	  236706 B/op	    1766 allocs/op
+BenchmarkUnaryUnion/grid/n=16-8           	    7616	    157978 ns/op	  236697 B/op	    1766 allocs/op
+BenchmarkUnaryUnion/grid/n=16-8           	    7678	    158614 ns/op	  236703 B/op	    1766 allocs/op
+BenchmarkUnaryUnion/grid/n=16-8           	    7626	    158212 ns/op	  236701 B/op	    1766 allocs/op
+BenchmarkUnaryUnion/grid/n=16-8           	    7582	    159194 ns/op	  236707 B/op	    1766 allocs/op
+BenchmarkUnaryUnion/grid/n=16-8           	    7644	    159421 ns/op	  236702 B/op	    1766 allocs/op
+BenchmarkUnaryUnion/grid/n=64-8           	    1917	    629576 ns/op	 1277727 B/op	    7686 allocs/op
+BenchmarkUnaryUnion/grid/n=64-8           	    1905	    628106 ns/op	 1277712 B/op	    7686 allocs/op
+BenchmarkUnaryUnion/grid/n=64-8           	    1887	    627791 ns/op	 1277710 B/op	    7686 allocs/op
+BenchmarkUnaryUnion/grid/n=64-8           	    1922	    626688 ns/op	 1277689 B/op	    7686 allocs/op
+BenchmarkUnaryUnion/grid/n=64-8           	    1890	    626356 ns/op	 1277728 B/op	    7686 allocs/op
+BenchmarkUnaryUnion/grid/n=64-8           	    1909	    625193 ns/op	 1277687 B/op	    7686 allocs/op
+BenchmarkUnaryUnion/grid/n=256-8          	     487	   2471307 ns/op	 6188039 B/op	   31399 allocs/op
+BenchmarkUnaryUnion/grid/n=256-8          	     492	   2483004 ns/op	 6188048 B/op	   31400 allocs/op
+BenchmarkUnaryUnion/grid/n=256-8          	     483	   2472753 ns/op	 6188142 B/op	   31400 allocs/op
+BenchmarkUnaryUnion/grid/n=256-8          	     482	   2483729 ns/op	 6188100 B/op	   31400 allocs/op
+BenchmarkUnaryUnion/grid/n=256-8          	     481	   2530313 ns/op	 6188112 B/op	   31399 allocs/op
+BenchmarkUnaryUnion/grid/n=256-8          	     472	   2510732 ns/op	 6188142 B/op	   31400 allocs/op
+PASS
+ok  	github.com/exergy-dev/go-topology-suite/overlay	71.435s
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/predicate
+cpu: Apple M3
+BenchmarkPreparedContainsPoint/unprepared-8         	  417750	      2790 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/unprepared-8         	  460368	      2730 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/unprepared-8         	  464533	      2708 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/unprepared-8         	  446931	      2700 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/unprepared-8         	  470344	      2692 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/unprepared-8         	  473316	      2666 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/prepared-8           	 5198646	       231.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/prepared-8           	 5059358	       232.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/prepared-8           	 5187262	       232.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/prepared-8           	 5150577	       232.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/prepared-8           	 5193780	       231.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPreparedContainsPoint/prepared-8           	 5182576	       233.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=64-8            	    7434	    153211 ns/op	  163251 B/op	    1979 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=64-8            	    8006	    151785 ns/op	  163257 B/op	    1979 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=64-8            	    7942	    151332 ns/op	  163281 B/op	    1979 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=64-8            	    7867	    151038 ns/op	  163263 B/op	    1979 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=64-8            	    7999	    151210 ns/op	  163270 B/op	    1979 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=64-8            	    8013	    151593 ns/op	  163260 B/op	    1979 allocs/op
+BenchmarkIntersectsCold/poly-point/n=64-8           	 5862220	       208.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=64-8           	 5862213	       208.0 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=64-8           	 5866902	       207.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=64-8           	 5849437	       204.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=64-8           	 5857438	       205.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=64-8           	 5777265	       204.9 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=1024-8          	     426	   2790618 ns/op	 2411656 B/op	   29140 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=1024-8          	     429	   2815830 ns/op	 2411713 B/op	   29140 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=1024-8          	     428	   2789366 ns/op	 2411526 B/op	   29139 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=1024-8          	     427	   2796619 ns/op	 2411678 B/op	   29140 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=1024-8          	     430	   2797625 ns/op	 2411610 B/op	   29140 allocs/op
+BenchmarkIntersectsCold/poly-poly/n=1024-8          	     430	   2786866 ns/op	 2411784 B/op	   29140 allocs/op
+BenchmarkIntersectsCold/poly-point/n=1024-8         	  462286	      2642 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=1024-8         	  463086	      2637 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=1024-8         	  463381	      2661 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=1024-8         	  461205	      2661 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=1024-8         	  463216	      2654 ns/op	       0 B/op	       0 allocs/op
+BenchmarkIntersectsCold/poly-point/n=1024-8         	  463322	      2662 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRelateNGOneShot/n=1024-8                   	    6855	    165732 ns/op	  409023 B/op	    3225 allocs/op
+BenchmarkRelateNGOneShot/n=1024-8                   	    7171	    164946 ns/op	  409171 B/op	    3226 allocs/op
+BenchmarkRelateNGOneShot/n=1024-8                   	    7042	    165330 ns/op	  409157 B/op	    3226 allocs/op
+BenchmarkRelateNGOneShot/n=1024-8                   	    6996	    165823 ns/op	  409249 B/op	    3227 allocs/op
+BenchmarkRelateNGOneShot/n=1024-8                   	    7220	    165390 ns/op	  409099 B/op	    3225 allocs/op
+BenchmarkRelateNGOneShot/n=1024-8                   	    7170	    165691 ns/op	  409165 B/op	    3226 allocs/op
+BenchmarkRelateNGReuse/n=1024-8                     	   15436	     77336 ns/op	  200592 B/op	    1271 allocs/op
+BenchmarkRelateNGReuse/n=1024-8                     	   15574	     77476 ns/op	  200638 B/op	    1271 allocs/op
+BenchmarkRelateNGReuse/n=1024-8                     	   15372	     78017 ns/op	  200587 B/op	    1271 allocs/op
+BenchmarkRelateNGReuse/n=1024-8                     	   15495	     78264 ns/op	  200623 B/op	    1271 allocs/op
+BenchmarkRelateNGReuse/n=1024-8                     	   15357	     77881 ns/op	  200598 B/op	    1271 allocs/op
+BenchmarkRelateNGReuse/n=1024-8                     	   15480	     78891 ns/op	  200618 B/op	    1271 allocs/op
+PASS
+ok  	github.com/exergy-dev/go-topology-suite/predicate	68.564s
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/validate
+cpu: Apple M3
+BenchmarkValidate/ngon/n=1024-8         	     672	   1669973 ns/op	  265180 B/op	     138 allocs/op
+BenchmarkValidate/ngon/n=1024-8         	     718	   1670953 ns/op	  265241 B/op	     138 allocs/op
+BenchmarkValidate/ngon/n=1024-8         	     716	   1672290 ns/op	  265288 B/op	     138 allocs/op
+BenchmarkValidate/ngon/n=1024-8         	     717	   1670854 ns/op	  265364 B/op	     139 allocs/op
+BenchmarkValidate/ngon/n=1024-8         	     716	   1672234 ns/op	  265328 B/op	     139 allocs/op
+BenchmarkValidate/ngon/n=1024-8         	     710	   1677362 ns/op	  265334 B/op	     139 allocs/op
+BenchmarkValidate/star/n=1024-8         	     721	   1662739 ns/op	  265300 B/op	     139 allocs/op
+BenchmarkValidate/star/n=1024-8         	     720	   1663390 ns/op	  265226 B/op	     138 allocs/op
+BenchmarkValidate/star/n=1024-8         	     721	   1663833 ns/op	  265255 B/op	     138 allocs/op
+BenchmarkValidate/star/n=1024-8         	     718	   1665950 ns/op	  265291 B/op	     139 allocs/op
+BenchmarkValidate/star/n=1024-8         	     721	   1665343 ns/op	  265229 B/op	     138 allocs/op
+BenchmarkValidate/star/n=1024-8         	     720	   1665132 ns/op	  265329 B/op	     139 allocs/op
+BenchmarkValidate/ngon/n=8192-8         	      12	  99247892 ns/op	 2088277 B/op	     621 allocs/op
+BenchmarkValidate/ngon/n=8192-8         	      10	 107357162 ns/op	 2086960 B/op	     610 allocs/op
+BenchmarkValidate/ngon/n=8192-8         	      10	 111120404 ns/op	 2087886 B/op	     618 allocs/op
+BenchmarkValidate/ngon/n=8192-8         	       9	 112462824 ns/op	 2086963 B/op	     612 allocs/op
+BenchmarkValidate/ngon/n=8192-8         	       9	 113589454 ns/op	 2089927 B/op	     631 allocs/op
+BenchmarkValidate/ngon/n=8192-8         	       9	 114803421 ns/op	 2087854 B/op	     619 allocs/op
+BenchmarkValidate/star/n=8192-8         	       9	 114893500 ns/op	 2087091 B/op	     612 allocs/op
+BenchmarkValidate/star/n=8192-8         	       9	 121046032 ns/op	 2089416 B/op	     627 allocs/op
+BenchmarkValidate/star/n=8192-8         	       9	 118235236 ns/op	 2088328 B/op	     624 allocs/op
+BenchmarkValidate/star/n=8192-8         	       9	 124192421 ns/op	 2088142 B/op	     619 allocs/op
+BenchmarkValidate/star/n=8192-8         	       9	 119956713 ns/op	 2087312 B/op	     616 allocs/op
+BenchmarkValidate/star/n=8192-8         	       9	 118082060 ns/op	 2088679 B/op	     625 allocs/op
+BenchmarkValidate/multipoly=100-8       	     351	   3404484 ns/op	 6858500 B/op	   85027 allocs/op
+BenchmarkValidate/multipoly=100-8       	     350	   3425818 ns/op	 6858520 B/op	   85027 allocs/op
+BenchmarkValidate/multipoly=100-8       	     349	   3492754 ns/op	 6858511 B/op	   85027 allocs/op
+BenchmarkValidate/multipoly=100-8       	     339	   3553641 ns/op	 6858546 B/op	   85027 allocs/op
+BenchmarkValidate/multipoly=100-8       	     338	   3548550 ns/op	 6858570 B/op	   85027 allocs/op
+BenchmarkValidate/multipoly=100-8       	     337	   3548791 ns/op	 6858527 B/op	   85027 allocs/op
+PASS
+ok  	github.com/exergy-dev/go-topology-suite/validate	41.085s
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/measure
+cpu: Apple M3
+BenchmarkDistance/disjoint/n=64-8         	    6343	    174375 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=64-8         	    6906	    173691 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=64-8         	    6910	    173742 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=64-8         	    6927	    173348 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=64-8         	    6919	    174373 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=64-8         	    6888	    173986 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=1024-8       	      31	  38368892 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=1024-8       	      30	  38010232 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=1024-8       	      30	  37887649 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=1024-8       	      31	  37996261 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=1024-8       	      30	  37934674 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/disjoint/n=1024-8       	      30	  38054040 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/near/n=64-8             	    6636	    180241 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/near/n=64-8             	    6655	    180202 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/near/n=64-8             	    6699	    179881 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/near/n=64-8             	    6619	    180457 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/near/n=64-8             	    6662	    180145 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/near/n=64-8             	    6664	    180310 ns/op	    2304 B/op	       2 allocs/op
+BenchmarkDistance/near/n=1024-8           	      30	  38180606 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/near/n=1024-8           	      30	  38424604 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/near/n=1024-8           	      31	  38536284 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/near/n=1024-8           	      30	  38340131 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/near/n=1024-8           	      30	  38671176 ns/op	   36864 B/op	       2 allocs/op
+BenchmarkDistance/near/n=1024-8           	      30	  38189664 ns/op	   36864 B/op	       2 allocs/op
+PASS
+ok  	github.com/exergy-dev/go-topology-suite/measure	28.989s
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/simplify
+cpu: Apple M3
+BenchmarkSimplify/n=1024-8      	     434	   2665868 ns/op	  180768 B/op	      26 allocs/op
+BenchmarkSimplify/n=1024-8      	     450	   2662265 ns/op	  180768 B/op	      26 allocs/op
+BenchmarkSimplify/n=1024-8      	     450	   2663182 ns/op	  180768 B/op	      26 allocs/op
+BenchmarkSimplify/n=1024-8      	     450	   2662296 ns/op	  180768 B/op	      26 allocs/op
+BenchmarkSimplify/n=1024-8      	     450	   2671283 ns/op	  180769 B/op	      26 allocs/op
+BenchmarkSimplify/n=1024-8      	     447	   2670124 ns/op	  180768 B/op	      26 allocs/op
+BenchmarkSimplify/n=8192-8      	     135	   8847732 ns/op	  510628 B/op	      27 allocs/op
+BenchmarkSimplify/n=8192-8      	     134	   8857235 ns/op	  510625 B/op	      27 allocs/op
+BenchmarkSimplify/n=8192-8      	     133	   8857003 ns/op	  510629 B/op	      27 allocs/op
+BenchmarkSimplify/n=8192-8      	     134	   8858663 ns/op	  510626 B/op	      27 allocs/op
+BenchmarkSimplify/n=8192-8      	     134	   8843307 ns/op	  510631 B/op	      27 allocs/op
+BenchmarkSimplify/n=8192-8      	     134	   8862608 ns/op	  510627 B/op	      27 allocs/op
+BenchmarkTopologyPreserving/n=1024-8         	     444	   2699886 ns/op	  300194 B/op	      43 allocs/op
+BenchmarkTopologyPreserving/n=1024-8         	     445	   2691717 ns/op	  300194 B/op	      43 allocs/op
+BenchmarkTopologyPreserving/n=1024-8         	     434	   2697295 ns/op	  300195 B/op	      43 allocs/op
+BenchmarkTopologyPreserving/n=1024-8         	     446	   2707155 ns/op	  300194 B/op	      43 allocs/op
+BenchmarkTopologyPreserving/n=1024-8         	     444	   2687385 ns/op	  300194 B/op	      43 allocs/op
+BenchmarkTopologyPreserving/n=1024-8         	     446	   2693220 ns/op	  300196 B/op	      43 allocs/op
+BenchmarkTopologyPreserving/n=8192-8         	       4	 296173729 ns/op	  996900 B/op	    1146 allocs/op
+BenchmarkTopologyPreserving/n=8192-8         	       4	 294509135 ns/op	  996900 B/op	    1146 allocs/op
+BenchmarkTopologyPreserving/n=8192-8         	       4	 294945688 ns/op	  998236 B/op	    1147 allocs/op
+BenchmarkTopologyPreserving/n=8192-8         	       4	 295039729 ns/op	  996900 B/op	    1146 allocs/op
+BenchmarkTopologyPreserving/n=8192-8         	       4	 294213938 ns/op	  996900 B/op	    1146 allocs/op
+BenchmarkTopologyPreserving/n=8192-8         	       4	 297369240 ns/op	  996900 B/op	    1146 allocs/op
+PASS
+ok  	github.com/exergy-dev/go-topology-suite/simplify	44.395s
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/geojson
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	   68919	     15739 ns/op	   12880 B/op	     140 allocs/op
+BenchmarkMarshal/n=64-8         	   79984	     15122 ns/op	   12880 B/op	     140 allocs/op
+BenchmarkMarshal/n=64-8         	   72697	     15252 ns/op	   12880 B/op	     140 allocs/op
+BenchmarkMarshal/n=64-8         	   63379	     19896 ns/op	   12880 B/op	     140 allocs/op
+BenchmarkMarshal/n=64-8         	   60475	     20400 ns/op	   12880 B/op	     140 allocs/op
+BenchmarkMarshal/n=64-8         	   61554	     18677 ns/op	   12880 B/op	     140 allocs/op
+BenchmarkMarshal/n=1024-8       	    5594	    180220 ns/op	  243154 B/op	    2069 allocs/op
+BenchmarkMarshal/n=1024-8       	    7030	    172598 ns/op	  243154 B/op	    2069 allocs/op
+BenchmarkMarshal/n=1024-8       	    6872	    191706 ns/op	  243155 B/op	    2069 allocs/op
+BenchmarkMarshal/n=1024-8       	    7111	    171324 ns/op	  243154 B/op	    2069 allocs/op
+BenchmarkMarshal/n=1024-8       	    7039	    170346 ns/op	  243154 B/op	    2069 allocs/op
+BenchmarkMarshal/n=1024-8       	    7093	    194661 ns/op	  243154 B/op	    2069 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17737	     68565 ns/op	   45920 B/op	    1012 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17839	     67582 ns/op	   45920 B/op	    1012 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17664	     66773 ns/op	   45920 B/op	    1012 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   18056	     67147 ns/op	   45920 B/op	    1012 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17888	     67035 ns/op	   45920 B/op	    1012 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17978	     66419 ns/op	   45920 B/op	    1012 allocs/op
+BenchmarkUnmarshal/n=64-8                	   17725	     67934 ns/op	   28784 B/op	     434 allocs/op
+BenchmarkUnmarshal/n=64-8                	   17614	     68269 ns/op	   28784 B/op	     434 allocs/op
+BenchmarkUnmarshal/n=64-8                	   17568	     68258 ns/op	   28784 B/op	     434 allocs/op
+BenchmarkUnmarshal/n=64-8                	   17659	     68378 ns/op	   28784 B/op	     434 allocs/op
+BenchmarkUnmarshal/n=64-8                	   17540	     68439 ns/op	   28784 B/op	     434 allocs/op
+BenchmarkUnmarshal/n=64-8                	   17384	     68719 ns/op	   28784 B/op	     434 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    1068	   1082297 ns/op	  433907 B/op	    6198 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    1204	   1003744 ns/op	  433907 B/op	    6198 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    1183	    993296 ns/op	  433906 B/op	    6198 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    1215	   1000813 ns/op	  433907 B/op	    6198 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    1198	    999976 ns/op	  433907 B/op	    6198 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    1198	    999336 ns/op	  433906 B/op	    6198 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	    2814	    422085 ns/op	  259233 B/op	    5533 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	    2830	    421246 ns/op	  259233 B/op	    5533 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	    2834	    419929 ns/op	  259234 B/op	    5533 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	    2860	    418819 ns/op	  259233 B/op	    5533 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	    2848	    419375 ns/op	  259233 B/op	    5533 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	    2863	    421974 ns/op	  259234 B/op	    5533 allocs/op
+PASS
+ok  	github.com/exergy-dev/go-topology-suite/geojson	54.369s
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/prepare
+cpu: Apple M3
+BenchmarkPolygonBuild/n=64-8    	   31452	     39427 ns/op	   19520 B/op	      51 allocs/op
+BenchmarkPolygonBuild/n=1024-8  	    7971	    149463 ns/op	  149312 B/op	     148 allocs/op
+BenchmarkPolygonBuild/n=8192-8  	     567	   2121233 ns/op	 1194526 B/op	    1152 allocs/op
+BenchmarkPreparedIntersects/n=1024-8         	 1000000	      1067 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/prepare
+cpu: Apple M3
+BenchmarkPolygonBuild/n=64-8    	   27506	     43300 ns/op	   19520 B/op	      51 allocs/op
+BenchmarkPolygonBuild/n=1024-8  	    5856	    185004 ns/op	  149313 B/op	     148 allocs/op
+BenchmarkPolygonBuild/n=8192-8  	     434	   2697455 ns/op	 1194524 B/op	    1152 allocs/op
+BenchmarkPreparedIntersects/n=1024-8         	  966302	      1160 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/prepare
+cpu: Apple M3
+BenchmarkPolygonBuild/n=64-8    	   26088	     47056 ns/op	   19520 B/op	      51 allocs/op
+BenchmarkPolygonBuild/n=1024-8  	    8569	    127110 ns/op	  149313 B/op	     148 allocs/op
+BenchmarkPolygonBuild/n=8192-8  	     679	   1693499 ns/op	 1194530 B/op	    1152 allocs/op
+BenchmarkPreparedIntersects/n=1024-8         	 1325157	       881.0 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/prepare
+cpu: Apple M3
+BenchmarkPolygonBuild/n=64-8    	   35121	     32788 ns/op	   19520 B/op	      51 allocs/op
+BenchmarkPolygonBuild/n=1024-8  	    9025	    125382 ns/op	  149313 B/op	     148 allocs/op
+BenchmarkPolygonBuild/n=8192-8  	     722	   1646238 ns/op	 1194527 B/op	    1152 allocs/op
+BenchmarkPreparedIntersects/n=1024-8         	 1427324	       842.0 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/prepare
+cpu: Apple M3
+BenchmarkPolygonBuild/n=64-8    	   35121	     37602 ns/op	   19520 B/op	      51 allocs/op
+BenchmarkPolygonBuild/n=1024-8  	    8498	    151188 ns/op	  149313 B/op	     148 allocs/op
+BenchmarkPolygonBuild/n=8192-8  	     608	   1689485 ns/op	 1194526 B/op	    1152 allocs/op
+BenchmarkPreparedIntersects/n=1024-8         	 1312755	       917.5 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/prepare
+cpu: Apple M3
+BenchmarkPolygonBuild/n=64-8    	   36330	     33774 ns/op	   19520 B/op	      51 allocs/op
+BenchmarkPolygonBuild/n=1024-8  	    8671	    131123 ns/op	  149313 B/op	     148 allocs/op
+BenchmarkPolygonBuild/n=8192-8  	     699	   1694510 ns/op	 1194526 B/op	    1152 allocs/op
+BenchmarkPreparedIntersects/n=1024-8         	 1287435	       922.5 ns/op	       0 B/op	       0 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/wkt
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	  104031	     11879 ns/op	   11568 B/op	     142 allocs/op
+BenchmarkMarshal/n=1024-8       	    6614	    178709 ns/op	  203570 B/op	    2071 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17077	     71007 ns/op	   41912 B/op	    1013 allocs/op
+BenchmarkUnmarshal/n=64-8                	   76273	     15698 ns/op	    9056 B/op	      78 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    5041	    239252 ns/op	  135905 B/op	    1043 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	   20251	     58310 ns/op	   51024 B/op	    1210 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/wkt
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	  102099	     12912 ns/op	   11568 B/op	     142 allocs/op
+BenchmarkMarshal/n=1024-8       	    6462	    200523 ns/op	  203569 B/op	    2071 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   16965	     69546 ns/op	   41912 B/op	    1013 allocs/op
+BenchmarkUnmarshal/n=64-8                	   77292	     15407 ns/op	    9056 B/op	      78 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    5151	    235848 ns/op	  135906 B/op	    1043 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	   20197	     58532 ns/op	   51024 B/op	    1210 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/wkt
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	   92817	     11805 ns/op	   11568 B/op	     142 allocs/op
+BenchmarkMarshal/n=1024-8       	    6764	    172927 ns/op	  203570 B/op	    2071 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17284	     74168 ns/op	   41912 B/op	    1013 allocs/op
+BenchmarkUnmarshal/n=64-8                	   75073	     16205 ns/op	    9056 B/op	      78 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    5052	    258802 ns/op	  135906 B/op	    1043 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	   20442	     59073 ns/op	   51024 B/op	    1210 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/wkt
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	  107836	     11181 ns/op	   11568 B/op	     142 allocs/op
+BenchmarkMarshal/n=1024-8       	    7041	    171089 ns/op	  203572 B/op	    2071 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17790	     67290 ns/op	   41912 B/op	    1013 allocs/op
+BenchmarkUnmarshal/n=64-8                	   78584	     15241 ns/op	    9056 B/op	      78 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    5127	    237079 ns/op	  135905 B/op	    1043 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	   19902	     58528 ns/op	   51024 B/op	    1210 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/wkt
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	  107182	     11567 ns/op	   11568 B/op	     142 allocs/op
+BenchmarkMarshal/n=1024-8       	    6811	    174958 ns/op	  203570 B/op	    2071 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17472	     67706 ns/op	   41912 B/op	    1013 allocs/op
+BenchmarkUnmarshal/n=64-8                	   78330	     15405 ns/op	    9056 B/op	      78 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    5197	    247071 ns/op	  135906 B/op	    1043 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	   18987	     63217 ns/op	   51024 B/op	    1210 allocs/op
+PASS
+goos: darwin
+goarch: arm64
+pkg: github.com/exergy-dev/go-topology-suite/wkt
+cpu: Apple M3
+BenchmarkMarshal/n=64-8         	  107296	     11182 ns/op	   11568 B/op	     142 allocs/op
+BenchmarkMarshal/n=1024-8       	    7003	    170605 ns/op	  203570 B/op	    2071 allocs/op
+BenchmarkMarshal/multipoly=100-8         	   17737	     67329 ns/op	   41912 B/op	    1013 allocs/op
+BenchmarkUnmarshal/n=64-8                	   78649	     15293 ns/op	    9056 B/op	      78 allocs/op
+BenchmarkUnmarshal/n=1024-8              	    5101	    233033 ns/op	  135906 B/op	    1043 allocs/op
+BenchmarkUnmarshal/multipoly=100-8       	   20608	     58170 ns/op	   51024 B/op	    1210 allocs/op
+PASS
