@@ -2,10 +2,15 @@ package prepare
 
 import "github.com/exergy-dev/go-topology-suite/geom"
 
-const segTreeCap = 16
+const segTreeCap = 8
 
 // seg is one directed boundary edge a -> b.
-type seg struct{ a, b geom.XY }
+type seg struct {
+	a, b geom.XY
+	env  geom.Envelope
+}
+
+func newSeg(a, b geom.XY) seg { return seg{a, b, geom.SegmentEnvelope(a, b)} }
 
 // segTree is a static, sort-free packed R-tree over an edge sequence.
 // Consecutive edges (which are spatially coherent within a ring) form
@@ -39,9 +44,9 @@ func newSegTree(segs []seg) *segTree {
 	bi := 0
 	for s := 0; s < n; s += segTreeCap {
 		e := min(s+segTreeCap, n)
-		env := geom.SegmentEnvelope(segs[s].a, segs[s].b)
+		env := segs[s].env
 		for i := s + 1; i < e; i++ {
-			env = env.ExpandToInclude(geom.SegmentEnvelope(segs[i].a, segs[i].b))
+			env = env.ExpandToInclude(segs[i].env)
 		}
 		t.bounds[bi] = env
 		bi++
@@ -81,7 +86,7 @@ func (t *segTree) node(q geom.Envelope, level, idx int, fn func(*seg) bool) bool
 		ce := min(cs+segTreeCap, len(t.segs))
 		for i := cs; i < ce; i++ {
 			s := &t.segs[i]
-			if q.Intersects(geom.SegmentEnvelope(s.a, s.b)) {
+			if q.Intersects(s.env) {
 				if !fn(s) {
 					return false
 				}

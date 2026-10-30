@@ -57,7 +57,7 @@ func Polygon(p *geom.Polygon) *PreparedPolygon {
 	segs := make([]seg, 0, totalEdges)
 	for _, ring := range pp.rings {
 		for vi := 0; vi+1 < len(ring); vi++ {
-			segs = append(segs, seg{ring[vi], ring[vi+1]})
+			segs = append(segs, newSeg(ring[vi], ring[vi+1]))
 		}
 	}
 	pp.tree = newSegTree(segs)

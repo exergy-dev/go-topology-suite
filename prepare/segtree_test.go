@@ -13,10 +13,10 @@ func TestSegTreeMatchesBruteForce(t *testing.T) {
 		coord := rapid.Float64Range(-50, 50)
 		segs := make([]seg, n)
 		for i := range segs {
-			segs[i] = seg{
+			segs[i] = newSeg(
 				geom.XY{X: coord.Draw(t, "ax"), Y: coord.Draw(t, "ay")},
 				geom.XY{X: coord.Draw(t, "bx"), Y: coord.Draw(t, "by")},
-			}
+			)
 		}
 		tr := newSegTree(segs)
 		for k := 0; k < 10; k++ {
