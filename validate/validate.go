@@ -3,11 +3,13 @@ package validate
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	gts "github.com/exergy-dev/go-topology-suite"
 	"github.com/exergy-dev/go-topology-suite/geom"
 	"github.com/exergy-dev/go-topology-suite/internal/geomath"
+	"github.com/exergy-dev/go-topology-suite/internal/noding"
 	"github.com/exergy-dev/go-topology-suite/kernel"
 	"github.com/exergy-dev/go-topology-suite/kernel/planar"
 )
@@ -793,28 +795,103 @@ func ringSelfIntersection(ring []geom.XY) (geom.XY, bool) {
 			seen[collapsed[i]] = i
 		}
 	}
-	k := planar.Kernel{}
+	if n-1 < indexedRingMinSegments {
+		return ringSelfIntersectionBrute(collapsed)
+	}
+	return ringSelfIntersectionIndexed(collapsed)
+}
+
+// indexedRingMinSegments is the segment count below which the quadratic
+// scan beats building monotone chains.
+const indexedRingMinSegments = 32
+
+// ringPairIntersects applies the per-pair predicate shared by both
+// implementations; i < j and j >= i+2 are required by the caller.
+func ringPairIntersects(c []geom.XY, i, j int) (geom.XY, bool) {
+	n := len(c)
+	// Skip the wraparound consecutive pair: edge (n-2, n-1)
+	// shares its endpoint ring[n-1]=ring[0] with edge (0, 1).
+	if i == 0 && j+1 == n-1 {
+		return geom.XY{}, false
+	}
+	ix := planar.Kernel{}.SegmentIntersect(c[i], c[i+1], c[j], c[j+1])
+	switch ix.Kind {
+	case kernel.PointIntersection, kernel.CollinearOverlap:
+		return ix.P, true
+	}
+	return geom.XY{}, false
+}
+
+// ringSelfIntersectionBrute is the all-pairs reference scan.
+func ringSelfIntersectionBrute(collapsed []geom.XY) (geom.XY, bool) {
+	n := len(collapsed)
 	for i := 0; i+1 < n; i++ {
-		a1, a2 := collapsed[i], collapsed[i+1]
 		for j := i + 2; j+1 < n; j++ {
-			// Skip the wraparound consecutive pair: edge (n-2, n-1)
-			// shares its endpoint ring[n-1]=ring[0] with edge (0, 1).
-			if i == 0 && j+1 == n-1 {
-				continue
-			}
-			b1, b2 := collapsed[j], collapsed[j+1]
-			ix := k.SegmentIntersect(a1, a2, b1, b2)
-			switch ix.Kind {
-			case kernel.PointIntersection:
-				return ix.P, true
-			case kernel.CollinearOverlap:
-				return ix.P, true
-			default:
-				continue
+			if p, ok := ringPairIntersects(collapsed, i, j); ok {
+				return p, true
 			}
 		}
 	}
 	return geom.XY{}, false
+}
+
+// ringSelfIntersectionIndexed finds candidate segment pairs via monotone
+// chains and a sweep over chain envelopes, then reports the intersecting
+// pair with the lexicographically smallest (i, j), matching the brute
+// force scan exactly.
+func ringSelfIntersectionIndexed(collapsed []geom.XY) (geom.XY, bool) {
+	chains := noding.BuildMonotoneChains(&noding.SegmentString{Coords: collapsed})
+	type ce struct {
+		c                      *noding.MonotoneChain
+		minX, maxX, minY, maxY float64
+	}
+	es := make([]ce, len(chains))
+	for i, c := range chains {
+		a, b := collapsed[c.Start], collapsed[c.End]
+		es[i] = ce{c, math.Min(a.X, b.X), math.Max(a.X, b.X), math.Min(a.Y, b.Y), math.Max(a.Y, b.Y)}
+	}
+	// The pair predicate is evaluated in floating point and can report
+	// contact for pairs whose envelopes miss by a few ULPs, so the
+	// envelope filters are padded by a tiny extent-relative tolerance.
+	ext := 0.0
+	for _, q := range collapsed {
+		ext = math.Max(ext, math.Max(math.Abs(q.X), math.Abs(q.Y)))
+	}
+	tol := ext * 1e-9
+	sort.Slice(es, func(i, j int) bool { return es[i].minX < es[j].minX })
+	bestI, bestJ := -1, -1
+	var bestP geom.XY
+	visit := func(_ *noding.MonotoneChain, s1 int, _ *noding.MonotoneChain, s2 int) {
+		i, j := s1, s2
+		if i > j {
+			i, j = j, i
+		}
+		if j < i+2 {
+			return
+		}
+		if bestI >= 0 && (i > bestI || (i == bestI && j >= bestJ)) {
+			return
+		}
+		if p, ok := ringPairIntersects(collapsed, i, j); ok {
+			bestI, bestJ, bestP = i, j, p
+		}
+	}
+	for a := range es {
+		// Segments within one monotone chain cannot meet in exact
+		// arithmetic, but the floating-point predicate can disagree for
+		// near-collinear runs, so self-overlap each chain too (cheap:
+		// only adjacent sub-ranges touch).
+		if es[a].c.NumSegments() > 2 {
+			es[a].c.ComputeOverlaps(es[a].c, tol, visit)
+		}
+		for b := a + 1; b < len(es) && es[b].minX <= es[a].maxX+tol; b++ {
+			if es[b].minY > es[a].maxY+tol || es[b].maxY < es[a].minY-tol {
+				continue
+			}
+			es[a].c.ComputeOverlaps(es[b].c, tol, visit)
+		}
+	}
+	return bestP, bestI >= 0
 }
 
 func collapseConsecutiveDuplicates(ring []geom.XY) []geom.XY {
