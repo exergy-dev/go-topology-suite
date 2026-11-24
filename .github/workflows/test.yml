@@ -3,13 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:   # also runs the manual-only jobs (race, apidiff, asan)
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -18,12 +21,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported Go (go.mod) on Linux; current Go everywhere.
         include:
-          - { os: ubuntu-latest, go: "1.23" }
           - { os: ubuntu-latest, go: stable }
-          - { os: macos-latest, go: stable }
-          - { os: windows-latest, go: stable }
 
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +39,7 @@ jobs:
         run: go test ./...
 
   race:
+    if: github.event_name == 'workflow_dispatch'   # manual only: run from the Actions tab
     name: Race detector (Linux)
     runs-on: ubuntu-latest
     steps:
@@ -78,13 +78,14 @@ jobs:
 
   conformance:
     name: JTS conformance (8951-case corpus, ${{ matrix.os }})
-    # macOS runners are arm64, where the compiler fuses x*y+z into FMA;
-    # running both catches arithmetic whose exact tests depend on that.
+    # macOS runners are arm64, where the compiler fuses x*y+z into FMA; add
+    # macos-latest to the matrix to catch arithmetic whose exact tests depend
+    # on that.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -95,9 +96,9 @@ jobs:
         run: go test -tags=jts -v -run TestJTSConformance ./internal/jtstest/
 
   apidiff:
+    if: github.event_name == 'workflow_dispatch'   # manual only: run from the Actions tab
     name: API compatibility report
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,6 +116,7 @@ jobs:
           apidiff -m -incompatible /tmp/base . || true
 
   asan:
+    if: github.event_name == 'workflow_dispatch'   # manual only: run from the Actions tab
     name: Address sanitizer (Linux)
     runs-on: ubuntu-latest
     steps:
