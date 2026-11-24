@@ -21,8 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { os: ubuntu-latest, go: stable }
+        # Pushes and pull requests run current Go on Linux; a manual run
+        # (workflow_dispatch) adds the oldest supported Go (go.mod), macOS
+        # and Windows.
+        include: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '[{"os":"ubuntu-latest","go":"stable"},{"os":"ubuntu-latest","go":"1.23"},{"os":"macos-latest","go":"stable"},{"os":"windows-latest","go":"stable"}]' || '[{"os":"ubuntu-latest","go":"stable"}]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -78,14 +80,14 @@ jobs:
 
   conformance:
     name: JTS conformance (8951-case corpus, ${{ matrix.os }})
-    # macOS runners are arm64, where the compiler fuses x*y+z into FMA; add
-    # macos-latest to the matrix to catch arithmetic whose exact tests depend
-    # on that.
+    # macOS runners are arm64, where the compiler fuses x*y+z into FMA;
+    # a manual run (workflow_dispatch) adds macOS to catch arithmetic whose
+    # exact tests depend on that.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
